@@ -112,30 +112,30 @@ export default function Onboarding() {
               >
                 <GoalOption 
                   value="1" 
-                  title="Aggressive" 
-                  desc="Sugar Fast • Preseason Only • 0g Protein" 
+                  title="Fire" 
+                  desc="Body Comp Phase • Fat Loss without Performance Sacrifice" 
                   icon={Flame} 
                   isDestructive
                   recommended={profile.currentWeight > profile.targetWeightClass * 1.07}
                 />
                 <GoalOption 
                   value="2" 
-                  title="Standard" 
-                  desc="Active Cutting • Moderate Deficit • Fuel Timing" 
+                  title="Focus" 
+                  desc="Make Weight Phase • Active Competition Week Cut" 
                   icon={Zap} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.07 && profile.currentWeight > profile.targetWeightClass * 1.03}
                 />
                 <GoalOption 
                   value="3" 
-                  title="Maintenance" 
-                  desc="Hold Weight • Peak Performance • No Deficit" 
+                  title="Anchor" 
+                  desc="Hold Weight Phase • Stay at Class • Train Hard" 
                   icon={Trophy} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.03 && profile.currentWeight >= profile.targetWeightClass}
                 />
                 <GoalOption 
                   value="4" 
-                  title="Growth" 
-                  desc="Hypertrophy • Off-Season / Moving Up" 
+                  title="Build" 
+                  desc="Recovery / Build Phase • Post-season / Off-season" 
                   icon={Dumbbell} 
                   recommended={profile.targetWeightClass > profile.currentWeight}
                 />

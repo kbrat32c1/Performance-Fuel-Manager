@@ -427,25 +427,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let warning = undefined;
 
     // Protocol Specific Focus Actions
-    if (protocol === '1') { // Sugar Fast
-       title = "Today's Mission: Aggressive Cut";
-       actions.push("⚠️ EXECUTE EXTREME FAT LOSS");
+    if (protocol === '1') { // Fire (Was Aggressive)
+       title = "Today's Mission: Fire";
+       actions.push("⚠️ EXECUTE BODY COMP PHASE");
        actions.push(`Hit Protein Target: ${fuel.protein || '0g'}`);
        actions.push(`Hit Carb Target: ${fuel.carbs || 'High'}`);
        if (phase === 'metabolic') actions.push("Maximize FGF21 (Strict No Protein)");
        if (phase === 'performance-prep') actions.push("Reintroduce Protein Evening (0.2g/lb)");
-    } else if (protocol === '2') { // Fat Loss
-       title = "Today's Mission: Standard Cut";
+    } else if (protocol === '2') { // Focus (Was Standard)
+       title = "Today's Mission: Focus";
        actions.push(`Hit Protein Target: ${fuel.protein}`);
        actions.push(`Hit Carb Target: ${fuel.carbs}`);
        if (phase === 'metabolic') actions.push("Maximize Fat Oxidation (Keep Protein Low)");
        if (phase === 'transition') actions.push("Switch to Glucose/Starch + Seafood");
-    } else if (protocol === '3') { // Maintain
-       title = "Today's Mission: Maintenance";
+    } else if (protocol === '3') { // Anchor (Was Maintain)
+       title = "Today's Mission: Anchor";
        actions.push("Focus on Performance & Recovery");
        actions.push(`Hit Protein Target: ${fuel.protein}`);
-    } else if (protocol === '4') { // Hypertrophy
-       title = "Today's Mission: Growth";
+    } else if (protocol === '4') { // Build (Was Growth)
+       title = "Today's Mission: Build";
        actions.push("Focus on Muscle Growth & Weight Gain");
        actions.push(`Hit Protein Target: ${fuel.protein}`);
        actions.push(`Hit Carb Target: ${fuel.carbs}`);
