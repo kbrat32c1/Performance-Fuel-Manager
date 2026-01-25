@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
-import { addDays, subDays, differenceInDays, getDay } from 'date-fns';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { addDays, subDays, differenceInDays, getDay, parseISO } from 'date-fns';
 
 // Types
 export type Protocol = '1' | '2' | '3' | '4'; 
@@ -27,6 +27,7 @@ export interface AthleteProfile {
   weighInDate: Date;
   matchDate: Date;
   experienceLevel: 'novice' | 'intermediate' | 'advanced';
+  guidanceLevel: 'beginner' | 'intermediate' | 'advanced';
   hasSaunaAccess: boolean;
   protocol: Protocol;
   status: Status;
@@ -37,7 +38,7 @@ export interface WeightLog {
   id: string;
   date: Date;
   weight: number;
-  type: 'morning' | 'post-practice';
+  type: 'morning' | 'pre-practice' | 'post-practice';
   urineColor?: number; // 1-8
   notes?: string;
 }
@@ -68,6 +69,7 @@ const defaultProfile: AthleteProfile = {
   weighInDate: addDays(new Date(), 5), // 5 days out
   matchDate: addDays(new Date(), 5),
   experienceLevel: 'intermediate',
+  guidanceLevel: 'intermediate',
   hasSaunaAccess: true,
   protocol: '2', // Default to Fat Loss Focus
   status: 'on-track',
@@ -85,12 +87,60 @@ const defaultTanks: FuelTanks = {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfile] = useState<AthleteProfile>(defaultProfile);
-  const [fuelTanks, setFuelTanks] = useState<FuelTanks>(defaultTanks);
-  const [logs, setLogs] = useState<WeightLog[]>([
-    { id: '1', date: subDays(new Date(), 1), weight: 169.2, type: 'morning', urineColor: 2 },
-    { id: '2', date: subDays(new Date(), 2), weight: 170.1, type: 'morning', urineColor: 3 },
-  ]);
+  // Initialize from LocalStorage
+  const [profile, setProfile] = useState<AthleteProfile>(() => {
+    const saved = localStorage.getItem('pwm-profile');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          weighInDate: new Date(parsed.weighInDate),
+          matchDate: new Date(parsed.matchDate)
+        };
+      } catch (e) {
+        console.error("Failed to parse profile", e);
+      }
+    }
+    return defaultProfile;
+  });
+
+  const [fuelTanks, setFuelTanks] = useState<FuelTanks>(() => {
+    const saved = localStorage.getItem('pwm-tanks');
+    return saved ? JSON.parse(saved) : defaultTanks;
+  });
+
+  const [logs, setLogs] = useState<WeightLog[]>(() => {
+    const saved = localStorage.getItem('pwm-logs');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.map((log: any) => ({
+          ...log,
+          date: new Date(log.date)
+        }));
+      } catch (e) {
+         console.error("Failed to parse logs", e);
+      }
+    }
+    return [
+      { id: '1', date: subDays(new Date(), 1), weight: 169.2, type: 'morning', urineColor: 2 },
+      { id: '2', date: subDays(new Date(), 2), weight: 170.1, type: 'morning', urineColor: 3 },
+    ];
+  });
+
+  // Persistence Effects
+  useEffect(() => {
+    localStorage.setItem('pwm-profile', JSON.stringify(profile));
+  }, [profile]);
+
+  useEffect(() => {
+    localStorage.setItem('pwm-tanks', JSON.stringify(fuelTanks));
+  }, [fuelTanks]);
+
+  useEffect(() => {
+    localStorage.setItem('pwm-logs', JSON.stringify(logs));
+  }, [logs]);
 
   const updateProfile = (updates: Partial<AthleteProfile>) => {
     setProfile(prev => ({ ...prev, ...updates }));
@@ -100,11 +150,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const newLog = { ...log, id: Math.random().toString(36).substr(2, 9) };
     setLogs(prev => [newLog, ...prev]);
     
-    // Mock Auto-adjustment logic
+    // Auto-adjustment logic
+    const target = calculateTarget();
     setProfile(prev => ({
       ...prev,
       currentWeight: log.weight,
-      status: log.weight <= calculateTarget() + 1 ? 'on-track' : 'borderline'
+      status: log.weight <= target + 1 ? 'on-track' : 'borderline'
     }));
   };
 
@@ -112,6 +163,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setProfile(defaultProfile);
     setFuelTanks(defaultTanks);
     setLogs([]);
+    localStorage.clear();
   };
 
   const calculateTarget = () => {
