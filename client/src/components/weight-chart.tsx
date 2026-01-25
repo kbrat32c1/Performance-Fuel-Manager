@@ -25,15 +25,20 @@ export function WeightChart() {
              
     // Calculate Target Line for this specific day
     // Simple linear descent from "Monday Baseline" to "Weigh-in Target"
-    // Mocking Monday Baseline as Target * 1.07 (7% over)
+    // Baseline is taken from profile.currentWeight if it's Monday, else we calculate back
     const daysFromStart = differenceInDays(day, start);
     const totalDays = 5; // Mon-Fri cut
-    const startWeight = profile.targetWeightClass * 1.07;
+    const startWeight = profile.currentWeight; // Use user's actual weight as anchor
     const endWeight = profile.targetWeightClass;
     
     let target = null;
     if (daysFromStart <= 5) {
-        target = startWeight - ((startWeight - endWeight) * (daysFromStart / totalDays));
+        // Only show target line if we are descending
+        if (startWeight > endWeight) {
+             target = startWeight - ((startWeight - endWeight) * (daysFromStart / totalDays));
+        } else {
+             target = endWeight; // Flat line if already under
+        }
     } else {
         target = endWeight; // Post-weigh-in flatline
     }

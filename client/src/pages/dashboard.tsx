@@ -3,10 +3,10 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Ban, Utensils, Settings, Megaphone, Calendar, ArrowRight, ChevronDown, ChevronUp, Scale, Clock, Info, Target } from "lucide-react";
+import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Ban, Utensils, Settings, Megaphone, Calendar, ArrowRight, ChevronDown, ChevronUp, Scale, Clock, Info, Target, Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,17 @@ export default function Dashboard() {
   const diff = profile.currentWeight - targetWeight;
   const isOver = diff > 0;
   
+  // Hydration Tracking State
+  const hydration = getHydrationTarget();
+  // Parse target from string (e.g. "1.5 gal" or "100-115 oz") - very rough logic for prototype
+  // Assuming simpler display for tracking
+  const [loggedWater, setLoggedWater] = useState(0); 
+  // Reset logged water daily (mock)
+  useEffect(() => { setLoggedWater(0); }, [profile.simulatedDate]);
+  
+  const targetWaterOz = 128; // Default to 1 gal for visualization if not parsed
+  const hydrationPercent = Math.min(100, (loggedWater / targetWaterOz) * 100);
+
   const phase = getPhase();
   const displayDate = profile.simulatedDate || new Date();
   
@@ -31,7 +42,6 @@ export default function Dashboard() {
   }
 
   const focus = getTodaysFocus();
-  const hydration = getHydrationTarget();
   const fuel = getFuelingGuide();
   const checkpoints = getCheckpoints();
   const coach = getCoachMessage();
@@ -65,7 +75,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-heading font-bold uppercase italic flex flex-col">
             <span>Hi, {profile.name}</span>
             <span className="text-xs text-primary not-italic font-sans font-medium opacity-80 mt-0.5">
-               {profile.protocol === '1' ? 'Track A' : profile.protocol === '2' ? 'Track B' : profile.protocol === '3' ? 'Maintenance' : 'Growth'} • {phase.replace('-', ' ')}
+               {profile.protocol === '1' ? 'Track A' : profile.protocol === '2' ? 'Track B' : profile.protocol === '3' ? 'Track C' : 'Track D'} • {phase.replace('-', ' ')}
             </span>
           </h1>
         </div>
@@ -108,15 +118,28 @@ export default function Dashboard() {
              </CardContent>
            </Card>
 
-           {/* Hydration Card */}
+           {/* Hydration Tracker Card */}
            <Card className="bg-cyan-500/5 border-cyan-500/20 flex flex-col justify-between relative overflow-hidden">
-              <CardContent className="p-4 pt-5">
+              <CardContent className="p-4 pt-4 pb-3">
                  <div className="flex justify-between items-start mb-2">
                     <span className="text-[10px] text-cyan-500 uppercase font-bold tracking-wider">Hydration</span>
-                    <Droplets className="w-4 h-4 text-cyan-500" />
+                    <div className="text-[10px] font-mono font-bold text-foreground">{hydration.amount}</div>
                  </div>
-                 <div className="text-2xl font-mono font-bold text-foreground">{hydration.amount}</div>
-                 <div className="text-[10px] text-muted-foreground leading-tight mt-1">{hydration.note}</div>
+                 
+                 {/* Progress Bar */}
+                 <div className="h-2 w-full bg-cyan-950/30 rounded-full overflow-hidden mb-3">
+                    <div className="h-full bg-cyan-500 transition-all duration-500" style={{ width: `${hydrationPercent}%` }} />
+                 </div>
+
+                 <div className="flex justify-between gap-2">
+                    <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400" onClick={() => setLoggedWater(Math.max(0, loggedWater - 8))}>
+                       <Minus className="w-3 h-3" />
+                    </Button>
+                    <div className="text-xs font-mono font-bold pt-1">{loggedWater} oz</div>
+                    <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400" onClick={() => setLoggedWater(loggedWater + 8)}>
+                       <Plus className="w-3 h-3 mr-1" /> 8oz
+                    </Button>
+                 </div>
               </CardContent>
            </Card>
         </div>

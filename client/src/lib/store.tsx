@@ -619,8 +619,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     return {
-        overnight: overnightCount > 0 ? (overnightSum / overnightCount) : -1.2, // Default fallback
-        session: sessionCount > 0 ? (sessionSum / sessionCount) : -2.5 // Default fallback
+        overnight: overnightCount > 0 ? (overnightSum / overnightCount) : null, 
+        session: sessionCount > 0 ? (sessionSum / sessionCount) : null
     };
   };
 

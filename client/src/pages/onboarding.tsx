@@ -96,30 +96,30 @@ export default function Onboarding() {
               >
                 <GoalOption 
                   value="1" 
-                  title="Protocol 1: Sugar Fast" 
-                  desc="Extreme Fat Loss • Preseason Only • 0g Protein" 
+                  title="Track A: Aggressive" 
+                  desc="Sugar Fast • Preseason Only • 0g Protein" 
                   icon={Flame} 
                   isDestructive
                   recommended={profile.currentWeight > profile.targetWeightClass * 1.07}
                 />
                 <GoalOption 
                   value="2" 
-                  title="Protocol 2: Fat Loss Focus" 
-                  desc="Standard In-Season • Fructose Early • Glucose Late" 
+                  title="Track B: Standard" 
+                  desc="In-Season Focus • Fructose Early • Glucose Late" 
                   icon={Zap} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.07 && profile.currentWeight > profile.targetWeightClass * 1.03}
                 />
                 <GoalOption 
                   value="3" 
-                  title="Protocol 3: Maintenance" 
+                  title="Track C: Maintenance" 
                   desc="Performance Mode • Lean Athletes Only" 
                   icon={Trophy} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.03 && profile.currentWeight >= profile.targetWeightClass}
                 />
                 <GoalOption 
                   value="4" 
-                  title="Protocol 4: Hypertrophy" 
-                  desc="Weight Gain • Off-Season / Moving Up" 
+                  title="Track D: Growth" 
+                  desc="Hypertrophy • Off-Season / Moving Up" 
                   icon={Dumbbell} 
                   recommended={profile.targetWeightClass > profile.currentWeight}
                 />
