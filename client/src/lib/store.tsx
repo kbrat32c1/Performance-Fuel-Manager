@@ -444,7 +444,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
        title = "Today's Mission: Hold Weight";
        actions.push("Focus on Performance & Recovery");
        actions.push(`Hit Protein Target: ${fuel.protein}`);
-    } else if (protocol === '4') { // Recovery / Build Phase
+    } else if (protocol === '4') { // Build Phase
        title = "Today's Mission: Build";
        actions.push("Focus on Muscle Growth & Weight Gain");
        actions.push(`Hit Protein Target: ${fuel.protein}`);

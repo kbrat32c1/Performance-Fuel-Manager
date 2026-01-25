@@ -134,7 +134,7 @@ export default function Onboarding() {
                 />
                 <GoalOption 
                   value="4" 
-                  title="Recovery / Build Phase" 
+                  title="Build Phase" 
                   desc="Post-season / Off-season" 
                   icon={Dumbbell} 
                   recommended={profile.targetWeightClass > profile.currentWeight}
