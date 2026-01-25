@@ -379,10 +379,10 @@ function QuickLogModal({ lastLog }: { lastLog?: any }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <div className="fixed bottom-20 right-4 left-4 z-40">
-           <Button className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90 animate-in slide-in-from-bottom-4 flex flex-col items-center justify-center gap-0 leading-tight py-1">
+        <div className="fixed bottom-20 right-6 left-6 z-40">
+           <Button className="w-full h-11 text-sm font-bold uppercase tracking-wider bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90 animate-in slide-in-from-bottom-4 flex flex-col items-center justify-center gap-0 leading-tight py-0.5">
              <span>+ Quick Log</span>
-             <span className="text-[10px] font-normal opacity-70 normal-case tracking-normal">{getMicroPrompt()}</span>
+             <span className="text-[9px] font-normal opacity-70 normal-case tracking-normal">{getMicroPrompt()}</span>
            </Button>
         </div>
       </DialogTrigger>
