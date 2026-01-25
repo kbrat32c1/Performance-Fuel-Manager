@@ -428,14 +428,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Protocol Specific Focus Actions
     if (protocol === '1') { // Sugar Fast
-       title = "Today's Mission: Track A";
+       title = "Today's Mission: Aggressive Cut";
        actions.push("⚠️ EXECUTE EXTREME FAT LOSS");
        actions.push(`Hit Protein Target: ${fuel.protein || '0g'}`);
        actions.push(`Hit Carb Target: ${fuel.carbs || 'High'}`);
        if (phase === 'metabolic') actions.push("Maximize FGF21 (Strict No Protein)");
        if (phase === 'performance-prep') actions.push("Reintroduce Protein Evening (0.2g/lb)");
     } else if (protocol === '2') { // Fat Loss
-       title = "Today's Mission: Track B";
+       title = "Today's Mission: Standard Cut";
        actions.push(`Hit Protein Target: ${fuel.protein}`);
        actions.push(`Hit Carb Target: ${fuel.carbs}`);
        if (phase === 'metabolic') actions.push("Maximize Fat Oxidation (Keep Protein Low)");

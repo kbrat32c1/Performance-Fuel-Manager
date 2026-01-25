@@ -75,7 +75,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-heading font-bold uppercase italic flex flex-col">
             <span>Hi, {profile.name}</span>
             <span className="text-xs text-primary not-italic font-sans font-medium opacity-80 mt-0.5">
-               {profile.protocol === '1' ? 'Track A' : profile.protocol === '2' ? 'Track B' : profile.protocol === '3' ? 'Track C' : 'Track D'} • {phase.replace('-', ' ')}
+               {profile.protocol === '1' ? 'Aggressive' : profile.protocol === '2' ? 'Standard' : profile.protocol === '3' ? 'Maintenance' : 'Growth'} • {phase.replace('-', ' ')}
             </span>
           </h1>
         </div>
@@ -277,21 +277,6 @@ export default function Dashboard() {
         {/* Weight Chart with Real Data */}
         <WeightChart />
 
-        {/* Coach Message (Secondary) */}
-        <div className={cn(
-            "rounded-lg p-3 border flex items-start gap-3 text-sm",
-            coach.status === 'danger' ? "bg-destructive/10 border-destructive text-destructive" :
-            coach.status === 'warning' ? "bg-orange-500/10 border-orange-500 text-orange-500" :
-            coach.status === 'success' ? "bg-green-500/10 border-green-500 text-green-500" :
-            "bg-blue-500/10 border-blue-500 text-blue-500"
-        )}>
-            <Megaphone className="w-4 h-4 shrink-0 mt-0.5" />
-            <div className="flex-1">
-                <h3 className="font-bold uppercase text-xs mb-0.5">{coach.title}</h3>
-                <p className="opacity-90 leading-snug text-xs">{coach.message}</p>
-            </div>
-        </div>
-
         {/* Quick Log Action */}
         <QuickLogModal lastLog={logs[0]} />
 
@@ -303,10 +288,30 @@ export default function Dashboard() {
 function CompactPhaseRibbon({ phase }: { phase: string }) {
     // 5-step compact ribbon
     const steps = [
-        { id: 'metabolic', label: 'Load', days: 'M-W' },
-        { id: 'transition', label: 'Cut', days: 'Thu' },
-        { id: 'performance-prep', label: 'Prep', days: 'Fri' },
-        { id: 'last-24h', label: 'Race', days: 'Sat' },
+        { id: 'metabolic', label: 'Load', days: 'M-W', content: [
+            "Front-load water intake (1.5-2.0 gal)",
+            "High sodium allowed to retain fluid",
+            "High volume food (veggies/fruit) permitted",
+            "Focus: Metabolic output & training intensity"
+        ]},
+        { id: 'transition', label: 'Cut', days: 'Thu', content: [
+            "ELIMINATE ALL FIBER (No veggies/fruit)",
+            "Switch to energy-dense carbs (Rice/Honey)",
+            "Switch to Distilled Water (Flush sodium)",
+            "Focus: Emptying the gut content"
+        ]},
+        { id: 'performance-prep', label: 'Prep', days: 'Fri', content: [
+            "Water: Sip to thirst only (No gulping)",
+            "Food: Very small portions, purely functional",
+            "Monitor weight drift hourly",
+            "Focus: Precision descent to target"
+        ]},
+        { id: 'last-24h', label: 'Race', days: 'Sat', content: [
+            "Post-Weigh-in: Immediate rehydration",
+            "Carb load with high GI sources",
+            "Moderate protein intake",
+            "Focus: Peak performance restoration"
+        ]},
     ];
 
     return (
@@ -330,9 +335,13 @@ function CompactPhaseRibbon({ phase }: { phase: string }) {
                             </DialogHeader>
                             <div className="py-2 text-sm">
                                 <p className="text-muted-foreground mb-4">Specific nutritional and training guidelines for the {step.label} phase.</p>
-                                {/* Placeholder for specific phase rules content */}
-                                <div className="p-3 bg-muted/30 rounded text-xs font-mono">
-                                    Tap-to-reveal rules would go here for {step.label} phase.
+                                <div className="bg-muted/30 rounded p-4 space-y-3">
+                                    {step.content.map((rule, i) => (
+                                        <div key={i} className="flex gap-3 text-sm">
+                                            <div className="min-w-[4px] w-[4px] h-[4px] mt-2 rounded-full bg-primary" />
+                                            <span className="text-foreground/90">{rule}</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         </DialogContent>

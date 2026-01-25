@@ -112,7 +112,7 @@ export default function Onboarding() {
               >
                 <GoalOption 
                   value="1" 
-                  title="Track A: Aggressive" 
+                  title="Aggressive" 
                   desc="Sugar Fast • Preseason Only • 0g Protein" 
                   icon={Flame} 
                   isDestructive
@@ -120,21 +120,21 @@ export default function Onboarding() {
                 />
                 <GoalOption 
                   value="2" 
-                  title="Track B: Standard" 
+                  title="Standard" 
                   desc="In-Season Focus • Fructose Early • Glucose Late" 
                   icon={Zap} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.07 && profile.currentWeight > profile.targetWeightClass * 1.03}
                 />
                 <GoalOption 
                   value="3" 
-                  title="Track C: Maintenance" 
+                  title="Maintenance" 
                   desc="Performance Mode • Lean Athletes Only" 
                   icon={Trophy} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.03 && profile.currentWeight >= profile.targetWeightClass}
                 />
                 <GoalOption 
                   value="4" 
-                  title="Track D: Growth" 
+                  title="Growth" 
                   desc="Hypertrophy • Off-Season / Moving Up" 
                   icon={Dumbbell} 
                   recommended={profile.targetWeightClass > profile.currentWeight}
