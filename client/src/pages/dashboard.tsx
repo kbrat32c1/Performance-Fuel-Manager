@@ -3,37 +3,41 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Ban, Utensils, Settings, Megaphone, Calendar, ArrowRight, ChevronDown, ChevronUp, Scale, Clock } from "lucide-react";
+import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Ban, Utensils, Settings, Megaphone, Calendar, ArrowRight, ChevronDown, ChevronUp, Scale, Clock, Info, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WeightChart } from "@/components/weight-chart";
+import { RecoveryTakeover } from "@/components/recovery-takeover";
 
 export default function Dashboard() {
-  const { profile, calculateTarget, fuelTanks, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage, getNextSteps, logs } = useStore();
+  const { profile, calculateTarget, fuelTanks, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage, getNextSteps, logs, getNextTarget, getDriftMetrics } = useStore();
   const targetWeight = calculateTarget();
   const diff = profile.currentWeight - targetWeight;
   const isOver = diff > 0;
   
-  // Status Logic
-  const statusColor = profile.status === 'on-track' ? 'text-primary' : profile.status === 'borderline' ? 'text-chart-3' : 'text-destructive';
-  
   const phase = getPhase();
-  // Using simulated date if active for display
   const displayDate = profile.simulatedDate || new Date();
   
+  // Weigh-in Day Takeover
+  if (phase === 'last-24h') {
+     return <RecoveryTakeover />;
+  }
+
   const focus = getTodaysFocus();
   const hydration = getHydrationTarget();
   const fuel = getFuelingGuide();
   const checkpoints = getCheckpoints();
   const coach = getCoachMessage();
   const nextSteps = getNextSteps();
+  const nextTarget = getNextTarget();
+  const drift = getDriftMetrics();
   
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   
@@ -43,23 +47,8 @@ export default function Dashboard() {
 
   return (
     <MobileLayout>
-      {/* Phase Ribbon */}
-      <div className="flex items-center justify-between bg-muted/20 border-b border-muted py-2 px-4 -mx-4 -mt-4 mb-4 text-[10px] uppercase font-bold tracking-widest text-muted-foreground overflow-x-auto whitespace-nowrap">
-          <div className={cn("flex items-center gap-1.5", phase === 'metabolic' && "text-primary")}>
-             <div className={cn("w-1.5 h-1.5 rounded-full", phase === 'metabolic' ? "bg-primary animate-pulse" : "bg-muted")} />
-             Mon-Wed: Load
-          </div>
-          <div className="text-muted/20 px-2">•</div>
-          <div className={cn("flex items-center gap-1.5", phase === 'transition' && "text-primary")}>
-             <div className={cn("w-1.5 h-1.5 rounded-full", phase === 'transition' ? "bg-primary animate-pulse" : "bg-muted")} />
-             Thu: Cut
-          </div>
-          <div className="text-muted/20 px-2">•</div>
-          <div className={cn("flex items-center gap-1.5", phase === 'performance-prep' && "text-primary")}>
-             <div className={cn("w-1.5 h-1.5 rounded-full", phase === 'performance-prep' ? "bg-primary animate-pulse" : "bg-muted")} />
-             Fri: Prep
-          </div>
-      </div>
+      {/* 1. COMPACT PHASE RIBBON */}
+      <CompactPhaseRibbon phase={phase} />
       
       {/* Demo Warning Banner */}
       {profile.simulatedDate && (
@@ -68,7 +57,7 @@ export default function Dashboard() {
           </div>
       )}
 
-      <header className="flex justify-between items-start mb-6">
+      <header className="flex justify-between items-start mb-4">
         <div>
           <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
             {format(displayDate, 'EEEE, MMM d')}
@@ -87,44 +76,23 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* 2. NEXT TARGET LINE */}
+      {nextTarget && (
+        <div className="bg-muted/20 border-y border-muted -mx-4 px-4 py-2 mb-4 flex items-center justify-between">
+           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+              <Target className="w-3.5 h-3.5 text-primary" />
+              <span>{nextTarget.label} Target: <span className="text-primary text-sm">{nextTarget.weight.toFixed(1)}</span></span>
+           </div>
+           <span className="text-[10px] text-muted-foreground hidden sm:inline-block">{nextTarget.description}</span>
+        </div>
+      )}
+
       <div className="space-y-6">
         
         {/* Weekly Timeline */}
         <WeeklyTimeline currentDay={displayDate.getDay()} />
 
-        {/* HERO CARD: Today's Focus */}
-        <Card className="border-l-4 border-l-primary bg-muted/5 shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-             <Flame className="w-24 h-24" />
-          </div>
-          <CardHeader className="pb-2 pt-5">
-             <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-               <Zap className="w-4 h-4 text-primary" /> Today's Mission
-             </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-5 relative z-10">
-            <h3 className="font-heading font-black italic text-2xl uppercase leading-none mb-4">{focus.title}</h3>
-            
-            <ul className="space-y-3">
-              {focus.actions.map((action, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <div className="mt-0.5 min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                    {i + 1}
-                  </div>
-                  <span className="font-medium text-sm leading-snug">{action}</span>
-                </li>
-              ))}
-            </ul>
-
-            {focus.warning && (
-               <div className="mt-4 flex items-center gap-2 text-destructive text-xs font-bold uppercase bg-destructive/10 p-2 rounded">
-                  <AlertTriangle className="w-4 h-4" /> {focus.warning}
-               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Status Section */}
+        {/* 3. STATUS SECTION (Now Top Priority) */}
         <div className="grid grid-cols-2 gap-4">
            {/* Current Weight Card */}
            <Card className="bg-card border-muted relative overflow-hidden flex flex-col justify-between">
@@ -153,43 +121,45 @@ export default function Dashboard() {
            </Card>
         </div>
 
-        {/* NEW CHART SECTION */}
-        <WeightChart />
-
-        {/* Coach Message (Secondary) */}
-        <div className={cn(
-            "rounded-lg p-3 border flex items-start gap-3 text-sm",
-            coach.status === 'danger' ? "bg-destructive/10 border-destructive text-destructive" :
-            coach.status === 'warning' ? "bg-orange-500/10 border-orange-500 text-orange-500" :
-            coach.status === 'success' ? "bg-green-500/10 border-green-500 text-green-500" :
-            "bg-blue-500/10 border-blue-500 text-blue-500"
-        )}>
-            <Megaphone className="w-4 h-4 shrink-0 mt-0.5" />
-            <div className="flex-1">
-                <h3 className="font-bold uppercase text-xs mb-0.5">{coach.title}</h3>
-                <p className="opacity-90 leading-snug text-xs">{coach.message}</p>
+        {/* 4. TODAY'S MISSION (Above the fold on mobile) */}
+        <Card className="border-l-4 border-l-primary bg-muted/5 shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+             <Flame className="w-24 h-24" />
+          </div>
+          <CardHeader className="pb-2 pt-5">
+             <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+               <Zap className="w-4 h-4 text-primary" /> Today's Mission
+             </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-5 relative z-10">
+            <h3 className="font-heading font-black italic text-2xl uppercase leading-none mb-4">{focus.title}</h3>
+            
+            {/* Expandable Why */}
+            <div className="mb-4 text-xs text-muted-foreground italic border-l-2 border-muted pl-2">
+               "This phase protects power by controlling gut content and glycogen timing."
             </div>
-        </div>
 
-        {/* Next Steps */}
-        <Card className="bg-card border-muted">
-           <CardHeader className="pb-2 pt-4 py-3 border-b border-muted/50">
-              <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                 <Calendar className="w-3.5 h-3.5" /> Look Ahead
-              </CardTitle>
-           </CardHeader>
-           <CardContent className="py-3">
-              <h4 className="font-bold text-sm mb-2">{nextSteps.title}</h4>
-              <ul className="space-y-2">
-                 {nextSteps.steps.map((step, i) => (
-                    <li key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
-                       <ArrowRight className="w-3 h-3 text-primary" /> {step}
-                    </li>
-                 ))}
-              </ul>
-           </CardContent>
+            <ul className="space-y-3">
+              {focus.actions.map((action, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <div className="mt-0.5 min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
+                    {i + 1}
+                  </div>
+                  <span className="font-medium text-sm leading-snug">{action}</span>
+                </li>
+              ))}
+            </ul>
+
+            {focus.warning && (
+               <div className="mt-4 flex items-center gap-2 text-destructive text-xs font-bold uppercase bg-destructive/10 p-2 rounded">
+                  <AlertTriangle className="w-4 h-4" /> {focus.warning}
+               </div>
+            )}
+          </CardContent>
         </Card>
 
+        {/* LOGS & METRICS SECTION (Pushed down) */}
+        
         {/* Fuel Guide */}
         {showFiberWarning ? (
           <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
@@ -199,15 +169,23 @@ export default function Dashboard() {
              <div className="grid grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
                   <span className="text-muted-foreground block font-bold text-[10px] uppercase">AVOID (Blockers)</span>
-                  <ul className="space-y-1 text-foreground/80">
-                     {fuel.avoid.map((f, i) => <li key={i}>• {f}</li>)}
-                  </ul>
+                  <div className="flex flex-wrap gap-1.5">
+                     {fuel.avoid.map((f, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[10px] uppercase font-bold border border-orange-500/20">
+                           {f}
+                        </span>
+                     ))}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <span className="text-muted-foreground block font-bold text-[10px] uppercase">ALLOWED (Fuel)</span>
-                  <ul className="space-y-1 text-foreground font-medium">
-                     {fuel.allowed.map((f, i) => <li key={i}>• {f}</li>)}
-                  </ul>
+                   <div className="flex flex-wrap gap-1.5">
+                     {fuel.allowed.map((f, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded bg-primary/20 text-primary text-[10px] uppercase font-bold border border-primary/20">
+                           {f}
+                        </span>
+                     ))}
+                  </div>
                 </div>
              </div>
           </div>
@@ -253,6 +231,12 @@ export default function Dashboard() {
                    Intermediate
                 </span>
              </div>
+             
+             {/* Simple Explanation for Intermediate */}
+             <p className="text-xs text-muted-foreground">
+                Scale movement today is likely from <span className="text-chart-3 font-bold">Gut Content</span> + <span className="text-chart-1 font-bold">Glycogen</span>.
+             </p>
+
              <div className="space-y-4">
                <FuelBar label="Water" icon={Droplets} value={fuelTanks.water} max={8} color="bg-chart-2" desc="Hydration" />
                <FuelBar label="Glycogen" icon={Zap} value={fuelTanks.glycogen} max={1.5} color="bg-chart-1" desc="Energy" />
@@ -266,6 +250,24 @@ export default function Dashboard() {
              </div>
            </section>
         )}
+        
+        {/* Weight Chart with Real Data */}
+        <WeightChart />
+
+        {/* Coach Message (Secondary) */}
+        <div className={cn(
+            "rounded-lg p-3 border flex items-start gap-3 text-sm",
+            coach.status === 'danger' ? "bg-destructive/10 border-destructive text-destructive" :
+            coach.status === 'warning' ? "bg-orange-500/10 border-orange-500 text-orange-500" :
+            coach.status === 'success' ? "bg-green-500/10 border-green-500 text-green-500" :
+            "bg-blue-500/10 border-blue-500 text-blue-500"
+        )}>
+            <Megaphone className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="flex-1">
+                <h3 className="font-bold uppercase text-xs mb-0.5">{coach.title}</h3>
+                <p className="opacity-90 leading-snug text-xs">{coach.message}</p>
+            </div>
+        </div>
 
         {/* Quick Log Action */}
         <QuickLogModal lastLog={logs[0]} />
@@ -273,6 +275,49 @@ export default function Dashboard() {
       </div>
     </MobileLayout>
   );
+}
+
+function CompactPhaseRibbon({ phase }: { phase: string }) {
+    // 5-step compact ribbon
+    const steps = [
+        { id: 'metabolic', label: 'Load', days: 'M-W' },
+        { id: 'transition', label: 'Cut', days: 'Thu' },
+        { id: 'performance-prep', label: 'Prep', days: 'Fri' },
+        { id: 'last-24h', label: 'Race', days: 'Sat' },
+    ];
+
+    return (
+        <div className="flex items-stretch justify-between bg-muted/20 border-b border-muted py-2 px-2 -mx-4 -mt-4 mb-4 gap-1">
+            {steps.map(step => {
+                const isActive = phase === step.id;
+                return (
+                    <Dialog key={step.id}>
+                        <DialogTrigger asChild>
+                            <div className={cn(
+                                "flex-1 text-center py-1.5 rounded cursor-pointer transition-all",
+                                isActive ? "bg-primary text-black shadow-sm" : "text-muted-foreground hover:bg-muted/40"
+                            )}>
+                                <div className="text-[9px] font-bold uppercase tracking-wider leading-none mb-0.5">{step.days}</div>
+                                <div className="text-[10px] font-bold uppercase leading-none">{step.label}</div>
+                            </div>
+                        </DialogTrigger>
+                        <DialogContent className="w-[90%] rounded-xl">
+                            <DialogHeader>
+                                <DialogTitle className="uppercase font-heading italic">Phase Rules: {step.label}</DialogTitle>
+                            </DialogHeader>
+                            <div className="py-2 text-sm">
+                                <p className="text-muted-foreground mb-4">Specific nutritional and training guidelines for the {step.label} phase.</p>
+                                {/* Placeholder for specific phase rules content */}
+                                <div className="p-3 bg-muted/30 rounded text-xs font-mono">
+                                    Tap-to-reveal rules would go here for {step.label} phase.
+                                </div>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                );
+            })}
+        </div>
+    );
 }
 
 function FuelBar({ label, icon: Icon, value, max, color, desc, isStatic }: any) {
@@ -303,6 +348,20 @@ function QuickLogModal({ lastLog }: { lastLog?: any }) {
   const { addLog } = useStore();
   const [open, setOpen] = useState(false);
 
+  // Smart Prompt Logic
+  const getMicroPrompt = () => {
+    if (!lastLog) return "Log your first weigh-in";
+    const lastDate = new Date(lastLog.date);
+    const now = new Date();
+    const isToday = lastDate.getDate() === now.getDate();
+    
+    if (lastLog.type === 'morning' && isToday) return "Next: Log Pre-Practice Weight";
+    if (lastLog.type === 'pre-practice' && isToday) return "Next: Log Post-Practice Weight";
+    if (lastLog.type === 'post-practice') return "Next: Log Morning Weight to see overnight drift";
+    
+    return "Log Morning Weight to unlock trends";
+  };
+
   const handleSubmit = () => {
     if (weight) {
       addLog({
@@ -321,14 +380,10 @@ function QuickLogModal({ lastLog }: { lastLog?: any }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <div className="fixed bottom-20 right-4 left-4 z-40">
-           <Button className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90 animate-in slide-in-from-bottom-4">
-             + Quick Log
+           <Button className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90 animate-in slide-in-from-bottom-4 flex flex-col items-center justify-center gap-0 leading-tight py-1">
+             <span>+ Quick Log</span>
+             <span className="text-[10px] font-normal opacity-70 normal-case tracking-normal">{getMicroPrompt()}</span>
            </Button>
-           {lastLog && (
-             <div className="text-center mt-2 text-[10px] text-muted-foreground font-mono">
-                Last Log: {format(new Date(lastLog.date), 'h:mm a')} ({lastLog.weight} lbs)
-             </div>
-           )}
         </div>
       </DialogTrigger>
       <DialogContent className="bg-card border-muted w-[90%] rounded-xl max-h-[90vh] overflow-y-auto">
@@ -495,96 +550,60 @@ function SystemPhilosophyDialog({ guidanceLevel }: { guidanceLevel: string }) {
            {/* Core Concept */}
            <section className="space-y-2">
               <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">Core Concept</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                 <li className="flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>Weight class is an entry requirement, NOT the goal. Performance is the goal.</span>
-                 </li>
-                 <li className="flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>A hydrated, fueled wrestler always outperforms a depleted one.</span>
-                 </li>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                We manage weight by manipulating water, gut content, and glycogen—not muscle.
+                Most athletes cut weight wrong by starving muscle. We fuel muscle and dump waste.
+              </p>
+           </section>
+           
+           {/* The Tanks */}
+           <section className="space-y-2">
+              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">The Fuel Tanks</h4>
+              <ul className="space-y-2">
+                <li className="flex gap-2">
+                   <Droplets className="w-4 h-4 text-chart-2 shrink-0" />
+                   <div>
+                      <span className="block text-xs font-bold text-foreground">Water (Variable)</span>
+                      <span className="text-[10px] text-muted-foreground">We hyper-hydrate early in the week to flush sodium, then taper.</span>
+                   </div>
+                </li>
+                <li className="flex gap-2">
+                   <Zap className="w-4 h-4 text-chart-1 shrink-0" />
+                   <div>
+                      <span className="block text-xs font-bold text-foreground">Glycogen (Energy)</span>
+                      <span className="text-[10px] text-muted-foreground">Stored carbs in muscle. We deplete this temporarily for the scale.</span>
+                   </div>
+                </li>
+                <li className="flex gap-2">
+                   <User className="w-4 h-4 text-chart-3 shrink-0" />
+                   <div>
+                      <span className="block text-xs font-bold text-foreground">Gut Content (Waste)</span>
+                      <span className="text-[10px] text-muted-foreground">Food waiting to be digested. We eliminate fiber 24-48h out.</span>
+                   </div>
+                </li>
               </ul>
            </section>
 
-           {/* 5 Tanks Visual */}
-           <section className="space-y-3">
-              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">The 5 Fuel Tanks</h4>
-              <p className="text-xs text-muted-foreground mb-2">We manage weight by manipulating 5 specific tanks, ranked by performance cost (High to Low).</p>
-              
-              <div className="space-y-1">
-                 <div className="flex items-center gap-2 p-2 rounded bg-muted/20 border border-muted/50">
-                    <div className="w-8 h-8 rounded bg-cyan-500/20 flex items-center justify-center text-cyan-500"><Droplets className="w-4 h-4" /></div>
-                    <div className="flex-1">
-                       <div className="flex justify-between text-xs font-bold uppercase">
-                          <span>Water</span>
-                          <span className="text-destructive">High Cost</span>
-                       </div>
-                       <p className="text-[10px] text-muted-foreground">Cut last (24h out). Rehydrate first.</p>
-                    </div>
+           {/* The Timeline */}
+           <section className="space-y-2">
+              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">Weekly Flow</h4>
+              <div className="space-y-2 text-xs">
+                 <div className="flex gap-2">
+                    <span className="font-bold min-w-[3rem]">Mon-Wed</span>
+                    <span className="text-muted-foreground">Metabolic loading. High water, clean fuel.</span>
                  </div>
-
-                 <div className="flex items-center gap-2 p-2 rounded bg-muted/20 border border-muted/50">
-                    <div className="w-8 h-8 rounded bg-lime-500/20 flex items-center justify-center text-lime-500"><Zap className="w-4 h-4" /></div>
-                    <div className="flex-1">
-                       <div className="flex justify-between text-xs font-bold uppercase">
-                          <span>Glycogen</span>
-                          <span className="text-orange-500">Med Cost</span>
-                       </div>
-                       <p className="text-[10px] text-muted-foreground">Muscle energy. Deplete early, reload late.</p>
-                    </div>
+                 <div className="flex gap-2">
+                    <span className="font-bold min-w-[3rem]">Thu</span>
+                    <span className="text-muted-foreground">Transition. Cut fiber, switch to easy-digesting carbs.</span>
                  </div>
-
-                 <div className="flex items-center gap-2 p-2 rounded bg-muted/20 border border-muted/50">
-                    <div className="w-8 h-8 rounded bg-amber-500/20 flex items-center justify-center text-amber-500"><User className="w-4 h-4" /></div>
-                    <div className="flex-1">
-                       <div className="flex justify-between text-xs font-bold uppercase">
-                          <span>Gut Content</span>
-                          <span className="text-green-500">Low Cost</span>
-                       </div>
-                       <p className="text-[10px] text-muted-foreground">Food weight. Clears in 24h via fiber cut.</p>
-                    </div>
-                 </div>
-
-                 <div className="flex items-center gap-2 p-2 rounded bg-muted/20 border border-muted/50">
-                    <div className="w-8 h-8 rounded bg-purple-500/20 flex items-center justify-center text-purple-500"><Dumbbell className="w-4 h-4" /></div>
-                    <div className="flex-1">
-                       <div className="flex justify-between text-xs font-bold uppercase">
-                          <span>Muscle</span>
-                          <span className="text-destructive font-black">CRITICAL</span>
-                       </div>
-                       <p className="text-[10px] text-muted-foreground">Never sacrifice muscle tissue.</p>
-                    </div>
+                 <div className="flex gap-2">
+                    <span className="font-bold min-w-[3rem]">Fri</span>
+                    <span className="text-muted-foreground">Prep. Water taper, thermal regulation.</span>
                  </div>
               </div>
            </section>
-
-           {/* Expandable Deep Dive */}
-           {guidanceLevel !== 'beginner' && (
-              <div className="pt-4 border-t border-muted">
-                 <details className="group">
-                    <summary className="flex items-center justify-between font-bold text-xs uppercase cursor-pointer list-none text-primary hover:opacity-80 transition-opacity">
-                       <span>Advanced: FGF21 & Sugar Types</span>
-                       <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform" />
-                    </summary>
-                    <div className="mt-3 space-y-3 text-xs text-muted-foreground animate-in slide-in-from-top-2">
-                       <p>
-                          We use specific sugar types to manipulate hormones. 
-                          <span className="text-foreground font-bold"> Fructose</span> (Fruit) goes to the liver, triggering FGF21 which burns fat.
-                          <span className="text-foreground font-bold"> Glucose</span> (Rice/Potato) goes to the muscle, fueling explosive power.
-                       </p>
-                       <p>
-                          <span className="text-foreground font-bold">Track A (Fat Loss):</span> Prioritizes Fructose to maximize fat oxidation early in the week.
-                       </p>
-                       <p>
-                          <span className="text-foreground font-bold">Track B (Performance):</span> Prioritizes Glucose to keep muscle glycogen full for high output.
-                       </p>
-                    </div>
-                 </details>
-              </div>
-           )}
         </div>
       </DialogContent>
     </Dialog>
-   );
+  );
 }

@@ -61,6 +61,8 @@ interface StoreContextType {
   getRehydrationPlan: (lostWeight: number) => { fluidRange: string; sodiumRange: string; glycogen: string };
   getCoachMessage: () => { title: string; message: string; status: 'success' | 'warning' | 'danger' | 'info' };
   getNextSteps: () => { title: string; steps: string[] };
+  getNextTarget: () => { label: string; weight: number; description: string } | null;
+  getDriftMetrics: () => { overnight: number | null; session: number | null };
 }
 
 const defaultProfile: AthleteProfile = {
@@ -72,7 +74,7 @@ const defaultProfile: AthleteProfile = {
   experienceLevel: 'intermediate',
   guidanceLevel: 'intermediate',
   hasSaunaAccess: true,
-  protocol: '2', // Default to Fat Loss Focus
+  protocol: '2', // Default to Track B
   status: 'on-track',
   coachMode: false,
   simulatedDate: null,
@@ -98,7 +100,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           ...parsed,
           weighInDate: new Date(parsed.weighInDate),
-          matchDate: new Date(parsed.matchDate)
+          matchDate: new Date(parsed.matchDate),
+          // Migration: Ensure protocol is string '1' or '2' etc
         };
       } catch (e) {
         console.error("Failed to parse profile", e);
@@ -128,6 +131,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return [
       { id: '1', date: subDays(new Date(), 1), weight: 169.2, type: 'morning', urineColor: 2 },
       { id: '2', date: subDays(new Date(), 2), weight: 170.1, type: 'morning', urineColor: 3 },
+      { id: '3', date: subDays(new Date(), 1), weight: 171.5, type: 'post-practice', urineColor: 4 }, // Mock for drift
     ];
   });
 
@@ -425,40 +429,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Protocol Specific Focus Actions
     if (protocol === '1') { // Sugar Fast
-       title = "Protocol 1: Sugar Fast";
-       actions.push("⚠️ EXTREME FAT LOSS MODE");
-       actions.push(`Protein Target: ${fuel.protein || '0g'}`);
-       actions.push(`Carb Target: ${fuel.carbs || 'High'}`);
-       if (phase === 'metabolic') actions.push("GOAL: Maximize FGF21 (No Protein)");
-       if (phase === 'performance-prep') actions.push("Evening: Reintroduce Protein (0.2g/lb)");
+       title = "Today's Mission: Track A";
+       actions.push("⚠️ EXECUTE EXTREME FAT LOSS");
+       actions.push(`Hit Protein Target: ${fuel.protein || '0g'}`);
+       actions.push(`Hit Carb Target: ${fuel.carbs || 'High'}`);
+       if (phase === 'metabolic') actions.push("Maximize FGF21 (Strict No Protein)");
+       if (phase === 'performance-prep') actions.push("Reintroduce Protein Evening (0.2g/lb)");
     } else if (protocol === '2') { // Fat Loss
-       title = "Protocol 2: Fat Loss Focus";
-       actions.push(`Protein Target: ${fuel.protein}`);
-       actions.push(`Carb Target: ${fuel.carbs}`);
-       if (phase === 'metabolic') actions.push("GOAL: Fat Oxidation (Low Protein)");
+       title = "Today's Mission: Track B";
+       actions.push(`Hit Protein Target: ${fuel.protein}`);
+       actions.push(`Hit Carb Target: ${fuel.carbs}`);
+       if (phase === 'metabolic') actions.push("Maximize Fat Oxidation (Keep Protein Low)");
        if (phase === 'transition') actions.push("Switch to Glucose/Starch + Seafood");
     } else if (protocol === '3') { // Maintain
-       title = "Protocol 3: Maintenance";
-       actions.push("Focus: Performance & Recovery");
-       actions.push(`Protein Target: ${fuel.protein}`);
+       title = "Today's Mission: Maintenance";
+       actions.push("Focus on Performance & Recovery");
+       actions.push(`Hit Protein Target: ${fuel.protein}`);
     } else if (protocol === '4') { // Hypertrophy
-       title = "Protocol 4: Hypertrophy";
-       actions.push("Focus: Muscle Growth & Weight Gain");
-       actions.push(`Protein Target: ${fuel.protein}`);
-       actions.push(`Carb Target: ${fuel.carbs}`);
+       title = "Today's Mission: Growth";
+       actions.push("Focus on Muscle Growth & Weight Gain");
+       actions.push(`Hit Protein Target: ${fuel.protein}`);
+       actions.push(`Hit Carb Target: ${fuel.carbs}`);
     }
 
     // General Phase Rules
     if (phase === 'transition') {
       actions.push("ELIMINATE FIBER (No veggies/fruit)");
-      actions.push("Collagen + Leucine (Dinner)");
+      actions.push("Eat Collagen + Leucine (Dinner)");
     } else if (phase === 'performance-prep') {
-       actions.push("ZERO Fiber");
-       actions.push("Monitor Weight Drift");
+       actions.push("Ensure ZERO Fiber Intake");
+       actions.push("Monitor Weight Drift Hourly");
     }
 
     if (isOver && phase !== 'last-24h') {
-      warning = "Weight high - check protocol adherence";
+      warning = "Weight high - Verify protocol adherence";
     }
 
     return { title, actions, warning };
@@ -564,6 +568,62 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { title: "Tomorrow", steps: ["Maintain Rhythm"] };
   };
 
+  const getNextTarget = () => {
+    const todayTarget = calculateTarget();
+    const lastLog = logs[0];
+    
+    // Simple logic for next target based on last action
+    if (!lastLog || lastLog.type === 'morning') {
+        return { label: "Pre-Practice", weight: todayTarget + 1.5, description: "Hydrated Limit" };
+    }
+    if (lastLog.type === 'pre-practice') {
+        return { label: "Post-Practice", weight: todayTarget, description: "End of Day Target" };
+    }
+    // Post practice -> Morning target
+    return { label: "Tomorrow Morning", weight: todayTarget - 0.8, description: "Overnight Drift Goal" };
+  };
+
+  const getDriftMetrics = () => {
+    // 1. Overnight Drift: Post-Practice (Night before) -> Morning (Today/Next Day)
+    // Find pairs where type goes Post -> Morning
+    let overnightSum = 0;
+    let overnightCount = 0;
+    
+    // 2. Session Delta: Pre -> Post
+    let sessionSum = 0;
+    let sessionCount = 0;
+
+    // Simple scan through logs (sorted desc)
+    for (let i = 0; i < logs.length - 1; i++) {
+        const current = logs[i];
+        const next = logs[i+1]; // Older log
+
+        // Overnight: Current is Morning, Next is Post-Practice
+        if (current.type === 'morning' && next.type === 'post-practice') {
+            // Check if dates are close (next day)
+            const diffHours = (current.date.getTime() - next.date.getTime()) / (1000 * 60 * 60);
+            if (diffHours > 6 && diffHours < 16) {
+                overnightSum += (current.weight - next.weight);
+                overnightCount++;
+            }
+        }
+
+        // Session: Current is Post-Practice, Next is Pre-Practice
+        if (current.type === 'post-practice' && next.type === 'pre-practice') {
+             const diffHours = (current.date.getTime() - next.date.getTime()) / (1000 * 60 * 60);
+             if (diffHours < 4) {
+                 sessionSum += (current.weight - next.weight);
+                 sessionCount++;
+             }
+        }
+    }
+
+    return {
+        overnight: overnightCount > 0 ? (overnightSum / overnightCount) : -1.2, // Default fallback
+        session: sessionCount > 0 ? (sessionSum / sessionCount) : -2.5 // Default fallback
+    };
+  };
+
   return (
     <StoreContext.Provider value={{ 
       profile, 
@@ -581,7 +641,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getRehydrationPlan,
       getCheckpoints,
       getCoachMessage,
-      getNextSteps
+      getNextSteps,
+      getNextTarget,
+      getDriftMetrics
     }}>
       {children}
     </StoreContext.Provider>

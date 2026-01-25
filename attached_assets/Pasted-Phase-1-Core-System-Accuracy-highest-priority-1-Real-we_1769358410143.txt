@@ -1,0 +1,153 @@
+Phase 1: Core System Accuracy (highest priority)
+
+1) Real weight-change intelligence (no more guessing)
+
+PWM will now calculate from logs:
+	•	Overnight change
+Last night log → next morning log
+	•	Session change
+Pre practice → post practice
+	•	3 day rolling averages for both
+
+Why this matters:
+This turns PWM into a predictive system, not a static tracker. It mirrors how you actually coach cuts using overnight loss and practice response as anchors.
+
+If logs are missing, the app prompts:
+
+“Log morning + night to unlock overnight trend.”
+
+⸻
+
+2) Date logic fully fixed and reactive
+	•	All dates stored consistently and recalculated immediately when edited
+	•	Phase, time remaining, targets, and dashboard guidance update instantly
+	•	No more “date won’t change” or stale projections
+
+Why this matters:
+Dates drive everything in a phase based cut system. This removes silent errors.
+
+⸻
+
+Phase 2: Education without overload
+
+3) Tappable weekly timeline (guided learning)
+
+Each day or phase in the weekly timeline becomes tappable.
+
+Tap a day → Day Preview sheet shows:
+	•	Phase name and purpose
+	•	Today’s top 2–4 rules (based on Goal + Track + Phase)
+	•	Allowed vs avoid foods when relevant
+	•	Hydration reminder
+	•	Plain language “what moves the scale today”
+
+Why this matters:
+This turns your system into a built in course, without adding content screens or forcing reading.
+
+⸻
+
+4) Phase ribbon stays visible at the top
+	•	Mon–Wed Metabolic
+	•	Thu Transition
+	•	Fri Prep
+	•	Weigh In
+	•	Recovery
+
+Current phase is always highlighted.
+
+Why this matters:
+Wrestlers stop asking “what day are we on?” The app teaches rhythm automatically.
+
+⸻
+
+Phase 3: Daily compliance tools
+
+5) Hydration tracking (simple and dumb on purpose)
+	•	One tap to add a standard fluid amount
+	•	Progress bar toward daily target
+	•	Target automatically adapts to standard mode or coach mode
+
+Why this matters:
+Hydration compliance improves dramatically when logging is frictionless.
+
+⸻
+
+6) Fiber elimination becomes unavoidable late week
+
+On transition and prep days:
+	•	Persistent banner appears
+	•	Clear allowed vs avoid list
+	•	No macros, no math
+
+Why this matters:
+This is one of the highest ROI levers in your system and now it’s enforced at the right time.
+
+⸻
+
+Phase 4: Competition execution
+
+7) Automatic recovery mode takeover
+
+On weigh in day:
+	•	Dashboard switches to Weigh In / Recovery Mode
+	•	Logging weigh in weight launches the recovery mission automatically
+
+Why this matters:
+On competition day, nobody should be navigating menus. The app becomes a checklist and timer.
+
+⸻
+
+8) Recovery mission runs the show
+	•	Large start button
+	•	Timed phases
+	•	One section at a time
+	•	Checkboxes for execution
+
+Why this matters:
+Your recovery protocol only works if it’s executed precisely. This removes friction and decision fatigue.
+
+⸻
+
+Phase 5: System clarity and credibility
+
+9) Terminology cleanup
+	•	Only Goal / Cut Type
+	•	Only Track A / Track B
+	•	Only defined Phase names
+
+No bodybuilding language. No mixed metaphors.
+
+Why this matters:
+Trust. Wrestlers and coaches feel when language doesn’t match the room.
+
+⸻
+
+10) Guidance levels respected everywhere
+	•	Beginner: just actions and targets
+	•	Intermediate: fuel tank logic and track explanation
+	•	Advanced: coach gated tools and deeper rules
+
+Why this matters:
+The same app works for a freshman and a national qualifier.
+
+⸻
+
+Big picture assessment
+
+After these updates, PWM becomes:
+	•	A coach in the pocket
+	•	A teaching system without lectures
+	•	A daily execution tool, not a data dump
+
+Most weight cut apps answer:
+
+“What do I weigh?”
+
+PWM answers:
+
+“What lever is moving, what phase I’m in, and what to do next.”
+
+If you want, next we can:
+	•	Tune Today’s Mission language to feel even more “coach voice”
+	•	Add a team level coach dashboard
+	•	Stress test the system on same day vs day before scenarios

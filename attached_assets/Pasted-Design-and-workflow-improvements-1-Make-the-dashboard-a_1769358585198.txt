@@ -1,0 +1,88 @@
+Design and workflow improvements
+	1.	Make the dashboard a three layer stack, always in the same order
+Status (on track / borderline / high risk) → Today’s Mission → Logs and metrics.
+If anything pushes Today’s Mission below the fold on phone, shrink or collapse it.
+	2.	Add a single “Next target” line that’s always visible
+Example: “Tonight post practice target: 162.0”
+Your system lives on targets. Everything else is support.
+	3.	Add “What to log next” as a micro prompt under Quick Log
+If morning log is missing, show “Log Morning weight to unlock overnight trend.”
+This turns logging into a guided habit.
+	4.	Convert education into tap to reveal, not walls of text
+System Philosophy should be 5 bullets max, then “Learn more.”
+Beginners should never scroll to learn.
+	5.	Use consistent naming and stop synonyms
+Pick one: Today’s Mission or Today’s Focus.
+Pick one: Goal or Cut Type.
+Pick one: Session or Practice.
+Consistency is trust.
+	6.	Make the phase ribbon non scrollable if possible
+If it requires horizontal scrolling, many users won’t notice it.
+Try a compact 5 step ribbon that fits every phone width.
+	7.	One tap Day Preview from the ribbon
+Tapping Thu should instantly show “Fiber elimination active” plus Allowed/Avoid.
+This becomes your built in “coach talk.”
+	8.	Create a “Beginner safe” dashboard mode
+Beginner mode should hide tanks and advanced concepts by default.
+Keep it as actions, targets, hydration, and red flags.
+	9.	Add a “Coach voice” tone to action copy
+Make each action start with a verb and be doable.
+Avoid extreme or absolute language that can get misapplied.
+	10.	On weigh in day, takeover should be automatic
+No navigation. No hunting.
+Dashboard becomes Recovery Mission until the athlete exits it.
+
+System and logic improvements
+	1.	Make the Five Fuel Tanks visible as a simple explanation, not a chart
+Show “Scale movement today is likely from gut + glycogen” rather than pretending precision.
+The goal is education and decision guidance.
+	2.	Track A/B should be the only track language
+Avoid additional protocol labels that dilute your framework.
+If you want off season body comp modes later, place them in a separate section.
+	3.	Phase rules should drive what appears on screen
+Thu and Fri should automatically show the fiber elimination module.
+Mon to Wed should show metabolic phase reminders.
+	4.	Use real log based drift, not estimates
+Overnight change and session change must come from logs and have a 3 day average.
+This is the predictive backbone.
+	5.	Add “Performance cost” warnings tied to tank order
+If the plan is leaning on fluid loss too early, flag it.
+Keep the wording coach safe and conservative.
+	6.	Add an auto “plan correction” suggestion
+If off pace by more than a threshold, the app should adjust today’s mission rather than just warn.
+	7.	Include “Coach mode gating” clearly
+Anything advanced should show a lock icon and “Coach enabled.”
+No hidden toggles.
+	8.	Recovery should compute a simple plan from pounds lost
+Even if you keep it conservative, it should personalize the checklist and fluids guidance.
+	9.	Add between match fueling prompts during tournament mode
+This can be a simple repeating checklist and timer style prompt.
+	10.	Make date edits re compute everything instantly
+If any derived values don’t update on changing weigh in date or match time, it’s a bug.
+This should be testable in one minute.
+
+Bug and confusion hot spots to test
+	•	Changing weigh in date in settings updates dashboard phase and countdown instantly
+	•	Editing match start time doesn’t break timezone or shift phase incorrectly
+	•	Logs saved and displayed consistently, no duplicates
+	•	Overnight change calculates across midnight correctly
+	•	Pre practice and post practice logs are paired properly
+	•	Beginner mode hides advanced items but doesn’t hide critical warnings
+	•	Weigh in day takeover triggers on the correct day and doesn’t trap users
+
+Copy and education improvements that make it coach grade
+	•	Add a one sentence “Why” under Today’s Mission that can expand
+Example: “This phase protects power by controlling gut content and glycogen timing.”
+Then expand to show a 3 bullet explanation.
+	•	“Allowed/Avoid” lists should be visually scannable chips, not paragraphs.
+
+Fast way to get this into Replit Agent
+
+Paste this into Replit Agent as the next task list:
+	•	Make dashboard prioritize Today’s Mission above the fold
+	•	Ensure Track A/B and Goal labels are consistent everywhere
+	•	Add tappable phase ribbon day previews with rules and allowed/avoid
+	•	Implement log based overnight and session change with 3 day averages
+	•	Add hydration progress bar with one tap increments and undo
+	•	Trigger recovery takeover on weigh in day automatically
+	•	Audit date edits to re compute countdown, phase, and targets instantly
