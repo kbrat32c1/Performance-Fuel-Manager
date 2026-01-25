@@ -130,8 +130,8 @@ export default function Onboarding() {
           {step === 3 && (
             <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
               <div className="space-y-2">
-                <h1 className="text-4xl font-heading font-bold uppercase italic">Timeline</h1>
-                <p className="text-muted-foreground">When do you need to perform?</p>
+                <h1 className="text-4xl font-heading font-bold uppercase italic">Dashboard Mode</h1>
+                <p className="text-muted-foreground">Select your preferred level of detail.</p>
               </div>
 
               <div className="space-y-4">
@@ -146,23 +146,32 @@ export default function Onboarding() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Experience Level</Label>
+                  <Label>Detail Level</Label>
                   <RadioGroup 
-                    value={profile.experienceLevel} 
-                    onValueChange={(v: any) => updateProfile({ experienceLevel: v })}
+                    value={profile.dashboardMode} 
+                    onValueChange={(v: any) => updateProfile({ dashboardMode: v })}
                     className="grid grid-cols-1 gap-3"
                   >
-                    <div className="flex items-center space-x-2 border border-muted p-4 rounded-lg bg-muted/10 data-[state=checked]:border-primary data-[state=checked]:bg-primary/10 transition-all">
-                      <RadioGroupItem value="novice" id="r1" />
-                      <Label htmlFor="r1" className="flex-1 font-medium">Novice <span className="block text-xs text-muted-foreground font-normal">First 1-2 seasons</span></Label>
+                    <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors [&:has(:checked)]:border-primary [&:has(:checked)]:bg-primary/5">
+                      <RadioGroupItem value="essentials" id="essentials" />
+                      <Label htmlFor="essentials" className="flex-1 cursor-pointer">
+                        <div className="font-bold uppercase flex items-center gap-2">Essentials <span className="text-[10px] bg-muted px-1.5 rounded text-muted-foreground font-normal normal-case">Simple</span></div>
+                        <p className="text-xs text-muted-foreground mt-0.5">Focus on daily missions, weight targets, and hydration only.</p>
+                      </Label>
                     </div>
-                    <div className="flex items-center space-x-2 border border-muted p-4 rounded-lg bg-muted/10 data-[state=checked]:border-primary data-[state=checked]:bg-primary/10 transition-all">
-                      <RadioGroupItem value="intermediate" id="r2" />
-                      <Label htmlFor="r2" className="flex-1 font-medium">Intermediate <span className="block text-xs text-muted-foreground font-normal">Varsity starter</span></Label>
+                    <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors [&:has(:checked)]:border-primary [&:has(:checked)]:bg-primary/5">
+                      <RadioGroupItem value="standard" id="standard" />
+                      <Label htmlFor="standard" className="flex-1 cursor-pointer">
+                        <div className="font-bold uppercase flex items-center gap-2">Standard <span className="text-[10px] bg-primary/20 text-primary px-1.5 rounded font-bold normal-case">Recommended</span></div>
+                        <p className="text-xs text-muted-foreground mt-0.5">Adds basic fuel tank metrics (Glycogen/Water) to guide decisions.</p>
+                      </Label>
                     </div>
-                    <div className="flex items-center space-x-2 border border-muted p-4 rounded-lg bg-muted/10 data-[state=checked]:border-primary data-[state=checked]:bg-primary/10 transition-all">
-                      <RadioGroupItem value="advanced" id="r3" />
-                      <Label htmlFor="r3" className="flex-1 font-medium">Advanced <span className="block text-xs text-muted-foreground font-normal">College/National level</span></Label>
+                    <div className="flex items-center space-x-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors [&:has(:checked)]:border-primary [&:has(:checked)]:bg-primary/5">
+                      <RadioGroupItem value="pro" id="pro" />
+                      <Label htmlFor="pro" className="flex-1 cursor-pointer">
+                        <div className="font-bold uppercase flex items-center gap-2">Pro <span className="text-[10px] bg-chart-5/20 text-chart-5 px-1.5 rounded font-bold normal-case">Advanced</span></div>
+                        <p className="text-xs text-muted-foreground mt-0.5">Full physiological breakdown including gut content and fat oxidation.</p>
+                      </Label>
                     </div>
                   </RadioGroup>
                 </div>

@@ -51,9 +51,9 @@ export default function Dashboard() {
   
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   
-  // Guidance Level Logic
-  const showFuelTanks = profile.guidanceLevel !== 'beginner';
-  const showAdvancedDetails = profile.guidanceLevel === 'advanced';
+  // Dashboard Mode Logic (Unified)
+  const showFuelTanks = profile.dashboardMode !== 'essentials';
+  const showAdvancedDetails = profile.dashboardMode === 'pro';
 
   return (
     <MobileLayout>
@@ -81,7 +81,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
            <SettingsDialog profile={profile} updateProfile={updateProfile} />
-           <SystemPhilosophyDialog guidanceLevel={profile.guidanceLevel} />
+           <SystemPhilosophyDialog dashboardMode={profile.dashboardMode} />
            <div className={cn("w-2 h-2 rounded-full mt-1", profile.status === 'on-track' ? 'bg-primary' : 'bg-destructive')} />
         </div>
       </header>

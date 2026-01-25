@@ -26,8 +26,7 @@ export interface AthleteProfile {
   targetWeightClass: number;
   weighInDate: Date;
   matchDate: Date;
-  experienceLevel: 'novice' | 'intermediate' | 'advanced';
-  guidanceLevel: 'beginner' | 'intermediate' | 'advanced';
+  dashboardMode: 'essentials' | 'standard' | 'pro';
   hasSaunaAccess: boolean;
   protocol: Protocol;
   status: Status;
@@ -71,8 +70,7 @@ const defaultProfile: AthleteProfile = {
   targetWeightClass: 157,
   weighInDate: addDays(new Date(), 5), // 5 days out
   matchDate: addDays(new Date(), 5),
-  experienceLevel: 'intermediate',
-  guidanceLevel: 'intermediate',
+  dashboardMode: 'standard',
   hasSaunaAccess: true,
   protocol: '2', // Default to Track B
   status: 'on-track',
@@ -233,12 +231,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getHydrationTarget = () => {
     const w = profile.targetWeightClass;
     const phase = getPhase();
-    const advanced = isAdvancedAllowed();
+    // Advanced hydration logic applies if Pro mode is on OR strict protocol
+    const useAdvancedLogic = profile.dashboardMode === 'pro' || profile.protocol === '1';
     const today = profile.simulatedDate || new Date();
     const dayOfWeek = getDay(today); // Using actual day for reverse load schedule (Mon=1, etc)
     
-    // Reverse Water Load Logic (Advanced / Protocol 1)
-    if (advanced || profile.protocol === '1') { 
+    // Reverse Water Load Logic (Pro Mode / Protocol 1)
+    if (useAdvancedLogic) { 
        const isHeavy = w >= 174;
        const isMedium = w >= 149 && w < 174;
 
