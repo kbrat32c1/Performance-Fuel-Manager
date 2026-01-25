@@ -121,14 +121,14 @@ export default function Onboarding() {
                 <GoalOption 
                   value="2" 
                   title="Standard" 
-                  desc="In-Season Focus • Fructose Early • Glucose Late" 
+                  desc="Active Cutting • Moderate Deficit • Fuel Timing" 
                   icon={Zap} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.07 && profile.currentWeight > profile.targetWeightClass * 1.03}
                 />
                 <GoalOption 
                   value="3" 
                   title="Maintenance" 
-                  desc="Performance Mode • Lean Athletes Only" 
+                  desc="Hold Weight • Peak Performance • No Deficit" 
                   icon={Trophy} 
                   recommended={profile.currentWeight <= profile.targetWeightClass * 1.03 && profile.currentWeight >= profile.targetWeightClass}
                 />
@@ -157,7 +157,10 @@ export default function Onboarding() {
                     type="date" 
                     className="text-lg h-12 bg-muted/30 border-muted font-mono"
                     value={format(profile.weighInDate, 'yyyy-MM-dd')}
-                    onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
+                    onChange={(e) => {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      updateProfile({ weighInDate: new Date(y, m - 1, d) });
+                    }}
                   />
                 </div>
 
