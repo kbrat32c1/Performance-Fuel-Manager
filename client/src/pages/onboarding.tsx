@@ -203,10 +203,19 @@ export default function Onboarding() {
 
                <div className="bg-primary/10 border border-primary/20 p-4 rounded-lg mt-8">
                  <h4 className="font-heading font-bold text-primary uppercase mb-2">System Analysis</h4>
-                 <p className="text-sm text-muted-foreground">
-                   Based on being <span className="text-foreground font-mono font-bold">{(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs</span> over, 
-                   PWM will calculate your optimal descent track.
-                 </p>
+                 <div className="space-y-2 text-sm text-muted-foreground">
+                   <p>
+                     You are <span className="text-foreground font-mono font-bold">{(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs</span> over.
+                   </p>
+                   <p>
+                     Max "Walking-Around" Weight: <span className="text-foreground font-mono font-bold">{(profile.targetWeightClass * 1.05).toFixed(1)} lbs</span>
+                   </p>
+                   {profile.currentWeight > profile.targetWeightClass * 1.05 && (
+                     <p className="text-destructive font-bold text-xs">
+                       ⚠️ You are above the recommended training weight range. Focus on Track A (Fat Loss).
+                     </p>
+                   )}
+                 </div>
                </div>
             </div>
           )}

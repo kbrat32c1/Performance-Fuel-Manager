@@ -2,8 +2,7 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Droplet, Ban, Check, Settings } from "lucide-react";
+import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Droplet, Ban, Utensils, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -13,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export default function Dashboard() {
-  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, updateProfile } = useStore();
+  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile } = useStore();
   const targetWeight = calculateTarget();
   const diff = profile.currentWeight - targetWeight;
   const isOver = diff > 0;
@@ -23,6 +22,9 @@ export default function Dashboard() {
   
   const phase = getPhase();
   const focus = getTodaysFocus();
+  const hydration = getHydrationTarget();
+  const fuel = getFuelingGuide();
+  
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   const showReverseWater = isAdvancedAllowed() && (phase === 'metabolic' || phase === 'transition');
 
@@ -31,7 +33,7 @@ export default function Dashboard() {
       <header className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-sm text-muted-foreground font-mono uppercase tracking-widest flex items-center gap-2">
-            {format(new Date(), 'EEEE, MMM d')} • <span className="text-primary">{phase.replace('-', ' ')}</span>
+            {format(new Date(), 'EEEE, MMM d')} • <span className="text-primary font-bold">{phase.replace('-', ' ')}</span>
           </h2>
           <h1 className="text-3xl font-heading font-bold uppercase italic flex items-center gap-2">
             Hi, {profile.name} <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground not-italic font-sans font-medium">{profile.track} Track</span>
@@ -55,6 +57,41 @@ export default function Dashboard() {
               </div>
             </DialogContent>
            </Dialog>
+           
+           <Dialog>
+             <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                  <span className="font-heading font-bold italic text-lg">?</span>
+                </Button>
+             </DialogTrigger>
+             <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[80vh] overflow-y-auto">
+               <DialogHeader>
+                 <DialogTitle className="font-heading uppercase italic text-2xl text-primary">System Philosophy</DialogTitle>
+               </DialogHeader>
+               <div className="space-y-4 py-2">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-foreground">Performance First</h4>
+                    <p className="text-sm text-muted-foreground">Weight class is an entry requirement. Performance is the goal. A hydrated, fueled wrestler always outperforms a depleted one.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-foreground">The 5 Fuel Tanks</h4>
+                    <p className="text-sm text-muted-foreground">We manage weight by manipulating 5 tanks, ranked by performance cost:</p>
+                    <ul className="text-sm list-disc pl-4 text-muted-foreground space-y-1 mt-1">
+                       <li><span className="text-cyan-500 font-bold">Water</span>: High cost. Last to cut.</li>
+                       <li><span className="text-lime-500 font-bold">Glycogen</span>: High cost. Your power source.</li>
+                       <li><span className="text-amber-500 font-bold">Gut Content</span>: Low cost. Clears in 24h.</li>
+                       <li><span className="text-orange-500 font-bold">Fat</span>: Zero cost. Burn weekly.</li>
+                       <li><span className="text-purple-500 font-bold">Muscle</span>: Critical. Never sacrifice.</li>
+                    </ul>
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-foreground">FGF21 Sugar System</h4>
+                    <p className="text-sm text-muted-foreground">We use specific sugar types (Fructose vs Glucose) to trigger fat loss (Track A) or maximize performance (Track B) without starving.</p>
+                  </div>
+               </div>
+             </DialogContent>
+           </Dialog>
+
            <div className={cn("w-3 h-3 rounded-full animate-pulse", profile.status === 'on-track' ? 'bg-primary' : 'bg-destructive')} />
         </div>
       </header>
@@ -98,10 +135,10 @@ export default function Dashboard() {
            </div>
            
            {/* High Performance Cost Warning */}
-           {profile.status === 'risk' && (
+           {focus.warning && (
              <div className="mt-2 text-center">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-destructive/10 text-destructive text-[10px] uppercase font-bold tracking-wider border border-destructive/20">
-                   <AlertTriangle className="w-3 h-3" /> Performance Cost High: Dehydration Risk
+                   <AlertTriangle className="w-3 h-3" /> {focus.warning}
                 </span>
              </div>
            )}
@@ -116,7 +153,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="pb-4">
             <h3 className="font-bold text-lg leading-tight mb-3">{focus.title}</h3>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {focus.actions.map((action, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
                   <CheckCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
@@ -127,42 +164,69 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Fiber Elimination Banner */}
-        {showFiberWarning && (
-          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3">
-             <div className="flex items-center gap-2 mb-2 text-orange-500 font-bold text-xs uppercase tracking-wider">
-               <Ban className="w-3.5 h-3.5" /> Fiber Elimination Active
+        {/* Hydration Target Card */}
+        <Card className="bg-cyan-500/5 border-cyan-500/20">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+               <div className="p-2 bg-cyan-500/10 rounded-full">
+                  <Droplets className="w-6 h-6 text-cyan-500" />
+               </div>
+               <div>
+                  <h4 className="font-bold text-sm text-cyan-500 uppercase">{hydration.type}</h4>
+                  <p className="text-[10px] text-muted-foreground">{hydration.note}</p>
+               </div>
+            </div>
+            <div className="text-right">
+               <span className="block text-2xl font-mono font-bold">{hydration.amount}</span>
+               <span className="text-[10px] uppercase text-muted-foreground">Daily Goal</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Fuel Guide / Fiber Banner */}
+        {showFiberWarning ? (
+          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
+             <div className="flex items-center gap-2 mb-3 text-orange-500 font-bold text-sm uppercase tracking-wider">
+               <Ban className="w-4 h-4" /> Fiber Elimination Active
              </div>
-             <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="space-y-1">
-                  <span className="text-muted-foreground block">AVOID:</span>
-                  <span className="text-foreground font-medium">Whole grains, Veggies, Oats, Beans</span>
+             <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <span className="text-muted-foreground block font-bold text-[10px] uppercase">AVOID (Blockers)</span>
+                  <ul className="space-y-1 text-foreground/80">
+                     {fuel.avoid.map((f, i) => <li key={i}>• {f}</li>)}
+                  </ul>
                 </div>
-                <div className="space-y-1">
-                  <span className="text-muted-foreground block">ALLOWED:</span>
-                  <span className="text-foreground font-medium">White Rice, Honey, Eggs, Chicken</span>
+                <div className="space-y-1.5">
+                  <span className="text-muted-foreground block font-bold text-[10px] uppercase">ALLOWED (Fuel)</span>
+                  <ul className="space-y-1 text-foreground font-medium">
+                     {fuel.allowed.map((f, i) => <li key={i}>• {f}</li>)}
+                  </ul>
                 </div>
              </div>
           </div>
-        )}
-
-        {/* Advanced Tool: Reverse Water Load */}
-        {showReverseWater && (
-           <Card className="bg-blue-500/5 border-blue-500/20">
-             <CardContent className="p-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                   <Droplet className="w-8 h-8 text-blue-500 p-1.5 bg-blue-500/10 rounded-full" />
-                   <div>
-                     <h4 className="font-bold text-sm text-blue-500 uppercase">Reverse Water Load</h4>
-                     <p className="text-[10px] text-muted-foreground">Sodium: 2500mg+ | Water: 1.5 gal+</p>
-                   </div>
+        ) : (
+          <div className="bg-muted/10 border border-muted rounded-lg p-4">
+             <div className="flex items-center justify-between mb-3">
+               <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                 <Utensils className="w-4 h-4" /> Fuel: {fuel.ratio}
+               </div>
+               {profile.track === 'A' && <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold">FAT LOSS</span>}
+             </div>
+             <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1.5">
+                  <span className="text-muted-foreground block font-bold text-[10px] uppercase">Primary Foods</span>
+                  <ul className="space-y-1 text-foreground font-medium">
+                     {fuel.allowed.map((f, i) => <li key={i}>• {f}</li>)}
+                  </ul>
                 </div>
-                <div className="text-right">
-                   <span className="block text-xl font-mono font-bold">128oz</span>
-                   <span className="text-[10px] uppercase text-muted-foreground">Target</span>
+                <div className="space-y-1.5">
+                  <span className="text-muted-foreground block font-bold text-[10px] uppercase">Limit / Avoid</span>
+                  <ul className="space-y-1 text-foreground/60">
+                     {fuel.avoid.map((f, i) => <li key={i}>• {f}</li>)}
+                  </ul>
                 </div>
-             </CardContent>
-           </Card>
+             </div>
+          </div>
         )}
 
         {/* Fuel Tanks */}

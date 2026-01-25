@@ -1,15 +1,24 @@
 import { MobileLayout } from "@/components/mobile-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, Clock, Droplets, Utensils, Zap } from "lucide-react";
+import { Check, Clock, Droplets, Utensils, Zap, Calculator } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/lib/store";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Recovery() {
   const [elapsed, setElapsed] = useState(0);
   const [active, setActive] = useState(false);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  
+  // Rehydration Calc
+  const [weighInWeight, setWeighInWeight] = useState("");
+  const { profile, getRehydrationPlan } = useStore();
+  const lostWeight = weighInWeight ? profile.currentWeight - parseFloat(weighInWeight) : 0;
+  const plan = getRehydrationPlan(Math.max(0, lostWeight));
 
   useEffect(() => {
     let interval: any;
@@ -55,6 +64,50 @@ export default function Recovery() {
                 Stop / Reset
               </Button>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Rehydration Calculator */}
+        <Card className="border-cyan-500/20 bg-cyan-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm text-cyan-500 uppercase tracking-wider">
+              <Calculator className="w-4 h-4" /> Rehydration Plan
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+             <div className="flex items-end gap-4">
+               <div className="space-y-1.5 flex-1">
+                 <Label className="text-xs">Weigh-In Weight</Label>
+                 <Input 
+                   type="number" 
+                   placeholder="157.0" 
+                   value={weighInWeight} 
+                   onChange={(e) => setWeighInWeight(e.target.value)}
+                   className="font-mono text-lg bg-background"
+                 />
+               </div>
+               <div className="space-y-1.5 flex-1 text-right">
+                  <Label className="text-xs text-muted-foreground">Est. Loss</Label>
+                  <div className="font-mono text-lg font-bold">{lostWeight > 0 ? `${lostWeight.toFixed(1)} lbs` : "--"}</div>
+               </div>
+             </div>
+
+             {lostWeight > 0 && (
+               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-cyan-500/20">
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground block">Fluids (1st 2-4hrs)</span>
+                    <span className="text-xl font-mono font-bold text-cyan-500">{plan.fluidRange}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground block">Sodium</span>
+                    <span className="text-xl font-mono font-bold text-white">{plan.sodiumRange}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] uppercase text-muted-foreground block">Immediate Glycogen</span>
+                    <span className="text-sm font-medium text-primary">{plan.glycogen}</span>
+                  </div>
+               </div>
+             )}
           </CardContent>
         </Card>
 
