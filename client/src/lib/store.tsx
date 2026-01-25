@@ -57,6 +57,7 @@ interface StoreContextType {
   getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
   getCheckpoints: () => { walkAround: string; wedTarget: string; friTarget: string };
   getRehydrationPlan: (lostWeight: number) => { fluidRange: string; sodiumRange: string; glycogen: string };
+  getCoachMessage: () => { title: string; message: string; status: 'success' | 'warning' | 'danger' | 'info' };
 }
 
 const defaultProfile: AthleteProfile = {
@@ -406,6 +407,75 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { title, actions, warning };
   };
 
+  const getCoachMessage = (): { title: string; message: string; status: 'success' | 'warning' | 'danger' | 'info' } => {
+    const day = getDay(new Date()); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    const w = profile.targetWeightClass;
+    const current = profile.currentWeight;
+    
+    // WEDNESDAY CHECKPOINT (Post-Practice)
+    if (day === 3) { 
+        const wedTargetMin = w * 1.04;
+        const wedTargetMax = w * 1.05;
+        const wedMid = (wedTargetMin + wedTargetMax) / 2;
+        
+        if (current > wedTargetMax + 1) {
+            return {
+                title: "Wednesday Checkpoint: Behind Pace",
+                message: "You are above the target range. Increase training intensity immediately and verify your protocol adherence. Do not cut water yet.",
+                status: 'danger'
+            };
+        }
+        if (current < wedTargetMin - 1) {
+             return {
+                title: "Wednesday Checkpoint: Ahead of Pace",
+                message: "You are lighter than expected. You can increase food intake slightly for Thu-Fri to preserve energy. Do NOT get dehydrated this early.",
+                status: 'success'
+            };
+        }
+        return {
+            title: "Wednesday Checkpoint: On Track",
+            message: "Perfect. You are exactly where you need to be. Maintain the protocol.",
+            status: 'info'
+        };
+    }
+
+    // FRIDAY CHECKPOINT (Pre-Practice)
+    if (day === 5) {
+        const friTarget = w * 1.03; // Approx 3% over
+        
+        if (current > friTarget + 2) {
+             return {
+                title: "Friday Checkpoint: Heavy",
+                message: "You have more than 3% to cut. You will need a harder practice today. Focus on sweat output.",
+                status: 'warning'
+            };
+        }
+        return {
+            title: "Friday Checkpoint: Ready",
+            message: "You are within striking distance (3%). This will come off during practice and overnight drift.",
+            status: 'success'
+        };
+    }
+
+    // MONDAY CHECKPOINT (Baseline)
+    if (day === 1) {
+        const walkAround = w * 1.07;
+        if (current > walkAround) {
+             return {
+                title: "Monday Checkpoint: Baseline High",
+                message: `You are starting the week heavy (>7% over). Protocol 1 or 2 is strictly required this week.`,
+                status: 'warning'
+            };
+        }
+    }
+
+    return {
+        title: "Daily Guidance",
+        message: "Follow the fueling guide below. Keep your urine clear until Thursday.",
+        status: 'info'
+    };
+  };
+
   return (
     <StoreContext.Provider value={{ 
       profile, 
@@ -421,7 +491,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getHydrationTarget,
       getFuelingGuide,
       getRehydrationPlan,
-      getCheckpoints
+      getCheckpoints,
+      getCoachMessage
     }}>
       {children}
     </StoreContext.Provider>

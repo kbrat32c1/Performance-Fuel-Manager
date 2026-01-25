@@ -2,7 +2,7 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Droplet, Ban, Utensils, Settings } from "lucide-react";
+import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Droplet, Ban, Utensils, Settings, Info, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export default function Dashboard() {
-  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints } = useStore();
+  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage } = useStore();
   const targetWeight = calculateTarget();
   const diff = profile.currentWeight - targetWeight;
   const isOver = diff > 0;
@@ -25,6 +25,7 @@ export default function Dashboard() {
   const hydration = getHydrationTarget();
   const fuel = getFuelingGuide();
   const checkpoints = getCheckpoints();
+  const coach = getCoachMessage();
   
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   const showReverseWater = isAdvancedAllowed() && (phase === 'metabolic' || phase === 'transition');
@@ -98,6 +99,21 @@ export default function Dashboard() {
       </header>
 
       <div className="space-y-6">
+        {/* Coach Message Banner */}
+        <div className={cn(
+            "rounded-lg p-4 border flex items-start gap-3",
+            coach.status === 'danger' ? "bg-destructive/10 border-destructive text-destructive" :
+            coach.status === 'warning' ? "bg-orange-500/10 border-orange-500 text-orange-500" :
+            coach.status === 'success' ? "bg-green-500/10 border-green-500 text-green-500" :
+            "bg-blue-500/10 border-blue-500 text-blue-500"
+        )}>
+            <Megaphone className="w-5 h-5 shrink-0 mt-0.5" />
+            <div>
+                <h3 className="font-bold text-sm uppercase tracking-wider mb-1">{coach.title}</h3>
+                <p className="text-sm font-medium opacity-90 leading-snug">{coach.message}</p>
+            </div>
+        </div>
+
         {/* Main Status Card */}
         <section className="relative">
            {/* Ring Visualization (CSS only for speed) */}
