@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Weight, Target, ChevronRight } from "lucide-react";
+import { ArrowRight, Weight, Target, ChevronRight, Scale, Activity, Lock, Droplets, Trophy } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -17,12 +18,18 @@ export default function Onboarding() {
   const [, setLocation] = useLocation();
 
   const handleNext = () => {
-    if (step < 3) {
+    if (step < 4) { // Increased steps
       setStep(step + 1);
     } else {
-      // Analyze and assign track (Mock Logic)
+      // Analyze and assign track (Rules Engine)
       const diff = profile.currentWeight - profile.targetWeightClass;
-      const track = diff > 8 ? 'A' : 'B'; // If > 8lbs over, Track A (Fat Loss), else Track B (Performance)
+      let track: 'A' | 'B' = 'B';
+      
+      // Track A logic: Fat Loss priority
+      if (profile.goal === 'season-fat-loss' || (diff > 8 && profile.goal !== 'same-day')) {
+        track = 'A';
+      }
+
       updateProfile({ track });
       setLocation('/dashboard');
     }
@@ -35,7 +42,7 @@ export default function Onboarding() {
         <div className="w-full bg-muted h-1 mb-8 rounded-full overflow-hidden">
           <div 
             className="bg-primary h-full transition-all duration-500 ease-out" 
-            style={{ width: `${(step / 3) * 100}%` }}
+            style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
 
@@ -86,6 +93,53 @@ export default function Onboarding() {
 
           {step === 2 && (
             <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+               <div className="space-y-2">
+                <h1 className="text-4xl font-heading font-bold uppercase italic">Goal</h1>
+                <p className="text-muted-foreground">What is the priority for this cut?</p>
+              </div>
+
+              <RadioGroup 
+                value={profile.goal} 
+                onValueChange={(v: any) => updateProfile({ goal: v })}
+                className="grid grid-cols-1 gap-3"
+              >
+                <GoalOption 
+                  value="season-fat-loss" 
+                  title="Season Body Comp Drop" 
+                  desc="Fat Loss Priority • Track A" 
+                  icon={Scale} 
+                />
+                <GoalOption 
+                  value="make-weight-week" 
+                  title="Make Weight This Week" 
+                  desc="Performance First • Track B" 
+                  icon={Trophy} 
+                />
+                <GoalOption 
+                  value="same-day" 
+                  title="Same-Day Weigh-In" 
+                  desc="Minimal Dehydration • High Energy" 
+                  icon={Activity} 
+                />
+                <GoalOption 
+                  value="day-before" 
+                  title="Day-Before Weigh-In" 
+                  desc="Recovery Window Available" 
+                  icon={Droplets} 
+                />
+                <GoalOption 
+                  value="advanced" 
+                  title="Advanced Cut Tooling" 
+                  desc="Coach Approved Only" 
+                  icon={Lock} 
+                  isDestructive
+                />
+              </RadioGroup>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Timeline</h1>
                 <p className="text-muted-foreground">When do you need to perform?</p>
@@ -127,7 +181,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Resources</h1>
@@ -159,12 +213,31 @@ export default function Onboarding() {
         </div>
 
         <Button onClick={handleNext} className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black hover:bg-primary/90 mt-8">
-          {step === 3 ? "Initialize Protocol" : "Next Step"} <ChevronRight className="ml-2 w-5 h-5" />
+          {step === 4 ? "Initialize Protocol" : "Next Step"} <ChevronRight className="ml-2 w-5 h-5" />
         </Button>
       </div>
     </MobileLayout>
   );
 }
 
-// Missing Switch component import was needed, adding simplistic version inline for speed or assuming ui/switch exists (it does in package list)
+function GoalOption({ value, title, desc, icon: Icon, isDestructive }: any) {
+  return (
+    <div className={cn(
+      "flex items-center space-x-3 border p-4 rounded-lg transition-all relative overflow-hidden",
+      "data-[state=checked]:border-primary data-[state=checked]:bg-primary/5",
+      isDestructive ? "border-destructive/30 hover:border-destructive/60" : "border-muted hover:border-muted-foreground/50",
+      "bg-muted/10"
+    )}>
+      <RadioGroupItem value={value} id={value} className="mt-1" />
+      <div className="flex-1 cursor-pointer">
+         <Label htmlFor={value} className="font-bold text-base cursor-pointer flex items-center gap-2">
+            {title}
+         </Label>
+         <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+      </div>
+      <Icon className={cn("w-5 h-5 opacity-50", isDestructive ? "text-destructive" : "text-primary")} />
+    </div>
+  );
+}
+
 import { Switch } from "@/components/ui/switch";
