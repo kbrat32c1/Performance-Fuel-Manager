@@ -2,10 +2,11 @@ import React, { createContext, useContext, useState } from 'react';
 import { addDays, subDays, differenceInDays, getDay } from 'date-fns';
 
 // Types
-export type Protocol = '1' | '2' | '3'; 
+export type Protocol = '1' | '2' | '3' | '4'; 
 // 1: Sugar Fast (Extreme/Preseason)
 // 2: Fat Loss Focus (In-Season)
 // 3: Maintain (Performance)
+// 4: Hypertrophy (Weight Gain)
 
 export type Status = 'on-track' | 'borderline' | 'risk';
 
@@ -53,7 +54,8 @@ interface StoreContextType {
   getTodaysFocus: () => { title: string; actions: string[], warning?: string };
   isAdvancedAllowed: () => boolean;
   getHydrationTarget: () => { amount: string; type: string; note: string };
-  getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string };
+  getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
+  getCheckpoints: () => { walkAround: string; wedTarget: string; friTarget: string };
   getRehydrationPlan: (lostWeight: number) => { fluidRange: string; sodiumRange: string; glycogen: string };
 }
 
@@ -113,7 +115,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const calculateTarget = () => {
     // 1% Per Day Descent Model (from PDF)
     const daysOut = Math.max(0, differenceInDays(profile.weighInDate, new Date()));
-    return profile.targetWeightClass * (1 + (0.01 * daysOut)); 
+    // Standard descent for weight loss
+    if (profile.protocol !== '4') {
+        return profile.targetWeightClass * (1 + (0.01 * daysOut)); 
+    }
+    // Hypertrophy target (gaining)
+    return profile.targetWeightClass;
+  };
+
+  const getCheckpoints = () => {
+      const w = profile.targetWeightClass;
+      // Based on table: 
+      // Walk Around = Class * 1.06-1.07
+      // Wed PM = Class * 1.04-1.05
+      // Fri PM = Class * 1.02-1.03
+      
+      return {
+          walkAround: `${(w * 1.06).toFixed(1)} - ${(w * 1.07).toFixed(1)} lbs`,
+          wedTarget: `${(w * 1.04).toFixed(1)} - ${(w * 1.05).toFixed(1)} lbs`,
+          friTarget: `${(w * 1.02).toFixed(1)} - ${(w * 1.03).toFixed(1)} lbs`
+      };
   };
 
   const getRehydrationPlan = (lostWeight: number) => {
@@ -195,23 +216,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getFuelingGuide = () => {
     const phase = getPhase();
     const protocol = profile.protocol;
-    const dayOfWeek = getDay(new Date());
+    const dayOfWeek = getDay(new Date()); // 0=Sun, 1=Mon
 
     // Protocol 1: Sugar Fast (Extreme)
     if (protocol === '1') {
       if (dayOfWeek >= 1 && dayOfWeek <= 4) { // Mon-Thu
         return {
-          ratio: "Fructose Only (0g Protein)",
+          ratio: "Fructose Only",
+          protein: "0g",
+          carbs: "250-400g",
           allowed: ["Apple Juice", "Pears", "Grapes", "Honey", "Agave"],
           avoid: ["ALL Protein", "Starchy Carbs", "Fat"]
         };
       }
       if (dayOfWeek === 5) { // Fri
         return {
-           ratio: "Fructose + MCT (Evening Protein)",
+           ratio: "Fructose + MCT",
+           protein: "0.2g/lb (Evening)",
+           carbs: "<1500 cal total",
            allowed: ["Fruit", "Honey", "MCT Oil", "Small Whey/Collagen (Evening)"],
            avoid: ["Starch", "Fiber"]
         };
+      }
+      if (dayOfWeek === 6) { // Sat (Refeed)
+         return {
+             ratio: "Protein Refeed",
+             protein: "1.0g/lb",
+             carbs: "Low",
+             allowed: ["Lean Meat", "Eggs", "Healthy Fats"],
+             avoid: ["Sugar"]
+         };
       }
     }
 
@@ -219,7 +253,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (protocol === '2') {
       if (dayOfWeek >= 1 && dayOfWeek <= 2) { // Mon-Tue
          return {
-          ratio: "Fructose Heavy (0g Protein)",
+          ratio: "Fructose Heavy",
+          protein: "0g",
+          carbs: "325-450g",
           allowed: ["Fruit", "Juice", "Honey"],
           avoid: ["Protein", "Starch", "Fat"]
          };
@@ -227,13 +263,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (dayOfWeek === 3) { // Wed
         return {
           ratio: "Fructose + Collagen",
+          protein: "25g (Dinner)",
+          carbs: "325-450g",
           allowed: ["Fruit", "Juice", "Honey", "Collagen + Leucine (Dinner)"],
           avoid: ["Starch", "Meat", "Fat"]
         };
       }
       if (phase === 'transition' || phase === 'performance-prep') { // Thu-Fri
         return {
-          ratio: "Glucose Heavy (60g Protein)",
+          ratio: "Glucose Heavy",
+          protein: "60g/day",
+          carbs: "325-450g",
           allowed: ["White Rice", "Potato", "Dextrose", "Collagen", "Seafood"],
           avoid: ["Fiber (Fruits/Veg)", "Fatty Meat"]
         };
@@ -244,14 +284,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (protocol === '3') {
        if (dayOfWeek === 1) { // Mon
          return {
-           ratio: "Fructose Heavy (25g Protein)",
+           ratio: "Fructose Heavy",
+           protein: "25g",
+           carbs: "300-450g",
            allowed: ["Fruit", "Juice", "Collagen"],
            avoid: ["Starch", "Fat"]
          };
        }
        if (dayOfWeek >= 2 && dayOfWeek <= 3) { // Tue-Wed
          return {
-           ratio: "Mixed (75g Protein)",
+           ratio: "Mixed Fructose/Glucose",
+           protein: "75g/day",
+           carbs: "300-450g",
            allowed: ["Fruit", "Rice", "Lean Protein", "Egg Whites"],
            avoid: ["High Fat"]
          };
@@ -260,10 +304,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
        if (phase === 'transition' || phase === 'performance-prep') {
          return {
            ratio: "Performance (Glucose)",
+           protein: "100g/day",
+           carbs: "300-450g",
            allowed: ["Rice", "Potato", "Lean Protein", "Dextrose"],
            avoid: ["Fiber"]
          };
        }
+    }
+
+    // Protocol 4: Hypertrophy
+    if (protocol === '4') {
+        if (dayOfWeek === 1) { // Mon
+            return {
+                ratio: "Balanced Carbs",
+                protein: "100g",
+                carbs: "350-600g",
+                allowed: ["Balanced Carbs", "Whole Protein", "Collagen"],
+                avoid: ["Junk Food"]
+            };
+        }
+        if (dayOfWeek >= 2 && dayOfWeek <= 3) { // Tue-Wed
+            return {
+                ratio: "Glucose Emphasis",
+                protein: "125g/day",
+                carbs: "350-600g",
+                allowed: ["Rice", "Potatoes", "Lean Protein", "Collagen"],
+                avoid: ["Excessive Fiber pre-workout"]
+            };
+        }
+        if (dayOfWeek >= 4 && dayOfWeek <= 5) { // Thu-Fri
+            return {
+                ratio: "Glucose Heavy",
+                protein: "125g/day",
+                carbs: "350-600g",
+                allowed: ["Rice", "Potatoes", "Chicken", "Seafood"],
+                avoid: ["Fiber"]
+            };
+        }
+        if (dayOfWeek === 0 || dayOfWeek === 6) { // Sat-Sun
+            return {
+                ratio: "High Intake",
+                protein: "1.6g/lb",
+                carbs: "High",
+                allowed: ["Whole Foods", "High Quality Fats"],
+                avoid: []
+            };
+        }
     }
 
     return { ratio: "Balanced", allowed: ["Clean Carbs", "Lean Protein"], avoid: ["Junk"] };
@@ -283,18 +369,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (protocol === '1') { // Sugar Fast
        title = "Protocol 1: Sugar Fast";
        actions.push("⚠️ EXTREME FAT LOSS MODE");
-       actions.push(`Eat: ${fuel.allowed.slice(0, 3).join(", ")}`);
+       actions.push(`Protein Target: ${fuel.protein || '0g'}`);
+       actions.push(`Carb Target: ${fuel.carbs || 'High'}`);
        if (phase === 'metabolic') actions.push("GOAL: Maximize FGF21 (No Protein)");
        if (phase === 'performance-prep') actions.push("Evening: Reintroduce Protein (0.2g/lb)");
     } else if (protocol === '2') { // Fat Loss
        title = "Protocol 2: Fat Loss Focus";
-       actions.push(`Eat: ${fuel.allowed.slice(0, 3).join(", ")}`);
+       actions.push(`Protein Target: ${fuel.protein}`);
+       actions.push(`Carb Target: ${fuel.carbs}`);
        if (phase === 'metabolic') actions.push("GOAL: Fat Oxidation (Low Protein)");
        if (phase === 'transition') actions.push("Switch to Glucose/Starch + Seafood");
-    } else { // Maintain
+    } else if (protocol === '3') { // Maintain
        title = "Protocol 3: Maintenance";
        actions.push("Focus: Performance & Recovery");
-       actions.push(`Eat: ${fuel.allowed.slice(0, 3).join(", ")}`);
+       actions.push(`Protein Target: ${fuel.protein}`);
+    } else if (protocol === '4') { // Hypertrophy
+       title = "Protocol 4: Hypertrophy";
+       actions.push("Focus: Muscle Growth & Weight Gain");
+       actions.push(`Protein Target: ${fuel.protein}`);
+       actions.push(`Carb Target: ${fuel.carbs}`);
     }
 
     // General Phase Rules
@@ -327,7 +420,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       isAdvancedAllowed,
       getHydrationTarget,
       getFuelingGuide,
-      getRehydrationPlan
+      getRehydrationPlan,
+      getCheckpoints
     }}>
       {children}
     </StoreContext.Provider>

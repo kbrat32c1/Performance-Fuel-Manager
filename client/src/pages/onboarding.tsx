@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Weight, Target, ChevronRight, Scale, Activity, Lock, Droplets, Trophy, Flame, Zap } from "lucide-react";
+import { ArrowRight, Weight, Target, ChevronRight, Scale, Activity, Lock, Droplets, Trophy, Flame, Zap, Dumbbell } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
@@ -100,20 +100,28 @@ export default function Onboarding() {
                   desc="Extreme Fat Loss • Preseason Only • 0g Protein" 
                   icon={Flame} 
                   isDestructive
+                  recommended={profile.currentWeight > profile.targetWeightClass * 1.07}
                 />
                 <GoalOption 
                   value="2" 
                   title="Protocol 2: Fat Loss Focus" 
                   desc="Standard In-Season • Fructose Early • Glucose Late" 
                   icon={Zap} 
-                  recommended={profile.currentWeight > profile.targetWeightClass * 1.05}
+                  recommended={profile.currentWeight <= profile.targetWeightClass * 1.07 && profile.currentWeight > profile.targetWeightClass * 1.03}
                 />
                 <GoalOption 
                   value="3" 
                   title="Protocol 3: Maintenance" 
                   desc="Performance Mode • Lean Athletes Only" 
                   icon={Trophy} 
-                  recommended={profile.currentWeight <= profile.targetWeightClass * 1.05}
+                  recommended={profile.currentWeight <= profile.targetWeightClass * 1.03 && profile.currentWeight >= profile.targetWeightClass}
+                />
+                <GoalOption 
+                  value="4" 
+                  title="Protocol 4: Hypertrophy" 
+                  desc="Weight Gain • Off-Season / Moving Up" 
+                  icon={Dumbbell} 
+                  recommended={profile.targetWeightClass > profile.currentWeight}
                 />
               </RadioGroup>
             </div>
@@ -194,6 +202,11 @@ export default function Onboarding() {
                    {profile.currentWeight > profile.targetWeightClass * 1.07 && (
                      <p className="text-destructive font-bold text-xs">
                        ⚠️ You are above the recommended training weight range. Protocol 1 or 2 recommended.
+                     </p>
+                   )}
+                   {profile.targetWeightClass > profile.currentWeight && (
+                     <p className="text-primary font-bold text-xs">
+                       💪 You are moving up a weight class. Protocol 4 (Hypertrophy) is recommended.
                      </p>
                    )}
                  </div>

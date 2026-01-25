@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export default function Dashboard() {
-  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile } = useStore();
+  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints } = useStore();
   const targetWeight = calculateTarget();
   const diff = profile.currentWeight - targetWeight;
   const isOver = diff > 0;
@@ -24,6 +24,7 @@ export default function Dashboard() {
   const focus = getTodaysFocus();
   const hydration = getHydrationTarget();
   const fuel = getFuelingGuide();
+  const checkpoints = getCheckpoints();
   
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   const showReverseWater = isAdvancedAllowed() && (phase === 'metabolic' || phase === 'transition');
@@ -213,7 +214,21 @@ export default function Dashboard() {
                {profile.protocol === '1' && <span className="text-[10px] bg-destructive/20 text-destructive px-2 py-0.5 rounded font-bold">SUGAR FAST</span>}
                {profile.protocol === '2' && <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold">FAT LOSS</span>}
                {profile.protocol === '3' && <span className="text-[10px] bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded font-bold">MAINTAIN</span>}
+               {profile.protocol === '4' && <span className="text-[10px] bg-purple-500/20 text-purple-500 px-2 py-0.5 rounded font-bold">HYPERTROPHY</span>}
              </div>
+             
+             {/* Macro Targets */}
+             <div className="grid grid-cols-2 gap-2 mb-4 border-b border-muted pb-4">
+                <div className="bg-card/50 p-2 rounded text-center">
+                   <span className="block text-[10px] uppercase text-muted-foreground font-bold">Protein</span>
+                   <span className="font-mono font-bold text-foreground">{fuel.protein || "N/A"}</span>
+                </div>
+                <div className="bg-card/50 p-2 rounded text-center">
+                   <span className="block text-[10px] uppercase text-muted-foreground font-bold">Carbs</span>
+                   <span className="font-mono font-bold text-foreground">{fuel.carbs || "N/A"}</span>
+                </div>
+             </div>
+
              <div className="grid grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">
                   <span className="text-muted-foreground block font-bold text-[10px] uppercase">Primary Foods</span>
