@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Ban, Utensils, Settings, Megaphone, Calendar, ArrowRight, ChevronDown, ChevronUp, Scale, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WeightChart } from "@/components/weight-chart";
 
 export default function Dashboard() {
   const { profile, calculateTarget, fuelTanks, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage, getNextSteps, logs } = useStore();
@@ -24,6 +25,9 @@ export default function Dashboard() {
   const statusColor = profile.status === 'on-track' ? 'text-primary' : profile.status === 'borderline' ? 'text-chart-3' : 'text-destructive';
   
   const phase = getPhase();
+  // Using simulated date if active for display
+  const displayDate = profile.simulatedDate || new Date();
+  
   const focus = getTodaysFocus();
   const hydration = getHydrationTarget();
   const fuel = getFuelingGuide();
@@ -56,16 +60,23 @@ export default function Dashboard() {
              Fri: Prep
           </div>
       </div>
+      
+      {/* Demo Warning Banner */}
+      {profile.simulatedDate && (
+          <div className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold uppercase text-center py-1 -mx-4 mb-4 animate-pulse">
+              ⚠️ Demo Mode Active: {format(displayDate, 'EEEE')}
+          </div>
+      )}
 
       <header className="flex justify-between items-start mb-6">
         <div>
           <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
-            {format(new Date(), 'EEEE, MMM d')}
+            {format(displayDate, 'EEEE, MMM d')}
           </h2>
           <h1 className="text-2xl font-heading font-bold uppercase italic flex flex-col">
             <span>Hi, {profile.name}</span>
             <span className="text-xs text-primary not-italic font-sans font-medium opacity-80 mt-0.5">
-               Protocol {profile.protocol} • {phase.replace('-', ' ')}
+               {profile.protocol === '1' ? 'Track A' : profile.protocol === '2' ? 'Track B' : profile.protocol === '3' ? 'Maintenance' : 'Growth'} • {phase.replace('-', ' ')}
             </span>
           </h1>
         </div>
@@ -79,7 +90,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         
         {/* Weekly Timeline */}
-        <WeeklyTimeline currentDay={new Date().getDay()} />
+        <WeeklyTimeline currentDay={displayDate.getDay()} />
 
         {/* HERO CARD: Today's Focus */}
         <Card className="border-l-4 border-l-primary bg-muted/5 shadow-lg relative overflow-hidden">
@@ -130,7 +141,7 @@ export default function Dashboard() {
            </Card>
 
            {/* Hydration Card */}
-           <Card className="bg-cyan-500/5 border-cyan-500/20 flex flex-col justify-between">
+           <Card className="bg-cyan-500/5 border-cyan-500/20 flex flex-col justify-between relative overflow-hidden">
               <CardContent className="p-4 pt-5">
                  <div className="flex justify-between items-start mb-2">
                     <span className="text-[10px] text-cyan-500 uppercase font-bold tracking-wider">Hydration</span>
@@ -141,6 +152,9 @@ export default function Dashboard() {
               </CardContent>
            </Card>
         </div>
+
+        {/* NEW CHART SECTION */}
+        <WeightChart />
 
         {/* Coach Message (Secondary) */}
         <div className={cn(

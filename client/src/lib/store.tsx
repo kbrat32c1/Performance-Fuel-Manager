@@ -32,6 +32,7 @@ export interface AthleteProfile {
   protocol: Protocol;
   status: Status;
   coachMode: boolean;
+  simulatedDate: Date | null;
 }
 
 export interface WeightLog {
@@ -74,6 +75,7 @@ const defaultProfile: AthleteProfile = {
   protocol: '2', // Default to Fat Loss Focus
   status: 'on-track',
   coachMode: false,
+  simulatedDate: null,
 };
 
 const defaultTanks: FuelTanks = {
@@ -207,7 +209,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Rules Engine Logic
   const getPhase = (): Phase => {
-    const today = new Date();
+    const today = profile.simulatedDate || new Date();
     const daysUntilWeighIn = differenceInDays(profile.weighInDate, today);
 
     if (daysUntilWeighIn <= 1) return 'last-24h';
@@ -228,7 +230,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const w = profile.targetWeightClass;
     const phase = getPhase();
     const advanced = isAdvancedAllowed();
-    const dayOfWeek = getDay(new Date()); // Using actual day for reverse load schedule (Mon=1, etc)
+    const today = profile.simulatedDate || new Date();
+    const dayOfWeek = getDay(today); // Using actual day for reverse load schedule (Mon=1, etc)
     
     // Reverse Water Load Logic (Advanced / Protocol 1)
     if (advanced || profile.protocol === '1') { 
@@ -270,7 +273,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getFuelingGuide = () => {
     const phase = getPhase();
     const protocol = profile.protocol;
-    const dayOfWeek = getDay(new Date()); // 0=Sun, 1=Mon
+    const today = profile.simulatedDate || new Date();
+    const dayOfWeek = getDay(today); // 0=Sun, 1=Mon
 
     // Protocol 1: Sugar Fast (Extreme)
     if (protocol === '1') {
@@ -461,7 +465,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getCoachMessage = (): { title: string; message: string; status: 'success' | 'warning' | 'danger' | 'info' } => {
-    const day = getDay(new Date()); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    const today = profile.simulatedDate || new Date();
+    const day = getDay(today); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
     const w = profile.targetWeightClass;
     const current = profile.currentWeight;
     
@@ -530,7 +535,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getNextSteps = () => {
-      const day = getDay(new Date()); // 0=Sun, 1=Mon...
+      const today = profile.simulatedDate || new Date();
+      const day = getDay(today); // 0=Sun, 1=Mon...
       const protocol = profile.protocol;
       
       // Mon -> Tue
