@@ -1,0 +1,77 @@
+import React from 'react';
+import { cn } from "@/lib/utils";
+import { useLocation } from "wouter";
+
+interface MobileLayoutProps {
+  children: React.ReactNode;
+  className?: string;
+  showNav?: boolean;
+}
+
+export function MobileLayout({ children, className, showNav = true }: MobileLayoutProps) {
+  const [location, setLocation] = useLocation();
+
+  return (
+    <div className="min-h-screen w-full bg-background text-foreground overflow-hidden flex flex-col items-center justify-start relative">
+      <div className={cn("w-full max-w-md flex-1 flex flex-col relative", className)}>
+        {/* Safe Area Top Padding */}
+        <div className="h-safe-top w-full" />
+        
+        {/* Main Content */}
+        <main className="flex-1 w-full p-4 pb-24 animate-in fade-in duration-500">
+          {children}
+        </main>
+
+        {/* Bottom Nav */}
+        {showNav && (
+          <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-t border-border flex justify-around items-center h-16 pb-safe-bottom max-w-md mx-auto">
+            <NavItem 
+              icon="LayoutDashboard" 
+              label="Dash" 
+              active={location === '/dashboard'} 
+              onClick={() => setLocation('/dashboard')} 
+            />
+            <NavItem 
+              icon="PlusCircle" 
+              label="Log" 
+              active={location === '/log'} 
+              onClick={() => setLocation('/dashboard')} // For prototype, log opens modal on dash usually
+              primary
+            />
+            <NavItem 
+              icon="Activity" 
+              label="Recovery" 
+              active={location === '/recovery'} 
+              onClick={() => setLocation('/recovery')} 
+            />
+          </nav>
+        )}
+      </div>
+    </div>
+  );
+}
+
+import { LayoutDashboard, Activity, PlusCircle, Settings } from "lucide-react";
+
+function NavItem({ icon, label, active, onClick, primary }: any) {
+  const Icon = { LayoutDashboard, Activity, PlusCircle, Settings }[icon as string] || Settings;
+  
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center justify-center gap-1 w-16 h-full transition-all duration-200",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+        primary && "text-primary -mt-8"
+      )}
+    >
+      <div className={cn(
+        "p-2 rounded-full transition-all",
+        primary ? "bg-primary text-black shadow-[0_0_20px_rgba(132,204,22,0.4)] scale-125" : ""
+      )}>
+        <Icon size={primary ? 24 : 20} strokeWidth={primary ? 2.5 : 2} />
+      </div>
+      {!primary && <span className="text-[10px] font-medium uppercase tracking-wider">{label}</span>}
+    </button>
+  );
+}
