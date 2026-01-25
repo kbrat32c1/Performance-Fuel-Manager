@@ -222,6 +222,16 @@ export default function Onboarding() {
                  
                  <div className="space-y-3 text-sm">
                    <div className="flex justify-between items-center pb-2 border-b border-muted/50">
+                      <span className="text-muted-foreground">Current Weight</span>
+                      <span className="font-mono font-bold text-foreground">{profile.currentWeight.toFixed(1)} lbs</span>
+                   </div>
+
+                   <div className="flex justify-between items-center pb-2 border-b border-muted/50">
+                      <span className="text-muted-foreground">Target Class</span>
+                      <span className="font-mono font-bold text-foreground">{profile.targetWeightClass} lbs</span>
+                   </div>
+
+                   <div className="flex justify-between items-center pb-2 border-b border-muted/50">
                       <span className="text-muted-foreground">Current Distance</span>
                       <span className="font-mono font-bold">{(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs over</span>
                    </div>
