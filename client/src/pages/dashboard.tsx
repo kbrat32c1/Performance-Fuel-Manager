@@ -75,7 +75,7 @@ export default function Dashboard() {
           <h1 className="text-2xl font-heading font-bold uppercase italic flex flex-col">
             <span>Hi, {profile.name}</span>
             <span className="text-xs text-primary not-italic font-sans font-medium opacity-80 mt-0.5">
-               {profile.protocol === '1' ? 'Fire' : profile.protocol === '2' ? 'Focus' : profile.protocol === '3' ? 'Anchor' : 'Build'} • {phase.replace('-', ' ')}
+               {profile.protocol === '1' ? 'Body Comp' : profile.protocol === '2' ? 'Make Weight' : profile.protocol === '3' ? 'Hold Weight' : 'Recovery'} • {phase.replace('-', ' ')}
             </span>
           </h1>
         </div>
