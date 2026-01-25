@@ -26,7 +26,7 @@ export interface AthleteProfile {
   targetWeightClass: number;
   weighInDate: Date;
   matchDate: Date;
-  dashboardMode: 'essentials' | 'standard' | 'pro';
+  dashboardMode: 'pro';
   hasSaunaAccess: boolean;
   protocol: Protocol;
   status: Status;
@@ -70,7 +70,7 @@ const defaultProfile: AthleteProfile = {
   targetWeightClass: 157,
   weighInDate: addDays(new Date(), 5), // 5 days out
   matchDate: addDays(new Date(), 5),
-  dashboardMode: 'standard',
+  dashboardMode: 'pro',
   hasSaunaAccess: true,
   protocol: '2', // Default to Track B
   status: 'on-track',

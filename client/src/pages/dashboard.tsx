@@ -52,8 +52,8 @@ export default function Dashboard() {
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   
   // Dashboard Mode Logic (Unified)
-  const showFuelTanks = profile.dashboardMode !== 'essentials';
-  const showAdvancedDetails = profile.dashboardMode === 'pro';
+  const showFuelTanks = true;
+  const showAdvancedDetails = true;
 
   return (
     <MobileLayout>
@@ -81,7 +81,7 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
            <SettingsDialog profile={profile} updateProfile={updateProfile} />
-           <SystemPhilosophyDialog dashboardMode={profile.dashboardMode} />
+           <SystemPhilosophyDialog />
            <div className={cn("w-2 h-2 rounded-full mt-1", profile.status === 'on-track' ? 'bg-primary' : 'bg-destructive')} />
         </div>
       </header>
@@ -505,24 +505,6 @@ function SettingsDialog({ profile, updateProfile }: any) {
            </TabsList>
            
            <TabsContent value="profile" className="space-y-4 py-4">
-               <div className="space-y-2">
-                  <Label>Guidance Level</Label>
-                  <Select 
-                    value={profile.guidanceLevel || 'intermediate'} 
-                    onValueChange={(v) => updateProfile({ guidanceLevel: v })}
-                  >
-                    <SelectTrigger className="w-full bg-muted/30 border-muted">
-                      <SelectValue placeholder="Select Level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="beginner">Beginner (Essentials)</SelectItem>
-                      <SelectItem value="intermediate">Intermediate (Standard)</SelectItem>
-                      <SelectItem value="advanced">Advanced (Coach Mode)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[10px] text-muted-foreground">Controls how much detail you see on the dashboard.</p>
-               </div>
-
                <div className="flex items-center justify-between py-2 border-t border-muted">
                  <div className="space-y-0.5">
                     <Label className="text-base">Coach Mode</Label>
@@ -560,14 +542,14 @@ function SettingsDialog({ profile, updateProfile }: any) {
   );
 }
 
-function SystemPhilosophyDialog({ guidanceLevel }: { guidanceLevel: string }) {
+function SystemPhilosophyDialog() {
    const [open, setOpen] = useState(false);
 
    return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-           <span className="font-heading font-bold italic text-lg">?</span>
+           <Info className="w-5 h-5" />
          </Button>
       </DialogTrigger>
       <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[80vh] overflow-y-auto p-0">
