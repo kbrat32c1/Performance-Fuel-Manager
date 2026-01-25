@@ -1,17 +1,16 @@
 import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, Protocol } from "@/lib/store";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/mobile-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Weight, Target, ChevronRight, Scale, Activity, Lock, Droplets, Trophy, Flame, Zap, Dumbbell, AlertTriangle, CheckCircle } from "lucide-react";
+import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { Switch } from "@/components/ui/switch";
+import { ProtocolWizard } from "@/components/protocol-wizard";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -66,11 +65,12 @@ export default function Onboarding() {
                   <Label>Current Weight (lbs)</Label>
                   <div className="relative">
                     <Weight className="absolute left-3 top-3 text-muted-foreground w-5 h-5" />
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
+                      placeholder="Enter your weight"
                       className="pl-10 text-lg h-12 bg-muted/30 border-muted focus:border-primary font-mono"
-                      value={profile.currentWeight}
-                      onChange={(e) => updateProfile({ currentWeight: parseFloat(e.target.value) })}
+                      value={profile.currentWeight === 0 ? '' : profile.currentWeight}
+                      onChange={(e) => updateProfile({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
                     />
                   </div>
                 </div>
@@ -99,48 +99,15 @@ export default function Onboarding() {
           )}
 
           {step === 2 && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
-               <div className="space-y-2">
-                <h1 className="text-4xl font-heading font-bold uppercase italic">Select Protocol</h1>
-                <p className="text-muted-foreground">Choose your weight management track.</p>
-              </div>
-
-              <RadioGroup 
-                value={profile.protocol} 
-                onValueChange={(v: any) => updateProfile({ protocol: v })}
-                className="grid grid-cols-1 gap-3"
-              >
-                <GoalOption 
-                  value="1" 
-                  title="Body Comp Phase" 
-                  desc="Fat Loss without Performance Sacrifice" 
-                  icon={Flame} 
-                  isDestructive
-                  recommended={profile.currentWeight > profile.targetWeightClass * 1.07}
-                />
-                <GoalOption 
-                  value="2" 
-                  title="Make Weight Phase" 
-                  desc="Active Competition Week Cut" 
-                  icon={Zap} 
-                  recommended={profile.currentWeight <= profile.targetWeightClass * 1.07 && profile.currentWeight > profile.targetWeightClass * 1.03}
-                />
-                <GoalOption 
-                  value="3" 
-                  title="Hold Weight Phase" 
-                  desc="Stay at Class • Train Hard" 
-                  icon={Trophy} 
-                  recommended={profile.currentWeight <= profile.targetWeightClass * 1.03 && profile.currentWeight >= profile.targetWeightClass}
-                />
-                <GoalOption 
-                  value="4" 
-                  title="Build Phase" 
-                  desc="Post-season / Off-season" 
-                  icon={Dumbbell} 
-                  recommended={profile.targetWeightClass > profile.currentWeight}
-                />
-              </RadioGroup>
-            </div>
+            <ProtocolWizard
+              currentWeight={profile.currentWeight}
+              targetWeightClass={profile.targetWeightClass}
+              onComplete={(protocol: Protocol) => {
+                updateProfile({ protocol });
+                setStep(3);
+              }}
+              onBack={() => setStep(1)}
+            />
           )}
 
           {step === 3 && (
@@ -174,20 +141,7 @@ export default function Onboarding() {
                 <p className="text-muted-foreground">Confirm your setup.</p>
               </div>
 
-              <Card className="p-6 bg-card border-muted space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base font-bold uppercase">Sauna Access</Label>
-                    <p className="text-xs text-muted-foreground">Used for final water cut (Thursday night)</p>
-                  </div>
-                  <Switch 
-                    checked={profile.hasSaunaAccess} 
-                    onCheckedChange={(c) => updateProfile({ hasSaunaAccess: c })} 
-                  />
-                </div>
-              </Card>
-
-               <div className="bg-muted/30 border border-muted p-5 rounded-lg mt-8 space-y-4">
+               <div className="bg-muted/30 border border-muted p-5 rounded-lg space-y-4">
                  <h4 className="font-heading font-bold text-lg uppercase flex items-center gap-2">
                     <Activity className="w-5 h-5 text-primary" /> Safety Check
                  </h4>
@@ -217,14 +171,14 @@ export default function Onboarding() {
                      <div className="bg-destructive/10 text-destructive p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                        <div>
-                         You are starting heavy. Track A (Aggressive) is highly recommended to safely make weight.
+                         You are starting heavy. Body Comp Phase is highly recommended to safely make weight.
                        </div>
                      </div>
                    ) : profile.targetWeightClass > profile.currentWeight ? (
                      <div className="bg-primary/10 text-primary p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
                        <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
                        <div>
-                         You are moving up a weight class. Track D (Growth) is active.
+                         You are moving up a weight class. Build Phase is active.
                        </div>
                      </div>
                    ) : (
@@ -241,33 +195,14 @@ export default function Onboarding() {
           )}
         </div>
 
-        <Button onClick={handleNext} className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black hover:bg-primary/90 mt-8">
-          {step === 4 ? "Initialize Protocol" : "Next Step"} <ChevronRight className="ml-2 w-5 h-5" />
-        </Button>
+        {/* Only show bottom button for steps that don't have their own navigation */}
+        {step !== 2 && (
+          <Button onClick={handleNext} className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black hover:bg-primary/90 mt-8">
+            {step === 4 ? "Initialize Protocol" : "Next Step"} <ChevronRight className="ml-2 w-5 h-5" />
+          </Button>
+        )}
       </div>
     </MobileLayout>
   );
 }
 
-function GoalOption({ value, title, desc, icon: Icon, isDestructive, recommended }: any) {
-  return (
-    <div className={cn(
-      "flex items-center space-x-3 border p-4 rounded-lg transition-all relative overflow-hidden",
-      "data-[state=checked]:border-primary data-[state=checked]:bg-primary/5",
-      isDestructive ? "border-destructive/30 hover:border-destructive/60" : "border-muted hover:border-muted-foreground/50",
-      recommended ? "bg-primary/5 border-primary ring-1 ring-primary" : "bg-muted/10"
-    )}>
-      {recommended && (
-        <div className="absolute top-0 right-0 bg-primary text-black text-[9px] font-bold px-2 py-0.5 uppercase">Recommended</div>
-      )}
-      <RadioGroupItem value={value} id={value} className="mt-1" />
-      <div className="flex-1 cursor-pointer">
-         <Label htmlFor={value} className="font-bold text-base cursor-pointer flex items-center gap-2">
-            {title}
-         </Label>
-         <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
-      </div>
-      <Icon className={cn("w-5 h-5 opacity-50", isDestructive ? "text-destructive" : "text-primary")} />
-    </div>
-  );
-}

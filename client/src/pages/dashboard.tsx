@@ -1,623 +1,1272 @@
-import { WeeklyTimeline } from "@/components/weekly-timeline";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Ban, Utensils, Settings, Megaphone, Calendar, ArrowRight, ChevronDown, ChevronUp, Scale, Clock, Info, Target, Plus, Minus } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Droplets, Scale, Utensils, Dumbbell, Moon, Sun,
+  ChevronRight, CheckCircle2, Plus, Settings, Info,
+  AlertTriangle, Flame, Zap, Trophy, Pencil, Trash2, Apple,
+  Calendar, ArrowRight
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format, getDay } from "date-fns";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { WeightChart } from "@/components/weight-chart";
 import { RecoveryTakeover } from "@/components/recovery-takeover";
 
 export default function Dashboard() {
-  const { profile, calculateTarget, fuelTanks, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage, getNextSteps, logs, getNextTarget, getDriftMetrics } = useStore();
-  const targetWeight = calculateTarget();
-  const diff = profile.currentWeight - targetWeight;
-  const isOver = diff > 0;
-  
-  // Hydration Tracking State
-  const hydration = getHydrationTarget();
-  // Parse target from string (e.g. "1.5 gal" or "100-115 oz") - very rough logic for prototype
-  // Assuming simpler display for tracking
-  const [loggedWater, setLoggedWater] = useState(0); 
-  // Reset logged water daily (mock)
-  useEffect(() => { setLoggedWater(0); }, [profile.simulatedDate]);
-  
-  const targetWaterOz = 128; // Default to 1 gal for visualization if not parsed
-  const hydrationPercent = Math.min(100, (loggedWater / targetWaterOz) * 100);
+  const {
+    profile,
+    calculateTarget,
+    getPhase,
+    getFuelingGuide,
+    updateProfile,
+    getHydrationTarget,
+    getMacroTargets,
+    getFoodLists,
+    logs,
+    addLog,
+    updateLog,
+    deleteLog,
+    getDailyTracking,
+    updateDailyTracking,
+    getTomorrowPlan,
+    getWeeklyPlan
+  } = useStore();
 
   const phase = getPhase();
   const displayDate = profile.simulatedDate || new Date();
-  
+
   // Weigh-in Day Takeover
   if (phase === 'last-24h') {
-     return <RecoveryTakeover />;
+    return <RecoveryTakeover />;
   }
 
-  const focus = getTodaysFocus();
   const fuel = getFuelingGuide();
-  const checkpoints = getCheckpoints();
-  const coach = getCoachMessage();
-  const nextSteps = getNextSteps();
-  const nextTarget = getNextTarget();
-  const drift = getDriftMetrics();
-  
-  const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
-  
-  // Dashboard Mode Logic (Unified)
-  const showFuelTanks = true;
-  const showAdvancedDetails = true;
+  const hydration = getHydrationTarget();
+  const targetWeight = calculateTarget();
+
+  // Get protocol display name
+  const getProtocolName = () => {
+    switch (profile.protocol) {
+      case '1': return 'Body Comp Phase';
+      case '2': return 'Make Weight Phase';
+      case '3': return 'Hold Weight Phase';
+      case '4': return 'Build Phase';
+      default: return 'Unknown';
+    }
+  };
+
+  // Get phase display info
+  const getPhaseInfo = () => {
+    switch (phase) {
+      case 'metabolic':
+        return { label: 'Load Phase', days: 'Mon-Wed', color: 'text-primary' };
+      case 'transition':
+        return { label: 'Cut Phase', days: 'Thu', color: 'text-yellow-500' };
+      case 'performance-prep':
+        return { label: 'Prep Phase', days: 'Fri', color: 'text-orange-500' };
+      default:
+        return { label: 'Active', days: '', color: 'text-primary' };
+    }
+  };
+
+  const phaseInfo = getPhaseInfo();
 
   return (
-    <MobileLayout>
-      {/* 1. COMPACT PHASE RIBBON */}
-      <CompactPhaseRibbon phase={phase} />
-      
-      {/* Demo Warning Banner */}
-      {profile.simulatedDate && (
-          <div className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold uppercase text-center py-1 -mx-4 mb-4 animate-pulse">
-              ⚠️ Demo Mode Active: {format(displayDate, 'EEEE')}
-          </div>
-      )}
-
-      <header className="flex justify-between items-start mb-4">
+    <MobileLayout showNav={true}>
+      {/* Header */}
+      <header className="flex justify-between items-start mb-6">
         <div>
           <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
-            {format(displayDate, 'EEEE, MMM d')}
+            {format(displayDate, 'EEEE, MMMM d')}
           </h2>
-          <h1 className="text-2xl font-heading font-bold uppercase italic flex flex-col">
-            <span>Hi, {profile.name}</span>
-            <span className="text-xs text-primary not-italic font-sans font-medium opacity-80 mt-0.5">
-               {profile.protocol === '1' ? 'Body Comp' : profile.protocol === '2' ? 'Make Weight' : profile.protocol === '3' ? 'Hold Weight' : 'Build'} • {phase.replace('-', ' ')}
-            </span>
+          <h1 className="text-2xl font-heading font-bold uppercase italic">
+            Today's Plan
           </h1>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
+              {phaseInfo.label}
+            </span>
+            <span className="text-xs text-muted-foreground">•</span>
+            <span className="text-xs text-muted-foreground">{getProtocolName()}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-           <SettingsDialog profile={profile} updateProfile={updateProfile} />
-           <SystemPhilosophyDialog />
-           <div className={cn("w-2 h-2 rounded-full mt-1", profile.status === 'on-track' ? 'bg-primary' : 'bg-destructive')} />
+        <div className="flex items-center gap-1">
+          <SettingsDialog profile={profile} updateProfile={updateProfile} resetData={useStore().resetData} />
+          <InfoDialog />
         </div>
       </header>
 
-      {/* 2. NEXT TARGET LINE */}
-      {nextTarget && (
-        <div className="bg-muted/20 border-y border-muted -mx-4 px-4 py-2 mb-4 flex items-center justify-between">
-           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-              <Target className="w-3.5 h-3.5 text-primary" />
-              <span>{nextTarget.label} Target: <span className="text-primary text-sm">{nextTarget.weight.toFixed(1)}</span></span>
-           </div>
-           <span className="text-[10px] text-muted-foreground hidden sm:inline-block">{nextTarget.description}</span>
+      {/* Demo Mode Warning */}
+      {profile.simulatedDate && (
+        <div className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold uppercase text-center py-1 -mx-4 mb-4">
+          Demo Mode: {format(displayDate, 'EEEE')}
         </div>
       )}
 
-      <div className="space-y-6">
-        
-        {/* Weekly Timeline */}
-        <WeeklyTimeline currentDay={displayDate.getDay()} />
+      {/* Daily Steps */}
+      <div className="space-y-4">
 
-        {/* 3. STATUS SECTION (Now Top Priority) */}
-        <div className="grid grid-cols-2 gap-4">
-           {/* Current Weight Card */}
-           <Card className="bg-card border-muted relative overflow-hidden flex flex-col justify-between">
-             <CardContent className="p-4 pt-5">
-                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block mb-1">Current Weight</span>
-                <div className="flex items-baseline gap-1">
-                   <span className="text-3xl font-heading font-black italic tracking-tighter">{profile.currentWeight.toFixed(1)}</span>
-                   <span className="text-xs font-mono text-muted-foreground">lbs</span>
-                </div>
-                <div className={cn("text-xs font-bold mt-1 flex items-center gap-1", isOver ? "text-destructive" : "text-primary")}>
-                   {isOver ? '+' : ''}{diff.toFixed(1)} <span className="opacity-70 font-normal">from target</span>
-                </div>
-             </CardContent>
-           </Card>
+        {/* Step 1: Morning Weigh-In */}
+        <DailyStep
+          step={1}
+          title="Morning Weigh-In"
+          description="First thing after waking, before eating or drinking"
+          icon={Sun}
+          logs={logs}
+          logType="morning"
+          addLog={addLog}
+          updateLog={updateLog}
+          targetWeight={targetWeight}
+          simulatedDate={profile.simulatedDate}
+        />
 
-           {/* Hydration Tracker Card */}
-           <Card className="bg-cyan-500/5 border-cyan-500/20 flex flex-col justify-between relative overflow-hidden">
-              <CardContent className="p-4 pt-4 pb-3">
-                 <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] text-cyan-500 uppercase font-bold tracking-wider">Hydration</span>
-                    <div className="text-[10px] font-mono font-bold text-foreground">{hydration.amount}</div>
-                 </div>
-                 
-                 {/* Progress Bar */}
-                 <div className="h-2 w-full bg-cyan-950/30 rounded-full overflow-hidden mb-3">
-                    <div className="h-full bg-cyan-500 transition-all duration-500" style={{ width: `${hydrationPercent}%` }} />
-                 </div>
+        {/* Step 2: Today's Fuel with Macro Tracking */}
+        <FuelTracker fuel={fuel} />
 
-                 <div className="flex justify-between gap-2">
-                    <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400" onClick={() => setLoggedWater(Math.max(0, loggedWater - 8))}>
-                       <Minus className="w-3 h-3" />
-                    </Button>
-                    <div className="text-xs font-mono font-bold pt-1">{loggedWater} oz</div>
-                    <Button variant="outline" size="sm" className="h-7 text-[10px] px-2 border-cyan-500/30 hover:bg-cyan-500/20 hover:text-cyan-400" onClick={() => setLoggedWater(loggedWater + 8)}>
-                       <Plus className="w-3 h-3 mr-1" /> 8oz
-                    </Button>
-                 </div>
-              </CardContent>
-           </Card>
-        </div>
+        {/* Step 3: Hydration */}
+        <HydrationTracker hydration={hydration} />
 
-        {/* 4. TODAY'S MISSION (Above the fold on mobile) */}
-        <Card className="border-l-4 border-l-primary bg-muted/5 shadow-lg relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-5">
-             <Flame className="w-24 h-24" />
-          </div>
-          <CardHeader className="pb-2 pt-5">
-             <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-               <Zap className="w-4 h-4 text-primary" /> Today's Mission
-             </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-5 relative z-10">
-            <h3 className="font-heading font-black italic text-2xl uppercase leading-none mb-4">{focus.title}</h3>
-            
-            {/* Expandable Why */}
-            <div className="mb-4 text-xs text-muted-foreground italic border-l-2 border-muted pl-2">
-               "This phase protects power by controlling gut content and glycogen timing."
-            </div>
+        {/* Step 4: Pre-Practice Weigh-In */}
+        <DailyStep
+          step={4}
+          title="Pre-Practice Weigh-In"
+          description="Before practice starts"
+          icon={Dumbbell}
+          logs={logs}
+          logType="pre-practice"
+          addLog={addLog}
+          updateLog={updateLog}
+          targetWeight={targetWeight + 1.5}
+          simulatedDate={profile.simulatedDate}
+        />
 
-            <ul className="space-y-3">
-              {focus.actions.map((action, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <div className="mt-0.5 min-w-[1.25rem] h-5 flex items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                    {i + 1}
-                  </div>
-                  <span className="font-medium text-sm leading-snug">{action}</span>
-                </li>
-              ))}
-            </ul>
+        {/* Step 5: Post-Practice Weigh-In */}
+        <DailyStep
+          step={5}
+          title="Post-Practice Weigh-In"
+          description="Immediately after practice"
+          icon={Dumbbell}
+          logs={logs}
+          logType="post-practice"
+          addLog={addLog}
+          updateLog={updateLog}
+          targetWeight={targetWeight}
+          simulatedDate={profile.simulatedDate}
+        />
 
-            {focus.warning && (
-               <div className="mt-4 flex items-center gap-2 text-destructive text-xs font-bold uppercase bg-destructive/10 p-2 rounded">
-                  <AlertTriangle className="w-4 h-4" /> {focus.warning}
-               </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Step 6: Before Bed Weigh-In */}
+        <DailyStep
+          step={6}
+          title="Before Bed Weigh-In"
+          description="Last weigh-in of the day, before sleep"
+          icon={Moon}
+          logs={logs}
+          logType="before-bed"
+          addLog={addLog}
+          updateLog={updateLog}
+          targetWeight={targetWeight - 0.5}
+          simulatedDate={profile.simulatedDate}
+        />
 
-        {/* LOGS & METRICS SECTION (Pushed down) */}
-        
-        {/* Fuel Guide */}
-        {showFiberWarning ? (
-          <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
-             <div className="flex items-center gap-2 mb-3 text-orange-500 font-bold text-sm uppercase tracking-wider">
-               <Ban className="w-4 h-4" /> Fiber Elimination Active
-             </div>
-             <div className="grid grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1.5">
-                  <span className="text-muted-foreground block font-bold text-[10px] uppercase">AVOID (Blockers)</span>
-                  <div className="flex flex-wrap gap-1.5">
-                     {fuel.avoid.map((f, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-orange-500/20 text-orange-500 text-[10px] uppercase font-bold border border-orange-500/20">
-                           {f}
-                        </span>
-                     ))}
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <span className="text-muted-foreground block font-bold text-[10px] uppercase">ALLOWED (Fuel)</span>
-                   <div className="flex flex-wrap gap-1.5">
-                     {fuel.allowed.map((f, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded bg-primary/20 text-primary text-[10px] uppercase font-bold border border-primary/20">
-                           {f}
-                        </span>
-                     ))}
-                  </div>
-                </div>
-             </div>
-          </div>
-        ) : (
-          <Card className="border-muted">
-             <CardHeader className="py-3 border-b border-muted/50">
-                <CardTitle className="flex items-center justify-between">
-                   <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-                     <Utensils className="w-3.5 h-3.5" /> Fueling: {fuel.ratio}
-                   </div>
-                </CardTitle>
-             </CardHeader>
-             <CardContent className="pt-4">
-               {/* Chips for Allowed Foods */}
-               <div className="flex flex-wrap gap-2 mb-4">
-                  {fuel.allowed.map((f, i) => (
-                    <span key={i} className="px-2 py-1 rounded bg-muted text-[10px] uppercase font-bold text-foreground border border-border">
-                       {f}
-                    </span>
-                  ))}
-               </div>
+        {/* Optional: Extra Workout */}
+        <ExtraWorkoutLog addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} />
 
-               <div className="grid grid-cols-2 gap-2 text-xs border-t border-muted pt-3">
-                  <div className="text-center border-r border-muted">
-                     <span className="block text-[10px] uppercase text-muted-foreground font-bold mb-0.5">Protein</span>
-                     <span className="font-mono font-bold text-foreground">{fuel.protein || "N/A"}</span>
-                  </div>
-                  <div className="text-center">
-                     <span className="block text-[10px] uppercase text-muted-foreground font-bold mb-0.5">Carbs</span>
-                     <span className="font-mono font-bold text-foreground">{fuel.carbs || "N/A"}</span>
-                  </div>
-               </div>
-             </CardContent>
-          </Card>
-        )}
-
-        {/* Fuel Tanks - Progressive Disclosure */}
-        {showFuelTanks && (
-           <section className="space-y-3 pt-2">
-             <div className="flex items-center justify-between">
-                <h3 className="font-heading font-bold text-lg uppercase">Fuel Tanks</h3>
-                <span className="text-[10px] uppercase bg-muted px-2 py-0.5 rounded text-muted-foreground font-bold">
-                   Intermediate
-                </span>
-             </div>
-             
-             {/* Simple Explanation for Intermediate */}
-             <p className="text-xs text-muted-foreground">
-                Scale movement today is likely from <span className="text-chart-3 font-bold">Gut Content</span> + <span className="text-chart-1 font-bold">Glycogen</span>.
-             </p>
-
-             <div className="space-y-4">
-               <FuelBar label="Water" icon={Droplets} value={fuelTanks.water} max={8} color="bg-chart-2" desc="Hydration" />
-               <FuelBar label="Glycogen" icon={Zap} value={fuelTanks.glycogen} max={1.5} color="bg-chart-1" desc="Energy" />
-               {showAdvancedDetails && (
-                 <>
-                   <FuelBar label="Gut Content" icon={User} value={fuelTanks.gut} max={2.5} color="bg-chart-3" desc="Digesting" />
-                   <FuelBar label="Body Fat" icon={Flame} value={fuelTanks.fat} max={15} color="bg-chart-4" desc="Expendable" />
-                   <FuelBar label="Muscle" icon={Dumbbell} value={fuelTanks.muscle} max={160} color="bg-chart-5" desc="Protected" isStatic />
-                 </>
-               )}
-             </div>
-           </section>
-        )}
-        
-        {/* Weight Chart with Real Data */}
-        <WeightChart />
-
-        {/* Quick Log Action */}
-        <QuickLogModal lastLog={logs[0]} />
+        {/* What's Next Section */}
+        <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} />
 
       </div>
+
+      {/* Bottom Spacing for Nav */}
+      <div className="h-20" />
     </MobileLayout>
   );
 }
 
-function CompactPhaseRibbon({ phase }: { phase: string }) {
-    // 5-step compact ribbon
-    const steps = [
-        { id: 'metabolic', label: 'Load', days: 'M-W', content: [
-            "Front-load water intake (1.5-2.0 gal)",
-            "High sodium allowed to retain fluid",
-            "High volume food (veggies/fruit) permitted",
-            "Focus: Metabolic output & training intensity"
-        ]},
-        { id: 'transition', label: 'Cut', days: 'Thu', content: [
-            "ELIMINATE ALL FIBER (No veggies/fruit)",
-            "Switch to energy-dense carbs (Rice/Honey)",
-            "Switch to Distilled Water (Flush sodium)",
-            "Focus: Emptying the gut content"
-        ]},
-        { id: 'performance-prep', label: 'Prep', days: 'Fri', content: [
-            "Water: Sip to thirst only (No gulping)",
-            "Food: Very small portions, purely functional",
-            "Monitor weight drift hourly",
-            "Focus: Precision descent to target"
-        ]},
-        { id: 'last-24h', label: 'Race', days: 'Sat', content: [
-            "Post-Weigh-in: Immediate rehydration",
-            "Carb load with high GI sources",
-            "Moderate protein intake",
-            "Focus: Peak performance restoration"
-        ]},
-    ];
-
-    return (
-        <div className="flex items-stretch justify-between bg-muted/20 border-b border-muted py-2 px-2 -mx-4 -mt-4 mb-4 gap-1">
-            {steps.map(step => {
-                const isActive = phase === step.id;
-                return (
-                    <Dialog key={step.id}>
-                        <DialogTrigger asChild>
-                            <div className={cn(
-                                "flex-1 text-center py-1.5 rounded cursor-pointer transition-all",
-                                isActive ? "bg-primary text-black shadow-sm" : "text-muted-foreground hover:bg-muted/40"
-                            )}>
-                                <div className="text-[9px] font-bold uppercase tracking-wider leading-none mb-0.5">{step.days}</div>
-                                <div className="text-[10px] font-bold uppercase leading-none">{step.label}</div>
-                            </div>
-                        </DialogTrigger>
-                        <DialogContent className="w-[90%] rounded-xl">
-                            <DialogHeader>
-                                <DialogTitle className="uppercase font-heading italic">Phase Rules: {step.label}</DialogTitle>
-                            </DialogHeader>
-                            <div className="py-2 text-sm">
-                                <p className="text-muted-foreground mb-4">Specific nutritional and training guidelines for the {step.label} phase.</p>
-                                <div className="bg-muted/30 rounded p-4 space-y-3">
-                                    {step.content.map((rule, i) => (
-                                        <div key={i} className="flex gap-3 text-sm">
-                                            <div className="min-w-[4px] w-[4px] h-[4px] mt-2 rounded-full bg-primary" />
-                                            <span className="text-foreground/90">{rule}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-                );
-            })}
-        </div>
-    );
-}
-
-function FuelBar({ label, icon: Icon, value, max, color, desc, isStatic }: any) {
-  const percent = Math.min(100, (value / max) * 100);
-  
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between items-end text-xs">
-        <div className="flex items-center gap-1.5 text-foreground font-bold uppercase">
-          <Icon className="w-3.5 h-3.5" /> {label}
-        </div>
-        <div className="font-mono text-muted-foreground">{value} lbs <span className="opacity-50">/ {desc}</span></div>
-      </div>
-      <div className="h-2.5 w-full bg-muted/30 rounded-full overflow-hidden">
-        <div 
-          className={cn("h-full rounded-full transition-all duration-1000", color)} 
-          style={{ width: `${isStatic ? 100 : percent}%` }} 
-        />
-      </div>
-    </div>
-  );
-}
-
-function QuickLogModal({ lastLog }: { lastLog?: any }) {
+// Daily Step with Weight Logging
+function DailyStep({
+  step,
+  title,
+  description,
+  icon: Icon,
+  logs,
+  logType,
+  addLog,
+  updateLog,
+  targetWeight,
+  simulatedDate
+}: {
+  step: number;
+  title: string;
+  description: string;
+  icon: any;
+  logs: any[];
+  logType: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed';
+  addLog: any;
+  updateLog: any;
+  targetWeight: number;
+  simulatedDate?: Date | null;
+}) {
   const [weight, setWeight] = useState('');
-  const [type, setType] = useState('morning');
-  const [urine, setUrine] = useState(1);
-  const { addLog } = useStore();
-  const [open, setOpen] = useState(false);
+  const [isLogging, setIsLogging] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
-  // Smart Prompt Logic
-  const getMicroPrompt = () => {
-    if (!lastLog) return "Log your first weigh-in";
-    const lastDate = new Date(lastLog.date);
-    const now = new Date();
-    const isToday = lastDate.getDate() === now.getDate();
-    
-    if (lastLog.type === 'morning' && isToday) return "Next: Log Pre-Practice Weight";
-    if (lastLog.type === 'pre-practice' && isToday) return "Next: Log Post-Practice Weight";
-    if (lastLog.type === 'post-practice') return "Next: Log Morning Weight to see overnight drift";
-    
-    return "Log Morning Weight to unlock trends";
-  };
+  // Check if already logged today (use simulated date if available)
+  const today = simulatedDate || new Date();
+  const todayLog = logs.find(log => {
+    const logDate = new Date(log.date);
+    return log.type === logType &&
+           logDate.getDate() === today.getDate() &&
+           logDate.getMonth() === today.getMonth();
+  });
+
+  const isComplete = !!todayLog;
 
   const handleSubmit = () => {
     if (weight) {
       addLog({
         weight: parseFloat(weight),
         date: new Date(),
-        type: type as any,
-        urineColor: urine
+        type: logType,
       });
-      setOpen(false);
       setWeight('');
-      setType('morning');
+      setIsLogging(false);
+    }
+  };
+
+  const handleEdit = () => {
+    setWeight(todayLog.weight.toString());
+    setIsEditing(true);
+  };
+
+  const handleUpdate = () => {
+    if (weight && todayLog) {
+      updateLog(todayLog.id, { weight: parseFloat(weight) });
+      setWeight('');
+      setIsEditing(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setWeight('');
+    setIsLogging(false);
+    setIsEditing(false);
+  };
+
+  return (
+    <Card className={cn(
+      "border-muted transition-all",
+      isComplete && "bg-primary/5 border-primary/30"
+    )}>
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+            isComplete ? "bg-primary" : "bg-muted/50"
+          )}>
+            {isComplete ? (
+              <CheckCircle2 className="w-5 h-5 text-black" />
+            ) : (
+              <span className="text-sm font-bold text-muted-foreground">{step}</span>
+            )}
+          </div>
+
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <Icon className={cn("w-4 h-4", isComplete ? "text-primary" : "text-muted-foreground")} />
+              <h3 className={cn("font-bold", isComplete && "text-primary")}>{title}</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">{description}</p>
+
+            {isComplete && !isEditing ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono font-bold text-lg text-primary">{todayLog.weight} lbs</span>
+                <span className="text-xs text-muted-foreground">at {format(new Date(todayLog.date), 'h:mm a')}</span>
+                {targetWeight && (
+                  <span className={cn(
+                    "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                    todayLog.weight <= targetWeight ? "bg-green-500/20 text-green-500" :
+                    todayLog.weight <= targetWeight + 2 ? "bg-yellow-500/20 text-yellow-500" :
+                    "bg-destructive/20 text-destructive"
+                  )}>
+                    {todayLog.weight <= targetWeight ? "ON TARGET" :
+                     `+${(todayLog.weight - targetWeight).toFixed(1)} lbs`}
+                  </span>
+                )}
+                <button
+                  onClick={handleEdit}
+                  className="ml-auto p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Edit weight"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (isLogging || isEditing) ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  placeholder="Weight"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  className="w-24 h-9 font-mono"
+                  autoFocus
+                />
+                <span className="text-sm text-muted-foreground">lbs</span>
+                <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-9">
+                  {isEditing ? 'Update' : 'Save'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handleCancel} className="h-9">
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsLogging(true)}
+                className="h-8"
+              >
+                <Scale className="w-3 h-3 mr-1" />
+                Log Weight
+              </Button>
+            )}
+
+            {!isComplete && !isLogging && targetWeight && (
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Target: {targetWeight.toFixed(1)} lbs
+              </p>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Extra Workout Log
+function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog }: { addLog: any; logs: any[]; simulatedDate?: Date | null; deleteLog: any; updateLog: any }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [beforeWeight, setBeforeWeight] = useState('');
+  const [afterWeight, setAfterWeight] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBefore, setEditBefore] = useState('');
+  const [editAfter, setEditAfter] = useState('');
+
+  // Get today's extra workouts (use simulated date if available)
+  const today = simulatedDate || new Date();
+  const todayExtraLogs = logs.filter(log => {
+    const logDate = new Date(log.date);
+    return (log.type === 'extra-before' || log.type === 'extra-after') &&
+      logDate.getDate() === today.getDate() &&
+      logDate.getMonth() === today.getMonth();
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Group extra workouts by pairs (before/after logged close together)
+  const extraWorkouts: { before: any; after: any; time: Date }[] = [];
+  for (let i = 0; i < todayExtraLogs.length; i++) {
+    const log = todayExtraLogs[i];
+    if (log.type === 'extra-before') {
+      // Find matching after within 5 minutes
+      const after = todayExtraLogs.find(l =>
+        l.type === 'extra-after' &&
+        Math.abs(new Date(l.date).getTime() - new Date(log.date).getTime()) < 5 * 60 * 1000
+      );
+      if (after) {
+        extraWorkouts.push({ before: log, after, time: new Date(log.date) });
+      }
+    }
+  }
+
+  const handleSubmit = () => {
+    if (beforeWeight && afterWeight) {
+      const now = new Date();
+      // Log before weight
+      addLog({
+        weight: parseFloat(beforeWeight),
+        date: now,
+        type: 'extra-before',
+      });
+      // Log after weight (1 second later for ordering)
+      addLog({
+        weight: parseFloat(afterWeight),
+        date: new Date(now.getTime() + 1000),
+        type: 'extra-after',
+      });
+      setBeforeWeight('');
+      setAfterWeight('');
+      setIsOpen(false);
+    }
+  };
+
+  const handleDelete = (workout: { before: any; after: any }) => {
+    deleteLog(workout.before.id);
+    deleteLog(workout.after.id);
+  };
+
+  const handleEdit = (workout: { before: any; after: any }) => {
+    setEditingId(workout.before.id);
+    setEditBefore(workout.before.weight.toString());
+    setEditAfter(workout.after.weight.toString());
+  };
+
+  const handleSaveEdit = (workout: { before: any; after: any }) => {
+    if (editBefore && editAfter) {
+      updateLog(workout.before.id, { weight: parseFloat(editBefore) });
+      updateLog(workout.after.id, { weight: parseFloat(editAfter) });
+      setEditingId(null);
+      setEditBefore('');
+      setEditAfter('');
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <div className="fixed bottom-20 right-6 left-6 z-40">
-           <Button className="w-full h-11 text-sm font-bold uppercase tracking-wider bg-primary text-black shadow-lg shadow-primary/20 hover:bg-primary/90 animate-in slide-in-from-bottom-4 flex flex-col items-center justify-center gap-0 leading-tight py-0.5">
-             <span>+ Quick Log</span>
-             <span className="text-[9px] font-normal opacity-70 normal-case tracking-normal">{getMicroPrompt()}</span>
-           </Button>
-        </div>
-      </DialogTrigger>
-      <DialogContent className="bg-card border-muted w-[90%] rounded-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-heading uppercase italic text-2xl">Log Weight</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 py-4">
-          
-          <div className="space-y-2">
-            <Label className="text-muted-foreground uppercase text-xs font-bold tracking-wider">Weight (lbs)</Label>
-            <Input 
-              type="number" 
-              className="text-4xl font-heading font-black italic h-20 text-center bg-muted/20 border-muted focus:border-primary" 
-              placeholder="0.0" 
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              autoFocus
-            />
-          </div>
+    <div className="space-y-2">
+      {/* Show logged extra workouts */}
+      {extraWorkouts.map((workout, i) => {
+        const weightLoss = workout.before.weight - workout.after.weight;
+        const isEditing = editingId === workout.before.id;
 
-          <div className="space-y-2">
-             <Label className="text-muted-foreground uppercase text-xs font-bold tracking-wider">Log Type</Label>
-             <div className="grid grid-cols-3 gap-2">
-                {['morning', 'pre-practice', 'post-practice'].map(t => (
-                   <button
-                     key={t}
-                     onClick={() => setType(t)}
-                     className={cn(
-                        "p-2 rounded border text-xs font-bold uppercase transition-all",
-                        type === t ? "bg-primary text-black border-primary" : "bg-muted/10 border-muted text-muted-foreground hover:bg-muted/30"
-                     )}
-                   >
-                     {t.replace('-', ' ')}
-                   </button>
-                ))}
-             </div>
-          </div>
+        if (isEditing) {
+          return (
+            <Card key={i} className="border-muted bg-orange-500/5">
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Dumbbell className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-bold text-orange-500">Edit Extra Workout</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Before</Label>
+                    <Input
+                      type="number"
+                      value={editBefore}
+                      onChange={(e) => setEditBefore(e.target.value)}
+                      className="font-mono h-8"
+                      step="0.1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">After</Label>
+                    <Input
+                      type="number"
+                      value={editAfter}
+                      onChange={(e) => setEditAfter(e.target.value)}
+                      className="font-mono h-8"
+                      step="0.1"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => handleSaveEdit(workout)}>Save</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
 
-          <div className="space-y-2">
-             <Label className="text-muted-foreground uppercase text-xs font-bold tracking-wider">Urine Color (1-5)</Label>
-             <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map(c => (
-                   <button
-                     key={c}
-                     onClick={() => setUrine(c)}
-                     className={cn(
-                        "flex-1 h-10 rounded border transition-all relative",
-                        urine === c ? "ring-2 ring-white scale-110 z-10" : "opacity-50"
-                     )}
-                     style={{ 
-                        backgroundColor: c === 1 ? '#fcfebb' : c === 2 ? '#f8f48b' : c === 3 ? '#e8d957' : c === 4 ? '#cbb32e' : '#887413',
-                        borderColor: urine === c ? 'white' : 'transparent'
-                     }}
-                   />
-                ))}
-             </div>
-             <div className="flex justify-between text-[10px] text-muted-foreground uppercase font-bold">
-                <span>Clear</span>
-                <span>Dark</span>
-             </div>
-          </div>
+        return (
+          <Card key={i} className="border-muted bg-orange-500/5">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Dumbbell className="w-4 h-4 text-orange-500" />
+                  <span className="text-sm font-bold text-orange-500">Extra Workout</span>
+                  <span className="text-xs text-muted-foreground">
+                    {format(workout.time, 'h:mm a')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="font-mono text-sm">
+                      {workout.before.weight} → {workout.after.weight} lbs
+                    </span>
+                    <span className={cn(
+                      "text-xs font-bold ml-2",
+                      weightLoss > 0 ? "text-primary" : "text-muted-foreground"
+                    )}>
+                      {weightLoss > 0 ? `-${weightLoss.toFixed(1)}` : `+${Math.abs(weightLoss).toFixed(1)}`}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleEdit(workout)}
+                    className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(workout)}
+                    className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
 
-          <Button onClick={handleSubmit} className="w-full h-14 bg-primary text-black font-bold uppercase text-lg mt-4">
-            Save Entry
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      {/* Add new extra workout */}
+      <Card className="border-dashed border-muted">
+        <CardContent className="p-4">
+          {!isOpen ? (
+            <button
+              onClick={() => setIsOpen(true)}
+              className="w-full flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors py-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-sm">Add Extra Workout</span>
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <h4 className="font-bold text-sm">Extra Workout Weight Loss</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Before</Label>
+                  <Input
+                    type="number"
+                    placeholder="Weight"
+                    value={beforeWeight}
+                    onChange={(e) => setBeforeWeight(e.target.value)}
+                    className="font-mono"
+                    step="0.1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">After</Label>
+                  <Input
+                    type="number"
+                    placeholder="Weight"
+                    value={afterWeight}
+                    onChange={(e) => setAfterWeight(e.target.value)}
+                    className="font-mono"
+                    step="0.1"
+                  />
+                </div>
+              </div>
+              {beforeWeight && afterWeight && (
+                <p className="text-sm text-primary font-bold">
+                  Lost: {(parseFloat(beforeWeight) - parseFloat(afterWeight)).toFixed(1)} lbs
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSubmit}>Save</Button>
+                <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
-function SettingsDialog({ profile, updateProfile }: any) {
+// Fuel Tracker with Macro Tracking
+function FuelTracker({ fuel }: { fuel: { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string } }) {
+  const { getMacroTargets, getFoodLists, getDailyTracking, updateDailyTracking, profile } = useStore();
+  const macros = getMacroTargets();
+  const foodLists = getFoodLists();
+  const today = profile.simulatedDate || new Date();
+  const dateKey = format(today, 'yyyy-MM-dd');
+  const tracking = getDailyTracking(dateKey);
+  const dayOfWeek = getDay(today);
+
+  const [showFoodRef, setShowFoodRef] = useState(false);
+  const [addCarbs, setAddCarbs] = useState('');
+  const [addProtein, setAddProtein] = useState('');
+  const [isEditingCarbs, setIsEditingCarbs] = useState(false);
+  const [isEditingProtein, setIsEditingProtein] = useState(false);
+  const [editCarbsValue, setEditCarbsValue] = useState('');
+  const [editProteinValue, setEditProteinValue] = useState('');
+
+  const carbProgress = macros.carbs.max > 0 ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100) : 0;
+  const proteinProgress = macros.protein.max > 0 ? Math.min(100, (tracking.proteinConsumed / macros.protein.max) * 100) : 0;
+
+  const handleAddMacros = () => {
+    const newCarbs = addCarbs ? tracking.carbsConsumed + parseInt(addCarbs) : tracking.carbsConsumed;
+    const newProtein = addProtein ? tracking.proteinConsumed + parseInt(addProtein) : tracking.proteinConsumed;
+    updateDailyTracking(dateKey, { carbsConsumed: newCarbs, proteinConsumed: newProtein });
+    setAddCarbs('');
+    setAddProtein('');
+  };
+
+  const handleEditCarbs = () => {
+    setEditCarbsValue(tracking.carbsConsumed.toString());
+    setIsEditingCarbs(true);
+  };
+
+  const handleSaveCarbs = () => {
+    updateDailyTracking(dateKey, { carbsConsumed: parseInt(editCarbsValue) || 0 });
+    setIsEditingCarbs(false);
+    setEditCarbsValue('');
+  };
+
+  const handleEditProtein = () => {
+    setEditProteinValue(tracking.proteinConsumed.toString());
+    setIsEditingProtein(true);
+  };
+
+  const handleSaveProtein = () => {
+    updateDailyTracking(dateKey, { proteinConsumed: parseInt(editProteinValue) || 0 });
+    setIsEditingProtein(false);
+    setEditProteinValue('');
+  };
+
+  const handleResetMacros = () => {
+    updateDailyTracking(dateKey, { carbsConsumed: 0, proteinConsumed: 0 });
+  };
+
+  // Determine which food list to show based on day
+  const getFoodListForDay = () => {
+    if (dayOfWeek >= 4 && dayOfWeek <= 5) { // Thu-Fri
+      return { label: "Zero Fiber (Thu-Fri)", foods: foodLists.zeroFiber, description: "Clear gut for weigh-in" };
+    }
+    if (dayOfWeek >= 1 && dayOfWeek <= 3) { // Mon-Wed
+      return { label: "High Fructose (Mon-Wed)", foods: foodLists.highFructose, description: "Activates FGF21 for fat burning" };
+    }
+    return { label: "Balanced", foods: foodLists.balanced, description: "Transition phase" };
+  };
+
+  const dayFoodList = getFoodListForDay();
+  const avoidList = foodLists.avoid;
+
+  return (
+    <Card className="border-muted">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-primary">2</span>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Utensils className="w-4 h-4 text-primary" />
+                <h3 className="font-bold">Today's Fuel</h3>
+              </div>
+              <span className="text-xs text-muted-foreground font-mono">{macros.ratio}</span>
+            </div>
+
+            {/* Macro Progress Bars */}
+            <div className="space-y-2 mb-3">
+              {/* Carbs */}
+              <div>
+                <div className="flex justify-between items-center text-xs mb-1">
+                  <span className="text-muted-foreground">Carbs</span>
+                  <div className="flex items-center gap-1">
+                    {isEditingCarbs ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={editCarbsValue}
+                          onChange={(e) => setEditCarbsValue(e.target.value)}
+                          className="h-5 w-14 text-xs font-mono"
+                          autoFocus
+                        />
+                        <span className="text-muted-foreground">g</span>
+                        <Button size="sm" variant="ghost" onClick={handleSaveCarbs} className="h-5 px-1 text-[10px]">Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditingCarbs(false)} className="h-5 px-1 text-[10px]">Cancel</Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-mono">{tracking.carbsConsumed}g / {macros.carbs.min}-{macros.carbs.max}g</span>
+                        <button
+                          onClick={handleEditCarbs}
+                          className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Edit carbs"
+                        >
+                          <Pencil className="w-2.5 h-2.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full transition-all duration-500",
+                      carbProgress >= 100 ? "bg-green-500" : carbProgress >= 80 ? "bg-primary" : "bg-primary/50"
+                    )}
+                    style={{ width: `${carbProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Protein */}
+              <div>
+                <div className="flex justify-between items-center text-xs mb-1">
+                  <span className="text-muted-foreground">Protein</span>
+                  <div className="flex items-center gap-1">
+                    {isEditingProtein ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={editProteinValue}
+                          onChange={(e) => setEditProteinValue(e.target.value)}
+                          className="h-5 w-14 text-xs font-mono"
+                          autoFocus
+                        />
+                        <span className="text-muted-foreground">g</span>
+                        <Button size="sm" variant="ghost" onClick={handleSaveProtein} className="h-5 px-1 text-[10px]">Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditingProtein(false)} className="h-5 px-1 text-[10px]">Cancel</Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-mono">{tracking.proteinConsumed}g / {macros.protein.min}-{macros.protein.max}g</span>
+                        <button
+                          onClick={handleEditProtein}
+                          className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Edit protein"
+                        >
+                          <Pencil className="w-2.5 h-2.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="h-2 bg-muted/50 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full transition-all duration-500",
+                      proteinProgress >= 100 ? "bg-green-500" : proteinProgress >= 80 ? "bg-orange-500" : "bg-orange-500/50"
+                    )}
+                    style={{ width: `${proteinProgress}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Reset macros button */}
+              {(tracking.carbsConsumed > 0 || tracking.proteinConsumed > 0) && (
+                <button
+                  onClick={handleResetMacros}
+                  className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-1 mt-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Reset macros to 0
+                </button>
+              )}
+            </div>
+
+            {/* Quick Add Macros */}
+            <div className="flex gap-2 mb-3">
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  placeholder="Carbs (g)"
+                  value={addCarbs}
+                  onChange={(e) => setAddCarbs(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  placeholder="Protein (g)"
+                  value={addProtein}
+                  onChange={(e) => setAddProtein(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+              <Button
+                size="sm"
+                onClick={handleAddMacros}
+                disabled={!addCarbs && !addProtein}
+                className="h-8"
+              >
+                Add
+              </Button>
+            </div>
+
+            {/* Allowed Foods Toggle */}
+            <button
+              onClick={() => setShowFoodRef(!showFoodRef)}
+              className="w-full text-left"
+            >
+              <div className="flex items-center justify-between py-1">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                  <Apple className="w-3 h-3" /> {showFoodRef ? 'Hide' : 'Show'} Food Reference
+                </span>
+                <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", showFoodRef && "rotate-90")} />
+              </div>
+            </button>
+
+            {showFoodRef && (
+              <div className="space-y-3 pt-2 border-t border-muted mt-2">
+                {/* Recommended Foods */}
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[10px] text-primary uppercase font-bold">{dayFoodList.label}</span>
+                    <span className="text-[10px] text-muted-foreground ml-2">— {dayFoodList.description}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {dayFoodList.foods.slice(0, 6).map((food, i) => (
+                      <div key={i} className="flex items-center justify-between bg-primary/5 rounded px-2 py-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-medium text-foreground">{food.name}</span>
+                          <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">{food.ratio}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className="text-muted-foreground">{food.serving}</span>
+                          <span className="font-mono text-primary">{food.carbs}g</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {dayFoodList.foods.length > 6 && (
+                    <span className="text-[10px] text-muted-foreground">+{dayFoodList.foods.length - 6} more options</span>
+                  )}
+                </div>
+
+                {/* High Glucose Options for Thu-Fri */}
+                {dayOfWeek >= 4 && dayOfWeek <= 5 && (
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-cyan-500 uppercase font-bold">High Glucose Options:</span>
+                    <div className="space-y-1.5">
+                      {foodLists.highGlucose.slice(0, 4).map((food, i) => (
+                        <div key={i} className="flex items-center justify-between bg-cyan-500/5 rounded px-2 py-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-medium text-foreground">{food.name}</span>
+                            <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">{food.ratio}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <span className="text-muted-foreground">{food.serving}</span>
+                            <span className="font-mono text-cyan-500">{food.carbs}g</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Avoid Foods - using the avoid list from foodLists */}
+                <div className="space-y-2">
+                  <span className="text-[10px] text-destructive uppercase font-bold">Avoid Today:</span>
+                  <div className="space-y-1">
+                    {avoidList.filter((item) => {
+                      // Filter avoid list based on day
+                      if (dayOfWeek >= 1 && dayOfWeek <= 3) { // Mon-Wed
+                        return item.name.includes("Mon-Wed") || item.name.includes("Whey") || item.name.includes("Chicken");
+                      }
+                      if (dayOfWeek >= 4 && dayOfWeek <= 5) { // Thu-Fri
+                        return item.name.includes("Thu-Fri") || item.name.includes("Vegetables") || item.name.includes("Fruits");
+                      }
+                      return false;
+                    }).slice(0, 4).map((item, i) => (
+                      <div key={i} className="flex items-center justify-between bg-destructive/5 rounded px-2 py-1">
+                        <span className="text-[11px] font-medium text-destructive">{item.name.replace(" (Mon-Wed)", "").replace(" (Thu-Fri)", "")}</span>
+                        <span className="text-[9px] text-muted-foreground">{item.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Hydration Tracker
+function HydrationTracker({ hydration }: { hydration: { amount: string; type: string; note: string; targetOz: number } }) {
+  const { getDailyTracking, updateDailyTracking, profile } = useStore();
+  const today = profile.simulatedDate || new Date();
+  const dateKey = format(today, 'yyyy-MM-dd');
+  const tracking = getDailyTracking(dateKey);
+  const [addAmount, setAddAmount] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+
+  const progress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
+
+  const quickAddAmounts = [8, 16, 24, 32];
+
+  const handleAddWater = (oz: number) => {
+    updateDailyTracking(dateKey, { waterConsumed: tracking.waterConsumed + oz });
+  };
+
+  const handleCustomAdd = () => {
+    if (addAmount) {
+      handleAddWater(parseInt(addAmount));
+      setAddAmount('');
+    }
+  };
+
+  const handleEdit = () => {
+    setEditValue(tracking.waterConsumed.toString());
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    updateDailyTracking(dateKey, { waterConsumed: parseInt(editValue) || 0 });
+    setIsEditing(false);
+    setEditValue('');
+  };
+
+  const handleReset = () => {
+    updateDailyTracking(dateKey, { waterConsumed: 0 });
+  };
+
+  return (
+    <Card className="border-muted">
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-cyan-500">3</span>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Droplets className="w-4 h-4 text-cyan-500" />
+                <h3 className="font-bold">Hydration: {hydration.amount}</h3>
+              </div>
+              <div className="flex items-center gap-1">
+                {isEditing ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="h-6 w-16 text-xs font-mono"
+                      autoFocus
+                    />
+                    <span className="text-xs text-muted-foreground">oz</span>
+                    <Button size="sm" variant="ghost" onClick={handleSaveEdit} className="h-6 px-2 text-xs">Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} className="h-6 px-2 text-xs">Cancel</Button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {tracking.waterConsumed} / {hydration.targetOz} oz
+                    </span>
+                    <button
+                      onClick={handleEdit}
+                      className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Edit"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    {tracking.waterConsumed > 0 && (
+                      <button
+                        onClick={handleReset}
+                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Reset to 0"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="h-3 bg-muted/50 rounded-full overflow-hidden mb-2">
+              <div
+                className={cn(
+                  "h-full transition-all duration-500",
+                  progress >= 100 ? "bg-green-500" : "bg-cyan-500"
+                )}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-muted-foreground">{hydration.type} • {hydration.note}</p>
+              <span className={cn(
+                "text-xs font-bold",
+                progress >= 100 ? "text-green-500" : progress >= 75 ? "text-cyan-500" : "text-muted-foreground"
+              )}>
+                {progress.toFixed(0)}%
+              </span>
+            </div>
+
+            {/* Quick Add Buttons */}
+            <div className="flex gap-1.5 flex-wrap">
+              {quickAddAmounts.map(oz => (
+                <Button
+                  key={oz}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddWater(oz)}
+                  className="h-7 text-xs px-2"
+                >
+                  +{oz}oz
+                </Button>
+              ))}
+              <div className="flex gap-1">
+                <Input
+                  type="number"
+                  placeholder="oz"
+                  value={addAmount}
+                  onChange={(e) => setAddAmount(e.target.value)}
+                  className="h-7 w-14 text-xs font-mono"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCustomAdd}
+                  className="h-7 text-xs px-2"
+                  disabled={!addAmount}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Settings Dialog
+function SettingsDialog({ profile, updateProfile, resetData }: any) {
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const handleReset = () => {
+    resetData();
+    setShowResetConfirm(false);
+    window.location.href = '/';
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
-         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-           <Settings className="w-5 h-5" />
-         </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+          <Settings className="w-5 h-5" />
+        </Button>
       </DialogTrigger>
       <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle className="font-heading uppercase italic text-xl">Settings</DialogTitle></DialogHeader>
-        
+        <DialogHeader>
+          <DialogTitle className="font-heading uppercase italic text-xl">Settings</DialogTitle>
+        </DialogHeader>
+
         <Tabs defaultValue="profile" className="w-full mt-2">
-           <TabsList className="grid w-full grid-cols-2">
-             <TabsTrigger value="profile">Profile</TabsTrigger>
-             <TabsTrigger value="dates">Dates</TabsTrigger>
-           </TabsList>
-           
-           <TabsContent value="profile" className="space-y-4 py-4">
-               <div className="flex items-center justify-between py-2 border-t border-muted">
-                 <div className="space-y-0.5">
-                    <Label className="text-base">Coach Mode</Label>
-                    <p className="text-[10px] text-muted-foreground">Unlock manual overrides</p>
-                 </div>
-                 <Switch checked={profile.coachMode} onCheckedChange={(v) => updateProfile({ coachMode: v })} />
-               </div>
-           </TabsContent>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="dates">Dates</TabsTrigger>
+            <TabsTrigger value="data">Data</TabsTrigger>
+          </TabsList>
 
-           <TabsContent value="dates" className="space-y-4 py-4">
-               <div className="space-y-2">
-                  <Label>Target Weigh-in Date</Label>
-                  <Input 
-                     type="date" 
-                     className="bg-muted/30 border-muted"
-                     value={format(new Date(profile.weighInDate), 'yyyy-MM-dd')}
-                     onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
-                  />
-                  <p className="text-[10px] text-muted-foreground">All targets will be recalculated based on this date.</p>
-               </div>
+          <TabsContent value="profile" className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Current Weight</Label>
+              <Input
+                type="number"
+                value={profile.currentWeight}
+                onChange={(e) => updateProfile({ currentWeight: parseFloat(e.target.value) })}
+                className="font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Target Weight Class</Label>
+              <Input
+                type="number"
+                value={profile.targetWeightClass}
+                onChange={(e) => updateProfile({ targetWeightClass: parseInt(e.target.value) })}
+                className="font-mono"
+              />
+            </div>
+          </TabsContent>
 
-               <div className="space-y-2">
-                  <Label>Next Match Date</Label>
-                  <Input 
-                     type="date" 
-                     className="bg-muted/30 border-muted"
-                     value={format(new Date(profile.matchDate), 'yyyy-MM-dd')}
-                     onChange={(e) => updateProfile({ matchDate: new Date(e.target.value) })}
-                  />
-               </div>
-           </TabsContent>
+          <TabsContent value="dates" className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Next Weigh-in Date</Label>
+              <Input
+                type="date"
+                className="bg-muted/30 border-muted"
+                value={format(new Date(profile.weighInDate), 'yyyy-MM-dd')}
+                onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="data" className="space-y-4 py-4">
+            <div className="space-y-3">
+              <h4 className="font-bold text-sm">Reset All Data</h4>
+              <p className="text-xs text-muted-foreground">
+                This will delete all your weight logs, tracking data, and profile settings. You will need to go through onboarding again.
+              </p>
+
+              {!showResetConfirm ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowResetConfirm(true)}
+                  className="w-full"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Reset All Data
+                </Button>
+              ) : (
+                <div className="space-y-2 p-3 bg-destructive/10 rounded-lg border border-destructive/30">
+                  <p className="text-xs font-bold text-destructive">Are you sure? This cannot be undone.</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleReset}
+                      className="flex-1"
+                    >
+                      Yes, Reset Everything
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowResetConfirm(false)}
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>
   );
 }
 
-function SystemPhilosophyDialog() {
-   const [open, setOpen] = useState(false);
-
-   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+// Info Dialog
+function InfoDialog() {
+  return (
+    <Dialog>
       <DialogTrigger asChild>
-         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-           <Info className="w-5 h-5" />
-         </Button>
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+          <Info className="w-5 h-5" />
+        </Button>
       </DialogTrigger>
-      <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[80vh] overflow-y-auto p-0">
-        <div className="p-6 pb-2">
-           <DialogHeader>
-             <DialogTitle className="font-heading uppercase italic text-2xl text-primary mb-1">System Philosophy</DialogTitle>
-             <p className="text-sm text-muted-foreground">The science behind the cut.</p>
-           </DialogHeader>
-        </div>
+      <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-heading uppercase italic text-xl">How This Works</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4 text-sm">
+          <p className="text-muted-foreground">
+            This app guides you through each day of your weight management protocol.
+          </p>
 
-        <div className="px-6 space-y-6 pb-8">
-           {/* Core Concept */}
-           <section className="space-y-2">
-              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">Core Concept</h4>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                We manage weight by manipulating water, gut content, and glycogen—not muscle.
-                Most athletes cut weight wrong by starving muscle. We fuel muscle and dump waste.
-              </p>
-           </section>
-           
-           {/* The Tanks */}
-           <section className="space-y-2">
-              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">The Fuel Tanks</h4>
-              <ul className="space-y-2">
-                <li className="flex gap-2">
-                   <Droplets className="w-4 h-4 text-chart-2 shrink-0" />
-                   <div>
-                      <span className="block text-xs font-bold text-foreground">Water (Variable)</span>
-                      <span className="text-[10px] text-muted-foreground">We hyper-hydrate early in the week to flush sodium, then taper.</span>
-                   </div>
-                </li>
-                <li className="flex gap-2">
-                   <Zap className="w-4 h-4 text-chart-1 shrink-0" />
-                   <div>
-                      <span className="block text-xs font-bold text-foreground">Glycogen (Energy)</span>
-                      <span className="text-[10px] text-muted-foreground">Stored carbs in muscle. We deplete this temporarily for the scale.</span>
-                   </div>
-                </li>
-                <li className="flex gap-2">
-                   <User className="w-4 h-4 text-chart-3 shrink-0" />
-                   <div>
-                      <span className="block text-xs font-bold text-foreground">Gut Content (Waste)</span>
-                      <span className="text-[10px] text-muted-foreground">Food waiting to be digested. We eliminate fiber 24-48h out.</span>
-                   </div>
-                </li>
-              </ul>
-           </section>
+          <div className="space-y-2">
+            <h4 className="font-bold">Daily Steps:</h4>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Log your morning weight</li>
+              <li>Follow the fuel guide for what to eat</li>
+              <li>Hit your hydration target</li>
+              <li>Log pre-practice and post-practice weights</li>
+              <li>Log before bed weight</li>
+              <li>Add extra workouts if needed</li>
+            </ol>
+          </div>
 
-           {/* The Timeline */}
-           <section className="space-y-2">
-              <h4 className="font-bold text-foreground text-sm uppercase tracking-wide border-b border-muted pb-1">Weekly Flow</h4>
-              <div className="space-y-2 text-xs">
-                 <div className="flex gap-2">
-                    <span className="font-bold min-w-[3rem]">Mon-Wed</span>
-                    <span className="text-muted-foreground">Metabolic loading. High water, clean fuel.</span>
-                 </div>
-                 <div className="flex gap-2">
-                    <span className="font-bold min-w-[3rem]">Thu</span>
-                    <span className="text-muted-foreground">Transition. Cut fiber, switch to easy-digesting carbs.</span>
-                 </div>
-                 <div className="flex gap-2">
-                    <span className="font-bold min-w-[3rem]">Fri</span>
-                    <span className="text-muted-foreground">Prep. Water taper, thermal regulation.</span>
-                 </div>
-              </div>
-           </section>
+          <div className="space-y-2">
+            <h4 className="font-bold">The Protocols:</h4>
+            <ul className="space-y-2 text-muted-foreground">
+              <li><strong className="text-destructive">Body Comp:</strong> Aggressive fat loss (2-4 weeks max)</li>
+              <li><strong className="text-primary">Make Weight:</strong> Weekly competition cut</li>
+              <li><strong className="text-primary">Hold Weight:</strong> Maintain at walk-around weight</li>
+              <li><strong className="text-primary">Build:</strong> Off-season muscle gain</li>
+            </ul>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// What's Next Card - Data-driven tomorrow's plan with specific numbers
+function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: () => any; getWeeklyPlan: () => any[] }) {
+  const tomorrow = getTomorrowPlan();
+  const weekPlan = getWeeklyPlan();
+
+  if (!tomorrow) return null;
+
+  const phaseColors: Record<string, string> = {
+    'Load': 'text-primary',
+    'Cut': 'text-orange-500',
+    'Compete': 'text-yellow-500',
+    'Recover': 'text-cyan-500'
+  };
+
+  return (
+    <div className="space-y-3 mt-4">
+      {/* Tomorrow's Targets */}
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-primary" />
+              <h4 className="font-bold text-sm uppercase">Tomorrow: {tomorrow.day}</h4>
+            </div>
+            <span className={cn("text-xs font-bold uppercase", phaseColors[tomorrow.phase] || 'text-primary')}>
+              {tomorrow.phase} Phase
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Weight Targets */}
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Morning Target</span>
+              <p className="font-mono font-bold text-lg">{tomorrow.weightTarget.morning} lbs</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Post-Practice</span>
+              <p className="font-mono font-bold text-lg">{tomorrow.weightTarget.postPractice} lbs</p>
+            </div>
+
+            {/* Hydration */}
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Water</span>
+              <p className="font-mono font-bold text-cyan-500">{tomorrow.water.amount}</p>
+              <p className="text-[10px] text-muted-foreground">{tomorrow.water.type}</p>
+            </div>
+
+            {/* Macros */}
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase text-muted-foreground">Macros</span>
+              <p className="text-xs">
+                <span className="font-mono font-bold text-primary">{tomorrow.carbs.min}-{tomorrow.carbs.max}g</span>
+                <span className="text-muted-foreground"> carbs</span>
+              </p>
+              <p className="text-xs">
+                <span className="font-mono font-bold text-orange-500">{tomorrow.protein.min}-{tomorrow.protein.max}g</span>
+                <span className="text-muted-foreground"> protein</span>
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Week Overview */}
+      <Card className="border-muted">
+        <CardContent className="p-3">
+          <h4 className="text-[10px] uppercase text-muted-foreground font-bold mb-2">Week at a Glance</h4>
+          <div className="grid grid-cols-7 gap-1">
+            {weekPlan.map((day) => (
+              <div
+                key={day.day}
+                className={cn(
+                  "text-center p-1 rounded text-[10px]",
+                  day.isToday && "bg-primary text-black font-bold",
+                  day.isTomorrow && !day.isToday && "bg-primary/20 text-primary font-bold",
+                  !day.isToday && !day.isTomorrow && "text-muted-foreground"
+                )}
+              >
+                <div className="font-bold">{day.day.slice(0, 3)}</div>
+                <div className="font-mono">{day.weightTarget.morning}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

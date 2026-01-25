@@ -33,19 +33,11 @@ export default function Landing() {
         </div>
 
         <div className="space-y-4 w-full max-w-xs">
-          <Button 
+          <Button
             onClick={() => setLocation('/onboarding')}
             className="w-full h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black hover:bg-primary/90 hover:scale-105 transition-transform"
           >
-            I am an Athlete <ArrowRight className="ml-2 w-5 h-5" />
-          </Button>
-          
-          <Button 
-            onClick={() => setLocation('/coach')}
-            variant="outline" 
-            className="w-full h-14 text-lg font-bold uppercase tracking-wider border-muted-foreground/20 hover:border-foreground hover:bg-muted/10"
-          >
-            I am a Coach
+            Get Started <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
         </div>
       </div>

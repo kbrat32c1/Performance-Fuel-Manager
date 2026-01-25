@@ -25,24 +25,29 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
         {/* Bottom Nav */}
         {showNav && (
           <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-t border-border flex justify-around items-center h-16 pb-safe-bottom max-w-md mx-auto">
-            <NavItem 
-              icon="LayoutDashboard" 
-              label="Dash" 
-              active={location === '/dashboard'} 
-              onClick={() => setLocation('/dashboard')} 
+            <NavItem
+              icon="LayoutDashboard"
+              label="Today"
+              active={location === '/dashboard'}
+              onClick={() => setLocation('/dashboard')}
             />
-            <NavItem 
-              icon="PlusCircle" 
-              label="Log" 
-              active={location === '/log'} 
-              onClick={() => setLocation('/dashboard')} // For prototype, log opens modal on dash usually
-              primary
+            <NavItem
+              icon="Calendar"
+              label="Week"
+              active={location === '/weekly'}
+              onClick={() => setLocation('/weekly')}
             />
-            <NavItem 
-              icon="Activity" 
-              label="Recovery" 
-              active={location === '/recovery'} 
-              onClick={() => setLocation('/recovery')} 
+            <NavItem
+              icon="History"
+              label="History"
+              active={location === '/history'}
+              onClick={() => setLocation('/history')}
+            />
+            <NavItem
+              icon="Activity"
+              label="Recovery"
+              active={location === '/recovery'}
+              onClick={() => setLocation('/recovery')}
             />
           </nav>
         )}
@@ -51,10 +56,10 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
   );
 }
 
-import { LayoutDashboard, Activity, PlusCircle, Settings } from "lucide-react";
+import { LayoutDashboard, Activity, Calendar, Settings, History } from "lucide-react";
 
 function NavItem({ icon, label, active, onClick, primary }: any) {
-  const Icon = { LayoutDashboard, Activity, PlusCircle, Settings }[icon as string] || Settings;
+  const Icon = { LayoutDashboard, Activity, Calendar, Settings, History }[icon as string] || Settings;
   
   return (
     <button 

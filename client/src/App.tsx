@@ -6,7 +6,8 @@ import Dashboard from "@/pages/dashboard";
 import Onboarding from "@/pages/onboarding";
 import Recovery from "@/pages/recovery";
 import Landing from "@/pages/landing";
-import CoachDashboard from "@/pages/coach-dashboard";
+import Weekly from "@/pages/weekly";
+import History from "@/pages/history";
 
 function Router() {
   return (
@@ -14,8 +15,9 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/weekly" component={Weekly} />
+      <Route path="/history" component={History} />
       <Route path="/recovery" component={Recovery} />
-      <Route path="/coach" component={CoachDashboard} />
       <Route component={NotFound} />
     </Switch>
   );

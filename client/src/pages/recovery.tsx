@@ -13,12 +13,13 @@ export default function Recovery() {
   const [elapsed, setElapsed] = useState(0);
   const [active, setActive] = useState(false);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
-  
+
   // Rehydration Calc
   const [weighInWeight, setWeighInWeight] = useState("");
-  const { profile, getRehydrationPlan } = useStore();
+  const { profile, getRehydrationPlan, getFoodLists } = useStore();
   const lostWeight = weighInWeight ? profile.currentWeight - parseFloat(weighInWeight) : 0;
   const plan = getRehydrationPlan(Math.max(0, lostWeight));
+  const tournamentFoods = getFoodLists().tournament;
 
   useEffect(() => {
     let interval: any;
@@ -169,12 +170,41 @@ export default function Recovery() {
           />
         </div>
 
-        {/* Between Match Checklist */}
+        {/* Between Match Fueling */}
         <div className="mt-8 pt-6 border-t border-muted">
            <h3 className="font-heading font-bold text-xl uppercase mb-4 flex items-center gap-2">
              <Zap className="w-5 h-5 text-primary" /> Between Matches
            </h3>
+
+           {/* Tournament Foods List */}
+           <Card className="border-primary/20 bg-primary/5 mb-4">
+             <CardHeader className="pb-2">
+               <CardTitle className="text-sm text-primary uppercase tracking-wider flex items-center gap-2">
+                 <Utensils className="w-4 h-4" /> Quick Fueling Options
+               </CardTitle>
+             </CardHeader>
+             <CardContent className="space-y-2">
+               {tournamentFoods.map((food, i) => (
+                 <div key={i} className="flex items-center justify-between bg-background/50 rounded px-3 py-2">
+                   <div className="flex-1">
+                     <span className="text-sm font-medium">{food.name}</span>
+                     <span className="text-[10px] text-muted-foreground ml-2">({food.serving})</span>
+                   </div>
+                   <div className="flex items-center gap-3 text-xs">
+                     <span className="font-mono text-primary font-bold">{food.carbs}g</span>
+                     <span className="text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">{food.timing}</span>
+                   </div>
+                 </div>
+               ))}
+               <p className="text-[10px] text-muted-foreground pt-2 border-t border-muted">
+                 Target: 30-50g carbs/hour • 16-24oz electrolyte drink/hour • No chugging
+               </p>
+             </CardContent>
+           </Card>
+
+           {/* Checklist */}
            <div className="bg-card border border-muted rounded-lg p-4 space-y-3">
+              <span className="text-xs text-muted-foreground uppercase font-bold">Match Prep Checklist</span>
               {[
                 "Rehydrate (Small sips only)",
                 "Simple sugar (Gel/Honey) 20m before match",
