@@ -1,8 +1,9 @@
+import { WeeklyTimeline } from "@/components/weekly-timeline";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Droplet, Ban, Utensils, Settings, Info, Megaphone } from "lucide-react";
+import { Droplets, Zap, User, Dumbbell, AlertTriangle, CheckCircle, Flame, Droplet, Ban, Utensils, Settings, Info, Megaphone, Calendar, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -12,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 export default function Dashboard() {
-  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage } = useStore();
+  const { profile, calculateTarget, fuelTanks, addLog, getPhase, getTodaysFocus, isAdvancedAllowed, getHydrationTarget, getFuelingGuide, updateProfile, getCheckpoints, getCoachMessage, getNextSteps } = useStore();
   const targetWeight = calculateTarget();
   const diff = profile.currentWeight - targetWeight;
   const isOver = diff > 0;
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const fuel = getFuelingGuide();
   const checkpoints = getCheckpoints();
   const coach = getCoachMessage();
+  const nextSteps = getNextSteps();
   
   const showFiberWarning = phase === 'transition' || phase === 'performance-prep';
   const showReverseWater = isAdvancedAllowed() && (phase === 'metabolic' || phase === 'transition');
@@ -99,6 +101,10 @@ export default function Dashboard() {
       </header>
 
       <div className="space-y-6">
+        
+        {/* Weekly Timeline */}
+        <WeeklyTimeline currentDay={new Date().getDay()} />
+
         {/* Coach Message Banner */}
         <div className={cn(
             "rounded-lg p-4 border flex items-start gap-3",
@@ -179,6 +185,25 @@ export default function Dashboard() {
               ))}
             </ul>
           </CardContent>
+        </Card>
+
+        {/* Next Steps / Preparation */}
+        <Card className="bg-card border-muted">
+           <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-sm uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                 <Calendar className="w-4 h-4 text-foreground" /> Look Ahead
+              </CardTitle>
+           </CardHeader>
+           <CardContent className="pb-4">
+              <h4 className="font-bold text-base mb-2">{nextSteps.title}</h4>
+              <ul className="space-y-2">
+                 {nextSteps.steps.map((step, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                       <ArrowRight className="w-3 h-3 text-primary" /> {step}
+                    </li>
+                 ))}
+              </ul>
+           </CardContent>
         </Card>
 
         {/* Hydration Target Card */}

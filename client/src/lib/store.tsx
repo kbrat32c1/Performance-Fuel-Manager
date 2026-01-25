@@ -58,6 +58,7 @@ interface StoreContextType {
   getCheckpoints: () => { walkAround: string; wedTarget: string; friTarget: string };
   getRehydrationPlan: (lostWeight: number) => { fluidRange: string; sodiumRange: string; glycogen: string };
   getCoachMessage: () => { title: string; message: string; status: 'success' | 'warning' | 'danger' | 'info' };
+  getNextSteps: () => { title: string; steps: string[] };
 }
 
 const defaultProfile: AthleteProfile = {
@@ -476,6 +477,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  const getNextSteps = () => {
+      const day = getDay(new Date()); // 0=Sun, 1=Mon...
+      const protocol = profile.protocol;
+      
+      // Mon -> Tue
+      if (day === 1) {
+          if (protocol === '1' || protocol === '2') return { title: "Tomorrow (Tuesday)", steps: ["Continue Fructose Loading", "0g Protein", "Water: Increase to 1.5 gal"] };
+          return { title: "Tomorrow (Tuesday)", steps: ["Maintain Protocol", "Water: 1.25 gal"] };
+      }
+      // Tue -> Wed (Checkpoint Eve)
+      if (day === 2) {
+          return { title: "Tomorrow (Wednesday)", steps: ["CHECKPOINT DAY: Weigh-in Post Practice", "Peak Water Loading (2.0 gal)", "Dinner: 25g Collagen Only"] };
+      }
+      // Wed -> Thu (Transition)
+      if (day === 3) {
+           return { title: "Tomorrow (Thursday)", steps: ["CUT FIBER COMPLETELY", "Switch to Glucose (Rice/Potato)", "Water: Distilled Only (1.5 gal)"] };
+      }
+      // Thu -> Fri (The Cut)
+      if (day === 4) {
+          return { title: "Tomorrow (Friday)", steps: ["FINAL CUT DAY", "Water: Sip to thirst only", "Food: Small portions, energy dense", "Weigh-in Pre-Practice"] };
+      }
+      // Fri -> Sat (Game Day)
+      if (day === 5) {
+          return { title: "Tomorrow (Saturday)", steps: ["WEIGH-IN MORNING", "Immediate Rehydration Plan", "Refeed: High Protein"] };
+      }
+      
+      return { title: "Tomorrow", steps: ["Maintain Rhythm"] };
+  };
+
   return (
     <StoreContext.Provider value={{ 
       profile, 
@@ -492,7 +522,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getFuelingGuide,
       getRehydrationPlan,
       getCheckpoints,
-      getCoachMessage
+      getCoachMessage,
+      getNextSteps
     }}>
       {children}
     </StoreContext.Provider>
