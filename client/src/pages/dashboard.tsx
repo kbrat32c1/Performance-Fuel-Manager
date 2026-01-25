@@ -36,7 +36,7 @@ export default function Dashboard() {
             {format(new Date(), 'EEEE, MMM d')} • <span className="text-primary font-bold">{phase.replace('-', ' ')}</span>
           </h2>
           <h1 className="text-3xl font-heading font-bold uppercase italic flex items-center gap-2">
-            Hi, {profile.name} <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground not-italic font-sans font-medium">{profile.track} Track</span>
+            Hi, {profile.name} <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground not-italic font-sans font-medium">Protocol {profile.protocol}</span>
           </h1>
         </div>
         <div className="flex items-center gap-2">
@@ -210,7 +210,9 @@ export default function Dashboard() {
                <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
                  <Utensils className="w-4 h-4" /> Fuel: {fuel.ratio}
                </div>
-               {profile.track === 'A' && <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold">FAT LOSS</span>}
+               {profile.protocol === '1' && <span className="text-[10px] bg-destructive/20 text-destructive px-2 py-0.5 rounded font-bold">SUGAR FAST</span>}
+               {profile.protocol === '2' && <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold">FAT LOSS</span>}
+               {profile.protocol === '3' && <span className="text-[10px] bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded font-bold">MAINTAIN</span>}
              </div>
              <div className="grid grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1.5">

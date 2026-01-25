@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, Weight, Target, ChevronRight, Scale, Activity, Lock, Droplets, Trophy } from "lucide-react";
+import { ArrowRight, Weight, Target, ChevronRight, Scale, Activity, Lock, Droplets, Trophy, Flame, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -18,19 +19,9 @@ export default function Onboarding() {
   const [, setLocation] = useLocation();
 
   const handleNext = () => {
-    if (step < 4) { // Increased steps
+    if (step < 4) { 
       setStep(step + 1);
     } else {
-      // Analyze and assign track (Rules Engine)
-      const diff = profile.currentWeight - profile.targetWeightClass;
-      let track: 'A' | 'B' = 'B';
-      
-      // Track A logic: Fat Loss priority
-      if (profile.goal === 'season-fat-loss' || (diff > 8 && profile.goal !== 'same-day')) {
-        track = 'A';
-      }
-
-      updateProfile({ track });
       setLocation('/dashboard');
     }
   };
@@ -94,45 +85,35 @@ export default function Onboarding() {
           {step === 2 && (
             <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
                <div className="space-y-2">
-                <h1 className="text-4xl font-heading font-bold uppercase italic">Goal</h1>
-                <p className="text-muted-foreground">What is the priority for this cut?</p>
+                <h1 className="text-4xl font-heading font-bold uppercase italic">Select Protocol</h1>
+                <p className="text-muted-foreground">Choose your weight management track.</p>
               </div>
 
               <RadioGroup 
-                value={profile.goal} 
-                onValueChange={(v: any) => updateProfile({ goal: v })}
+                value={profile.protocol} 
+                onValueChange={(v: any) => updateProfile({ protocol: v })}
                 className="grid grid-cols-1 gap-3"
               >
                 <GoalOption 
-                  value="season-fat-loss" 
-                  title="Season Body Comp Drop" 
-                  desc="Fat Loss Priority • Track A" 
-                  icon={Scale} 
-                />
-                <GoalOption 
-                  value="make-weight-week" 
-                  title="Make Weight This Week" 
-                  desc="Performance First • Track B" 
-                  icon={Trophy} 
-                />
-                <GoalOption 
-                  value="same-day" 
-                  title="Same-Day Weigh-In" 
-                  desc="Minimal Dehydration • High Energy" 
-                  icon={Activity} 
-                />
-                <GoalOption 
-                  value="day-before" 
-                  title="Day-Before Weigh-In" 
-                  desc="Recovery Window Available" 
-                  icon={Droplets} 
-                />
-                <GoalOption 
-                  value="advanced" 
-                  title="Advanced Cut Tooling" 
-                  desc="Coach Approved Only" 
-                  icon={Lock} 
+                  value="1" 
+                  title="Protocol 1: Sugar Fast" 
+                  desc="Extreme Fat Loss • Preseason Only • 0g Protein" 
+                  icon={Flame} 
                   isDestructive
+                />
+                <GoalOption 
+                  value="2" 
+                  title="Protocol 2: Fat Loss Focus" 
+                  desc="Standard In-Season • Fructose Early • Glucose Late" 
+                  icon={Zap} 
+                  recommended={profile.currentWeight > profile.targetWeightClass * 1.05}
+                />
+                <GoalOption 
+                  value="3" 
+                  title="Protocol 3: Maintenance" 
+                  desc="Performance Mode • Lean Athletes Only" 
+                  icon={Trophy} 
+                  recommended={profile.currentWeight <= profile.targetWeightClass * 1.05}
                 />
               </RadioGroup>
             </div>
@@ -208,11 +189,11 @@ export default function Onboarding() {
                      You are <span className="text-foreground font-mono font-bold">{(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs</span> over.
                    </p>
                    <p>
-                     Max "Walking-Around" Weight: <span className="text-foreground font-mono font-bold">{(profile.targetWeightClass * 1.05).toFixed(1)} lbs</span>
+                     Max "Walking-Around" Weight: <span className="text-foreground font-mono font-bold">{(profile.targetWeightClass * 1.07).toFixed(1)} lbs</span>
                    </p>
-                   {profile.currentWeight > profile.targetWeightClass * 1.05 && (
+                   {profile.currentWeight > profile.targetWeightClass * 1.07 && (
                      <p className="text-destructive font-bold text-xs">
-                       ⚠️ You are above the recommended training weight range. Focus on Track A (Fat Loss).
+                       ⚠️ You are above the recommended training weight range. Protocol 1 or 2 recommended.
                      </p>
                    )}
                  </div>
@@ -229,14 +210,17 @@ export default function Onboarding() {
   );
 }
 
-function GoalOption({ value, title, desc, icon: Icon, isDestructive }: any) {
+function GoalOption({ value, title, desc, icon: Icon, isDestructive, recommended }: any) {
   return (
     <div className={cn(
       "flex items-center space-x-3 border p-4 rounded-lg transition-all relative overflow-hidden",
       "data-[state=checked]:border-primary data-[state=checked]:bg-primary/5",
       isDestructive ? "border-destructive/30 hover:border-destructive/60" : "border-muted hover:border-muted-foreground/50",
-      "bg-muted/10"
+      recommended ? "bg-primary/5 border-primary ring-1 ring-primary" : "bg-muted/10"
     )}>
+      {recommended && (
+        <div className="absolute top-0 right-0 bg-primary text-black text-[9px] font-bold px-2 py-0.5 uppercase">Recommended</div>
+      )}
       <RadioGroupItem value={value} id={value} className="mt-1" />
       <div className="flex-1 cursor-pointer">
          <Label htmlFor={value} className="font-bold text-base cursor-pointer flex items-center gap-2">
@@ -248,5 +232,3 @@ function GoalOption({ value, title, desc, icon: Icon, isDestructive }: any) {
     </div>
   );
 }
-
-import { Switch } from "@/components/ui/switch";

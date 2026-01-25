@@ -2,15 +2,12 @@ import React, { createContext, useContext, useState } from 'react';
 import { addDays, subDays, differenceInDays, getDay } from 'date-fns';
 
 // Types
-export type Track = 'A' | 'B'; // A: Fat Loss (Early), B: Performance (Late/Close)
-export type Status = 'on-track' | 'borderline' | 'risk';
+export type Protocol = '1' | '2' | '3'; 
+// 1: Sugar Fast (Extreme/Preseason)
+// 2: Fat Loss Focus (In-Season)
+// 3: Maintain (Performance)
 
-export type GoalType = 
-  | 'season-fat-loss'
-  | 'make-weight-week'
-  | 'same-day'
-  | 'day-before'
-  | 'advanced';
+export type Status = 'on-track' | 'borderline' | 'risk';
 
 export type Phase = 'metabolic' | 'transition' | 'performance-prep' | 'last-24h';
 
@@ -30,9 +27,8 @@ export interface AthleteProfile {
   matchDate: Date;
   experienceLevel: 'novice' | 'intermediate' | 'advanced';
   hasSaunaAccess: boolean;
-  track: Track;
+  protocol: Protocol;
   status: Status;
-  goal: GoalType;
   coachMode: boolean;
 }
 
@@ -69,9 +65,8 @@ const defaultProfile: AthleteProfile = {
   matchDate: addDays(new Date(), 5),
   experienceLevel: 'intermediate',
   hasSaunaAccess: true,
-  track: 'A', // Default to Fat Loss track initially
+  protocol: '2', // Default to Fat Loss Focus
   status: 'on-track',
-  goal: 'make-weight-week',
   coachMode: false,
 };
 
@@ -117,12 +112,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const calculateTarget = () => {
     // 1% Per Day Descent Model (from PDF)
-    // Mon (5 days out) -> Sat (0 days out)
     const daysOut = Math.max(0, differenceInDays(profile.weighInDate, new Date()));
-    // Target = Class + (Class * 0.015 * daysOut) - slightly steeper early week
-    // Mon: ~7.5% over, Fri: ~1.5% over
-    // Simplified 1% rule:
-    return profile.targetWeightClass * (1 + (0.012 * daysOut)); 
+    return profile.targetWeightClass * (1 + (0.01 * daysOut)); 
   };
 
   const getRehydrationPlan = (lostWeight: number) => {
@@ -146,8 +137,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (daysUntilWeighIn <= 1) return 'last-24h';
     
-    const dayOfWeek = getDay(today); // 0 = Sun, 1 = Mon, ... 4 = Thu, 5 = Fri
-    
     // Simplification for prototype: Assuming Mon-Fri week roughly matches days out
     if (daysUntilWeighIn >= 3) return 'metabolic'; // Mon-Wed
     if (daysUntilWeighIn === 2) return 'transition'; // Thu
@@ -157,7 +146,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isAdvancedAllowed = () => {
-    return profile.goal === 'advanced' || profile.coachMode;
+    return profile.coachMode;
   };
 
   const getHydrationTarget = () => {
@@ -166,11 +155,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const advanced = isAdvancedAllowed();
     const dayOfWeek = getDay(new Date()); // Using actual day for reverse load schedule (Mon=1, etc)
     
-    // Reverse Water Load Logic (Advanced)
-    if (advanced && profile.goal === 'advanced') { // Simplified check
+    // Reverse Water Load Logic (Advanced / Protocol 1)
+    if (advanced || profile.protocol === '1') { 
        const isHeavy = w >= 174;
        const isMedium = w >= 149 && w < 174;
-       // const isLight = w < 149; 
 
        // Mon(1), Tue(2), Wed(3), Thu(4), Fri(5)
        if (dayOfWeek === 1) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", type: "Regular", note: "Baseline Hydration" };
@@ -206,95 +194,120 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getFuelingGuide = () => {
     const phase = getPhase();
-    const track = profile.track;
+    const protocol = profile.protocol;
+    const dayOfWeek = getDay(new Date());
 
-    if (phase === 'metabolic') {
-      if (track === 'A') { // Fructose Early
+    // Protocol 1: Sugar Fast (Extreme)
+    if (protocol === '1') {
+      if (dayOfWeek >= 1 && dayOfWeek <= 4) { // Mon-Thu
         return {
-          ratio: "60:40 Fructose:Glucose",
-          allowed: ["Apple Juice", "Pears", "Grapes", "Mango", "Agave", "Honey"],
-          avoid: ["Starchy Carbs (AM)", "Processed Sugar"]
+          ratio: "Fructose Only (0g Protein)",
+          allowed: ["Apple Juice", "Pears", "Grapes", "Honey", "Agave"],
+          avoid: ["ALL Protein", "Starchy Carbs", "Fat"]
         };
-      } else { // Track B Glucose Early
+      }
+      if (dayOfWeek === 5) { // Fri
         return {
-          ratio: "40:60 Glucose:Fructose",
-          allowed: ["White Rice", "Potato", "Dextrose", "Rice Cakes", "Honey"],
-          avoid: ["High Fiber Veggies", "Fatty Meat"]
+           ratio: "Fructose + MCT (Evening Protein)",
+           allowed: ["Fruit", "Honey", "MCT Oil", "Small Whey/Collagen (Evening)"],
+           avoid: ["Starch", "Fiber"]
         };
       }
     }
 
-    if (phase === 'transition' || phase === 'performance-prep') {
-      return {
-        ratio: "Zero Fiber / Balanced",
-        allowed: ["White Rice", "Potato", "Honey", "Dextrose", "Rice Cakes"],
-        avoid: ["ALL Fruits", "ALL Vegetables", "Oats", "Whole Grains", "Beans"]
-      };
+    // Protocol 2: Fat Loss Focus (Standard In-Season)
+    if (protocol === '2') {
+      if (dayOfWeek >= 1 && dayOfWeek <= 2) { // Mon-Tue
+         return {
+          ratio: "Fructose Heavy (0g Protein)",
+          allowed: ["Fruit", "Juice", "Honey"],
+          avoid: ["Protein", "Starch", "Fat"]
+         };
+      }
+      if (dayOfWeek === 3) { // Wed
+        return {
+          ratio: "Fructose + Collagen",
+          allowed: ["Fruit", "Juice", "Honey", "Collagen + Leucine (Dinner)"],
+          avoid: ["Starch", "Meat", "Fat"]
+        };
+      }
+      if (phase === 'transition' || phase === 'performance-prep') { // Thu-Fri
+        return {
+          ratio: "Glucose Heavy (60g Protein)",
+          allowed: ["White Rice", "Potato", "Dextrose", "Collagen", "Seafood"],
+          avoid: ["Fiber (Fruits/Veg)", "Fatty Meat"]
+        };
+      }
     }
 
-    return { ratio: "Balanced", allowed: [], avoid: [] };
+    // Protocol 3: Maintain
+    if (protocol === '3') {
+       if (dayOfWeek === 1) { // Mon
+         return {
+           ratio: "Fructose Heavy (25g Protein)",
+           allowed: ["Fruit", "Juice", "Collagen"],
+           avoid: ["Starch", "Fat"]
+         };
+       }
+       if (dayOfWeek >= 2 && dayOfWeek <= 3) { // Tue-Wed
+         return {
+           ratio: "Mixed (75g Protein)",
+           allowed: ["Fruit", "Rice", "Lean Protein", "Egg Whites"],
+           avoid: ["High Fat"]
+         };
+       }
+       // Thu-Fri same as standard performance prep
+       if (phase === 'transition' || phase === 'performance-prep') {
+         return {
+           ratio: "Performance (Glucose)",
+           allowed: ["Rice", "Potato", "Lean Protein", "Dextrose"],
+           avoid: ["Fiber"]
+         };
+       }
+    }
+
+    return { ratio: "Balanced", allowed: ["Clean Carbs", "Lean Protein"], avoid: ["Junk"] };
   };
 
   const getTodaysFocus = () => {
     const phase = getPhase();
-    const track = profile.track;
+    const protocol = profile.protocol;
     const isOver = profile.currentWeight > calculateTarget();
     const fuel = getFuelingGuide();
     
-    // Defaults
-    let title = "Maintain Performance Baseline";
-    let actions = [
-      "Hydrate to thirst + electrolytes",
-      "Clean carbs post-practice",
-    ];
+    let title = "Maintain Baseline";
+    let actions: string[] = [];
     let warning = undefined;
 
-    if (phase === 'metabolic') {
-      title = "Metabolic Output Phase";
-      if (track === 'A') {
-        actions = [
-          "Focus: Fat Loss (FGF21 Activation)",
-          `Eat: ${fuel.allowed.slice(0, 3).join(", ")}`,
-          "Supplements: TUDCA 250mg, Choline 500mg (AM/PM)",
-          "No starchy carbs before practice", 
-          "Refill glycogen post-practice only"
-        ];
-      } else {
-        actions = [
-          "Focus: Training Performance",
-          `Eat: ${fuel.allowed.slice(0, 3).join(", ")}`,
-          "Supplements: TUDCA 250mg, Choline 500mg (AM/PM)",
-          "Hydrate aggressively (See target)",
-          "Fuel heavy sessions"
-        ];
-      }
-    } else if (phase === 'transition') { // Thu
-      title = "Fiber Transition Phase";
-      actions = [
-        "ELIMINATE ALL FIBER (No fruits/veggies)",
-        "Switch to white rice/simple carbs",
-        "Begin tapering water volume",
-        "Evening: Collagen (25g) + Leucine (3g) if available"
-      ];
-    } else if (phase === 'performance-prep') { // Fri
-      title = "Performance Prep Phase";
-      actions = [
-        "ZERO Fiber intake today",
-        "Glucose-dominant: White rice, Honey, Dextrose",
-        "Monitor weight drift closely",
-        isAdvancedAllowed() ? "Execute Reverse Water Load (Distilled)" : "Sip water, do not gulp"
-      ];
-    } else if (phase === 'last-24h') {
-      title = "Final Descent";
-      actions = [
-        "Check weight every 4 hours",
-        "Rinse mouth if thirsty, limit swallowing",
-        "Visualize weigh-in process"
-      ];
+    // Protocol Specific Focus Actions
+    if (protocol === '1') { // Sugar Fast
+       title = "Protocol 1: Sugar Fast";
+       actions.push("⚠️ EXTREME FAT LOSS MODE");
+       actions.push(`Eat: ${fuel.allowed.slice(0, 3).join(", ")}`);
+       if (phase === 'metabolic') actions.push("GOAL: Maximize FGF21 (No Protein)");
+       if (phase === 'performance-prep') actions.push("Evening: Reintroduce Protein (0.2g/lb)");
+    } else if (protocol === '2') { // Fat Loss
+       title = "Protocol 2: Fat Loss Focus";
+       actions.push(`Eat: ${fuel.allowed.slice(0, 3).join(", ")}`);
+       if (phase === 'metabolic') actions.push("GOAL: Fat Oxidation (Low Protein)");
+       if (phase === 'transition') actions.push("Switch to Glucose/Starch + Seafood");
+    } else { // Maintain
+       title = "Protocol 3: Maintenance";
+       actions.push("Focus: Performance & Recovery");
+       actions.push(`Eat: ${fuel.allowed.slice(0, 3).join(", ")}`);
+    }
+
+    // General Phase Rules
+    if (phase === 'transition') {
+      actions.push("ELIMINATE FIBER (No veggies/fruit)");
+      actions.push("Collagen + Leucine (Dinner)");
+    } else if (phase === 'performance-prep') {
+       actions.push("ZERO Fiber");
+       actions.push("Monitor Weight Drift");
     }
 
     if (isOver && phase !== 'last-24h') {
-      warning = "Weight is drifting high - tighten fueling window";
+      warning = "Weight high - check protocol adherence";
     }
 
     return { title, actions, warning };
