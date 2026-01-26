@@ -1,4 +1,5 @@
 import { Switch, Route } from "wouter";
+import { AuthProvider } from "./lib/auth";
 import { StoreProvider } from "./lib/store";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
@@ -25,10 +26,12 @@ function Router() {
 
 function App() {
   return (
-    <StoreProvider>
+    <AuthProvider>
+      <StoreProvider>
         <Toaster />
         <Router />
-    </StoreProvider>
+      </StoreProvider>
+    </AuthProvider>
   );
 }
 

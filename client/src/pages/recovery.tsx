@@ -2,7 +2,7 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, Clock, Droplets, Utensils, Zap, Calculator } from "lucide-react";
+import { Check, Clock, Droplets, Utensils, Zap, Calculator, RotateCcw, Play, Pause, FastForward } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -10,22 +10,67 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function Recovery() {
-  const [elapsed, setElapsed] = useState(0);
-  const [active, setActive] = useState(false);
-  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  // Load persisted state from localStorage
+  const [elapsed, setElapsed] = useState(() => {
+    const saved = localStorage.getItem('pwm-recovery-elapsed');
+    const startTime = localStorage.getItem('pwm-recovery-start');
+    const isActive = localStorage.getItem('pwm-recovery-active') === 'true';
+
+    if (isActive && startTime) {
+      // Calculate elapsed time since start
+      const elapsedSinceStart = Math.floor((Date.now() - parseInt(startTime)) / 1000);
+      return elapsedSinceStart;
+    }
+    return saved ? parseInt(saved) : 0;
+  });
+
+  const [active, setActive] = useState(() => {
+    return localStorage.getItem('pwm-recovery-active') === 'true';
+  });
+
+  const [checklist, setChecklist] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('pwm-recovery-checklist');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   // Rehydration Calc
-  const [weighInWeight, setWeighInWeight] = useState("");
+  const [weighInWeight, setWeighInWeight] = useState(() => {
+    return localStorage.getItem('pwm-recovery-weighin') || "";
+  });
   const { profile, getRehydrationPlan, getFoodLists } = useStore();
   const lostWeight = weighInWeight ? profile.currentWeight - parseFloat(weighInWeight) : 0;
   const plan = getRehydrationPlan(Math.max(0, lostWeight));
   const tournamentFoods = getFoodLists().tournament;
 
+  // Persist state to localStorage
+  useEffect(() => {
+    localStorage.setItem('pwm-recovery-checklist', JSON.stringify(checklist));
+  }, [checklist]);
+
+  useEffect(() => {
+    localStorage.setItem('pwm-recovery-weighin', weighInWeight);
+  }, [weighInWeight]);
+
+  useEffect(() => {
+    localStorage.setItem('pwm-recovery-active', active.toString());
+    if (active) {
+      // Store the start time when timer becomes active
+      const existingStart = localStorage.getItem('pwm-recovery-start');
+      if (!existingStart) {
+        localStorage.setItem('pwm-recovery-start', (Date.now() - elapsed * 1000).toString());
+      }
+    }
+  }, [active]);
+
   useEffect(() => {
     let interval: any;
     if (active) {
       interval = setInterval(() => {
-        setElapsed(e => e + 1);
+        setElapsed(e => {
+          const newVal = e + 1;
+          localStorage.setItem('pwm-recovery-elapsed', newVal.toString());
+          return newVal;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -61,7 +106,14 @@ export default function Recovery() {
                 Start Recovery Timer
               </Button>
             ) : (
-              <Button onClick={() => { setActive(false); setElapsed(0); }} variant="outline" className="uppercase w-full border-destructive text-destructive hover:bg-destructive/10">
+              <Button onClick={() => {
+                setActive(false);
+                setElapsed(0);
+                setChecklist({});
+                localStorage.removeItem('pwm-recovery-start');
+                localStorage.removeItem('pwm-recovery-elapsed');
+                localStorage.removeItem('pwm-recovery-checklist');
+              }} variant="outline" className="uppercase w-full border-destructive text-destructive hover:bg-destructive/10">
                 Stop / Reset
               </Button>
             )}
@@ -176,6 +228,11 @@ export default function Recovery() {
              <Zap className="w-5 h-5 text-primary" /> Between Matches
            </h3>
 
+           {/* Between Matches Timer */}
+           <div className="mb-4">
+             <BetweenMatchesTimer />
+           </div>
+
            {/* Tournament Foods List */}
            <Card className="border-primary/20 bg-primary/5 mb-4">
              <CardHeader className="pb-2">
@@ -241,18 +298,18 @@ function RecoveryPhase({ id, title, subtitle, isActive, items, checklist, onTogg
         </div>
         {isComplete && <Check className="text-primary w-5 h-5" />}
       </div>
-      
+
       <div className="space-y-3">
         {items.map((item: any) => (
           <div key={item.id} className="flex items-start gap-3">
-            <Checkbox 
-              id={item.id} 
+            <Checkbox
+              id={item.id}
               checked={checklist[item.id] || false}
               onCheckedChange={() => onToggle(item.id)}
               className="mt-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-black border-primary/50"
             />
-            <label 
-              htmlFor={item.id} 
+            <label
+              htmlFor={item.id}
               className={cn(
                 "text-sm font-medium leading-tight cursor-pointer transition-colors",
                 checklist[item.id] ? "text-muted-foreground line-through" : "text-foreground"
@@ -264,5 +321,207 @@ function RecoveryPhase({ id, title, subtitle, isActive, items, checklist, onTogg
         ))}
       </div>
     </div>
+  );
+}
+
+// Between matches timer - flexible timing (30min minimum, but could be hours)
+function BetweenMatchesTimer() {
+  const [elapsed, setElapsed] = useState(() => {
+    const saved = localStorage.getItem('pwm-match-timer-elapsed');
+    const startTime = localStorage.getItem('pwm-match-timer-start');
+    const isActive = localStorage.getItem('pwm-match-timer-active') === 'true';
+
+    if (isActive && startTime) {
+      const elapsedSinceStart = Math.floor((Date.now() - parseInt(startTime)) / 1000);
+      return elapsedSinceStart;
+    }
+    return saved ? parseInt(saved) : 0;
+  });
+
+  const [active, setActive] = useState(() => {
+    return localStorage.getItem('pwm-match-timer-active') === 'true';
+  });
+
+  const [matchCount, setMatchCount] = useState(() => {
+    const saved = localStorage.getItem('pwm-match-count');
+    return saved ? parseInt(saved) : 1;
+  });
+
+  // Persist state
+  useEffect(() => {
+    localStorage.setItem('pwm-match-timer-active', active.toString());
+    if (active) {
+      const existingStart = localStorage.getItem('pwm-match-timer-start');
+      if (!existingStart) {
+        localStorage.setItem('pwm-match-timer-start', (Date.now() - elapsed * 1000).toString());
+      }
+    }
+  }, [active, elapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('pwm-match-count', matchCount.toString());
+  }, [matchCount]);
+
+  useEffect(() => {
+    let interval: any;
+    if (active) {
+      interval = setInterval(() => {
+        setElapsed(e => {
+          const newVal = e + 1;
+          localStorage.setItem('pwm-match-timer-elapsed', newVal.toString());
+          return newVal;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [active]);
+
+  // Get current phase based on elapsed time - phases adjust based on time since last match
+  const getPhase = () => {
+    const mins = Math.floor(elapsed / 60);
+    if (mins < 5) return { name: 'Immediate Recovery', desc: 'Sip fluids, cool down, catch breath', color: 'text-cyan-500', bgColor: 'bg-cyan-500/20', priority: 'Fluids first' };
+    if (mins < 15) return { name: 'Refuel Window', desc: '30-50g fast carbs + electrolytes', color: 'text-primary', bgColor: 'bg-primary/20', priority: 'Eat NOW' };
+    if (mins < 30) return { name: 'Rest & Digest', desc: 'Stay warm, stay off feet', color: 'text-purple-500', bgColor: 'bg-purple-500/20', priority: 'Rest' };
+    if (mins < 60) return { name: 'Ready Zone', desc: 'Can compete anytime - stay loose', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', priority: 'Stay warm' };
+    return { name: 'Extended Wait', desc: 'Keep sipping, may need another snack', color: 'text-orange-500', bgColor: 'bg-orange-500/20', priority: 'Top off fuel' };
+  };
+
+  const phase = getPhase();
+
+  const formatTime = (sec: number) => {
+    const hrs = Math.floor(sec / 3600);
+    const mins = Math.floor((sec % 3600) / 60);
+    const secs = sec % 60;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const resetTimer = () => {
+    setActive(false);
+    setElapsed(0);
+    localStorage.removeItem('pwm-match-timer-start');
+    localStorage.removeItem('pwm-match-timer-elapsed');
+  };
+
+  const nextMatch = () => {
+    setMatchCount(c => c + 1);
+    setElapsed(0);
+    setActive(true);
+    localStorage.setItem('pwm-match-timer-start', Date.now().toString());
+    localStorage.setItem('pwm-match-timer-elapsed', '0');
+  };
+
+  const resetAll = () => {
+    resetTimer();
+    setMatchCount(1);
+    localStorage.removeItem('pwm-match-count');
+  };
+
+  return (
+    <Card className="border-orange-500/20 bg-orange-500/5">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm text-orange-500 uppercase tracking-wider flex items-center gap-2">
+            <Clock className="w-4 h-4" /> Time Since Match
+          </CardTitle>
+          <span className="text-xs bg-orange-500/20 text-orange-500 px-2 py-0.5 rounded font-bold">
+            Match #{matchCount}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Current Phase */}
+        <div className={cn("rounded-lg p-3", phase.bgColor)}>
+          <div className="flex items-center justify-between">
+            <div className={cn("font-bold text-lg", phase.color)}>{phase.name}</div>
+            <span className={cn("text-xs font-bold px-2 py-0.5 rounded", phase.bgColor, phase.color)}>
+              {phase.priority}
+            </span>
+          </div>
+          <div className="text-sm text-muted-foreground">{phase.desc}</div>
+        </div>
+
+        {/* Timer Display */}
+        <div className="text-center">
+          <div className="text-4xl font-mono font-bold tracking-tight">
+            {formatTime(elapsed)}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            since last match ended
+          </div>
+        </div>
+
+        {/* Phase Timeline - Visual Guide */}
+        <div className="space-y-1">
+          <div className="flex gap-1">
+            <div className={cn("flex-[5] h-2 rounded-l", elapsed >= 0 ? "bg-cyan-500" : "bg-muted")} />
+            <div className={cn("flex-[10] h-2", elapsed >= 300 ? "bg-primary" : "bg-muted")} />
+            <div className={cn("flex-[15] h-2", elapsed >= 900 ? "bg-purple-500" : "bg-muted")} />
+            <div className={cn("flex-[30] h-2", elapsed >= 1800 ? "bg-yellow-500" : "bg-muted")} />
+            <div className={cn("flex-[40] h-2 rounded-r", elapsed >= 3600 ? "bg-orange-500" : "bg-muted")} />
+          </div>
+          <div className="flex justify-between text-[8px] text-muted-foreground px-1">
+            <span>0</span>
+            <span>5m</span>
+            <span>15m</span>
+            <span>30m</span>
+            <span>60m+</span>
+          </div>
+        </div>
+
+        {/* Quick Tips Based on Time */}
+        <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
+          {elapsed < 300 && "Minimum 30 min between matches. Focus on recovery first."}
+          {elapsed >= 300 && elapsed < 900 && "Get carbs in NOW. This is your best absorption window."}
+          {elapsed >= 900 && elapsed < 1800 && "Food is digesting. Stay warm, stay calm."}
+          {elapsed >= 1800 && elapsed < 3600 && "You're ready. Light movement to stay loose."}
+          {elapsed >= 3600 && "Long wait - consider another 20-30g carbs if hungry."}
+        </div>
+
+        {/* Controls */}
+        <div className="flex gap-2">
+          {!active ? (
+            <Button
+              onClick={() => setActive(true)}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-black font-bold"
+            >
+              <Play className="w-4 h-4 mr-2" /> Start Timer
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setActive(false)}
+              variant="outline"
+              className="flex-1 border-orange-500 text-orange-500"
+            >
+              <Pause className="w-4 h-4 mr-2" /> Pause
+            </Button>
+          )}
+          <Button
+            onClick={nextMatch}
+            variant="outline"
+            className="border-primary text-primary"
+          >
+            <FastForward className="w-4 h-4 mr-1" /> Next Match
+          </Button>
+          <Button
+            onClick={resetAll}
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Minimum Rest Warning */}
+        {active && elapsed < 1800 && (
+          <div className="text-[10px] text-yellow-500 text-center font-medium">
+            Minimum 30 minutes rest required between matches
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

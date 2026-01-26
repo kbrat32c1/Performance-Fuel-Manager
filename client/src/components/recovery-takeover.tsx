@@ -1,136 +1,227 @@
 import { useStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Droplets, Zap, CheckCircle, Scale, Clock, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Droplets, Scale, Clock, AlertTriangle, CheckCircle2, TrendingDown } from "lucide-react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { format, differenceInHours } from "date-fns";
 
 export function RecoveryTakeover() {
-  const { profile, getRehydrationPlan } = useStore();
-  const [weighInWeight, setWeighInWeight] = useState<number | null>(null);
-  const [inputWeight, setInputWeight] = useState("");
-  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const { profile, calculateTarget, updateProfile, addLog, logs } = useStore();
+  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
+  const [currentWeight, setCurrentWeight] = useState('');
+  const [lastLoggedWeight, setLastLoggedWeight] = useState<number | null>(null);
 
-  // Calculate lost weight if weigh-in recorded
-  const lostWeight = weighInWeight ? Math.max(0, profile.targetWeightClass - weighInWeight + (profile.currentWeight - profile.targetWeightClass)) : 0; 
-  // Simplified: Assume they made weight (target class) and current profile weight is the "start" of cut or similar. 
-  // Actually, better to just ask for "Weigh In Weight" and assume they cut from `profile.currentWeight`? 
-  // Or simpler: Just ask how much they cut?
-  // Let's rely on the store's `getRehydrationPlan` which takes `lostWeight`.
-  // We'll estimate `lostWeight` as `profile.targetWeightClass * 0.05` (5% cut) if not specified, 
-  // but better to ask user.
-  
-  // For now, let's just use a calculated estimate based on a standard 5% cut if we don't have exact data, 
-  // or use the difference between their max recent weight and target.
-  const estimatedCut = profile.targetWeightClass * 0.05; 
-  const plan = getRehydrationPlan(estimatedCut);
+  // Get the most recent weight log from today
+  useEffect(() => {
+    const today = profile.simulatedDate || new Date();
+    const todayLogs = logs.filter(log => {
+      const logDate = new Date(log.date);
+      return logDate.getFullYear() === today.getFullYear() &&
+             logDate.getMonth() === today.getMonth() &&
+             logDate.getDate() === today.getDate();
+    });
+    if (todayLogs.length > 0) {
+      const sorted = todayLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setLastLoggedWeight(sorted[0].weight);
+    }
+  }, [logs, profile.simulatedDate]);
 
-  const steps = [
-    { id: 1, title: "Immediate Fluids", desc: `Sip ${plan.fluidRange} of electrolyte solution`, icon: Droplets },
-    { id: 2, title: "Fast Carbs", desc: `Consume ${plan.glycogen} immediately`, icon: Zap },
-    { id: 3, title: "Wait 20 Mins", desc: "Allow stomach to settle before solid food", icon: Clock },
-    { id: 4, title: "Solid Meal", desc: "Lean protein + complex carbs. Low fat.", icon: Scale },
-  ];
+  const targetWeight = calculateTarget();
+  const weighInDate = new Date(profile.weighInDate);
+  const now = profile.simulatedDate || new Date();
+  const hoursUntilWeighIn = Math.max(0, differenceInHours(weighInDate, now));
 
-  const toggleStep = (id: number) => {
-    setCompletedSteps(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  // Calculate how much still needs to be lost
+  const displayWeight = lastLoggedWeight || profile.currentWeight;
+  const stillToLose = displayWeight > 0 ? Math.max(0, displayWeight - profile.targetWeightClass) : 0;
+
+  const handleLogWeight = () => {
+    if (currentWeight) {
+      const weight = parseFloat(currentWeight);
+      addLog({
+        weight,
+        date: new Date(),
+        type: 'morning'
+      });
+      setLastLoggedWeight(weight);
+      setCurrentWeight('');
+    }
+  };
+
+  const toggleStep = (step: string) => {
+    setCompletedSteps(prev =>
+      prev.includes(step) ? prev.filter(s => s !== step) : [...prev, step]
     );
   };
 
+  const exitMode = () => {
+    updateProfile({ simulatedDate: null });
+    window.location.reload();
+  };
+
+  // Friday pre-weigh-in checklist
+  const preWeighInSteps = [
+    { id: 'sip', label: 'Sip only - no gulping water', desc: '8-16oz distilled max' },
+    { id: 'bladder', label: 'Empty bladder before every weigh', desc: 'Check weight after bathroom' },
+    { id: 'fiber', label: 'ZERO fiber consumed', desc: 'No vegetables, fruits, whole grains' },
+    { id: 'sweat', label: 'Light sweat session if needed', desc: 'Only if >1lb over target' },
+    { id: 'sleep', label: 'Sleep warm - extra blankets', desc: 'Passive sweating overnight' },
+  ];
+
   return (
     <div className="min-h-screen bg-background p-4 flex flex-col">
-      <header className="mb-6 text-center pt-8">
-        <h1 className="text-3xl font-heading font-black italic uppercase text-primary mb-2 animate-pulse">
-          Competition Mode
+      <header className="mb-4 text-center pt-4">
+        <div className="inline-block px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/10 text-orange-500 text-xs font-bold tracking-widest uppercase mb-2 animate-pulse">
+          Final Push
+        </div>
+        <h1 className="text-3xl font-heading font-black italic uppercase">
+          WEIGH-IN EVE
         </h1>
-        <p className="text-muted-foreground text-sm uppercase tracking-widest">
-          Recovery Protocol Active
+        <p className="text-muted-foreground text-sm">
+          {format(now, 'EEEE, MMMM d')}
         </p>
       </header>
 
-      <div className="flex-1 space-y-6 max-w-md mx-auto w-full">
-        {/* Status Card */}
-        <Card className="border-primary bg-primary/5">
-           <CardHeader className="pb-2">
-             <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-primary">
-                <Scale className="w-4 h-4" /> Post Weigh-In Status
-             </CardTitle>
-           </CardHeader>
-           <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-center">
-                 <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Target Fluids</span>
-                    <div className="text-xl font-mono font-bold">{plan.fluidRange}</div>
-                 </div>
-                 <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Target Sodium</span>
-                    <div className="text-xl font-mono font-bold">{plan.sodiumRange}</div>
-                 </div>
+      <div className="flex-1 space-y-4 max-w-md mx-auto w-full">
+        {/* Countdown & Weight Status */}
+        <Card className="border-orange-500/50 bg-orange-500/5">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 gap-4 text-center">
+              <div>
+                <Clock className="w-5 h-5 text-orange-500 mx-auto mb-1" />
+                <span className="text-2xl font-mono font-black text-orange-500">{hoursUntilWeighIn}h</span>
+                <p className="text-[10px] text-muted-foreground uppercase">Until Weigh-In</p>
               </div>
-           </CardContent>
+              <div>
+                <TrendingDown className="w-5 h-5 text-primary mx-auto mb-1" />
+                <span className={cn(
+                  "text-2xl font-mono font-black",
+                  stillToLose <= 0 ? "text-green-500" : stillToLose <= 1 ? "text-yellow-500" : "text-orange-500"
+                )}>
+                  {stillToLose > 0 ? stillToLose.toFixed(1) : '0'}
+                </span>
+                <p className="text-[10px] text-muted-foreground uppercase">Lbs to Go</p>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-orange-500/20">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Current:</span>
+                <span className="font-mono font-bold">{displayWeight > 0 ? `${displayWeight.toFixed(1)} lbs` : '--'}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Target:</span>
+                <span className="font-mono font-bold text-green-500">{profile.targetWeightClass} lbs</span>
+              </div>
+            </div>
+          </CardContent>
         </Card>
 
-        {/* Checklist */}
-        <div className="space-y-3">
-           <h3 className="text-xs font-bold uppercase text-muted-foreground tracking-widest ml-1">Recovery Checklist</h3>
-           {steps.map(step => (
-             <div 
-               key={step.id}
-               onClick={() => toggleStep(step.id)}
-               className={cn(
-                 "flex items-start gap-4 p-4 rounded-xl border transition-all cursor-pointer",
-                 completedSteps.includes(step.id) 
-                    ? "bg-green-500/10 border-green-500/50" 
-                    : "bg-card border-muted hover:border-primary/50"
-               )}
-             >
-               <div className={cn(
-                 "mt-1 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors",
-                 completedSteps.includes(step.id)
-                    ? "bg-green-500 border-green-500 text-black"
-                    : "border-muted-foreground text-transparent"
-               )}>
-                 <CheckCircle className="w-4 h-4" />
-               </div>
-               
-               <div className="flex-1">
-                  <h4 className={cn(
-                    "font-bold text-sm uppercase mb-1",
-                    completedSteps.includes(step.id) ? "text-green-500 line-through decoration-2" : "text-foreground"
-                  )}>
-                    {step.title}
-                  </h4>
-                  <p className="text-xs text-muted-foreground leading-snug">
-                    {step.desc}
-                  </p>
-               </div>
-               
-               <step.icon className={cn(
-                  "w-5 h-5",
-                  completedSteps.includes(step.id) ? "text-green-500" : "text-muted-foreground"
-               )} />
-             </div>
-           ))}
-        </div>
+        {/* Quick Weight Check */}
+        <Card className="border-muted">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Scale className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold uppercase">Quick Weight Check</span>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="Current weight"
+                value={currentWeight}
+                onChange={(e) => setCurrentWeight(e.target.value)}
+                className="font-mono"
+              />
+              <Button onClick={handleLogWeight} disabled={!currentWeight}>
+                Log
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Weigh yourself frequently - track your progress toward target
+            </p>
+          </CardContent>
+        </Card>
 
-        <div className="mt-8 p-4 bg-muted/20 rounded-lg border border-muted">
-           <div className="flex gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-500 shrink-0" />
-              <div className="space-y-1">
-                 <h4 className="text-sm font-bold text-yellow-500 uppercase">Warning</h4>
-                 <p className="text-xs text-muted-foreground">
-                    Do not consume large amounts of plain water without sodium. This can lead to hyponatremia and cramping.
-                 </p>
+        {/* Pre-Weigh-In Checklist */}
+        <Card className="border-muted">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm uppercase tracking-wider flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-orange-500" /> Pre-Weigh-In Checklist
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {preWeighInSteps.map(step => (
+              <button
+                key={step.id}
+                onClick={() => toggleStep(step.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 p-2.5 rounded-lg border transition-colors text-left",
+                  completedSteps.includes(step.id)
+                    ? "bg-green-500/10 border-green-500/50"
+                    : "bg-muted/30 border-muted hover:border-primary/50"
+                )}
+              >
+                <div className={cn(
+                  "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0",
+                  completedSteps.includes(step.id)
+                    ? "bg-green-500 border-green-500"
+                    : "border-muted-foreground"
+                )}>
+                  {completedSteps.includes(step.id) && <CheckCircle2 className="w-3 h-3 text-black" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className={cn(
+                    "text-sm font-medium block",
+                    completedSteps.includes(step.id) && "line-through text-muted-foreground"
+                  )}>{step.label}</span>
+                  <span className="text-[10px] text-muted-foreground">{step.desc}</span>
+                </div>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Hydration Warning */}
+        <Card className="border-yellow-500/30 bg-yellow-500/5">
+          <CardContent className="p-4">
+            <div className="flex gap-3">
+              <Droplets className="w-5 h-5 text-yellow-500 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm text-yellow-500 mb-1">SIP ONLY</h4>
+                <p className="text-xs text-muted-foreground">
+                  Your body is still flushing water from this week's loading. Sipping maintains this effect.
+                  Gulping will stop the flush and add scale weight back.
+                </p>
               </div>
-           </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Critical Warning */}
+        <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/30">
+          <div className="flex gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-red-500 mb-1">DO NOT</p>
+              <ul className="text-[11px] text-muted-foreground space-y-0.5">
+                <li>Eat any fiber (vegetables, fruit, whole grains)</li>
+                <li>Drink large amounts of water at once</li>
+                <li>Take laxatives or diuretics without coach guidance</li>
+                <li>Skip sleep - you lose weight overnight</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <Button className="w-full" variant="outline" onClick={() => window.location.reload()}>
-           Exit Recovery Mode (Demo)
+        <Button variant="outline" className="w-full" onClick={exitMode}>
+          Exit Final Push Mode
         </Button>
-
       </div>
+
+      <div className="h-4" />
     </div>
   );
 }

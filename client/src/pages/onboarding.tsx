@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle } from "lucide-react";
-import { format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ProtocolWizard } from "@/components/protocol-wizard";
 
@@ -18,9 +18,11 @@ export default function Onboarding() {
   const [, setLocation] = useLocation();
 
   const handleNext = () => {
-    if (step < 4) { 
+    if (step < 4) {
       setStep(step + 1);
     } else {
+      // Mark onboarding complete and clear any demo mode
+      updateProfile({ simulatedDate: null, hasCompletedOnboarding: true });
       setLocation('/dashboard');
     }
   };
@@ -167,28 +169,141 @@ export default function Onboarding() {
                       <span className="font-mono font-bold text-muted-foreground">{(profile.targetWeightClass * 1.07).toFixed(1)} lbs</span>
                    </div>
 
-                   {profile.currentWeight > profile.targetWeightClass * 1.07 ? (
-                     <div className="bg-destructive/10 text-destructive p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
-                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                       <div>
-                         You are starting heavy. Body Comp Phase is highly recommended to safely make weight.
+                   {(() => {
+                     const weightClasses = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285];
+                     const daysUntilWeighIn = differenceInDays(profile.weighInDate, new Date());
+                     const lbsToLose = profile.currentWeight - profile.targetWeightClass;
+                     const percentLoss = (lbsToLose / profile.currentWeight) * 100;
+                     const isRapidCut = percentLoss > 5 && daysUntilWeighIn < 7;
+                     const isDangerousCut = percentLoss > 5 && daysUntilWeighIn < 3;
+
+                     // Find next weight class up
+                     const currentIndex = weightClasses.indexOf(profile.targetWeightClass);
+                     const nextWeightClass = currentIndex < weightClasses.length - 1 ? weightClasses[currentIndex + 1] : null;
+
+                     // Show dangerous cut warning
+                     if (isDangerousCut && lbsToLose > 0) {
+                       return (
+                         <div className="bg-red-600/20 text-red-500 p-3 rounded text-xs leading-relaxed border border-red-500/50 space-y-3">
+                           <div className="flex gap-2">
+                             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 animate-pulse" />
+                             <div className="font-bold">
+                               <strong>DANGEROUS CUT:</strong> Losing {lbsToLose.toFixed(1)} lbs ({percentLoss.toFixed(1)}%) in {daysUntilWeighIn} days
+                               risks severe dehydration and hurts performance.
+                             </div>
+                           </div>
+                           <div className="text-[11px] text-red-400 pl-6">
+                             <strong>Recommended actions:</strong>
+                           </div>
+                           <div className="flex flex-col gap-2 pl-6">
+                             {nextWeightClass && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 className="border-red-500/50 text-red-500 hover:bg-red-500/20 justify-start h-auto py-2"
+                                 onClick={() => updateProfile({ targetWeightClass: nextWeightClass })}
+                               >
+                                 <span className="text-left">
+                                   <span className="font-bold">Move up to {nextWeightClass} lbs</span>
+                                   <span className="block text-[10px] opacity-80">Safer cut, better performance</span>
+                                 </span>
+                               </Button>
+                             )}
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="border-red-500/50 text-red-500 hover:bg-red-500/20 justify-start h-auto py-2"
+                               onClick={() => setStep(3)}
+                             >
+                               <span className="text-left">
+                                 <span className="font-bold">Change weigh-in date</span>
+                                 <span className="block text-[10px] opacity-80">More time = safer cut</span>
+                               </span>
+                             </Button>
+                           </div>
+                         </div>
+                       );
+                     }
+
+                     // Show rapid cut warning
+                     if (isRapidCut && lbsToLose > 0) {
+                       return (
+                         <div className="bg-orange-500/20 text-orange-500 p-3 rounded text-xs leading-relaxed border border-orange-500/50 space-y-3">
+                           <div className="flex gap-2">
+                             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                             <div className="font-bold">
+                               <strong>AGGRESSIVE CUT:</strong> Cutting {percentLoss.toFixed(1)}% ({lbsToLose.toFixed(1)} lbs) in {daysUntilWeighIn} days
+                               is aggressive but doable.
+                             </div>
+                           </div>
+                           <div className="text-[11px] text-orange-400 pl-6">
+                             <strong>You can proceed, but consider:</strong>
+                           </div>
+                           <div className="flex flex-col gap-2 pl-6">
+                             {nextWeightClass && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 className="border-orange-500/50 text-orange-500 hover:bg-orange-500/20 justify-start h-auto py-2"
+                                 onClick={() => updateProfile({ targetWeightClass: nextWeightClass })}
+                               >
+                                 <span className="text-left">
+                                   <span className="font-bold">Move up to {nextWeightClass} lbs</span>
+                                   <span className="block text-[10px] opacity-80">Easier cut, more energy on the mat</span>
+                                 </span>
+                               </Button>
+                             )}
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               className="border-orange-500/50 text-orange-500 hover:bg-orange-500/20 justify-start h-auto py-2"
+                               onClick={() => setStep(3)}
+                             >
+                               <span className="text-left">
+                                 <span className="font-bold">Change weigh-in date</span>
+                                 <span className="block text-[10px] opacity-80">More time makes it easier</span>
+                               </span>
+                             </Button>
+                           </div>
+                           <p className="text-[10px] text-orange-400/80 pl-6 pt-1">
+                             Or continue below to proceed with the aggressive cut - follow the protocol strictly.
+                           </p>
+                         </div>
+                       );
+                     }
+
+                     // Standard warnings
+                     if (profile.currentWeight > profile.targetWeightClass * 1.07) {
+                       return (
+                         <div className="bg-destructive/10 text-destructive p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
+                           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                           <div>
+                             You are starting heavy. Body Comp Phase is highly recommended to safely make weight.
+                           </div>
+                         </div>
+                       );
+                     }
+
+                     if (profile.targetWeightClass > profile.currentWeight) {
+                       return (
+                         <div className="bg-primary/10 text-primary p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
+                           <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                           <div>
+                             You are moving up a weight class. Build Phase is active.
+                           </div>
+                         </div>
+                       );
+                     }
+
+                     return (
+                       <div className="bg-green-500/10 text-green-500 p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
+                         <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                         <div>
+                           You are in a safe range. Standard protocol will work well.
+                         </div>
                        </div>
-                     </div>
-                   ) : profile.targetWeightClass > profile.currentWeight ? (
-                     <div className="bg-primary/10 text-primary p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
-                       <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                       <div>
-                         You are moving up a weight class. Build Phase is active.
-                       </div>
-                     </div>
-                   ) : (
-                     <div className="bg-green-500/10 text-green-500 p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
-                       <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                       <div>
-                         You are in a safe range. Standard protocol will work well.
-                       </div>
-                     </div>
-                   )}
+                     );
+                   })()}
                  </div>
                </div>
             </div>
