@@ -496,12 +496,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await supabase.from('daily_tracking').delete().eq('user_id', user.id);
 
         // Reset profile to require onboarding again (instead of deleting)
+        const fiveDaysOut = addDays(new Date(), 5);
         await supabase.from('profiles').update({
           has_completed_onboarding: false,
           current_weight: 0,
           target_weight_class: 157,
           protocol: 2,
           simulated_date: null,
+          weigh_in_date: fiveDaysOut.toISOString().split('T')[0],
         }).eq('user_id', user.id);
       } catch (error) {
         console.error('Error resetting data:', error);
