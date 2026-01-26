@@ -50,13 +50,13 @@ export default function Dashboard() {
   const displayDate = profile.simulatedDate || new Date();
   const dayOfWeek = getDay(displayDate);
 
-  // Saturday Competition Day Takeover
-  if (phase === 'last-24h' && dayOfWeek === 6) {
+  // Saturday Competition Day Takeover (only for cutting protocols, not Build Phase)
+  if (phase === 'last-24h' && dayOfWeek === 6 && profile.protocol !== '4') {
     return <CompetitionDayTakeover />;
   }
 
-  // Friday Final Push (or if weigh-in is tomorrow)
-  if (phase === 'last-24h') {
+  // Friday Final Push (only for cutting protocols, not Build Phase)
+  if (phase === 'last-24h' && profile.protocol !== '4') {
     return <RecoveryTakeover />;
   }
 
@@ -1380,7 +1380,7 @@ function SettingsDialog({ profile, updateProfile, resetData }: any) {
   const handleReset = () => {
     resetData();
     setShowResetConfirm(false);
-    window.location.href = '/';
+    window.location.href = '/onboarding';
   };
 
   const handleSignOut = async () => {
