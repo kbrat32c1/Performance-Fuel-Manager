@@ -1377,8 +1377,8 @@ function SettingsDialog({ profile, updateProfile, resetData }: any) {
   const { signOut, user } = useAuth();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const handleReset = () => {
-    resetData();
+  const handleReset = async () => {
+    await resetData();
     setShowResetConfirm(false);
     window.location.href = '/onboarding';
   };
