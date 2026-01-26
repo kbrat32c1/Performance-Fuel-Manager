@@ -1354,7 +1354,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         day: 'Friday',
         dayNum: 5,
         phase: 'Cut',
-        weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.01) },
+        weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.025) },
         water: {
           amount: isHeavy ? '12-16 oz' : isMedium ? '8-12 oz' : '8-10 oz',
           targetOz: isHeavy ? 14 : isMedium ? 10 : 9,
