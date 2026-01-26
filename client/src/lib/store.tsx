@@ -197,6 +197,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           simulatedDate: profileData.simulated_date ? new Date(profileData.simulated_date) : null,
           hasCompletedOnboarding: profileData.has_completed_onboarding || false,
         });
+      } else {
+        // No profile found - user needs to complete onboarding
+        setProfile(defaultProfile);
+        setLogs([]);
+        setDailyTracking([]);
       }
 
       // Load weight logs
@@ -1041,12 +1046,238 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const wKg = w / 2.2;
     const today = profile.simulatedDate || new Date();
     const currentDayOfWeek = getDay(today);
+    const protocol = profile.protocol;
 
     const isHeavy = w >= 174;
     const isMedium = w >= 149 && w < 174;
 
     const galToOz = (gal: number) => Math.round(gal * 128);
 
+    // Protocol 4 (Build Phase) - No weight cutting, maintain/gain weight
+    if (protocol === '4') {
+      const buildDays: DayPlan[] = [
+        {
+          day: 'Monday',
+          dayNum: 1,
+          phase: 'Train',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 6), max: Math.round(wKg * 8) },
+          protein: { min: 100, max: 125 },
+          isToday: currentDayOfWeek === 1,
+          isTomorrow: currentDayOfWeek === 0
+        },
+        {
+          day: 'Tuesday',
+          dayNum: 2,
+          phase: 'Train',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 6), max: Math.round(wKg * 8) },
+          protein: { min: 100, max: 125 },
+          isToday: currentDayOfWeek === 2,
+          isTomorrow: currentDayOfWeek === 1
+        },
+        {
+          day: 'Wednesday',
+          dayNum: 3,
+          phase: 'Train',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 6), max: Math.round(wKg * 8) },
+          protein: { min: 100, max: 125 },
+          isToday: currentDayOfWeek === 3,
+          isTomorrow: currentDayOfWeek === 2
+        },
+        {
+          day: 'Thursday',
+          dayNum: 4,
+          phase: 'Train',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 6), max: Math.round(wKg * 8) },
+          protein: { min: 100, max: 125 },
+          isToday: currentDayOfWeek === 4,
+          isTomorrow: currentDayOfWeek === 3
+        },
+        {
+          day: 'Friday',
+          dayNum: 5,
+          phase: 'Light',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 5), max: Math.round(wKg * 7) },
+          protein: { min: 100, max: 125 },
+          isToday: currentDayOfWeek === 5,
+          isTomorrow: currentDayOfWeek === 4
+        },
+        {
+          day: 'Saturday',
+          dayNum: 6,
+          phase: 'Compete',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+            type: 'Regular'
+          },
+          carbs: { min: 200, max: 400 },
+          protein: { min: 100, max: 150 },
+          isToday: currentDayOfWeek === 6,
+          isTomorrow: currentDayOfWeek === 5
+        },
+        {
+          day: 'Sunday',
+          dayNum: 0,
+          phase: 'Recover',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+            type: 'Regular'
+          },
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.6), max: Math.round(w * 1.6) },
+          isToday: currentDayOfWeek === 0,
+          isTomorrow: currentDayOfWeek === 6
+        }
+      ];
+      return buildDays;
+    }
+
+    // Protocol 3 (Hold Weight) - Minimal cutting, maintain walk-around weight
+    if (protocol === '3') {
+      const holdDays: DayPlan[] = [
+        {
+          day: 'Monday',
+          dayNum: 1,
+          phase: 'Maintain',
+          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.02) },
+          water: {
+            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 5), max: Math.round(wKg * 7) },
+          protein: { min: 75, max: 100 },
+          isToday: currentDayOfWeek === 1,
+          isTomorrow: currentDayOfWeek === 0
+        },
+        {
+          day: 'Tuesday',
+          dayNum: 2,
+          phase: 'Maintain',
+          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.02) },
+          water: {
+            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 5), max: Math.round(wKg * 7) },
+          protein: { min: 75, max: 100 },
+          isToday: currentDayOfWeek === 2,
+          isTomorrow: currentDayOfWeek === 1
+        },
+        {
+          day: 'Wednesday',
+          dayNum: 3,
+          phase: 'Maintain',
+          weightTarget: { morning: Math.round(w * 1.02), postPractice: Math.round(w * 1.01) },
+          water: {
+            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 5), max: Math.round(wKg * 7) },
+          protein: { min: 75, max: 100 },
+          isToday: currentDayOfWeek === 3,
+          isTomorrow: currentDayOfWeek === 2
+        },
+        {
+          day: 'Thursday',
+          dayNum: 4,
+          phase: 'Prep',
+          weightTarget: { morning: Math.round(w * 1.02), postPractice: Math.round(w * 1.01) },
+          water: {
+            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 5), max: Math.round(wKg * 7) },
+          protein: { min: 75, max: 100 },
+          isToday: currentDayOfWeek === 4,
+          isTomorrow: currentDayOfWeek === 3
+        },
+        {
+          day: 'Friday',
+          dayNum: 5,
+          phase: 'Prep',
+          weightTarget: { morning: Math.round(w * 1.01), postPractice: w },
+          water: {
+            amount: isHeavy ? '1.0 gal' : isMedium ? '0.75 gal' : '0.5 gal',
+            targetOz: galToOz(isHeavy ? 1.0 : isMedium ? 0.75 : 0.5),
+            type: 'Regular'
+          },
+          carbs: { min: Math.round(wKg * 4), max: Math.round(wKg * 6) },
+          protein: { min: 75, max: 100 },
+          isToday: currentDayOfWeek === 5,
+          isTomorrow: currentDayOfWeek === 4
+        },
+        {
+          day: 'Saturday',
+          dayNum: 6,
+          phase: 'Compete',
+          weightTarget: { morning: w, postPractice: w },
+          water: {
+            amount: 'Rehydrate',
+            targetOz: galToOz(1.0),
+            type: 'Rehydrate'
+          },
+          carbs: { min: 200, max: 400 },
+          protein: { min: 100, max: 150 },
+          isToday: currentDayOfWeek === 6,
+          isTomorrow: currentDayOfWeek === 5
+        },
+        {
+          day: 'Sunday',
+          dayNum: 0,
+          phase: 'Recover',
+          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.03) },
+          water: {
+            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+            type: 'Regular'
+          },
+          carbs: { min: 250, max: 400 },
+          protein: { min: Math.round(w * 1.2), max: Math.round(w * 1.5) },
+          isToday: currentDayOfWeek === 0,
+          isTomorrow: currentDayOfWeek === 6
+        }
+      ];
+      return holdDays;
+    }
+
+    // Protocols 1 & 2 (Body Comp & Make Weight) - Full cutting protocol
     const days: DayPlan[] = [
       {
         day: 'Monday',
