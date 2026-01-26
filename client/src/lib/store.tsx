@@ -1183,7 +1183,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: 'Monday',
           dayNum: 1,
           phase: 'Maintain',
-          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.02) },
+          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
           water: {
             amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
             targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
@@ -1198,7 +1198,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: 'Tuesday',
           dayNum: 2,
           phase: 'Maintain',
-          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.02) },
+          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
           water: {
             amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
             targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
@@ -1213,7 +1213,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: 'Wednesday',
           dayNum: 3,
           phase: 'Maintain',
-          weightTarget: { morning: Math.round(w * 1.02), postPractice: Math.round(w * 1.01) },
+          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
           water: {
             amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
             targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
@@ -1228,7 +1228,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: 'Thursday',
           dayNum: 4,
           phase: 'Prep',
-          weightTarget: { morning: Math.round(w * 1.02), postPractice: Math.round(w * 1.01) },
+          weightTarget: { morning: Math.round(w * 1.04), postPractice: Math.round(w * 1.04) },
           water: {
             amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
             targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
@@ -1243,7 +1243,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: 'Friday',
           dayNum: 5,
           phase: 'Prep',
-          weightTarget: { morning: Math.round(w * 1.01), postPractice: w },
+          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.03) },
           water: {
             amount: isHeavy ? '1.0 gal' : isMedium ? '0.75 gal' : '0.5 gal',
             targetOz: galToOz(isHeavy ? 1.0 : isMedium ? 0.75 : 0.5),
@@ -1273,7 +1273,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: 'Sunday',
           dayNum: 0,
           phase: 'Recover',
-          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.03) },
+          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
           water: {
             amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
             targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
