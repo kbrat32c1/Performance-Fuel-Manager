@@ -165,8 +165,11 @@ export default function Onboarding() {
                    </div>
                    
                    <div className="flex justify-between items-center pb-2 border-b border-muted/50">
-                      <span className="text-muted-foreground">Safe Start Limit (7%)</span>
-                      <span className="font-mono font-bold text-muted-foreground">{(profile.targetWeightClass * 1.07).toFixed(1)} lbs</span>
+                      <div>
+                        <span className="text-muted-foreground">Ideal Walk-Around</span>
+                        <span className="block text-[10px] text-muted-foreground/70">Target by Sunday for easier cuts</span>
+                      </div>
+                      <span className="font-mono font-bold text-primary">{(profile.targetWeightClass * 1.07).toFixed(1)} lbs</span>
                    </div>
 
                    {(() => {
@@ -206,6 +209,19 @@ export default function Onboarding() {
                                  <span className="text-left">
                                    <span className="font-bold">Move up to {nextWeightClass} lbs</span>
                                    <span className="block text-[10px] opacity-80">Safer cut, better performance</span>
+                                 </span>
+                               </Button>
+                             )}
+                             {profile.protocol !== '1' && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 className="border-red-500/50 text-red-500 hover:bg-red-500/20 justify-start h-auto py-2"
+                                 onClick={() => { updateProfile({ protocol: '1' }); setStep(2); }}
+                               >
+                                 <span className="text-left">
+                                   <span className="font-bold">Switch to Body Comp Phase</span>
+                                   <span className="block text-[10px] opacity-80">Best protocol for aggressive cuts</span>
                                  </span>
                                </Button>
                              )}
@@ -250,6 +266,19 @@ export default function Onboarding() {
                                  <span className="text-left">
                                    <span className="font-bold">Move up to {nextWeightClass} lbs</span>
                                    <span className="block text-[10px] opacity-80">Easier cut, more energy on the mat</span>
+                                 </span>
+                               </Button>
+                             )}
+                             {profile.protocol !== '1' && (
+                               <Button
+                                 size="sm"
+                                 variant="outline"
+                                 className="border-orange-500/50 text-orange-500 hover:bg-orange-500/20 justify-start h-auto py-2"
+                                 onClick={() => { updateProfile({ protocol: '1' }); setStep(2); }}
+                               >
+                                 <span className="text-left">
+                                   <span className="font-bold">Switch to Body Comp Phase</span>
+                                   <span className="block text-[10px] opacity-80">Best protocol for aggressive cuts</span>
                                  </span>
                                </Button>
                              )}
