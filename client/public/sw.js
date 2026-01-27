@@ -1,8 +1,11 @@
-const CACHE_NAME = 'pwm-v12';
+const CACHE_NAME = 'pwm-v13';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/favicon.png',
+  '/favicon-32.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/manifest.json'
 ];
 
