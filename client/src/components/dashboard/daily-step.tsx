@@ -130,6 +130,7 @@ export function DailyStep({
                   onClick={handleEdit}
                   className="ml-auto p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
                   title="Edit weight"
+                  aria-label={`Edit ${title} weight`}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -143,9 +144,15 @@ export function DailyStep({
                   onChange={(e) => setWeight(e.target.value)}
                   className="w-24 h-10 font-mono"
                   autoFocus
+                  aria-label={`Enter ${title} weight in pounds`}
                 />
-                <span className="text-sm text-muted-foreground">lbs</span>
-                <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-10">
+                <span className="text-sm text-muted-foreground" aria-hidden="true">lbs</span>
+                <Button
+                  size="sm"
+                  onClick={isEditing ? handleUpdate : handleSubmit}
+                  className="h-10"
+                  aria-label={isEditing ? `Update ${title} weight` : `Save ${title} weight`}
+                >
                   {isEditing ? 'Update' : 'Save'}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={handleCancel} className="h-10">

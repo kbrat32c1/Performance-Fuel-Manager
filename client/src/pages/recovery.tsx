@@ -33,6 +33,11 @@ export default function Recovery() {
     return saved ? JSON.parse(saved) : {};
   });
 
+  const [matchPrepChecklist, setMatchPrepChecklist] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('pwm-match-prep-checklist');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   // Rehydration Calc
   const [weighInWeight, setWeighInWeight] = useState(() => {
     return localStorage.getItem('pwm-recovery-weighin') || "";
@@ -48,6 +53,10 @@ export default function Recovery() {
   }, [checklist]);
 
   useEffect(() => {
+    localStorage.setItem('pwm-match-prep-checklist', JSON.stringify(matchPrepChecklist));
+  }, [matchPrepChecklist]);
+
+  useEffect(() => {
     localStorage.setItem('pwm-recovery-weighin', weighInWeight);
   }, [weighInWeight]);
 
@@ -59,8 +68,11 @@ export default function Recovery() {
       if (!existingStart) {
         localStorage.setItem('pwm-recovery-start', (Date.now() - elapsed * 1000).toString());
       }
+    } else {
+      // Clear start time when paused so it can be recalculated on resume
+      localStorage.removeItem('pwm-recovery-start');
     }
-  }, [active]);
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let interval: any;
@@ -80,6 +92,10 @@ export default function Recovery() {
     setChecklist(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const toggleMatchPrepItem = (id: string) => {
+    setMatchPrepChecklist(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -95,27 +111,54 @@ export default function Recovery() {
         </div>
 
         {/* Timer Card */}
-        <Card className="bg-muted/10 border-primary/20 overflow-hidden relative">
-          <div className="absolute inset-0 bg-primary/5 animate-pulse" />
+        <Card className="bg-muted/10 border-primary/20 overflow-hidden relative" role="timer" aria-label="Recovery timer">
+          {active && <div className="absolute inset-0 bg-primary/5 animate-pulse" aria-hidden="true" />}
           <CardContent className="p-8 text-center relative z-10">
-            <div className="text-6xl font-mono font-bold tracking-tighter mb-4">
+            <div
+              className="text-6xl font-mono font-bold tracking-tighter mb-4"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {formatTime(elapsed)}
             </div>
-            {!active ? (
-              <Button onClick={() => setActive(true)} className="bg-primary text-black font-bold uppercase w-full h-14 text-lg">
-                Start Recovery Timer
+            {elapsed === 0 && !active ? (
+              <Button
+                onClick={() => setActive(true)}
+                className="bg-primary text-black font-bold uppercase w-full h-14 text-lg"
+                aria-label="Start recovery timer"
+              >
+                <Play className="w-5 h-5 mr-2" aria-hidden="true" /> Start Recovery Timer
               </Button>
             ) : (
-              <Button onClick={() => {
-                setActive(false);
-                setElapsed(0);
-                setChecklist({});
-                localStorage.removeItem('pwm-recovery-start');
-                localStorage.removeItem('pwm-recovery-elapsed');
-                localStorage.removeItem('pwm-recovery-checklist');
-              }} variant="outline" className="uppercase w-full border-destructive text-destructive hover:bg-destructive/10">
-                Stop / Reset
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setActive(!active)}
+                  className={cn(
+                    "flex-1 h-14 text-lg font-bold uppercase",
+                    active
+                      ? "bg-yellow-500 hover:bg-yellow-600 text-black"
+                      : "bg-primary hover:bg-primary/90 text-black"
+                  )}
+                  aria-label={active ? "Pause recovery timer" : "Resume recovery timer"}
+                >
+                  {active ? <><Pause className="w-5 h-5 mr-2" aria-hidden="true" /> Pause</> : <><Play className="w-5 h-5 mr-2" aria-hidden="true" /> Resume</>}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setActive(false);
+                    setElapsed(0);
+                    setChecklist({});
+                    localStorage.removeItem('pwm-recovery-start');
+                    localStorage.removeItem('pwm-recovery-elapsed');
+                    localStorage.removeItem('pwm-recovery-checklist');
+                  }}
+                  variant="outline"
+                  className="h-14 px-4 border-destructive text-destructive hover:bg-destructive/10"
+                  aria-label="Reset recovery timer and checklist"
+                >
+                  <RotateCcw className="w-5 h-5" aria-hidden="true" />
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -261,17 +304,39 @@ export default function Recovery() {
 
            {/* Checklist */}
            <div className="bg-card border border-muted rounded-lg p-4 space-y-3">
-              <span className="text-xs text-muted-foreground uppercase font-bold">Match Prep Checklist</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground uppercase font-bold">Match Prep Checklist</span>
+                {Object.values(matchPrepChecklist).some(v => v) && (
+                  <button
+                    onClick={() => setMatchPrepChecklist({})}
+                    className="text-[10px] text-muted-foreground hover:text-foreground"
+                    aria-label="Reset match prep checklist"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
               {[
-                "Rehydrate (Small sips only)",
-                "Simple sugar (Gel/Honey) 20m before match",
-                "Keep body warm / Sweat lightly",
-                "Mental reset"
-              ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <Checkbox id={`bm-${i}`} />
-                  <label htmlFor={`bm-${i}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 pt-1">
-                    {item}
+                { id: 'mp-rehydrate', text: "Rehydrate (Small sips only)" },
+                { id: 'mp-sugar', text: "Simple sugar (Gel/Honey) 20m before match" },
+                { id: 'mp-warm', text: "Keep body warm / Sweat lightly" },
+                { id: 'mp-mental', text: "Mental reset" }
+              ].map((item) => (
+                <div key={item.id} className="flex items-start gap-3">
+                  <Checkbox
+                    id={item.id}
+                    checked={matchPrepChecklist[item.id] || false}
+                    onCheckedChange={() => toggleMatchPrepItem(item.id)}
+                    className="mt-0.5 data-[state=checked]:bg-primary data-[state=checked]:text-black border-primary/50"
+                  />
+                  <label
+                    htmlFor={item.id}
+                    className={cn(
+                      "text-sm font-medium leading-tight cursor-pointer transition-colors pt-0.5",
+                      matchPrepChecklist[item.id] ? "text-muted-foreground line-through" : "text-foreground"
+                    )}
+                  >
+                    {item.text}
                   </label>
                 </div>
               ))}
@@ -283,20 +348,56 @@ export default function Recovery() {
 }
 
 function RecoveryPhase({ id, title, subtitle, isActive, items, checklist, onToggle }: any) {
-  const isComplete = items.every((i: any) => checklist[i.id]);
+  const completedCount = items.filter((i: any) => checklist[i.id]).length;
+  const totalCount = items.length;
+  const isComplete = completedCount === totalCount;
+  const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   return (
-    <div className={cn(
-      "border rounded-lg p-4 transition-all duration-300",
-      isActive ? "bg-primary/5 border-primary shadow-[0_0_15px_rgba(132,204,22,0.1)] scale-102" : "bg-card border-muted opacity-60",
-      isComplete && "opacity-40 bg-muted/20"
-    )}>
-      <div className="flex justify-between items-center mb-3">
+    <div
+      className={cn(
+        "border rounded-lg p-4 transition-all duration-300",
+        isActive ? "bg-primary/5 border-primary shadow-[0_0_15px_rgba(132,204,22,0.1)] scale-102" : "bg-card border-muted opacity-60",
+        isComplete && "opacity-40 bg-muted/20"
+      )}
+      role="region"
+      aria-label={`${title} recovery phase`}
+    >
+      <div className="flex justify-between items-center mb-2">
         <div>
           <h3 className="font-heading font-bold text-lg">{title}</h3>
           <p className="text-xs text-muted-foreground uppercase tracking-wider">{subtitle}</p>
         </div>
-        {isComplete && <Check className="text-primary w-5 h-5" />}
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "text-xs font-mono font-bold",
+              isComplete ? "text-primary" : "text-muted-foreground"
+            )}
+            aria-label={`${completedCount} of ${totalCount} tasks completed`}
+          >
+            {completedCount}/{totalCount}
+          </span>
+          {isComplete && <Check className="text-primary w-5 h-5" aria-label="Phase complete" />}
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div
+        className="h-1.5 bg-muted rounded-full mb-3 overflow-hidden"
+        role="progressbar"
+        aria-valuenow={completedCount}
+        aria-valuemin={0}
+        aria-valuemax={totalCount}
+        aria-label={`${title} progress: ${completedCount} of ${totalCount} tasks`}
+      >
+        <div
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            isComplete ? "bg-primary" : isActive ? "bg-primary/70" : "bg-muted-foreground/30"
+          )}
+          style={{ width: `${progressPercent}%` }}
+        />
       </div>
 
       <div className="space-y-3">
@@ -355,8 +456,11 @@ function BetweenMatchesTimer() {
       if (!existingStart) {
         localStorage.setItem('pwm-match-timer-start', (Date.now() - elapsed * 1000).toString());
       }
+    } else {
+      // Clear start time when paused so it can be recalculated on resume
+      localStorage.removeItem('pwm-match-timer-start');
     }
-  }, [active, elapsed]);
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     localStorage.setItem('pwm-match-count', matchCount.toString());

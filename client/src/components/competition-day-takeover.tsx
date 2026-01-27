@@ -107,8 +107,8 @@ export function CompetitionDayTakeover() {
     );
   };
 
-  const exitCompetitionMode = () => {
-    updateProfile({ simulatedDate: null });
+  const exitCompetitionMode = async () => {
+    await updateProfile({ simulatedDate: null });
     window.location.reload();
   };
 

@@ -20,6 +20,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecoveryTakeover } from "@/components/recovery-takeover";
 import { CompetitionDayTakeover } from "@/components/competition-day-takeover";
+import { TrendChart, SettingsDialog, WeighInCountdown } from "@/components/dashboard";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const {
@@ -99,6 +101,13 @@ export default function Dashboard() {
   const driftMetrics = getDriftMetrics();
   const descentData = getWeekDescentData();
   const checkpoints = getCheckpoints();
+  const historyInsights = getHistoryInsights();
+
+  // Check if user has overnight drift history
+  const hasOvernightDriftHistory = historyInsights.avgOvernightDrift !== null;
+  const overnightDrift = hasOvernightDriftHistory
+    ? Math.abs(historyInsights.avgOvernightDrift)
+    : null; // null indicates we should show a range
 
   const phaseInfo = getPhaseInfo();
 
@@ -179,20 +188,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Friday Critical Checkpoint Warning */}
-      {dayOfWeek === 5 && (profile.protocol === '1' || profile.protocol === '2') && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-xs font-bold text-orange-500 uppercase">Critical Checkpoint</span>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Must be <strong className="text-orange-500">{checkpoints.friTarget}</strong> by evening for safe overnight cut.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Next Target - Always Visible */}
       {nextTarget && (
@@ -371,8 +366,15 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Friday Weigh-In Countdown */}
-      {dayOfWeek === 5 && <WeighInCountdown weighInDate={profile.weighInDate} simulatedDate={profile.simulatedDate} />}
+      {/* Weigh-In Countdown - Wed/Thu/Fri */}
+      {(dayOfWeek === 3 || dayOfWeek === 4 || dayOfWeek === 5) && (profile.protocol === '1' || profile.protocol === '2') && (
+        <WeighInCountdown
+          weighInDate={profile.weighInDate}
+          simulatedDate={profile.simulatedDate}
+          dayOfWeek={dayOfWeek}
+          fridayTarget={dayOfWeek === 5 ? checkpoints.friTarget : undefined}
+        />
+      )}
 
       {/* Daily Steps */}
       <div className="space-y-4">
@@ -435,7 +437,8 @@ export default function Dashboard() {
           logType="before-bed"
           addLog={addLog}
           updateLog={updateLog}
-          targetWeight={targetWeight - 0.5}
+          targetWeight={overnightDrift !== null ? targetWeight + overnightDrift : undefined}
+          targetWeightRange={overnightDrift === null ? { min: targetWeight + 1, max: targetWeight + 2 } : undefined}
           simulatedDate={profile.simulatedDate}
         />
 
@@ -444,6 +447,9 @@ export default function Dashboard() {
 
         {/* What's Next Section */}
         <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} />
+
+        {/* Weight Trend Chart */}
+        <TrendChart />
 
         {/* History Insights */}
         <HistoryInsightsCard getHistoryInsights={getHistoryInsights} targetWeightClass={profile.targetWeightClass} />
@@ -467,6 +473,7 @@ function DailyStep({
   addLog,
   updateLog,
   targetWeight,
+  targetWeightRange,
   simulatedDate
 }: {
   step: number;
@@ -477,7 +484,8 @@ function DailyStep({
   logType: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed';
   addLog: any;
   updateLog: any;
-  targetWeight: number;
+  targetWeight?: number;
+  targetWeightRange?: { min: number; max: number };
   simulatedDate?: Date | null;
 }) {
   const [weight, setWeight] = useState('');
@@ -495,9 +503,26 @@ function DailyStep({
   });
 
   const isComplete = !!todayLog;
+  const { toast } = useToast();
+
+  // Validate weight is reasonable (between 80 and 350 lbs for wrestling)
+  const validateWeight = (w: number): boolean => {
+    if (w < 80 || w > 350) {
+      toast({
+        title: "Invalid weight",
+        description: "Weight must be between 80 and 350 lbs",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
 
   const handleSubmit = () => {
     if (weight) {
+      const parsedWeight = parseFloat(weight);
+      if (!validateWeight(parsedWeight)) return;
+
       // Use simulated date if available, with appropriate time for log type
       const logDate = new Date(today);
       if (logType === 'morning') logDate.setHours(7, 0, 0, 0);
@@ -506,12 +531,16 @@ function DailyStep({
       else if (logType === 'before-bed') logDate.setHours(22, 0, 0, 0);
 
       addLog({
-        weight: parseFloat(weight),
+        weight: parsedWeight,
         date: logDate,
         type: logType,
       });
       setWeight('');
       setIsLogging(false);
+      // Blur any focused input to close mobile keyboard
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     }
   };
 
@@ -522,9 +551,16 @@ function DailyStep({
 
   const handleUpdate = () => {
     if (weight && todayLog) {
-      updateLog(todayLog.id, { weight: parseFloat(weight) });
+      const parsedWeight = parseFloat(weight);
+      if (!validateWeight(parsedWeight)) return;
+
+      updateLog(todayLog.id, { weight: parsedWeight });
       setWeight('');
       setIsEditing(false);
+      // Blur any focused input to close mobile keyboard
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     }
   };
 
@@ -563,7 +599,7 @@ function DailyStep({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono font-bold text-lg text-primary">{todayLog.weight} lbs</span>
                 <span className="text-xs text-muted-foreground">at {format(new Date(todayLog.date), 'h:mm a')}</span>
-                {targetWeight && (
+                {targetWeight !== undefined ? (
                   <span className={cn(
                     "text-[10px] font-bold px-1.5 py-0.5 rounded",
                     todayLog.weight <= targetWeight ? "bg-green-500/20 text-green-500" :
@@ -573,7 +609,17 @@ function DailyStep({
                     {todayLog.weight <= targetWeight ? "ON TARGET" :
                      `+${(todayLog.weight - targetWeight).toFixed(1)} lbs`}
                   </span>
-                )}
+                ) : targetWeightRange ? (
+                  <span className={cn(
+                    "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                    todayLog.weight <= targetWeightRange.max ? "bg-green-500/20 text-green-500" :
+                    todayLog.weight <= targetWeightRange.max + 1 ? "bg-yellow-500/20 text-yellow-500" :
+                    "bg-destructive/20 text-destructive"
+                  )}>
+                    {todayLog.weight <= targetWeightRange.max ? "ON TARGET" :
+                     `+${(todayLog.weight - targetWeightRange.max).toFixed(1)} lbs`}
+                  </span>
+                ) : null}
                 <button
                   onClick={handleEdit}
                   className="ml-auto p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
@@ -614,11 +660,15 @@ function DailyStep({
 
             {!isComplete && !isLogging && (
               <div className="mt-2 space-y-1">
-                {targetWeight && (
+                {targetWeight !== undefined ? (
                   <p className="text-[10px] text-muted-foreground">
                     Target: {targetWeight.toFixed(1)} lbs
                   </p>
-                )}
+                ) : targetWeightRange ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    Target: {targetWeightRange.min.toFixed(1)}-{targetWeightRange.max.toFixed(1)} lbs
+                  </p>
+                ) : null}
                 <p className="text-[10px] text-yellow-500 font-medium">
                   {logType === 'morning' && "Log morning weight to track overnight drift"}
                   {logType === 'pre-practice' && "Log pre-practice to measure session loss"}
@@ -861,9 +911,10 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog }: 
 
 // Fuel Tracker with Macro Tracking
 function FuelTracker({ fuel }: { fuel: { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string } }) {
-  const { getMacroTargets, getFoodLists, getDailyTracking, updateDailyTracking, profile } = useStore();
+  const { getMacroTargets, getFoodLists, getTodaysFoods, getDailyTracking, updateDailyTracking, profile } = useStore();
   const macros = getMacroTargets();
   const foodLists = getFoodLists();
+  const todaysFoods = getTodaysFoods(); // Protocol-aware food lists
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
@@ -913,26 +964,6 @@ function FuelTracker({ fuel }: { fuel: { allowed: string[]; avoid: string[]; rat
   const handleResetMacros = () => {
     updateDailyTracking(dateKey, { carbsConsumed: 0, proteinConsumed: 0 });
   };
-
-  // Determine which food list to show based on day
-  const getFoodListForDay = () => {
-    if (dayOfWeek === 0) { // Sunday
-      return { label: "Recovery (Sunday)", foods: foodLists.recovery, description: "Protein refeed + rebuild glycogen" };
-    }
-    if (dayOfWeek === 6) { // Saturday
-      return { label: "Competition Day", foods: foodLists.tournament, description: "Fast carbs between matches" };
-    }
-    if (dayOfWeek >= 4 && dayOfWeek <= 5) { // Thu-Fri
-      return { label: "Zero Fiber (Thu-Fri)", foods: foodLists.zeroFiber, description: "Clear gut for weigh-in" };
-    }
-    if (dayOfWeek >= 1 && dayOfWeek <= 3) { // Mon-Wed
-      return { label: "High Fructose (Mon-Wed)", foods: foodLists.highFructose, description: "Burns fat while keeping energy high" };
-    }
-    return { label: "Balanced", foods: foodLists.balanced, description: "Transition phase" };
-  };
-
-  const dayFoodList = getFoodListForDay();
-  const avoidList = foodLists.avoid;
 
   return (
     <Card className="border-muted">
@@ -1281,70 +1312,81 @@ function FuelTracker({ fuel }: { fuel: { allowed: string[]; avoid: string[]; rat
 
             {showFoodRef && (
               <div className="space-y-3 pt-2 border-t border-muted mt-2">
-                {/* Recommended Foods - Show ALL */}
+                <p className="text-[9px] text-muted-foreground text-center">Tap a food to quick-add its macros</p>
+
+                {/* Carb Foods - Protocol-Aware */}
                 <div className="space-y-2">
                   <div>
-                    <span className="text-[10px] text-primary uppercase font-bold">{dayFoodList.label}</span>
-                    <span className="text-[10px] text-muted-foreground ml-2">— {dayFoodList.description}</span>
+                    <span className="text-[10px] text-primary uppercase font-bold">{todaysFoods.carbsLabel}</span>
                   </div>
                   <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-                    {dayFoodList.foods.map((food, i) => (
-                      <div key={i} className="flex items-center justify-between bg-primary/5 rounded px-2 py-1">
+                    {todaysFoods.carbs.map((food, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          updateDailyTracking(dateKey, {
+                            carbsConsumed: tracking.carbsConsumed + food.carbs
+                          });
+                        }}
+                        className="w-full flex items-center justify-between bg-primary/5 hover:bg-primary/15 rounded px-2 py-1.5 transition-colors text-left"
+                      >
                         <div className="flex items-center gap-2">
+                          <Plus className="w-3 h-3 text-primary" />
                           <span className="text-[11px] font-medium text-foreground">{food.name}</span>
                           <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">{food.ratio}</span>
                         </div>
                         <div className="flex items-center gap-2 text-[10px]">
                           <span className="text-muted-foreground">{food.serving}</span>
-                          <span className="font-mono text-primary">{food.carbs}g</span>
+                          <span className="font-mono font-bold text-primary">+{food.carbs}g</span>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
 
-                {/* High Glucose Options for Thu-Fri - Show ALL */}
-                {dayOfWeek >= 4 && dayOfWeek <= 5 && (
+                {/* Protein Sources - Protocol-Aware */}
+                {todaysFoods.protein.length > 0 && (
                   <div className="space-y-2">
-                    <span className="text-[10px] text-cyan-500 uppercase font-bold">High Glucose Options:</span>
+                    <span className="text-[10px] text-orange-500 uppercase font-bold">{todaysFoods.proteinLabel}</span>
                     <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
-                      {foodLists.highGlucose.map((food, i) => (
-                        <div key={i} className="flex items-center justify-between bg-cyan-500/5 rounded px-2 py-1">
+                      {todaysFoods.protein.map((item, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            updateDailyTracking(dateKey, {
+                              proteinConsumed: tracking.proteinConsumed + item.protein
+                            });
+                          }}
+                          className="w-full flex items-center justify-between bg-orange-500/5 hover:bg-orange-500/15 rounded px-2 py-1.5 transition-colors text-left"
+                        >
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-medium text-foreground">{food.name}</span>
-                            <span className="text-[9px] text-muted-foreground bg-muted/50 px-1 rounded">{food.ratio}</span>
+                            <Plus className="w-3 h-3 text-orange-500" />
+                            <span className="text-[11px] font-medium text-foreground">{item.name}</span>
                           </div>
                           <div className="flex items-center gap-2 text-[10px]">
-                            <span className="text-muted-foreground">{food.serving}</span>
-                            <span className="font-mono text-cyan-500">{food.carbs}g</span>
+                            <span className="text-muted-foreground">{item.serving}</span>
+                            <span className="font-mono font-bold text-orange-500">+{item.protein}g</span>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Avoid Foods - Show ALL relevant to today */}
-                <div className="space-y-2">
-                  <span className="text-[10px] text-destructive uppercase font-bold">Avoid Today:</span>
-                  <div className="space-y-1">
-                    {avoidList.filter((item) => {
-                      // Filter avoid list based on day
-                      if (dayOfWeek >= 1 && dayOfWeek <= 3) { // Mon-Wed
-                        return item.name.includes("Mon-Wed") || item.name.includes("Whey") || item.name.includes("Chicken");
-                      }
-                      if (dayOfWeek >= 4 && dayOfWeek <= 5) { // Thu-Fri
-                        return item.name.includes("Thu-Fri") || item.name.includes("Vegetables") || item.name.includes("Fruits");
-                      }
-                      return false;
-                    }).map((item, i) => (
-                      <div key={i} className="flex items-center justify-between bg-destructive/5 rounded px-2 py-1">
-                        <span className="text-[11px] font-medium text-destructive">{item.name.replace(" (Mon-Wed)", "").replace(" (Thu-Fri)", "")}</span>
-                        <span className="text-[9px] text-muted-foreground">{item.reason}</span>
-                      </div>
-                    ))}
+                {/* Avoid Foods - Protocol-Aware */}
+                {todaysFoods.avoid.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[10px] text-destructive uppercase font-bold">Avoid Today:</span>
+                    <div className="space-y-1">
+                      {todaysFoods.avoid.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between bg-destructive/5 rounded px-2 py-1">
+                          <span className="text-[11px] font-medium text-destructive">{item.name}</span>
+                          <span className="text-[9px] text-muted-foreground">{item.reason}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
@@ -1545,225 +1587,6 @@ function HydrationTracker({ hydration }: { hydration: { amount: string; type: st
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-// Settings Dialog
-function SettingsDialog({ profile, updateProfile, resetData }: any) {
-  const { signOut, user } = useAuth();
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-
-  const handleReset = async () => {
-    await resetData();
-    setShowResetConfirm(false);
-    window.location.href = '/onboarding';
-  };
-
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/';
-  };
-
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-          <Settings className="w-5 h-5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-heading uppercase italic text-xl">Settings</DialogTitle>
-        </DialogHeader>
-
-        <Tabs defaultValue="profile" className="w-full mt-2">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="dates">Dates</TabsTrigger>
-            <TabsTrigger value="data">Data</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profile" className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Current Weight (lbs)</Label>
-              <div className="relative">
-                <Weight className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  type="number"
-                  value={profile.currentWeight || ''}
-                  onChange={(e) => updateProfile({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
-                  className="pl-10 font-mono"
-                  placeholder="Enter weight"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Target Weight Class</Label>
-              <div className="relative">
-                <Target className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
-                <Select
-                  value={profile.targetWeightClass.toString()}
-                  onValueChange={(v) => updateProfile({ targetWeightClass: parseInt(v) })}
-                >
-                  <SelectTrigger className="pl-10 font-mono">
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[125, 133, 141, 149, 157, 165, 174, 184, 197, 285].map(w => (
-                      <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Protocol</Label>
-              <Select
-                value={profile.protocol}
-                onValueChange={(v) => updateProfile({ protocol: v as any })}
-              >
-                <SelectTrigger className="font-mono">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Body Comp Phase</SelectItem>
-                  <SelectItem value="2">Make Weight Phase</SelectItem>
-                  <SelectItem value="3">Hold Weight Phase</SelectItem>
-                  <SelectItem value="4">Build Phase</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[10px] text-muted-foreground">
-                {profile.protocol === '1' && 'Extreme fat loss - fructose only Mon-Thu'}
-                {profile.protocol === '2' && 'In-season weekly cut - standard protocol'}
-                {profile.protocol === '3' && 'At walk-around weight - maintenance'}
-                {profile.protocol === '4' && 'Off-season muscle gain - high calories'}
-              </p>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="dates" className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Next Weigh-in Date</Label>
-              <Input
-                type="date"
-                className="bg-muted/30 border-muted"
-                value={format(new Date(profile.weighInDate), 'yyyy-MM-dd')}
-                onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
-              />
-            </div>
-
-            <div className="space-y-2 pt-4 border-t border-muted">
-              <Label className="flex items-center gap-2">
-                Demo Mode
-                <span className="text-[10px] text-muted-foreground font-normal">(Test different days)</span>
-              </Label>
-              <p className="text-[10px] text-muted-foreground mb-2">
-                Simulate a different day to see how the app behaves on Friday, Saturday, etc.
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  type="date"
-                  className="bg-muted/30 border-muted flex-1"
-                  value={profile.simulatedDate ? format(new Date(profile.simulatedDate), 'yyyy-MM-dd') : ''}
-                  onChange={(e) => updateProfile({ simulatedDate: e.target.value ? new Date(e.target.value) : null })}
-                />
-                {profile.simulatedDate && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => updateProfile({ simulatedDate: null })}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-1 mt-2">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => {
-                  // Calculate the date for each day of this week
-                  const today = new Date();
-                  const currentDay = today.getDay();
-                  const targetDay = i === 6 ? 0 : i + 1; // Convert to JS day (0=Sun, 1=Mon, etc)
-                  const diff = targetDay - currentDay;
-                  const targetDate = new Date(today);
-                  targetDate.setDate(today.getDate() + diff);
-
-                  return (
-                    <Button
-                      key={day}
-                      variant="outline"
-                      size="sm"
-                      className="text-[10px] h-7 px-2"
-                      onClick={() => updateProfile({ simulatedDate: targetDate })}
-                    >
-                      {day}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="data" className="space-y-4 py-4">
-            {user && (
-              <div className="space-y-3 pb-4 border-b border-muted">
-                <h4 className="font-bold text-sm">Account</h4>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="w-full"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign Out
-                </Button>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <h4 className="font-bold text-sm">Reset All Data</h4>
-              <p className="text-xs text-muted-foreground">
-                This will delete all your weight logs, tracking data, and profile settings. You will need to go through onboarding again.
-              </p>
-
-              {!showResetConfirm ? (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowResetConfirm(true)}
-                  className="w-full"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Reset All Data
-                </Button>
-              ) : (
-                <div className="space-y-2 p-3 bg-destructive/10 rounded-lg border border-destructive/30">
-                  <p className="text-xs font-bold text-destructive">Are you sure? This cannot be undone.</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={handleReset}
-                      className="flex-1"
-                    >
-                      Yes, Reset Everything
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowResetConfirm(false)}
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -2334,41 +2157,3 @@ function WhyExplanation({ title, children }: { title: string; children: React.Re
   );
 }
 
-// Weigh-In Countdown Timer (shows on Friday)
-function WeighInCountdown({ weighInDate, simulatedDate }: { weighInDate: Date; simulatedDate: Date | null }) {
-  const [timeLeft, setTimeLeft] = useState<string>('');
-
-  useEffect(() => {
-    const updateCountdown = () => {
-      const now = simulatedDate || new Date();
-      const weighIn = new Date(weighInDate);
-      const diff = weighIn.getTime() - now.getTime();
-
-      if (diff <= 0) {
-        setTimeLeft('WEIGH-IN TIME');
-        return;
-      }
-
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-      if (hours < 48) {
-        setTimeLeft(`${hours}h ${minutes}m until weigh-in`);
-      } else {
-        const days = Math.floor(hours / 24);
-        setTimeLeft(`${days} days until weigh-in`);
-      }
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 60000);
-    return () => clearInterval(interval);
-  }, [weighInDate, simulatedDate]);
-
-  return (
-    <div className="bg-orange-500/20 border border-orange-500/50 rounded-lg p-3 mb-4 text-center">
-      <Clock className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-      <span className="text-orange-500 font-bold text-lg font-mono">{timeLeft}</span>
-    </div>
-  );
-}

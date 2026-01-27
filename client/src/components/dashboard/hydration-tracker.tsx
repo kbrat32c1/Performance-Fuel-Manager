@@ -113,10 +113,11 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                       onChange={(e) => setEditValue(e.target.value)}
                       className="h-6 w-16 text-xs font-mono"
                       autoFocus
+                      aria-label="Edit water consumed in ounces"
                     />
-                    <span className="text-xs text-muted-foreground">oz</span>
-                    <Button size="sm" variant="ghost" onClick={handleSaveEdit} className="h-6 px-2 text-xs">Save</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} className="h-6 px-2 text-xs">Cancel</Button>
+                    <span className="text-xs text-muted-foreground" aria-hidden="true">oz</span>
+                    <Button size="sm" variant="ghost" onClick={handleSaveEdit} className="h-6 px-2 text-xs" aria-label="Save water intake">Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)} className="h-6 px-2 text-xs" aria-label="Cancel editing">Cancel</Button>
                   </div>
                 ) : (
                   <>
@@ -127,6 +128,7 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                       onClick={handleEdit}
                       className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
                       title="Edit"
+                      aria-label="Edit water intake"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
@@ -135,6 +137,7 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                         onClick={handleReset}
                         className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
                         title="Reset to 0"
+                        aria-label="Reset water intake to zero"
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -145,7 +148,14 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
             </div>
 
             {/* Progress Bar */}
-            <div className="h-3 bg-muted/50 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-3 bg-muted/50 rounded-full overflow-hidden mb-2"
+              role="progressbar"
+              aria-valuenow={tracking.waterConsumed}
+              aria-valuemin={0}
+              aria-valuemax={hydration.targetOz}
+              aria-label={`Hydration progress: ${tracking.waterConsumed} of ${hydration.targetOz} ounces`}
+            >
               <div
                 className={cn(
                   "h-full transition-all duration-500",
@@ -166,7 +176,7 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
             </div>
 
             {/* Quick Add Buttons */}
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Quick add water buttons">
               {quickAddAmounts.map(oz => (
                 <Button
                   key={oz}
@@ -174,6 +184,7 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                   size="sm"
                   onClick={() => handleAddWater(oz)}
                   className="h-8 text-xs px-3"
+                  aria-label={`Add ${oz} ounces of water`}
                 >
                   +{oz}oz
                 </Button>
@@ -185,6 +196,7 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                   value={addAmount}
                   onChange={(e) => setAddAmount(e.target.value)}
                   className="h-8 w-16 text-xs font-mono"
+                  aria-label="Custom water amount in ounces"
                 />
                 <Button
                   variant="outline"
@@ -192,6 +204,7 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                   onClick={handleCustomAdd}
                   className="h-8 text-xs px-3"
                   disabled={!addAmount}
+                  aria-label="Add custom water amount"
                 >
                   Add
                 </Button>

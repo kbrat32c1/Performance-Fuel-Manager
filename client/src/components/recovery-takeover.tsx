@@ -56,8 +56,8 @@ export function RecoveryTakeover() {
     );
   };
 
-  const exitMode = () => {
-    updateProfile({ simulatedDate: null });
+  const exitMode = async () => {
+    await updateProfile({ simulatedDate: null });
     window.location.reload();
   };
 

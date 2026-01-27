@@ -5,12 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays } from "date-fns";
+import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils } from "lucide-react";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+
+type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, updateLog, deleteLog, addLog, getWeekDescentData } = useStore();
+  const { logs, profile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, getHydrationTarget, getMacroTargets } = useStore();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
+  const macroTargets = getMacroTargets();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -20,6 +26,20 @@ export default function History() {
   const [newLogType, setNewLogType] = useState('');
   const [newLogWeight, setNewLogWeight] = useState('');
   const descentData = getWeekDescentData();
+  const hydrationTarget = getHydrationTarget();
+
+  // Validate weight is reasonable (between 80 and 350 lbs for wrestling)
+  const validateWeight = (w: number): boolean => {
+    if (w < 80 || w > 350) {
+      toast({
+        title: "Invalid weight",
+        description: "Weight must be between 80 and 350 lbs",
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
+  };
 
   // Get calendar days for the current month view
   const monthStart = startOfMonth(currentMonth);
@@ -97,9 +117,17 @@ export default function History() {
 
   const saveEdit = () => {
     if (editingId && editWeight) {
-      updateLog(editingId, { weight: parseFloat(editWeight) });
+      const weight = parseFloat(editWeight);
+      if (!validateWeight(weight)) return;
+
+      updateLog(editingId, { weight });
       setEditingId(null);
       setEditWeight('');
+
+      // Blur to close keyboard on mobile
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     }
   };
 
@@ -127,6 +155,8 @@ export default function History() {
     if (selectedDate && newLogType && newLogWeight) {
       const weight = parseFloat(newLogWeight);
       if (!isNaN(weight) && weight > 0) {
+        if (!validateWeight(weight)) return;
+
         const logDate = new Date(selectedDate);
         // Set appropriate time based on log type
         if (newLogType === 'morning') logDate.setHours(7, 0, 0, 0);
@@ -139,6 +169,11 @@ export default function History() {
           date: logDate,
           type: newLogType as any
         });
+
+        // Blur to close keyboard on mobile
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
       }
     }
     setIsAddingLog(false);
@@ -155,15 +190,49 @@ export default function History() {
   return (
     <MobileLayout showNav={true}>
       {/* Header */}
-      <header className="mb-6">
+      <header className="mb-4">
         <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
-          Weight Log
+          Tracking History
         </h2>
         <h1 className="text-2xl font-heading font-bold uppercase italic">
           History
         </h1>
       </header>
 
+      {/* Tab Buttons */}
+      <div className="flex gap-1.5 mb-4">
+        <Button
+          variant={activeTab === 'weight' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setActiveTab('weight')}
+          className={cn("flex-1 px-2", activeTab === 'weight' && "bg-primary text-black")}
+        >
+          <Scale className="w-4 h-4 mr-1" />
+          Weight
+        </Button>
+        <Button
+          variant={activeTab === 'hydration' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setActiveTab('hydration')}
+          className={cn("flex-1 px-2", activeTab === 'hydration' && "bg-cyan-500 text-black hover:bg-cyan-600")}
+        >
+          <Droplets className="w-4 h-4 mr-1" />
+          Water
+        </Button>
+        <Button
+          variant={activeTab === 'macros' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setActiveTab('macros')}
+          className={cn("flex-1 px-2", activeTab === 'macros' && "bg-orange-500 text-black hover:bg-orange-600")}
+        >
+          <Utensils className="w-4 h-4 mr-1" />
+          Macros
+        </Button>
+      </div>
+
+      {/* Weight Tab Content */}
+      {activeTab === 'weight' && (
+        <>
       {/* Week Summary Card - Only show with valid data */}
       {descentData.morningWeights.length >= 2 && descentData.totalLost !== null && (
         <Card className="mb-4 border-primary/30 bg-primary/5">
@@ -496,9 +565,508 @@ export default function History() {
           </CardContent>
         </Card>
       )}
+        </>
+      )}
+
+      {/* Hydration Tab Content */}
+      {activeTab === 'hydration' && (
+        <HydrationHistory dailyTracking={dailyTracking} targetOz={hydrationTarget.targetOz} />
+      )}
+
+      {/* Macros Tab Content */}
+      {activeTab === 'macros' && (
+        <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} />
+      )}
 
       {/* Bottom Spacing */}
       <div className="h-20" />
     </MobileLayout>
+  );
+}
+
+// Hydration History Component
+interface HydrationHistoryProps {
+  dailyTracking: Array<{ date: string; waterConsumed: number; carbsConsumed: number; proteinConsumed: number }>;
+  targetOz: number;
+}
+
+function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
+  const today = new Date();
+
+  // Get last 14 days of data
+  const last14Days = Array.from({ length: 14 }, (_, i) => {
+    const date = subDays(today, 13 - i);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const tracking = dailyTracking.find(t => t.date === dateStr);
+    return {
+      date,
+      dateStr,
+      waterConsumed: tracking?.waterConsumed || 0,
+      dayLabel: format(date, 'EEE'),
+      dayNum: format(date, 'd'),
+      isToday: isSameDay(date, today)
+    };
+  });
+
+  // Calculate stats
+  const daysWithData = last14Days.filter(d => d.waterConsumed > 0);
+  const totalConsumed = daysWithData.reduce((sum, d) => sum + d.waterConsumed, 0);
+  const avgDaily = daysWithData.length > 0 ? totalConsumed / daysWithData.length : 0;
+  const daysHitTarget = daysWithData.filter(d => d.waterConsumed >= targetOz).length;
+  const maxWater = Math.max(...last14Days.map(d => d.waterConsumed), targetOz);
+
+  // Get last 7 days for weekly summary
+  const last7Days = last14Days.slice(-7);
+  const weeklyTotal = last7Days.reduce((sum, d) => sum + d.waterConsumed, 0);
+  const weeklyAvg = weeklyTotal / 7;
+
+  return (
+    <div className="space-y-4">
+      {/* Weekly Summary */}
+      <Card className="border-cyan-500/30 bg-cyan-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Droplets className="w-4 h-4 text-cyan-500" />
+            <span className="text-xs font-bold uppercase text-muted-foreground">This Week</span>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Total</span>
+              <span className="font-mono font-bold text-lg text-cyan-500">{weeklyTotal}</span>
+              <span className="text-[10px] text-muted-foreground"> oz</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Daily Avg</span>
+              <span className="font-mono font-bold text-lg">{weeklyAvg.toFixed(0)}</span>
+              <span className="text-[10px] text-muted-foreground"> oz</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Target</span>
+              <span className="font-mono font-bold text-lg text-primary">{targetOz}</span>
+              <span className="text-[10px] text-muted-foreground"> oz</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Performance Stats */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase text-muted-foreground">14-Day Performance</span>
+            <span className={cn(
+              "text-xs font-bold px-2 py-0.5 rounded",
+              daysHitTarget >= 10 ? "bg-green-500/20 text-green-500" :
+              daysHitTarget >= 7 ? "bg-cyan-500/20 text-cyan-500" :
+              daysHitTarget >= 4 ? "bg-yellow-500/20 text-yellow-500" :
+              "bg-red-500/20 text-red-500"
+            )}>
+              {daysHitTarget}/14 days on target
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Avg Daily Intake</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                avgDaily >= targetOz ? "text-green-500" : avgDaily >= targetOz * 0.75 ? "text-cyan-500" : "text-yellow-500"
+              )}>
+                {avgDaily.toFixed(0)}
+              </span>
+              <span className="text-[10px] text-muted-foreground"> oz</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Target Hit Rate</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                daysHitTarget / 14 >= 0.7 ? "text-green-500" : daysHitTarget / 14 >= 0.5 ? "text-cyan-500" : "text-yellow-500"
+              )}>
+                {((daysHitTarget / 14) * 100).toFixed(0)}%
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Daily Chart */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Intake (Last 14 Days)</span>
+
+          {/* Bar Chart */}
+          <div className="flex items-end gap-1 h-32 mb-2">
+            {last14Days.map((day, i) => {
+              const heightPercent = maxWater > 0 ? (day.waterConsumed / maxWater) * 100 : 0;
+              const hitTarget = day.waterConsumed >= targetOz;
+              const targetHeightPercent = maxWater > 0 ? (targetOz / maxWater) * 100 : 0;
+
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center relative h-full">
+                  {/* Target line marker */}
+                  {i === 0 && (
+                    <div
+                      className="absolute w-[calc(1400%+13*4px)] left-0 border-t-2 border-dashed border-primary/40 z-10"
+                      style={{ bottom: `${targetHeightPercent}%` }}
+                    />
+                  )}
+                  {/* Bar */}
+                  <div className="flex-1 w-full flex items-end">
+                    <div
+                      className={cn(
+                        "w-full rounded-t transition-all",
+                        day.isToday ? "bg-cyan-500" : hitTarget ? "bg-cyan-500/70" : day.waterConsumed > 0 ? "bg-cyan-500/40" : "bg-muted/30"
+                      )}
+                      style={{ height: `${Math.max(heightPercent, day.waterConsumed > 0 ? 5 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Day Labels */}
+          <div className="flex gap-1">
+            {last14Days.map((day, i) => (
+              <div key={i} className="flex-1 text-center">
+                <span className={cn(
+                  "text-[8px]",
+                  day.isToday ? "text-cyan-500 font-bold" : "text-muted-foreground"
+                )}>
+                  {day.dayNum}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-cyan-500" />
+              <span className="text-[10px] text-muted-foreground">Today</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-cyan-500/70" />
+              <span className="text-[10px] text-muted-foreground">Hit Target</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-cyan-500/40" />
+              <span className="text-[10px] text-muted-foreground">Under Target</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Daily Details */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Details</span>
+          <div className="space-y-2">
+            {[...last14Days].reverse().map((day, i) => (
+              <div key={i} className={cn(
+                "flex items-center justify-between py-2 border-b border-muted last:border-0",
+                day.isToday && "bg-cyan-500/5 -mx-2 px-2 rounded"
+              )}>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "text-sm font-medium",
+                    day.isToday ? "text-cyan-500" : "text-foreground"
+                  )}>
+                    {day.isToday ? 'Today' : format(day.date, 'EEE, MMM d')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn(
+                    "font-mono font-bold",
+                    day.waterConsumed >= targetOz ? "text-green-500" :
+                    day.waterConsumed >= targetOz * 0.75 ? "text-cyan-500" :
+                    day.waterConsumed > 0 ? "text-yellow-500" : "text-muted-foreground"
+                  )}>
+                    {day.waterConsumed > 0 ? `${day.waterConsumed} oz` : '—'}
+                  </span>
+                  {day.waterConsumed >= targetOz && (
+                    <Check className="w-4 h-4 text-green-500" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {daysWithData.length === 0 && (
+        <Card className="border-dashed border-muted">
+          <CardContent className="p-6 text-center text-muted-foreground">
+            <Droplets className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No hydration data yet</p>
+            <p className="text-xs mt-1">Start tracking water on the dashboard</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Macro History Component
+interface MacroHistoryProps {
+  dailyTracking: Array<{ date: string; waterConsumed: number; carbsConsumed: number; proteinConsumed: number }>;
+  macroTargets: { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string };
+}
+
+function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
+  const today = new Date();
+
+  // Get last 14 days of data
+  const last14Days = Array.from({ length: 14 }, (_, i) => {
+    const date = subDays(today, 13 - i);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const tracking = dailyTracking.find(t => t.date === dateStr);
+    return {
+      date,
+      dateStr,
+      carbsConsumed: tracking?.carbsConsumed || 0,
+      proteinConsumed: tracking?.proteinConsumed || 0,
+      dayLabel: format(date, 'EEE'),
+      dayNum: format(date, 'd'),
+      isToday: isSameDay(date, today)
+    };
+  });
+
+  // Calculate stats
+  const daysWithCarbData = last14Days.filter(d => d.carbsConsumed > 0);
+  const daysWithProteinData = last14Days.filter(d => d.proteinConsumed > 0);
+
+  const totalCarbs = daysWithCarbData.reduce((sum, d) => sum + d.carbsConsumed, 0);
+  const totalProtein = daysWithProteinData.reduce((sum, d) => sum + d.proteinConsumed, 0);
+
+  const avgDailyCarbs = daysWithCarbData.length > 0 ? totalCarbs / daysWithCarbData.length : 0;
+  const avgDailyProtein = daysWithProteinData.length > 0 ? totalProtein / daysWithProteinData.length : 0;
+
+  const carbTargetMid = (macroTargets.carbs.min + macroTargets.carbs.max) / 2;
+  const proteinTargetMid = (macroTargets.protein.min + macroTargets.protein.max) / 2;
+
+  const daysHitCarbTarget = daysWithCarbData.filter(d =>
+    d.carbsConsumed >= macroTargets.carbs.min && d.carbsConsumed <= macroTargets.carbs.max * 1.1
+  ).length;
+  const daysHitProteinTarget = daysWithProteinData.filter(d =>
+    d.proteinConsumed >= macroTargets.protein.min && d.proteinConsumed <= macroTargets.protein.max * 1.1
+  ).length;
+
+  const maxCarbs = Math.max(...last14Days.map(d => d.carbsConsumed), macroTargets.carbs.max);
+  const maxProtein = Math.max(...last14Days.map(d => d.proteinConsumed), macroTargets.protein.max);
+
+  // Last 7 days summary
+  const last7Days = last14Days.slice(-7);
+  const weeklyCarbs = last7Days.reduce((sum, d) => sum + d.carbsConsumed, 0);
+  const weeklyProtein = last7Days.reduce((sum, d) => sum + d.proteinConsumed, 0);
+
+  const hasData = daysWithCarbData.length > 0 || daysWithProteinData.length > 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Weekly Summary */}
+      <Card className="border-orange-500/30 bg-orange-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Utensils className="w-4 h-4 text-orange-500" />
+            <span className="text-xs font-bold uppercase text-muted-foreground">This Week</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center">
+              <span className="text-[10px] text-muted-foreground block">Total Carbs</span>
+              <span className="font-mono font-bold text-lg text-primary">{weeklyCarbs}g</span>
+            </div>
+            <div className="text-center">
+              <span className="text-[10px] text-muted-foreground block">Total Protein</span>
+              <span className="font-mono font-bold text-lg text-orange-500">{weeklyProtein}g</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Daily Averages */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">14-Day Averages</span>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="text-center">
+              <span className="text-[10px] text-muted-foreground block">Avg Daily Carbs</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                avgDailyCarbs >= macroTargets.carbs.min ? "text-green-500" : avgDailyCarbs >= macroTargets.carbs.min * 0.75 ? "text-primary" : "text-yellow-500"
+              )}>
+                {avgDailyCarbs.toFixed(0)}g
+              </span>
+              <span className="text-[9px] text-muted-foreground block">
+                Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g
+              </span>
+            </div>
+            <div className="text-center">
+              <span className="text-[10px] text-muted-foreground block">Avg Daily Protein</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                avgDailyProtein >= macroTargets.protein.min ? "text-green-500" : avgDailyProtein >= macroTargets.protein.min * 0.75 ? "text-orange-500" : "text-yellow-500"
+              )}>
+                {avgDailyProtein.toFixed(0)}g
+              </span>
+              <span className="text-[9px] text-muted-foreground block">
+                Target: {macroTargets.protein.min}-{macroTargets.protein.max}g
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Carbs Chart */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase text-muted-foreground">Daily Carbs (Last 14 Days)</span>
+            <span className="text-[10px] text-primary font-mono">Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g</span>
+          </div>
+
+          {/* Bar Chart */}
+          <div className="flex items-end gap-1 h-24 mb-2">
+            {last14Days.map((day, i) => {
+              const heightPercent = maxCarbs > 0 ? (day.carbsConsumed / maxCarbs) * 100 : 0;
+              const inRange = day.carbsConsumed >= macroTargets.carbs.min && day.carbsConsumed <= macroTargets.carbs.max * 1.1;
+              const targetHeightPercent = maxCarbs > 0 ? (carbTargetMid / maxCarbs) * 100 : 0;
+
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center relative h-full">
+                  {i === 0 && (
+                    <div
+                      className="absolute w-[calc(1400%+13*4px)] left-0 border-t-2 border-dashed border-primary/40 z-10"
+                      style={{ bottom: `${targetHeightPercent}%` }}
+                    />
+                  )}
+                  <div className="flex-1 w-full flex items-end">
+                    <div
+                      className={cn(
+                        "w-full rounded-t transition-all",
+                        day.isToday ? "bg-primary" : inRange ? "bg-primary/70" : day.carbsConsumed > 0 ? "bg-primary/40" : "bg-muted/30"
+                      )}
+                      style={{ height: `${Math.max(heightPercent, day.carbsConsumed > 0 ? 5 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Day Labels */}
+          <div className="flex gap-1">
+            {last14Days.map((day, i) => (
+              <div key={i} className="flex-1 text-center">
+                <span className={cn("text-[8px]", day.isToday ? "text-primary font-bold" : "text-muted-foreground")}>
+                  {day.dayNum}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Protein Chart */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase text-muted-foreground">Daily Protein (Last 14 Days)</span>
+            <span className="text-[10px] text-orange-500 font-mono">Target: {macroTargets.protein.min}-{macroTargets.protein.max}g</span>
+          </div>
+
+          {/* Bar Chart */}
+          <div className="flex items-end gap-1 h-24 mb-2">
+            {last14Days.map((day, i) => {
+              const heightPercent = maxProtein > 0 ? (day.proteinConsumed / maxProtein) * 100 : 0;
+              const inRange = day.proteinConsumed >= macroTargets.protein.min && day.proteinConsumed <= macroTargets.protein.max * 1.1;
+              const targetHeightPercent = maxProtein > 0 ? (proteinTargetMid / maxProtein) * 100 : 0;
+
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center relative h-full">
+                  {i === 0 && (
+                    <div
+                      className="absolute w-[calc(1400%+13*4px)] left-0 border-t-2 border-dashed border-orange-500/40 z-10"
+                      style={{ bottom: `${targetHeightPercent}%` }}
+                    />
+                  )}
+                  <div className="flex-1 w-full flex items-end">
+                    <div
+                      className={cn(
+                        "w-full rounded-t transition-all",
+                        day.isToday ? "bg-orange-500" : inRange ? "bg-orange-500/70" : day.proteinConsumed > 0 ? "bg-orange-500/40" : "bg-muted/30"
+                      )}
+                      style={{ height: `${Math.max(heightPercent, day.proteinConsumed > 0 ? 5 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Day Labels */}
+          <div className="flex gap-1">
+            {last14Days.map((day, i) => (
+              <div key={i} className="flex-1 text-center">
+                <span className={cn("text-[8px]", day.isToday ? "text-orange-500 font-bold" : "text-muted-foreground")}>
+                  {day.dayNum}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Daily Details */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Details</span>
+          <div className="space-y-2">
+            {[...last14Days].reverse().map((day, i) => (
+              <div key={i} className={cn(
+                "flex items-center justify-between py-2 border-b border-muted last:border-0",
+                day.isToday && "bg-orange-500/5 -mx-2 px-2 rounded"
+              )}>
+                <span className={cn(
+                  "text-sm font-medium",
+                  day.isToday ? "text-orange-500" : "text-foreground"
+                )}>
+                  {day.isToday ? 'Today' : format(day.date, 'EEE, MMM d')}
+                </span>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="text-right">
+                    <span className={cn(
+                      "font-mono font-bold",
+                      day.carbsConsumed > 0 ? "text-primary" : "text-muted-foreground"
+                    )}>
+                      {day.carbsConsumed > 0 ? `${day.carbsConsumed}g` : '—'}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground ml-1">carbs</span>
+                  </div>
+                  <div className="text-right">
+                    <span className={cn(
+                      "font-mono font-bold",
+                      day.proteinConsumed > 0 ? "text-orange-500" : "text-muted-foreground"
+                    )}>
+                      {day.proteinConsumed > 0 ? `${day.proteinConsumed}g` : '—'}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground ml-1">protein</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {!hasData && (
+        <Card className="border-dashed border-muted">
+          <CardContent className="p-6 text-center text-muted-foreground">
+            <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No macro data yet</p>
+            <p className="text-xs mt-1">Start tracking on the dashboard</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
