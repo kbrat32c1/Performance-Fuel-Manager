@@ -43,7 +43,9 @@ export default function Dashboard() {
     getDailyPriority,
     getNextTarget,
     getDriftMetrics,
-    getWeekDescentData
+    getWeekDescentData,
+    getHistoryInsights,
+    getCheckpoints
   } = useStore();
 
   const phase = getPhase();
@@ -96,6 +98,7 @@ export default function Dashboard() {
   const nextTarget = getNextTarget();
   const driftMetrics = getDriftMetrics();
   const descentData = getWeekDescentData();
+  const checkpoints = getCheckpoints();
 
   const phaseInfo = getPhaseInfo();
 
@@ -160,6 +163,36 @@ export default function Dashboard() {
           </span>
         )}
       </div>
+
+      {/* Water Loading Context Banner */}
+      {checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2') && (
+        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 mb-4">
+          <div className="flex items-start gap-2">
+            <Droplets className="w-4 h-4 text-cyan-500 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-cyan-500 uppercase">Water Loading Active</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {checkpoints.waterLoadingAdjustment} — being heavier than baseline is expected and part of the protocol.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Friday Critical Checkpoint Warning */}
+      {dayOfWeek === 5 && (profile.protocol === '1' || profile.protocol === '2') && (
+        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 mb-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-orange-500 uppercase">Critical Checkpoint</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Must be <strong className="text-orange-500">{checkpoints.friTarget}</strong> by evening for safe overnight cut.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Next Target - Always Visible */}
       {nextTarget && (
@@ -411,6 +444,9 @@ export default function Dashboard() {
 
         {/* What's Next Section */}
         <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} />
+
+        {/* History Insights */}
+        <HistoryInsightsCard getHistoryInsights={getHistoryInsights} targetWeightClass={profile.targetWeightClass} />
 
       </div>
 
@@ -1043,6 +1079,87 @@ function FuelTracker({ fuel }: { fuel: { allowed: string[]; avoid: string[]; rat
                 Add
               </Button>
             </div>
+
+            {/* Today's Protein Sources - Prominent display */}
+            {(() => {
+              const proteinList = foodLists.protein;
+              // Filter protein sources based on day
+              const getTodayProtein = () => {
+                if (dayOfWeek === 1 || dayOfWeek === 2) {
+                  // Mon-Tue: NO protein
+                  return { sources: [], message: "NO PROTEIN TODAY", color: "text-destructive", bgColor: "bg-destructive/10 border-destructive/30" };
+                }
+                if (dayOfWeek === 3) {
+                  // Wed: Collagen only at dinner
+                  return {
+                    sources: proteinList.filter(p => p.name.includes("Collagen")),
+                    message: "COLLAGEN ONLY (Dinner)",
+                    color: "text-orange-500",
+                    bgColor: "bg-orange-500/10 border-orange-500/30"
+                  };
+                }
+                if (dayOfWeek === 4 || dayOfWeek === 5) {
+                  // Thu-Fri: Collagen, egg whites, seafood
+                  return {
+                    sources: proteinList.filter(p =>
+                      p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+                    ),
+                    message: "LEAN PROTEIN ALLOWED",
+                    color: "text-primary",
+                    bgColor: "bg-primary/10 border-primary/30"
+                  };
+                }
+                if (dayOfWeek === 6) {
+                  // Sat: Competition day - no protein until done
+                  return {
+                    sources: proteinList.filter(p => p.timing?.includes("Competition") || p.timing?.includes("Post-comp")),
+                    message: "NO PROTEIN UNTIL DONE",
+                    color: "text-yellow-500",
+                    bgColor: "bg-yellow-500/10 border-yellow-500/30"
+                  };
+                }
+                // Sunday: All protein allowed
+                return {
+                  sources: proteinList.filter(p =>
+                    p.timing?.includes("Post-comp") || p.timing?.includes("Sunday") || p.timing?.includes("Sun")
+                  ),
+                  message: "FULL PROTEIN DAY",
+                  color: "text-green-500",
+                  bgColor: "bg-green-500/10 border-green-500/30"
+                };
+              };
+
+              const todayProtein = getTodayProtein();
+
+              return (
+                <div className={cn("rounded-lg border p-3 mb-3", todayProtein.bgColor)}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={cn("text-[10px] font-bold uppercase", todayProtein.color)}>
+                      {todayProtein.message}
+                    </span>
+                  </div>
+                  {todayProtein.sources.length > 0 ? (
+                    <div className="space-y-1">
+                      {todayProtein.sources.map((source, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs">
+                          <span className="font-medium">{source.name}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">{source.serving}</span>
+                            <span className="font-mono font-bold text-orange-500">{source.protein}g</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {dayOfWeek === 1 || dayOfWeek === 2
+                        ? "Protein blocks fat burning. Stick to fructose-heavy carbs only."
+                        : "Focus on fast carbs between matches. Protein after wrestling is done."}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Why Explanations - Always visible */}
             <div className="space-y-2 mb-3">
@@ -1689,92 +1806,449 @@ function InfoDialog() {
   );
 }
 
-// What's Next Card - Data-driven tomorrow's plan with specific numbers
+// Visual Weekly Calendar with tap-to-expand day details
 function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: () => any; getWeeklyPlan: () => any[] }) {
-  const tomorrow = getTomorrowPlan();
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const weekPlan = getWeeklyPlan();
 
-  if (!tomorrow) return null;
-
-  const phaseColors: Record<string, string> = {
-    'Load': 'text-primary',
-    'Cut': 'text-orange-500',
-    'Compete': 'text-yellow-500',
-    'Recover': 'text-cyan-500'
+  const phaseColors: Record<string, { text: string; bg: string; border: string }> = {
+    'Load': { text: 'text-primary', bg: 'bg-primary/20', border: 'border-primary/50' },
+    'Cut': { text: 'text-orange-500', bg: 'bg-orange-500/20', border: 'border-orange-500/50' },
+    'Compete': { text: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50' },
+    'Recover': { text: 'text-cyan-500', bg: 'bg-cyan-500/20', border: 'border-cyan-500/50' },
+    'Train': { text: 'text-green-500', bg: 'bg-green-500/20', border: 'border-green-500/50' },
+    'Maintain': { text: 'text-blue-500', bg: 'bg-blue-500/20', border: 'border-blue-500/50' }
   };
+
+  const phaseBgColors: Record<string, string> = {
+    'Load': 'bg-primary',
+    'Cut': 'bg-orange-500',
+    'Compete': 'bg-yellow-500',
+    'Recover': 'bg-cyan-500',
+    'Train': 'bg-green-500',
+    'Maintain': 'bg-blue-500'
+  };
+
+  const selectedDayData = selectedDay !== null ? weekPlan.find(d => d.dayNum === selectedDay) : null;
 
   return (
     <div className="space-y-3 mt-4">
-      {/* Tomorrow's Targets */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
+      {/* Visual Week Calendar */}
+      <Card className="border-muted overflow-hidden">
+        <CardContent className="p-0">
+          {/* Header */}
+          <div className="bg-muted/30 px-4 py-2 flex items-center justify-between border-b border-muted">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" />
-              <h4 className="font-bold text-sm uppercase">Tomorrow: {tomorrow.day}</h4>
+              <h4 className="font-bold text-sm uppercase">Week Overview</h4>
             </div>
-            <span className={cn("text-xs font-bold uppercase", phaseColors[tomorrow.phase] || 'text-primary')}>
-              {tomorrow.phase} Phase
-            </span>
+            <span className="text-[10px] text-muted-foreground">Tap any day for details</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {/* Weight Targets */}
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase text-muted-foreground">Morning Target</span>
-              <p className="font-mono font-bold text-lg">{tomorrow.weightTarget.morning} lbs</p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase text-muted-foreground">Post-Practice</span>
-              <p className="font-mono font-bold text-lg">{tomorrow.weightTarget.postPractice} lbs</p>
-            </div>
-
-            {/* Hydration */}
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase text-muted-foreground">Water</span>
-              <p className="font-mono font-bold text-cyan-500">{tomorrow.water.amount}</p>
-              <p className="text-[10px] text-muted-foreground">{tomorrow.water.type}</p>
-            </div>
-
-            {/* Macros */}
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase text-muted-foreground">Macros</span>
-              <p className="text-xs">
-                <span className="font-mono font-bold text-primary">{tomorrow.carbs.min}-{tomorrow.carbs.max}g</span>
-                <span className="text-muted-foreground"> carbs</span>
-              </p>
-              <p className="text-xs">
-                <span className="font-mono font-bold text-orange-500">{tomorrow.protein.min}-{tomorrow.protein.max}g</span>
-                <span className="text-muted-foreground"> protein</span>
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Week Overview */}
-      <Card className="border-muted">
-        <CardContent className="p-3">
-          <h4 className="text-[10px] uppercase text-muted-foreground font-bold mb-2">Week at a Glance</h4>
-          <div className="grid grid-cols-7 gap-1">
+          {/* Phase Timeline Bar */}
+          <div className="flex h-2">
             {weekPlan.map((day) => (
               <div
                 key={day.day}
                 className={cn(
-                  "text-center p-1 rounded text-[10px]",
-                  day.isToday && "bg-primary text-black font-bold",
-                  day.isTomorrow && !day.isToday && "bg-primary/20 text-primary font-bold",
-                  !day.isToday && !day.isTomorrow && "text-muted-foreground"
+                  "flex-1",
+                  phaseBgColors[day.phase] || 'bg-muted',
+                  day.isToday && "ring-2 ring-white ring-inset"
                 )}
-              >
-                <div className="font-bold">{day.day.slice(0, 3)}</div>
-                <div className="font-mono">{day.weightTarget.morning}</div>
-              </div>
+              />
             ))}
+          </div>
+
+          {/* Day Cards Grid */}
+          <div className="grid grid-cols-7 gap-0.5 p-2 bg-muted/20">
+            {weekPlan.map((day) => {
+              const colors = phaseColors[day.phase] || phaseColors['Load'];
+              const isSelected = selectedDay === day.dayNum;
+
+              return (
+                <button
+                  key={day.day}
+                  onClick={() => setSelectedDay(isSelected ? null : day.dayNum)}
+                  className={cn(
+                    "flex flex-col items-center p-1.5 rounded-lg transition-all text-center",
+                    day.isToday && "ring-2 ring-primary",
+                    isSelected && colors.bg,
+                    isSelected && colors.border,
+                    isSelected && "border",
+                    !isSelected && !day.isToday && "hover:bg-muted/50"
+                  )}
+                >
+                  {/* Day Name */}
+                  <span className={cn(
+                    "text-[10px] font-bold uppercase",
+                    day.isToday ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {day.day.slice(0, 3)}
+                  </span>
+
+                  {/* Phase Indicator Dot */}
+                  <div className={cn(
+                    "w-2 h-2 rounded-full my-1",
+                    phaseBgColors[day.phase] || 'bg-muted'
+                  )} />
+
+                  {/* Weight Target */}
+                  <span className={cn(
+                    "font-mono text-[11px] font-bold",
+                    day.isToday ? "text-foreground" : "text-muted-foreground"
+                  )}>
+                    {day.weightTarget.morning}
+                  </span>
+
+                  {/* Today/Tomorrow Badge */}
+                  {day.isToday && (
+                    <span className="text-[8px] bg-primary text-black px-1 rounded mt-0.5 font-bold">
+                      TODAY
+                    </span>
+                  )}
+                  {day.isTomorrow && !day.isToday && (
+                    <span className="text-[8px] bg-primary/30 text-primary px-1 rounded mt-0.5 font-bold">
+                      NEXT
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Expanded Day Details */}
+          {selectedDayData && (
+            <div className={cn(
+              "border-t p-4 animate-in slide-in-from-top-2 duration-200",
+              phaseColors[selectedDayData.phase]?.bg || 'bg-muted/20'
+            )}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h5 className="font-bold text-lg">{selectedDayData.day}</h5>
+                  <span className={cn(
+                    "text-xs font-bold uppercase",
+                    phaseColors[selectedDayData.phase]?.text || 'text-primary'
+                  )}>
+                    {selectedDayData.phase} Phase
+                  </span>
+                </div>
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  className="text-muted-foreground hover:text-foreground p-1"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-90" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Weight Targets */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Scale className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground uppercase font-bold">Weight</span>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-muted-foreground">Morning</span>
+                      <span className="font-mono font-bold">{selectedDayData.weightTarget.morning} lbs</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-[10px] text-muted-foreground">Post-Practice</span>
+                      <span className="font-mono font-bold">{selectedDayData.weightTarget.postPractice} lbs</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Water */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Droplets className="w-4 h-4 text-cyan-500" />
+                    <span className="text-xs text-muted-foreground uppercase font-bold">Water</span>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-2">
+                    <span className="font-mono font-bold text-cyan-500 block">{selectedDayData.water.amount}</span>
+                    <span className={cn(
+                      "text-[10px] font-bold uppercase",
+                      selectedDayData.water.type === 'Distilled' ? "text-yellow-500" :
+                      selectedDayData.water.type === 'Sip Only' ? "text-orange-500" : "text-muted-foreground"
+                    )}>
+                      {selectedDayData.water.type}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Carbs */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-muted-foreground uppercase font-bold">Carbs</span>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-2">
+                    <span className="font-mono font-bold text-primary">
+                      {selectedDayData.carbs.min}-{selectedDayData.carbs.max}g
+                    </span>
+                  </div>
+                </div>
+
+                {/* Protein */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Dumbbell className="w-4 h-4 text-orange-500" />
+                    <span className="text-xs text-muted-foreground uppercase font-bold">Protein</span>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-2">
+                    <span className={cn(
+                      "font-mono font-bold",
+                      selectedDayData.protein.min === 0 ? "text-destructive" : "text-orange-500"
+                    )}>
+                      {selectedDayData.protein.min === selectedDayData.protein.max
+                        ? `${selectedDayData.protein.min}g`
+                        : `${selectedDayData.protein.min}-${selectedDayData.protein.max}g`}
+                    </span>
+                    {selectedDayData.protein.min === 0 && (
+                      <span className="text-[10px] text-destructive block font-bold">NO PROTEIN</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Phase-specific tips */}
+              <div className="mt-3 pt-3 border-t border-muted/50">
+                <p className="text-xs text-muted-foreground">
+                  {selectedDayData.phase === 'Load' && "Water loading phase - drink consistently throughout the day to trigger natural diuresis."}
+                  {selectedDayData.phase === 'Cut' && "Cutting phase - follow protocol strictly. Monitor weight drift carefully."}
+                  {selectedDayData.phase === 'Compete' && "Competition day - focus on fast carbs between matches. Rehydrate with electrolytes."}
+                  {selectedDayData.phase === 'Recover' && "Recovery day - high protein to repair muscle. Eat freely to refuel."}
+                  {selectedDayData.phase === 'Train' && "Training day - maintain consistent nutrition and hydration."}
+                  {selectedDayData.phase === 'Maintain' && "Maintenance phase - stay at walk-around weight with balanced nutrition."}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Phase Legend */}
+      <div className="flex flex-wrap justify-center gap-3 px-2">
+        {['Load', 'Cut', 'Compete', 'Recover'].map((phase) => (
+          <div key={phase} className="flex items-center gap-1">
+            <div className={cn("w-2 h-2 rounded-full", phaseBgColors[phase])} />
+            <span className="text-[10px] text-muted-foreground">{phase}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// History Insights Card - Shows patterns from weight logging history
+function HistoryInsightsCard({
+  getHistoryInsights,
+  targetWeightClass
+}: {
+  getHistoryInsights: () => any;
+  targetWeightClass: number;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const insights = getHistoryInsights();
+
+  // Don't show if no useful data
+  if (!insights.hasEnoughData && insights.totalLogsThisWeek < 3) {
+    return (
+      <Card className="border-muted/50 mt-4">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <TrendingDown className="w-4 h-4" />
+            <span className="text-xs">Log more weights to see your patterns and predictions</span>
           </div>
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  return (
+    <Card className="border-muted mt-4">
+      <CardContent className="p-0">
+        {/* Header - Always Visible */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full p-4 flex items-center justify-between hover:bg-muted/20 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-primary" />
+            <h4 className="font-bold text-sm uppercase">Your Patterns</h4>
+          </div>
+          <div className="flex items-center gap-2">
+            {insights.projectedSaturday !== null && (
+              <span className={cn(
+                "text-xs font-mono font-bold",
+                insights.projectedSaturday <= targetWeightClass ? "text-green-500" : "text-orange-500"
+              )}>
+                Projected: {insights.projectedSaturday.toFixed(1)} lbs
+              </span>
+            )}
+            <ChevronRight className={cn("w-4 h-4 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
+          </div>
+        </button>
+
+        {/* Expanded Content */}
+        {isExpanded && (
+          <div className="border-t border-muted px-4 pb-4 pt-3 space-y-4 animate-in slide-in-from-top-2 duration-200">
+            {/* Key Metrics Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Overnight Drift */}
+              {insights.avgOvernightDrift !== null && (
+                <div className="bg-muted/20 rounded-lg p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Moon className="w-3.5 h-3.5 text-cyan-500" />
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold">Overnight Drop</span>
+                  </div>
+                  <span className="font-mono font-bold text-lg text-cyan-500">
+                    {insights.avgOvernightDrift.toFixed(1)} lbs
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">Average while sleeping</p>
+                </div>
+              )}
+
+              {/* Practice Loss */}
+              {insights.avgPracticeLoss !== null && (
+                <div className="bg-muted/20 rounded-lg p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Dumbbell className="w-3.5 h-3.5 text-orange-500" />
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold">Practice Loss</span>
+                  </div>
+                  <span className="font-mono font-bold text-lg text-orange-500">
+                    {insights.avgPracticeLoss.toFixed(1)} lbs
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">Average per session</p>
+                </div>
+              )}
+
+              {/* Friday Cut */}
+              {insights.avgFridayCut !== null && (
+                <div className="bg-muted/20 rounded-lg p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <TrendingDown className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold">Friday Cut</span>
+                  </div>
+                  <span className="font-mono font-bold text-lg text-primary">
+                    {insights.avgFridayCut.toFixed(1)} lbs
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">Thu→Fri average drop</p>
+                </div>
+              )}
+
+              {/* Weekly Trend */}
+              {insights.weeklyTrend !== null && (
+                <div className="bg-muted/20 rounded-lg p-3">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    {insights.weeklyTrend > 0 ? (
+                      <TrendingUp className="w-3.5 h-3.5 text-red-500" />
+                    ) : (
+                      <TrendingDown className="w-3.5 h-3.5 text-green-500" />
+                    )}
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold">Weekly Trend</span>
+                  </div>
+                  <span className={cn(
+                    "font-mono font-bold text-lg",
+                    insights.weeklyTrend > 0 ? "text-red-500" : "text-green-500"
+                  )}>
+                    {insights.weeklyTrend > 0 ? "+" : ""}{insights.weeklyTrend.toFixed(1)} lbs
+                  </span>
+                  <p className="text-[10px] text-muted-foreground">Monday to Monday</p>
+                </div>
+              )}
+            </div>
+
+            {/* Saturday Projection */}
+            {insights.projectedSaturday !== null && insights.daysUntilSat > 0 && (
+              <div className={cn(
+                "rounded-lg p-3 border",
+                insights.projectedSaturday <= targetWeightClass
+                  ? "bg-green-500/10 border-green-500/30"
+                  : insights.projectedSaturday <= targetWeightClass + 2
+                  ? "bg-orange-500/10 border-orange-500/30"
+                  : "bg-red-500/10 border-red-500/30"
+              )}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold block">
+                      Saturday Projection
+                    </span>
+                    <span className={cn(
+                      "font-mono font-bold text-2xl",
+                      insights.projectedSaturday <= targetWeightClass
+                        ? "text-green-500"
+                        : insights.projectedSaturday <= targetWeightClass + 2
+                        ? "text-orange-500"
+                        : "text-red-500"
+                    )}>
+                      {insights.projectedSaturday.toFixed(1)} lbs
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-muted-foreground block">Target</span>
+                    <span className="font-mono font-bold text-lg">{targetWeightClass} lbs</span>
+                    <span className={cn(
+                      "text-xs font-bold block",
+                      insights.projectedSaturday <= targetWeightClass ? "text-green-500" : "text-orange-500"
+                    )}>
+                      {insights.projectedSaturday <= targetWeightClass
+                        ? `${(targetWeightClass - insights.projectedSaturday).toFixed(1)} lbs under`
+                        : `${(insights.projectedSaturday - targetWeightClass).toFixed(1)} lbs over`
+                      }
+                    </span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Based on your {insights.daysUntilSat} day{insights.daysUntilSat > 1 ? 's' : ''} of patterns
+                </p>
+              </div>
+            )}
+
+            {/* Last Week Summary */}
+            {(insights.lastFridayWeight || insights.lastSaturdayWeight) && (
+              <div className="border-t border-muted pt-3">
+                <h5 className="text-[10px] uppercase text-muted-foreground font-bold mb-2">Last Week</h5>
+                <div className="flex items-center justify-between text-xs">
+                  {insights.lastFridayWeight && (
+                    <div>
+                      <span className="text-muted-foreground">Friday: </span>
+                      <span className="font-mono font-bold">{insights.lastFridayWeight.toFixed(1)} lbs</span>
+                    </div>
+                  )}
+                  {insights.lastSaturdayWeight && (
+                    <div>
+                      <span className="text-muted-foreground">Saturday: </span>
+                      <span className={cn(
+                        "font-mono font-bold",
+                        insights.madeWeightLastWeek ? "text-green-500" : "text-orange-500"
+                      )}>
+                        {insights.lastSaturdayWeight.toFixed(1)} lbs
+                      </span>
+                      {insights.madeWeightLastWeek && <CheckCircle2 className="w-3 h-3 text-green-500 inline ml-1" />}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tips Based on Data */}
+            <div className="text-xs text-muted-foreground bg-muted/20 rounded-lg p-2">
+              <strong className="text-foreground">💡 Insight:</strong>{" "}
+              {insights.avgOvernightDrift && insights.avgOvernightDrift > 1.5
+                ? "You lose significant weight overnight. Make sure to weigh first thing in the morning before eating or drinking."
+                : insights.avgPracticeLoss && insights.avgPracticeLoss > 3
+                ? "You sweat heavily during practice. Plan hydration recovery carefully to avoid cramping."
+                : insights.projectedSaturday && insights.projectedSaturday > targetWeightClass
+                ? "You may need to adjust your protocol or add activity to hit your target."
+                : "Your patterns look consistent. Keep following the protocol and logging weights."
+              }
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

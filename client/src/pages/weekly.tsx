@@ -38,21 +38,68 @@ export default function Weekly() {
     sun: { type: 'Regular', sodium: 'Normal' },
   };
 
+  // Water loading adds weight during Mon-Wed
+  // Light (<150 lbs): +2 lbs, Medium (150-174 lbs): +3 lbs, Heavy (175+): +4 lbs
+  const waterLoadBonus = profile.targetWeightClass >= 175 ? 4 : profile.targetWeightClass >= 150 ? 3 : 2;
+
   // Weight targets by day (from your document - page 2)
+  // Baseline targets + water loading adjustment for Mon-Wed
   const getWeightTargets = () => {
     const w = profile.targetWeightClass;
     const walkAround = w * 1.07;
-    const wedTarget = w * 1.045; // midpoint of 1.04-1.05
+    const wedBaseline = w * 1.045; // midpoint of 1.04-1.05
     const friTarget = w * 1.025; // midpoint of 1.02-1.03
 
     return {
-      mon: { label: 'Walk-Around', target: walkAround, range: `${(w * 1.06).toFixed(0)}-${(w * 1.07).toFixed(0)}` },
-      tue: { label: 'Loading', target: walkAround + 1, range: 'May increase' },
-      wed: { label: 'Wed PM Target', target: wedTarget, range: `${(w * 1.04).toFixed(0)}-${(w * 1.05).toFixed(0)}` },
-      thu: { label: 'Transition', target: (wedTarget + friTarget) / 2, range: 'Dropping' },
-      fri: { label: 'Fri PM Target', target: friTarget, range: `${(w * 1.02).toFixed(0)}-${(w * 1.03).toFixed(0)}` },
-      sat: { label: 'Competition', target: w, range: `${w}` },
-      sun: { label: 'Recovery', target: walkAround, range: 'Rebuilding' },
+      mon: {
+        label: 'Walk-Around',
+        target: walkAround,
+        range: `${(w * 1.06).toFixed(0)}-${(w * 1.07).toFixed(0)}`,
+        withLoading: `${Math.round(w * 1.06 + waterLoadBonus)}-${Math.round(w * 1.07 + waterLoadBonus)}`,
+        note: `+${waterLoadBonus} lbs water loading`
+      },
+      tue: {
+        label: 'Peak Loading',
+        target: walkAround + waterLoadBonus,
+        range: `${Math.round(w * 1.06 + waterLoadBonus)}-${Math.round(w * 1.07 + waterLoadBonus)}`,
+        withLoading: null,
+        note: 'Heaviest day is normal'
+      },
+      wed: {
+        label: 'Wed PM Target',
+        target: wedBaseline + waterLoadBonus,
+        range: `${(w * 1.04).toFixed(0)}-${(w * 1.05).toFixed(0)}`,
+        withLoading: `${Math.round(w * 1.04 + waterLoadBonus)}-${Math.round(w * 1.05 + waterLoadBonus)}`,
+        note: `Still +${waterLoadBonus} lbs loading`
+      },
+      thu: {
+        label: 'Flush Day',
+        target: (wedBaseline + friTarget) / 2,
+        range: `${Math.round(w * 1.03)}-${Math.round(w * 1.04)}`,
+        withLoading: null,
+        note: 'Water weight dropping'
+      },
+      fri: {
+        label: 'Fri PM Target',
+        target: friTarget,
+        range: `${(w * 1.02).toFixed(0)}-${(w * 1.03).toFixed(0)}`,
+        withLoading: null,
+        note: 'CRITICAL checkpoint'
+      },
+      sat: {
+        label: 'Competition',
+        target: w,
+        range: `${w}`,
+        withLoading: null,
+        note: 'Weigh-in weight'
+      },
+      sun: {
+        label: 'Recovery',
+        target: walkAround,
+        range: `${Math.round(w * 1.06)}-${Math.round(w * 1.07)}`,
+        withLoading: null,
+        note: 'Rebuilding'
+      },
     };
   };
 
@@ -102,13 +149,30 @@ export default function Weekly() {
         <h3 className="text-sm font-bold uppercase text-muted-foreground mb-3 flex items-center gap-2">
           <Scale className="w-4 h-4" /> Weight Targets
         </h3>
+
+        {/* Water Loading Context Banner */}
+        {checkpoints.isWaterLoadingDay && (
+          <div className="mb-3 p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Droplets className="w-4 h-4 text-cyan-500" />
+              <span className="text-xs text-cyan-500 font-bold">WATER LOADING ACTIVE</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              {checkpoints.waterLoadingAdjustment} — this is expected and part of the protocol.
+            </p>
+          </div>
+        )}
+
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-muted/50">
                   <th className="p-2 text-left font-bold">Day</th>
-                  <th className="p-2 text-center font-bold">Target</th>
+                  <th className="p-2 text-center font-bold">
+                    <div>Target</div>
+                    <div className="text-[9px] font-normal text-muted-foreground">(w/ loading)</div>
+                  </th>
                   <th className="p-2 text-center font-bold">Logged</th>
                   <th className="p-2 text-center font-bold">Status</th>
                 </tr>
@@ -121,12 +185,14 @@ export default function Weekly() {
                   const relevantLog = day.key === 'wed' || day.key === 'fri' ? postLog : morningLog;
                   const isToday = currentDayOfWeek === day.dayNum;
                   const isPast = (day.dayNum < currentDayOfWeek && currentDayOfWeek !== 0) || (day.dayNum !== 0 && currentDayOfWeek === 0);
+                  const isLoadingDay = day.key === 'mon' || day.key === 'tue' || day.key === 'wed';
+                  const isCritical = day.key === 'fri';
 
                   let status: 'on-track' | 'behind' | 'ahead' | 'none' = 'none';
                   if (relevantLog) {
                     const diff = relevantLog.weight - target.target;
-                    if (Math.abs(diff) <= 1) status = 'on-track';
-                    else if (diff > 1) status = 'behind';
+                    if (Math.abs(diff) <= 1.5) status = 'on-track';
+                    else if (diff > 1.5) status = 'behind';
                     else status = 'ahead';
                   }
 
@@ -135,18 +201,42 @@ export default function Weekly() {
                       key={day.key}
                       className={cn(
                         "border-t border-muted",
-                        isToday && "bg-primary/10"
+                        isToday && "bg-primary/10",
+                        isCritical && !isToday && "bg-orange-500/5"
                       )}
                     >
                       <td className="p-2">
                         <div className="flex items-center gap-2">
-                          <span className={cn("font-bold", isToday && "text-primary")}>{day.label}</span>
+                          <span className={cn(
+                            "font-bold",
+                            isToday && "text-primary",
+                            isCritical && !isToday && "text-orange-500"
+                          )}>{day.label}</span>
                           {isToday && <span className="text-[10px] bg-primary text-black px-1 rounded">TODAY</span>}
+                          {isCritical && !isToday && <span className="text-[10px] bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
                         </div>
                         <span className="text-[10px] text-muted-foreground">{target.label}</span>
+                        {target.note && (
+                          <div className={cn(
+                            "text-[9px]",
+                            isLoadingDay ? "text-cyan-500" : isCritical ? "text-orange-500 font-bold" : "text-muted-foreground"
+                          )}>
+                            {target.note}
+                          </div>
+                        )}
                       </td>
                       <td className="p-2 text-center">
-                        <span className="font-mono font-bold">{target.range}</span>
+                        {target.withLoading ? (
+                          <div>
+                            <span className="font-mono font-bold text-cyan-500">{target.withLoading}</span>
+                            <div className="text-[9px] text-muted-foreground line-through">{target.range}</div>
+                          </div>
+                        ) : (
+                          <span className={cn(
+                            "font-mono font-bold",
+                            isCritical && "text-orange-500"
+                          )}>{target.range}</span>
+                        )}
                       </td>
                       <td className="p-2 text-center">
                         {relevantLog ? (
@@ -168,6 +258,9 @@ export default function Weekly() {
             </table>
           </div>
         </Card>
+        <p className="text-[10px] text-muted-foreground mt-2">
+          Mon-Wed targets include water loading weight • Fri PM is critical checkpoint
+        </p>
       </section>
 
       {/* Water Load Schedule */}
@@ -304,28 +397,33 @@ export default function Weekly() {
           Checkpoint Rules
         </h3>
         <div className="space-y-3">
-          <Card className="p-3 border-muted">
-            <h4 className="font-bold text-sm text-primary mb-1">Monday AM (Walk-Around)</h4>
+          <Card className="p-3 border-cyan-500/30 bg-cyan-500/5">
+            <h4 className="font-bold text-sm text-cyan-500 mb-1">Mon-Wed: Water Loading Phase</h4>
             <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• Taken hydrated, sets baseline</li>
-              <li>• Weight may increase Mon-Wed from water loading</li>
+              <li>• <strong className="text-cyan-500">Expect to be +{waterLoadBonus} lbs heavier</strong> than baseline targets</li>
+              <li>• Walk-around weight: {checkpoints.walkAround}</li>
+              <li>• Being heavier during loading is NORMAL and part of the protocol</li>
+              <li>• Peak water intake Wednesday (heaviest day)</li>
             </ul>
           </Card>
 
-          <Card className="p-3 border-muted">
-            <h4 className="font-bold text-sm text-yellow-500 mb-1">Wednesday PM (Post-Practice)</h4>
+          <Card className="p-3 border-yellow-500/30 bg-yellow-500/5">
+            <h4 className="font-bold text-sm text-yellow-500 mb-1">Thursday: Flush Day</h4>
             <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• Hit target ±1 lb</li>
-              <li>• Still at walk-around? → Behind pace, increase intensity</li>
-              <li>• Below target? → Ahead, can eat more Thu-Fri</li>
+              <li>• Switch to distilled water - ZERO sodium</li>
+              <li>• ZERO fiber - check every bite</li>
+              <li>• Water loading weight starts dropping rapidly</li>
+              <li>• Still high water intake to maintain flush</li>
             </ul>
           </Card>
 
-          <Card className="p-3 border-muted">
-            <h4 className="font-bold text-sm text-orange-500 mb-1">Friday PM (Pre-Practice)</h4>
+          <Card className="p-3 border-orange-500/30 bg-orange-500/5">
+            <h4 className="font-bold text-sm text-orange-500 mb-1">Friday PM: CRITICAL Checkpoint</h4>
             <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• Should be Competition + ~3%</li>
+              <li>• <strong className="text-orange-500">Must be {checkpoints.friTarget}</strong></li>
               <li>• Final 3% drops from Fri practice + overnight drift</li>
+              <li>• Above range? May need extra activity or hot bath</li>
+              <li>• Below range? You're ahead - can eat more</li>
             </ul>
           </Card>
         </div>
