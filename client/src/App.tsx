@@ -1,7 +1,10 @@
 import { Switch, Route } from "wouter";
 import { AuthProvider } from "./lib/auth";
 import { StoreProvider } from "./lib/store";
+import { ThemeProvider } from "./lib/theme";
 import { Toaster } from "@/components/ui/toaster";
+import { ProtectedRoute } from "./components/protected-route";
+import { ErrorBoundary } from "./components/error-boundary";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Onboarding from "@/pages/onboarding";
@@ -14,11 +17,31 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
-      <Route path="/onboarding" component={Onboarding} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/weekly" component={Weekly} />
-      <Route path="/history" component={History} />
-      <Route path="/recovery" component={Recovery} />
+      <Route path="/onboarding">
+        <ProtectedRoute>
+          <Onboarding />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/dashboard">
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/weekly">
+        <ProtectedRoute>
+          <Weekly />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/history">
+        <ProtectedRoute>
+          <History />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/recovery">
+        <ProtectedRoute>
+          <Recovery />
+        </ProtectedRoute>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -26,12 +49,16 @@ function Router() {
 
 function App() {
   return (
-    <AuthProvider>
-      <StoreProvider>
-        <Toaster />
-        <Router />
-      </StoreProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <Toaster />
+            <Router />
+          </StoreProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

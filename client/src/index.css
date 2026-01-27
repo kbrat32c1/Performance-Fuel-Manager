@@ -50,8 +50,48 @@
   --radius: 0.5rem;
 }
 
-:root {
-  /* Default to Dark Mode aesthetics for High Performance feel */
+/* Light Mode - Clean, readable */
+:root,
+.light {
+  --background: 0 0% 98%;
+  --foreground: 240 10% 3.9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+
+  /* Electric Lime - slightly deeper for light mode contrast */
+  --primary: 84 85% 40%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Cool Cyan - adjusted for light mode */
+  --secondary: 190 80% 45%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 84 85% 40%;
+
+  --chart-1: 84 85% 40%;  /* Lime (Glycogen/Performance) */
+  --chart-2: 190 80% 45%; /* Cyan (Water) */
+  --chart-3: 30 90% 50%;  /* Amber (Gut/Warning) */
+  --chart-4: 0 84% 60%;   /* Red (Fat/Danger) */
+  --chart-5: 280 60% 55%; /* Purple (Muscle/Protected) */
+}
+
+/* Dark Mode - High Performance feel (default) */
+.dark {
   --background: 240 10% 3.9%; /* Zinc 950 */
   --foreground: 0 0% 98%;
 
@@ -62,7 +102,7 @@
   --popover-foreground: 0 0% 98%;
 
   /* Electric Lime - High Energy/Performance */
-  --primary: 84 100% 50%; 
+  --primary: 84 100% 50%;
   --primary-foreground: 240 5.9% 10%;
 
   /* Cool Cyan - Hydration/Tech */
