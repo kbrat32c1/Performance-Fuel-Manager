@@ -1970,14 +1970,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (isWaterLoadingDay) {
       // If within water loading tolerance (baseline + water bonus), show as on track
       if (diff <= waterLoadBonus + 1) {
-        const note = diff > 1 ? `+${diff.toFixed(1)} lbs from water loading - normal` : undefined;
+        const note = diff > 1 ? `+${diff.toFixed(1)} lbs water weight - this is OK` : undefined;
         return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', waterLoadingNote: note };
       }
       // If slightly over water loading tolerance, borderline
       if (diff <= waterLoadBonus + 3) {
-        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', waterLoadingNote: 'Above water loading range' };
+        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - above 2-4 lb water loading range` };
       }
-      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20' };
+      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - significantly over target` };
     }
 
     // Non water-loading days use standard thresholds

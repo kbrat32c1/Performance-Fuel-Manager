@@ -287,7 +287,7 @@ export default function Dashboard() {
             <div>
               <span className="text-xs font-bold text-cyan-500 uppercase">Water Loading Active</span>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                {checkpoints.waterLoadingAdjustment} — being heavier than baseline is expected and part of the protocol.
+                <strong className="text-cyan-500">It's normal to be 2-4 lbs heavier</strong> than your target during water loading. This extra weight will flush out Thu-Fri.
               </p>
             </div>
           </div>
