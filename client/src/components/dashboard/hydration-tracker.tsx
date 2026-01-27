@@ -85,12 +85,11 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
-            <span className="text-sm font-bold text-cyan-500">3</span>
+            <Droplets className="w-4 h-4 text-cyan-500" />
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-cyan-500" />
                 <h3 className="font-bold">Hydration: {hydration.amount}</h3>
                 {/* Water Type Badge */}
                 <span className={cn(

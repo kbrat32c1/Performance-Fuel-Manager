@@ -7,3 +7,4 @@ export { WeekOverview } from './week-overview';
 export { WhyExplanation } from './why-explanation';
 export { WeighInCountdown } from './weighin-countdown';
 export { TrendChart } from './trend-chart';
+export { DateNavigator } from './date-navigator';

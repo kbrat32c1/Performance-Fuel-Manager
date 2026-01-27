@@ -7,21 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Droplets, Scale, Utensils, Dumbbell, Moon, Sun,
-  ChevronRight, CheckCircle2, Plus, Settings, Info,
+  ChevronRight, ChevronDown, CheckCircle2, Plus, Settings, Info,
   AlertTriangle, Flame, Zap, Trophy, Pencil, Trash2, Apple,
   Calendar, ArrowRight, Clock, Heart, Target, TrendingDown, TrendingUp, LogOut, Weight,
   HelpCircle
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { format, getDay } from "date-fns";
-import { useState, useEffect } from "react";
+import { format, getDay, addDays, subDays, isToday, startOfDay } from "date-fns";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecoveryTakeover } from "@/components/recovery-takeover";
 import { CompetitionDayTakeover } from "@/components/competition-day-takeover";
-import { TrendChart, SettingsDialog, WeighInCountdown, MacroTracker } from "@/components/dashboard";
+import { TrendChart, SettingsDialog, WeighInCountdown, MacroTracker, DateNavigator } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
+import { useSwipe } from "@/hooks/use-swipe";
 
 export default function Dashboard() {
   const {
@@ -54,6 +55,36 @@ export default function Dashboard() {
   const phase = getPhase();
   const displayDate = profile.simulatedDate || new Date();
   const dayOfWeek = getDay(displayDate);
+  const isViewingHistorical = !!profile.simulatedDate;
+  const today = startOfDay(new Date());
+
+  // Handle date navigation
+  const handleDateChange = useCallback((date: Date | null) => {
+    updateProfile({ simulatedDate: date });
+  }, [updateProfile]);
+
+  // Swipe navigation
+  const handleSwipeLeft = useCallback(() => {
+    // Swipe left = go to next day (toward today)
+    if (!isViewingHistorical) return; // Already at today
+    const nextDay = addDays(displayDate, 1);
+    if (nextDay >= today) {
+      handleDateChange(null);
+    } else {
+      handleDateChange(nextDay);
+    }
+  }, [displayDate, isViewingHistorical, today, handleDateChange]);
+
+  const handleSwipeRight = useCallback(() => {
+    // Swipe right = go to previous day
+    const prevDay = subDays(displayDate, 1);
+    handleDateChange(prevDay);
+  }, [displayDate, handleDateChange]);
+
+  const swipeHandlers = useSwipe({
+    onSwipeLeft: handleSwipeLeft,
+    onSwipeRight: handleSwipeRight,
+  }, { threshold: 75 });
 
   // Macro tracking data
   const macros = getMacroTargets();
@@ -119,45 +150,52 @@ export default function Dashboard() {
 
   return (
     <MobileLayout showNav={true}>
-      {/* Header */}
-      <header className="flex justify-between items-start mb-6">
-        <div>
-          <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
-            {format(displayDate, 'EEEE, MMMM d')}
-          </h2>
-          <h1 className="text-2xl font-heading font-bold uppercase italic">
-            Today's Plan
-          </h1>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
-              {phaseInfo.label}
-            </span>
-            <span className="text-xs text-muted-foreground">•</span>
-            <span className="text-xs text-muted-foreground">{getProtocolName()}</span>
+      <div {...swipeHandlers}>
+        {/* Header */}
+        <header className="flex justify-between items-start mb-4">
+          <div className="flex-1">
+            {/* Date Navigator - WHOOP style */}
+            <DateNavigator
+              currentDate={displayDate}
+              onDateChange={handleDateChange}
+              className="mb-2"
+            />
+            <h1 className="text-2xl font-heading font-bold uppercase italic">
+              {isViewingHistorical ? "Day Review" : "Today's Plan"}
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
+                {phaseInfo.label}
+              </span>
+              <span className="text-xs text-muted-foreground">•</span>
+              <span className="text-xs text-muted-foreground">{getProtocolName()}</span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-1">
-          <SettingsDialog profile={profile} updateProfile={updateProfile} resetData={useStore().resetData} />
-          <InfoDialog />
-        </div>
-      </header>
+          <div className="flex items-center gap-1">
+            <SettingsDialog profile={profile} updateProfile={updateProfile} resetData={useStore().resetData} />
+            <InfoDialog />
+          </div>
+        </header>
 
-      {/* Viewing Past Day Banner */}
-      {profile.simulatedDate && (
-        <div className="bg-yellow-500/20 border border-yellow-500/30 rounded-lg p-2 mb-4 flex items-center justify-between">
-          <span className="text-yellow-500 text-xs font-bold uppercase">
-            Viewing: {format(displayDate, 'EEE, MMM d')}
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => updateProfile({ simulatedDate: null })}
-            className="h-6 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
-          >
-            Back to Today
-          </Button>
-        </div>
-      )}
+        {/* Historical View Notice */}
+        {isViewingHistorical && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2 mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-yellow-500" />
+              <span className="text-yellow-500 text-xs font-bold uppercase">
+                Read-Only View
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleDateChange(null)}
+              className="h-6 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+            >
+              Back to Today
+            </Button>
+          </div>
+        )}
 
       {/* Status Badge */}
       <div className={cn(
@@ -382,82 +420,60 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Daily Steps */}
+      {/* Morning Weigh-In - Always first */}
+      <DailyStep
+        step={1}
+        title="Morning Weigh-In"
+        description="First thing after waking, before eating or drinking"
+        icon={Sun}
+        logs={logs}
+        logType="morning"
+        addLog={addLog}
+        updateLog={updateLog}
+        targetWeight={targetWeight}
+        simulatedDate={profile.simulatedDate}
+        readOnly={isViewingHistorical}
+      />
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* FUEL SECTION - Food & Hydration grouped together */}
+      {/* ═══════════════════════════════════════════════════════ */}
       <div className="space-y-4">
-
-        {/* Step 1: Morning Weigh-In */}
-        <DailyStep
-          step={1}
-          title="Morning Weigh-In"
-          description="First thing after waking, before eating or drinking"
-          icon={Sun}
-          logs={logs}
-          logType="morning"
-          addLog={addLog}
-          updateLog={updateLog}
-          targetWeight={targetWeight}
-          simulatedDate={profile.simulatedDate}
-        />
-
-        {/* Step 2: Today's Fuel with Macro Tracking */}
+        {/* Food Tracking */}
         <MacroTracker
           macros={macros}
           todaysFoods={todaysFoods}
           foodLists={foodLists}
           dayOfWeek={dayOfWeek}
           protocol={profile.protocol}
+          readOnly={isViewingHistorical}
         />
 
-        {/* Step 3: Hydration */}
-        <HydrationTracker hydration={hydration} />
+        {/* Hydration */}
+        <HydrationTracker hydration={hydration} readOnly={isViewingHistorical} />
+      </div>
 
-        {/* Step 4: Pre-Practice Weigh-In */}
-        <DailyStep
-          step={4}
-          title="Pre-Practice Weigh-In"
-          description="Before practice starts"
-          icon={Dumbbell}
-          logs={logs}
-          logType="pre-practice"
-          addLog={addLog}
-          updateLog={updateLog}
-          targetWeight={targetWeight + 1.5}
-          simulatedDate={profile.simulatedDate}
-        />
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* PRACTICE WEIGH-INS */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <WeighInSection
+        logs={logs}
+        addLog={addLog}
+        updateLog={updateLog}
+        targetWeight={targetWeight}
+        overnightDrift={overnightDrift}
+        simulatedDate={profile.simulatedDate}
+        readOnly={isViewingHistorical}
+      />
 
-        {/* Step 5: Post-Practice Weigh-In */}
-        <DailyStep
-          step={5}
-          title="Post-Practice Weigh-In"
-          description="Immediately after practice"
-          icon={Dumbbell}
-          logs={logs}
-          logType="post-practice"
-          addLog={addLog}
-          updateLog={updateLog}
-          targetWeight={targetWeight}
-          simulatedDate={profile.simulatedDate}
-        />
+      {/* Extra Workout */}
+      <ExtraWorkoutLog addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} readOnly={isViewingHistorical} />
 
-        {/* Step 6: Before Bed Weigh-In */}
-        <DailyStep
-          step={6}
-          title="Before Bed Weigh-In"
-          description="Last weigh-in of the day, before sleep"
-          icon={Moon}
-          logs={logs}
-          logType="before-bed"
-          addLog={addLog}
-          updateLog={updateLog}
-          targetWeight={overnightDrift !== null ? targetWeight + overnightDrift : undefined}
-          targetWeightRange={overnightDrift === null ? { min: targetWeight + 1, max: targetWeight + 2 } : undefined}
-          simulatedDate={profile.simulatedDate}
-        />
-
-        {/* Optional: Extra Workout */}
-        <ExtraWorkoutLog addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} />
-
-        {/* What's Next Section */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* INFO SECTION - Planning & Insights */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
+        {/* What's Next */}
         <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} />
 
         {/* Weight Trend Chart */}
@@ -465,11 +481,11 @@ export default function Dashboard() {
 
         {/* History Insights */}
         <HistoryInsightsCard getHistoryInsights={getHistoryInsights} targetWeightClass={profile.targetWeightClass} />
-
       </div>
 
-      {/* Bottom Spacing for Nav */}
-      <div className="h-20" />
+        {/* Bottom Spacing for Nav */}
+        <div className="h-20" />
+      </div>
     </MobileLayout>
   );
 }
@@ -486,7 +502,8 @@ function DailyStep({
   updateLog,
   targetWeight,
   targetWeightRange,
-  simulatedDate
+  simulatedDate,
+  readOnly = false
 }: {
   step: number;
   title: string;
@@ -499,6 +516,7 @@ function DailyStep({
   targetWeight?: number;
   targetWeightRange?: { min: number; max: number };
   simulatedDate?: Date | null;
+  readOnly?: boolean;
 }) {
   const [weight, setWeight] = useState('');
   const [isLogging, setIsLogging] = useState(false);
@@ -632,13 +650,15 @@ function DailyStep({
                      `+${(todayLog.weight - targetWeightRange.max).toFixed(1)} lbs`}
                   </span>
                 ) : null}
-                <button
-                  onClick={handleEdit}
-                  className="ml-auto p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                  title="Edit weight"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={handleEdit}
+                    className="ml-auto p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Edit weight"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ) : (isLogging || isEditing) ? (
               <div className="flex items-center gap-2">
@@ -658,7 +678,7 @@ function DailyStep({
                   Cancel
                 </Button>
               </div>
-            ) : (
+            ) : !readOnly ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -668,6 +688,8 @@ function DailyStep({
                 <Scale className="w-3 h-3 mr-1" />
                 Log Weight
               </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground italic">No data logged</span>
             )}
 
             {!isComplete && !isLogging && (
@@ -697,7 +719,7 @@ function DailyStep({
 }
 
 // Extra Workout Log
-function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog }: { addLog: any; logs: any[]; simulatedDate?: Date | null; deleteLog: any; updateLog: any }) {
+function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, readOnly = false }: { addLog: any; logs: any[]; simulatedDate?: Date | null; deleteLog: any; updateLog: any; readOnly?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [beforeWeight, setBeforeWeight] = useState('');
   const [afterWeight, setAfterWeight] = useState('');
@@ -845,20 +867,24 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog }: 
                       {weightLoss > 0 ? `-${weightLoss.toFixed(1)}` : `+${Math.abs(weightLoss).toFixed(1)}`}
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleEdit(workout)}
-                    className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(workout)}
-                    className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {!readOnly && (
+                    <>
+                      <button
+                        onClick={() => handleEdit(workout)}
+                        className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Edit"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(workout)}
+                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -866,18 +892,19 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog }: 
         );
       })}
 
-      {/* Add new extra workout */}
-      <Card className="border-dashed border-muted">
-        <CardContent className="p-4">
-          {!isOpen ? (
-            <button
-              onClick={() => setIsOpen(true)}
-              className="w-full flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors py-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="text-sm">Add Extra Workout</span>
-            </button>
-          ) : (
+      {/* Add new extra workout - hide in read-only mode */}
+      {!readOnly && (
+        <Card className="border-dashed border-muted">
+          <CardContent className="p-4">
+            {!isOpen ? (
+              <button
+                onClick={() => setIsOpen(true)}
+                className="w-full flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors py-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-sm">Add Extra Workout</span>
+              </button>
+            ) : (
             <div className="space-y-3">
               <h4 className="font-bold text-sm">Extra Workout Weight Loss</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -915,14 +942,284 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog }: 
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Weigh-In Section - Groups all practice weigh-ins together
+function WeighInSection({
+  logs,
+  addLog,
+  updateLog,
+  targetWeight,
+  overnightDrift,
+  simulatedDate,
+  readOnly = false
+}: {
+  logs: any[];
+  addLog: any;
+  updateLog: any;
+  targetWeight: number;
+  overnightDrift: number | null;
+  simulatedDate?: Date | null;
+  readOnly?: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const today = simulatedDate || new Date();
+
+  // Check completion status for each weigh-in type
+  const getLogForType = (logType: string) => {
+    return logs.find(log => {
+      const logDate = new Date(log.date);
+      return logDate.toDateString() === today.toDateString() && log.type === logType;
+    });
+  };
+
+  const prePracticeLog = getLogForType('pre-practice');
+  const postPracticeLog = getLogForType('post-practice');
+  const beforeBedLog = getLogForType('before-bed');
+
+  const completedCount = [prePracticeLog, postPracticeLog, beforeBedLog].filter(Boolean).length;
+  const totalCount = 3;
+
+  return (
+    <Card className="border-muted">
+      <CardContent className="p-4">
+        {/* Section Header */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
+              <Scale className="w-4 h-4 text-cyan-500" />
+            </div>
+            <div className="text-left">
+              <h3 className="font-bold">Daily Weigh-Ins</h3>
+              <span className="text-[10px] text-muted-foreground">
+                {completedCount}/{totalCount} logged
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {completedCount === totalCount && (
+              <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-bold">COMPLETE</span>
+            )}
+            <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
+          </div>
+        </button>
+
+        {/* Weigh-In Items */}
+        {isExpanded && (
+          <div className="mt-4 space-y-3">
+            {/* Pre-Practice */}
+            <CompactWeighIn
+              title="Pre-Practice"
+              description="Before practice starts"
+              icon={Dumbbell}
+              logs={logs}
+              logType="pre-practice"
+              addLog={addLog}
+              updateLog={updateLog}
+              targetWeight={targetWeight + 1.5}
+              simulatedDate={simulatedDate}
+              readOnly={readOnly}
+            />
+
+            {/* Post-Practice */}
+            <CompactWeighIn
+              title="Post-Practice"
+              description="Immediately after practice"
+              icon={Dumbbell}
+              logs={logs}
+              logType="post-practice"
+              addLog={addLog}
+              updateLog={updateLog}
+              targetWeight={targetWeight}
+              simulatedDate={simulatedDate}
+              readOnly={readOnly}
+            />
+
+            {/* Before Bed */}
+            <CompactWeighIn
+              title="Before Bed"
+              description="Last weigh-in of the day"
+              icon={Moon}
+              logs={logs}
+              logType="before-bed"
+              addLog={addLog}
+              updateLog={updateLog}
+              targetWeight={overnightDrift !== null ? targetWeight + overnightDrift : undefined}
+              targetWeightRange={overnightDrift === null ? { min: targetWeight + 1, max: targetWeight + 2 } : undefined}
+              simulatedDate={simulatedDate}
+              readOnly={readOnly}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Compact Weigh-In Row Component
+function CompactWeighIn({
+  title,
+  description,
+  icon: Icon,
+  logs,
+  logType,
+  addLog,
+  updateLog,
+  targetWeight,
+  targetWeightRange,
+  simulatedDate,
+  readOnly = false
+}: {
+  title: string;
+  description: string;
+  icon: any;
+  logs: any[];
+  logType: 'pre-practice' | 'post-practice' | 'before-bed';
+  addLog: any;
+  updateLog: any;
+  targetWeight?: number;
+  targetWeightRange?: { min: number; max: number };
+  simulatedDate?: Date | null;
+  readOnly?: boolean;
+}) {
+  const [weight, setWeight] = useState('');
+  const [isLogging, setIsLogging] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const today = simulatedDate || new Date();
+  const todayLog = logs.find(log => {
+    const logDate = new Date(log.date);
+    return logDate.toDateString() === today.toDateString() && log.type === logType;
+  });
+
+  const isComplete = !!todayLog;
+
+  const handleSubmit = () => {
+    if (weight) {
+      addLog({
+        date: today,
+        type: logType,
+        weight: parseFloat(weight)
+      });
+      setWeight('');
+      setIsLogging(false);
+    }
+  };
+
+  const handleUpdate = () => {
+    if (weight && todayLog) {
+      updateLog(todayLog.id, { weight: parseFloat(weight) });
+      setWeight('');
+      setIsEditing(false);
+    }
+  };
+
+  const handleEdit = () => {
+    setWeight(todayLog?.weight?.toString() || '');
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setWeight('');
+    setIsLogging(false);
+    setIsEditing(false);
+  };
+
+  // Get status color based on target
+  const getStatusColor = () => {
+    if (!todayLog) return "";
+    if (targetWeight !== undefined) {
+      const diff = todayLog.weight - targetWeight;
+      if (diff <= 0) return "text-green-500";
+      if (diff <= 1) return "text-yellow-500";
+      return "text-destructive";
+    }
+    if (targetWeightRange) {
+      if (todayLog.weight <= targetWeightRange.max) return "text-green-500";
+      if (todayLog.weight <= targetWeightRange.max + 1) return "text-yellow-500";
+      return "text-destructive";
+    }
+    return "";
+  };
+
+  return (
+    <div className={cn(
+      "flex items-center justify-between p-3 rounded-lg border",
+      isComplete ? "bg-green-500/5 border-green-500/20" : "bg-muted/30 border-muted"
+    )}>
+      <div className="flex items-center gap-3">
+        <Icon className={cn("w-4 h-4", isComplete ? "text-green-500" : "text-muted-foreground")} />
+        <div>
+          <span className="text-sm font-medium">{title}</span>
+          {!isComplete && targetWeight !== undefined && (
+            <span className="text-[10px] text-muted-foreground ml-2">
+              Target: {targetWeight.toFixed(1)} lbs
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {isComplete && !isEditing ? (
+          <>
+            <span className={cn("font-mono font-bold", getStatusColor())}>
+              {todayLog.weight} lbs
+            </span>
+            {!readOnly && (
+              <button
+                onClick={handleEdit}
+                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Edit"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </>
+        ) : (isLogging || isEditing) ? (
+          <div className="flex items-center gap-1">
+            <Input
+              type="number"
+              placeholder="lbs"
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              className="h-8 w-20 text-sm font-mono"
+              step="0.1"
+              autoFocus
+            />
+            <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-8 px-2">
+              {isEditing ? 'Save' : 'Log'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleCancel} className="h-8 px-2">
+              <span className="sr-only">Cancel</span>×
+            </Button>
+          </div>
+        ) : !readOnly ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsLogging(true)}
+            className="h-8 text-xs"
+          >
+            Log
+          </Button>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">—</span>
+        )}
+      </div>
     </div>
   );
 }
 
 // Hydration Tracker
-function HydrationTracker({ hydration }: { hydration: { amount: string; type: string; note: string; targetOz: number } }) {
+function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount: string; type: string; note: string; targetOz: number }; readOnly?: boolean }) {
   const { getDailyTracking, updateDailyTracking, profile } = useStore();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
@@ -1004,21 +1301,25 @@ function HydrationTracker({ hydration }: { hydration: { amount: string; type: st
                     <span className="text-xs font-mono text-muted-foreground">
                       {tracking.waterConsumed} / {hydration.targetOz} oz
                     </span>
-                    <button
-                      onClick={handleEdit}
-                      className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                      title="Edit"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    {tracking.waterConsumed > 0 && (
-                      <button
-                        onClick={handleReset}
-                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
-                        title="Reset to 0"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                    {!readOnly && (
+                      <>
+                        <button
+                          onClick={handleEdit}
+                          className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Edit"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        {tracking.waterConsumed > 0 && (
+                          <button
+                            onClick={handleReset}
+                            className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Reset to 0"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </>
                     )}
                   </>
                 )}
@@ -1046,38 +1347,40 @@ function HydrationTracker({ hydration }: { hydration: { amount: string; type: st
               </span>
             </div>
 
-            {/* Quick Add Buttons */}
-            <div className="flex gap-1.5 flex-wrap">
-              {quickAddAmounts.map(oz => (
-                <Button
-                  key={oz}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAddWater(oz)}
+            {/* Quick Add Buttons - hide in read-only mode */}
+            {!readOnly && (
+              <div className="flex gap-1.5 flex-wrap">
+                {quickAddAmounts.map(oz => (
+                  <Button
+                    key={oz}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddWater(oz)}
+                    className="h-7 text-xs px-2"
+                  >
+                    +{oz}oz
+                  </Button>
+                ))}
+                <div className="flex gap-1">
+                  <Input
+                    type="number"
+                    placeholder="oz"
+                    value={addAmount}
+                    onChange={(e) => setAddAmount(e.target.value)}
+                    className="h-7 w-14 text-xs font-mono"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCustomAdd}
                   className="h-7 text-xs px-2"
-                >
-                  +{oz}oz
-                </Button>
-              ))}
-              <div className="flex gap-1">
-                <Input
-                  type="number"
-                  placeholder="oz"
-                  value={addAmount}
-                  onChange={(e) => setAddAmount(e.target.value)}
-                  className="h-7 w-14 text-xs font-mono"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCustomAdd}
-                  className="h-7 text-xs px-2"
-                  disabled={!addAmount}
-                >
-                  Add
-                </Button>
+                    disabled={!addAmount}
+                  >
+                    Add
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Why Explanations */}
             {(() => {
