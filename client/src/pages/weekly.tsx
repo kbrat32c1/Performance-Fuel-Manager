@@ -9,7 +9,7 @@ import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, Tre
 import { useState } from "react";
 
 export default function Weekly() {
-  const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData } = useStore();
+  const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData, getWaterLoadBonus } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
 
@@ -46,9 +46,8 @@ export default function Weekly() {
     sun: { type: 'Regular', sodium: 'Normal' },
   };
 
-  // Water loading adds weight during Mon-Wed
-  // Light (<150 lbs): +2 lbs, Medium (150-174 lbs): +3 lbs, Heavy (175+): +4 lbs
-  const waterLoadBonus = profile.targetWeightClass >= 175 ? 4 : profile.targetWeightClass >= 150 ? 3 : 2;
+  // Water loading bonus from centralized helper
+  const waterLoadBonus = getWaterLoadBonus();
 
   // Weight targets by day (from your document - page 2)
   // Baseline targets + water loading adjustment for Mon-Wed
@@ -225,25 +224,36 @@ export default function Weekly() {
             </div>
 
             {/* Progress Message */}
-            {descentData.totalLost !== null && descentData.currentWeight && (
-              <div className={cn(
-                "mt-3 p-2 rounded-lg text-center text-sm",
-                descentData.pace === 'ahead' ? "bg-green-500/10 text-green-500" :
-                descentData.pace === 'on-track' ? "bg-primary/10 text-primary" :
-                descentData.pace === 'behind' ? "bg-orange-500/10 text-orange-500" :
-                "bg-muted text-muted-foreground"
-              )}>
-                {descentData.pace === 'ahead' && (
-                  <>You're <strong>{Math.abs(descentData.currentWeight - descentData.targetWeight - 2).toFixed(1)} lbs</strong> ahead! You can eat a bit more.</>
-                )}
-                {descentData.pace === 'on-track' && (
-                  <>On pace! <strong>{(descentData.currentWeight - descentData.targetWeight).toFixed(1)} lbs</strong> left to cut.</>
-                )}
-                {descentData.pace === 'behind' && (
-                  <>Need to lose <strong>{(descentData.currentWeight - descentData.targetWeight).toFixed(1)} lbs</strong> more. Tighten up!</>
-                )}
-              </div>
-            )}
+            {descentData.totalLost !== null && descentData.currentWeight && (() => {
+              // During water loading days (Mon-Wed), show water loading aware message
+              const isWaterLoadingProtocol = profile.protocol === '1' || profile.protocol === '2';
+              const isWaterLoadingDay = isWaterLoadingProtocol && currentDayOfWeek >= 1 && currentDayOfWeek <= 3;
+              const toGoal = (descentData.currentWeight - descentData.targetWeight).toFixed(1);
+
+              return (
+                <div className={cn(
+                  "mt-3 p-2 rounded-lg text-center text-sm",
+                  descentData.pace === 'ahead' ? "bg-green-500/10 text-green-500" :
+                  descentData.pace === 'on-track' ? (isWaterLoadingDay ? "bg-cyan-500/10 text-cyan-500" : "bg-primary/10 text-primary") :
+                  descentData.pace === 'behind' ? "bg-orange-500/10 text-orange-500" :
+                  "bg-muted text-muted-foreground"
+                )}>
+                  {descentData.pace === 'ahead' && (
+                    <>You're <strong>{Math.abs(descentData.currentWeight - descentData.targetWeight).toFixed(1)} lbs</strong> under target! You can eat a bit more.</>
+                  )}
+                  {descentData.pace === 'on-track' && (
+                    isWaterLoadingDay
+                      ? <>Water loading on track. <strong>{toGoal} lbs</strong> above goal — this is normal and will flush out Thu-Fri.</>
+                      : <>On pace! <strong>{toGoal} lbs</strong> left to cut.</>
+                  )}
+                  {descentData.pace === 'behind' && (
+                    isWaterLoadingDay
+                      ? <>Slightly heavy for water loading. <strong>{toGoal} lbs</strong> above goal — watch intake today.</>
+                      : <>Need to lose <strong>{toGoal} lbs</strong> more. Tighten up!</>
+                  )}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       )}
@@ -294,10 +304,18 @@ export default function Weekly() {
 
                   let status: 'on-track' | 'behind' | 'ahead' | 'none' = 'none';
                   if (relevantLog) {
-                    const diff = relevantLog.weight - target.target;
-                    if (Math.abs(diff) <= 1.5) status = 'on-track';
-                    else if (diff > 1.5) status = 'behind';
-                    else status = 'ahead';
+                    // For water loading days (Mon-Wed), compare against water-loaded target
+                    // Protocols 1 & 2 have water loading; 3 & 4 do not
+                    const hasWaterLoading = (profile.protocol === '1' || profile.protocol === '2') && isLoadingDay;
+                    const effectiveTarget = hasWaterLoading ? target.target + waterLoadBonus : target.target;
+                    const diff = relevantLog.weight - effectiveTarget;
+
+                    // Small tolerance for measurement variance
+                    const tolerance = 1.5;
+
+                    if (diff <= 0) status = 'ahead'; // Under target is always good
+                    else if (diff <= tolerance) status = 'on-track'; // Within tolerance
+                    else status = 'behind'; // Over tolerance
                   }
 
                   return (

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { addDays, subDays, differenceInDays, getDay, parseISO, format } from 'date-fns';
 import { supabase } from './supabase';
 import { useAuth } from './auth';
+import { toast } from '@/hooks/use-toast';
 
 // Types
 export type Protocol = '1' | '2' | '3' | '4';
@@ -87,6 +88,9 @@ interface StoreContextType {
   migrateLocalStorageToSupabase: () => Promise<void>;
   hasLocalStorageData: () => boolean;
   calculateTarget: () => number;
+  getWaterLoadBonus: () => number;
+  isWaterLoadingDay: () => boolean;
+  getDaysUntilWeighIn: () => number;
   getPhase: () => Phase;
   getTodaysFocus: () => { title: string; actions: string[], warning?: string };
   getHydrationTarget: () => { amount: string; type: string; note: string; targetOz: number };
@@ -105,7 +109,7 @@ interface StoreContextType {
   getTomorrowPlan: () => DayPlan | null;
   getNextTarget: () => { label: string; weight: number; description: string } | null;
   getDriftMetrics: () => { overnight: number | null; session: number | null };
-  getStatus: () => { status: Status; label: string; color: string; bgColor: string };
+  getStatus: () => { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string };
   getDailyPriority: () => { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string };
   getWeekDescentData: () => {
     startWeight: number | null;
@@ -389,6 +393,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const tempId = Math.random().toString(36).substr(2, 9);
     const newLog = { ...log, id: tempId };
 
+    // Capture previous state for rollback
+    const previousLogs = logs;
+    const previousProfile = profile;
+
     // Optimistic update
     setLogs(prev => [newLog, ...prev]);
 
@@ -412,23 +420,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             type: log.type,
           }).select().single();
 
-          if (data && !error) {
+          if (error) {
+            // Rollback on error
+            setLogs(previousLogs);
+            setProfile(previousProfile);
+            console.error('Error adding log:', error);
+            toast({ title: "Sync failed", description: "Could not save weight log. Please try again.", variant: "destructive" });
+            return;
+          }
+
+          if (data) {
             // Update with real ID
             setLogs(prev => prev.map(l => l.id === tempId ? { ...l, id: data.id } : l));
           }
         }
 
         // Update profile weight in Supabase
-        await supabase.from('profiles').update({
+        const { error: profileError } = await supabase.from('profiles').update({
           current_weight: log.weight,
         }).eq('user_id', user.id);
+
+        if (profileError) {
+          console.error('Error updating profile weight:', profileError);
+        }
       } catch (error) {
+        // Rollback on exception
+        setLogs(previousLogs);
+        setProfile(previousProfile);
         console.error('Error adding log:', error);
+        toast({ title: "Sync failed", description: "Could not save weight log. Please try again.", variant: "destructive" });
       }
     }
   };
 
   const updateLog = async (id: string, updates: Partial<WeightLog>) => {
+    // Capture previous state for rollback
+    const previousLogs = logs;
+    const previousProfile = profile;
+
     setLogs(prev => prev.map(log =>
       log.id === id ? { ...log, ...updates } : log
     ));
@@ -449,27 +478,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (updates.date !== undefined) updateData.date = updates.date.toISOString();
         if (updates.type !== undefined) updateData.type = updates.type;
 
-        await supabase.from('weight_logs').update(updateData).eq('id', id);
+        const { error } = await supabase.from('weight_logs').update(updateData).eq('id', id);
+
+        if (error) {
+          // Rollback on error
+          setLogs(previousLogs);
+          setProfile(previousProfile);
+          console.error('Error updating log:', error);
+          toast({ title: "Sync failed", description: "Could not update weight log. Please try again.", variant: "destructive" });
+          return;
+        }
 
         if (updates.weight !== undefined) {
-          await supabase.from('profiles').update({
+          const { error: profileError } = await supabase.from('profiles').update({
             current_weight: updates.weight,
           }).eq('user_id', user.id);
+
+          if (profileError) {
+            console.error('Error updating profile weight:', profileError);
+          }
         }
       } catch (error) {
+        // Rollback on exception
+        setLogs(previousLogs);
+        setProfile(previousProfile);
         console.error('Error updating log:', error);
+        toast({ title: "Sync failed", description: "Could not update weight log. Please try again.", variant: "destructive" });
       }
     }
   };
 
   const deleteLog = async (id: string) => {
+    // Capture previous state for rollback
+    const previousLogs = logs;
+
     setLogs(prev => prev.filter(log => log.id !== id));
 
     if (user) {
       try {
-        await supabase.from('weight_logs').delete().eq('id', id);
+        const { error } = await supabase.from('weight_logs').delete().eq('id', id);
+
+        if (error) {
+          // Rollback on error
+          setLogs(previousLogs);
+          console.error('Error deleting log:', error);
+          toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
+        }
       } catch (error) {
+        // Rollback on exception
+        setLogs(previousLogs);
         console.error('Error deleting log:', error);
+        toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
       }
     }
   };
@@ -488,6 +547,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateDailyTracking = async (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => {
+    // Capture previous state for rollback
+    const previousTracking = dailyTracking;
+
     setDailyTracking(prev => {
       const existing = prev.find(d => d.date === date);
       if (existing) {
@@ -499,15 +561,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       try {
         const current = getDailyTracking(date);
-        await supabase.from('daily_tracking').upsert({
+        const { error } = await supabase.from('daily_tracking').upsert({
           user_id: user.id,
           date: date,
           carbs_consumed: updates.carbsConsumed ?? current.carbsConsumed,
           protein_consumed: updates.proteinConsumed ?? current.proteinConsumed,
           water_consumed: updates.waterConsumed ?? current.waterConsumed,
         }, { onConflict: 'user_id,date' });
+
+        if (error) {
+          // Rollback on error
+          setDailyTracking(previousTracking);
+          console.error('Error updating daily tracking:', error);
+          toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
+        }
       } catch (error) {
+        // Rollback on exception
+        setDailyTracking(previousTracking);
         console.error('Error updating daily tracking:', error);
+        toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
       }
     }
   };
@@ -587,50 +659,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getCheckpoints = () => {
       const w = profile.targetWeightClass;
-      const today = profile.simulatedDate || new Date();
-      const dayOfWeek = getDay(today);
       const protocol = profile.protocol;
-
-      // Water loading applies to protocols 1 & 2 on Mon-Wed (days 1-3)
-      const isWaterLoadingProtocol = protocol === '1' || protocol === '2';
-      const isWaterLoadingDay = isWaterLoadingProtocol && dayOfWeek >= 1 && dayOfWeek <= 3;
+      const daysUntilWeighIn = getDaysUntilWeighIn();
+      const waterLoading = isWaterLoadingDay();
+      const waterLoadBonus = getWaterLoadBonus();
 
       // Targets from PDF Weight Management chart
-      // Walk-around (Mon AM): 6-7% over weight class
-      // Wed PM checkpoint: 4-5% over
-      // Fri PM critical: 2-3% over - must hit for safe overnight cut
+      // Walk-around (5 days out): 6-7% over weight class
+      // Mid-week checkpoint (3 days out): 4-5% over
+      // Critical (1 day out): 2-3% over - must hit for safe overnight cut
       const walkAroundLow = Math.round(w * 1.06);
       const walkAroundHigh = Math.round(w * 1.07);
-      const wedBaselineLow = Math.round(w * 1.04);
-      const wedBaselineHigh = Math.round(w * 1.05);
-      const friLow = Math.round(w * 1.02);
-      const friHigh = Math.round(w * 1.03);
+      const midWeekBaselineLow = Math.round(w * 1.04);
+      const midWeekBaselineHigh = Math.round(w * 1.05);
+      const criticalLow = Math.round(w * 1.02);
+      const criticalHigh = Math.round(w * 1.03);
 
-      // Context for current day
+      // Water loading applies to protocols 1 & 2
+      const isWaterLoadingProtocol = protocol === '1' || protocol === '2';
+
+      // Context for current day based on days until weigh-in
       let currentDayContext = '';
       if (isWaterLoadingProtocol) {
-        switch (dayOfWeek) {
-          case 0: // Sunday - Recovery
-            currentDayContext = 'Recovery day - return to walk-around weight with protein refeed';
-            break;
-          case 1: // Monday - Water Loading starts
-            currentDayContext = 'Water loading day - stay hydrated, weight may fluctuate';
-            break;
-          case 2: // Tuesday - Peak Loading
-            currentDayContext = 'Peak loading day - continue high water intake';
-            break;
-          case 3: // Wednesday - Final Load Day
-            currentDayContext = `Last load day - Wed PM checkpoint is ${wedBaselineLow}-${wedBaselineHigh} lbs. Flush starts tomorrow.`;
-            break;
-          case 4: // Thursday - Flush begins
-            currentDayContext = 'Flush day - water weight dropping. Zero fiber. Switch to distilled.';
-            break;
-          case 5: // Friday - Critical checkpoint
-            currentDayContext = `CRITICAL: Must be ${friLow}-${friHigh} lbs by evening for safe overnight cut`;
-            break;
-          case 6: // Saturday - Competition
-            currentDayContext = 'Competition day - hit weight class, then rehydrate immediately';
-            break;
+        if (daysUntilWeighIn < 0) {
+          currentDayContext = 'Recovery day - return to walk-around weight with protein refeed';
+        } else if (daysUntilWeighIn === 0) {
+          currentDayContext = 'Competition day - hit weight class, then rehydrate immediately';
+        } else if (daysUntilWeighIn === 1) {
+          currentDayContext = `CRITICAL: Must be ${criticalLow}-${criticalHigh} lbs by evening for safe overnight cut`;
+        } else if (daysUntilWeighIn === 2) {
+          currentDayContext = 'Flush day - water weight dropping. Zero fiber. Switch to distilled.';
+        } else if (daysUntilWeighIn === 3) {
+          currentDayContext = `Last load day - checkpoint is ${midWeekBaselineLow}-${midWeekBaselineHigh} lbs. Flush starts tomorrow.`;
+        } else if (daysUntilWeighIn === 4) {
+          currentDayContext = 'Peak loading day - continue high water intake';
+        } else if (daysUntilWeighIn === 5) {
+          currentDayContext = 'Water loading day - stay hydrated, weight may fluctuate';
+        } else {
+          currentDayContext = 'Maintenance - stay at walk-around weight until cut week begins';
         }
       } else if (protocol === '3') {
         currentDayContext = 'Hold weight protocol - minimal cutting, stay near walk-around';
@@ -639,17 +705,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Calculate water loading tolerance message
-      const waterLoadBonus = w >= 175 ? 4 : w >= 150 ? 3 : 2;
-      const waterLoadingAdjustment = isWaterLoadingDay
+      const waterLoadingAdjustment = waterLoading
         ? `Expect +${waterLoadBonus - 1} to +${waterLoadBonus + 1} lbs above baseline from water loading`
         : '';
 
       return {
           walkAround: `${walkAroundLow} - ${walkAroundHigh} lbs`,
-          wedTarget: `${wedBaselineLow} - ${wedBaselineHigh} lbs`,
-          friTarget: `${friLow} - ${friHigh} lbs`,
+          wedTarget: `${midWeekBaselineLow} - ${midWeekBaselineHigh} lbs`,
+          friTarget: `${criticalLow} - ${criticalHigh} lbs`,
           waterLoadingAdjustment,
-          isWaterLoadingDay,
+          isWaterLoadingDay: waterLoading,
           currentDayContext
       };
   };
@@ -667,17 +732,59 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const getPhase = (): Phase => {
+  // Helper: Get days until weigh-in (used throughout for protocol timing)
+  const getDaysUntilWeighIn = (): number => {
     const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
-    const daysUntilWeighIn = differenceInDays(profile.weighInDate, today);
+    return differenceInDays(profile.weighInDate, today);
+  };
 
-    if (dayOfWeek === 0) return 'recovery';
-    if (daysUntilWeighIn <= 1) return 'last-24h';
-    if (dayOfWeek >= 1 && dayOfWeek <= 3) return 'metabolic';
-    if (dayOfWeek === 4) return 'transition';
-    if (dayOfWeek === 5) return 'performance-prep';
-    if (dayOfWeek === 6) return 'last-24h';
+  // Helper: Check if we're in post-competition recovery (day after weigh-in)
+  const isRecoveryDay = (): boolean => {
+    const daysUntil = getDaysUntilWeighIn();
+    // Recovery is the day after competition (daysUntil is negative)
+    // Or if weigh-in was yesterday/today and it's past weigh-in time
+    return daysUntil < 0 && daysUntil >= -1;
+  };
+
+  // Helper: Get water loading bonus based on weight class
+  // <150 lbs = +2 lbs, 150-174 lbs = +3 lbs, 175+ lbs = +4 lbs
+  const getWaterLoadBonus = (): number => {
+    const w = profile.targetWeightClass;
+    if (w >= 175) return 4;
+    if (w >= 150) return 3;
+    return 2;
+  };
+
+  // Helper: Check if today is a water loading day (3-5 days out, protocols 1 & 2 only)
+  const isWaterLoadingDay = (): boolean => {
+    const protocol = profile.protocol;
+    if (protocol !== '1' && protocol !== '2') return false;
+    const daysUntil = getDaysUntilWeighIn();
+    return daysUntil >= 3 && daysUntil <= 5;
+  };
+
+  const getPhase = (): Phase => {
+    const daysUntilWeighIn = getDaysUntilWeighIn();
+
+    // Post-competition recovery
+    if (daysUntilWeighIn < 0) return 'recovery';
+
+    // Competition day
+    if (daysUntilWeighIn === 0) return 'last-24h';
+
+    // Based on days until weigh-in (not day of week)
+    // 6+ days out: maintenance/metabolic phase
+    // 5 days out: water loading day 1
+    // 4 days out: water loading day 2 (peak)
+    // 3 days out: water loading day 3
+    // 2 days out: flush/transition (distilled water, zero fiber)
+    // 1 day out: performance prep (sip only, final cut)
+    // 0 days: competition
+
+    if (daysUntilWeighIn >= 6) return 'metabolic'; // Maintenance/build phase
+    if (daysUntilWeighIn >= 3) return 'metabolic'; // Water loading phase (days 5,4,3) - same phase, different hydration
+    if (daysUntilWeighIn === 2) return 'transition'; // Flush day
+    if (daysUntilWeighIn === 1) return 'performance-prep'; // Cut day
 
     return 'metabolic';
   };
@@ -685,23 +792,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getHydrationTarget = () => {
     const w = profile.targetWeightClass;
     const phase = getPhase();
-    const useAdvancedLogic = profile.dashboardMode === 'pro' || profile.protocol === '1';
-    const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
+    const useAdvancedLogic = profile.dashboardMode === 'pro' || profile.protocol === '1' || profile.protocol === '2';
+    const daysUntilWeighIn = getDaysUntilWeighIn();
 
     const galToOz = (gal: number) => gal * 128;
+    const isHeavy = w >= 175;
+    const isMedium = w >= 150 && w < 175;
 
+    // Protocol 1 & 2: Use days-until-weigh-in for water loading schedule
     if (useAdvancedLogic) {
-       const isHeavy = w >= 175;
-       const isMedium = w >= 150 && w < 175;
+      // Recovery day (after competition)
+      if (daysUntilWeighIn < 0) {
+        return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", type: "Regular", note: "Rehydrate fully", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0) };
+      }
 
-       if (dayOfWeek === 1) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", type: "Regular", note: "Baseline Hydration", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0) };
-       if (dayOfWeek === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Regular", note: "Increase Diuresis", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
-       if (dayOfWeek === 3) return { amount: isHeavy ? "2.0 gal" : isMedium ? "1.75 gal" : "1.5 gal", type: "Regular", note: "Peak Hydration", targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5) };
-       if (dayOfWeek === 4) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Distilled", note: "Switch to Distilled", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
-       if (dayOfWeek === 5) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", type: "Distilled", note: "Flush Phase - Cut Sodium", targetOz: isHeavy ? 14 : isMedium ? 10 : 9 };
+      // Competition day
+      if (daysUntilWeighIn === 0) {
+        return { amount: "Rehydrate", type: "Regular", note: "Post-weigh-in rehydration", targetOz: galToOz(1.0) };
+      }
+
+      // 7+ days out: maintenance hydration
+      if (daysUntilWeighIn >= 7) {
+        return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", type: "Regular", note: "Maintenance hydration", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75) };
+      }
+
+      // Water loading phase (5, 4, 3 days out)
+      if (daysUntilWeighIn === 5) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", type: "Regular", note: "Water loading day 1", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0) };
+      if (daysUntilWeighIn === 4) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Regular", note: "Water loading day 2 (peak)", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
+      if (daysUntilWeighIn === 3) return { amount: isHeavy ? "2.0 gal" : isMedium ? "1.75 gal" : "1.5 gal", type: "Regular", note: "Water loading day 3", targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5) };
+
+      // Flush day (2 days out)
+      if (daysUntilWeighIn === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Distilled", note: "Flush day - switch to distilled", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
+
+      // Cut day (1 day out)
+      if (daysUntilWeighIn === 1) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", type: "Distilled", note: "Sip only - final cut", targetOz: isHeavy ? 14 : isMedium ? 10 : 9 };
+
+      // 6 days out (transition to loading)
+      if (daysUntilWeighIn === 6) return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", type: "Regular", note: "Prep for water loading", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75) };
     }
 
+    // Fallback for other protocols
     if (phase === 'metabolic' || phase === 'transition') {
       let amount = "90-105 oz";
       let targetOz = 98;
@@ -728,168 +858,192 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getMacroTargets = () => {
     const w = profile.currentWeight || profile.targetWeightClass;
-    const wKg = w / 2.2;
     const protocol = profile.protocol;
-    const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
+    const daysUntilWeighIn = getDaysUntilWeighIn();
 
     // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
     // Extended 0 protein period, maximum FGF21 activation
     if (protocol === '1') {
-      // Monday-Thursday: 0g protein (4 days fructose only - max fat burning)
-      if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+      // Recovery: day after competition (1.4g/lb full recovery)
+      if (daysUntilWeighIn < 0) {
         return {
-          carbs: { min: 250, max: 400 },
-          protein: { min: 0, max: 0 },
-          ratio: "Fructose Only (60:40)"
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
+          ratio: "Full Recovery"
         };
       }
-      // Friday: 0.20g/lb protein evening only (~35g for 175lb) - GDF15 peak
-      if (dayOfWeek === 5) {
-        return {
-          carbs: { min: 200, max: 300 },
-          protein: { min: Math.round(w * 0.2), max: Math.round(w * 0.2) },
-          ratio: "Fructose + MCT (Evening Protein)"
-        };
-      }
-      // Saturday: 1.0g/lb protein (aggressive refeed post-weigh-in)
-      if (dayOfWeek === 6) {
+      // Competition day: 1.0g/lb protein (aggressive refeed post-weigh-in)
+      if (daysUntilWeighIn === 0) {
         return {
           carbs: { min: 150, max: 300 },
           protein: { min: Math.round(w * 1.0), max: Math.round(w * 1.0) },
           ratio: "Low Carb / Protein Refeed"
         };
       }
-      // Sunday: 1.4g/lb (full recovery)
-      if (dayOfWeek === 0) {
+      // 1 day out (performance prep): 0.20g/lb protein evening only - GDF15 peak
+      if (daysUntilWeighIn === 1) {
+        return {
+          carbs: { min: 200, max: 300 },
+          protein: { min: Math.round(w * 0.2), max: Math.round(w * 0.2) },
+          ratio: "Fructose + MCT (Evening Protein)"
+        };
+      }
+      // 2-5 days out (water loading / metabolic): 0g protein (fructose only - max fat burning)
+      if (daysUntilWeighIn >= 2 && daysUntilWeighIn <= 5) {
+        return {
+          carbs: { min: 250, max: 400 },
+          protein: { min: 0, max: 0 },
+          ratio: "Fructose Only (60:40)"
+        };
+      }
+      // 6+ days out: maintenance with moderate protein
+      return {
+        carbs: { min: 300, max: 450 },
+        protein: { min: 75, max: 100 },
+        ratio: "Maintenance"
+      };
+    }
+
+    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
+    if (protocol === '2') {
+      // Recovery: day after competition (1.4g/lb recovery refeed)
+      if (daysUntilWeighIn < 0) {
         return {
           carbs: { min: 300, max: 450 },
           protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
           ratio: "Full Recovery"
         };
       }
-    }
-
-    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
-    if (protocol === '2') {
-      // Monday-Tuesday: 0g protein (fructose only)
-      if (dayOfWeek === 1 || dayOfWeek === 2) {
-        return {
-          carbs: { min: 325, max: 450 },
-          protein: { min: 0, max: 0 },
-          ratio: "Fructose Heavy (60:40)"
-        };
-      }
-      // Wednesday: 25g protein (collagen + leucine at dinner)
-      if (dayOfWeek === 3) {
-        return {
-          carbs: { min: 325, max: 450 },
-          protein: { min: 25, max: 25 },
-          ratio: "Fructose Heavy (60:40)"
-        };
-      }
-      // Thursday-Friday: 60g protein (collagen + seafood)
-      if (dayOfWeek === 4 || dayOfWeek === 5) {
-        return {
-          carbs: { min: 300, max: 400 },
-          protein: { min: 60, max: 60 },
-          ratio: "Glucose Heavy (Switch to Starch)"
-        };
-      }
-      // Saturday: 0.5g/lb (post-weigh-in rebuild)
-      if (dayOfWeek === 6) {
+      // Competition day: 0.5g/lb (post-weigh-in rebuild)
+      if (daysUntilWeighIn === 0) {
         return {
           carbs: { min: 200, max: 400 },
           protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
           ratio: "Fast Carbs (Between Matches)"
         };
       }
-      // Sunday: 1.4g/lb (recovery refeed)
-      if (dayOfWeek === 0) {
+      // 1-2 days out (transition/performance prep): 60g protein (collagen + seafood)
+      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2) {
+        return {
+          carbs: { min: 300, max: 400 },
+          protein: { min: 60, max: 60 },
+          ratio: "Glucose Heavy (Switch to Starch)"
+        };
+      }
+      // 3 days out: 25g protein (collagen + leucine at dinner)
+      if (daysUntilWeighIn === 3) {
+        return {
+          carbs: { min: 325, max: 450 },
+          protein: { min: 25, max: 25 },
+          ratio: "Fructose Heavy (60:40)"
+        };
+      }
+      // 4-5 days out (water loading): 0g protein (fructose only)
+      if (daysUntilWeighIn >= 4 && daysUntilWeighIn <= 5) {
+        return {
+          carbs: { min: 325, max: 450 },
+          protein: { min: 0, max: 0 },
+          ratio: "Fructose Heavy (60:40)"
+        };
+      }
+      // 6+ days out: maintenance with moderate protein
+      return {
+        carbs: { min: 300, max: 450 },
+        protein: { min: 75, max: 100 },
+        ratio: "Maintenance"
+      };
+    }
+
+    // Protocol 3: Maintain / Hold Weight Phase
+    if (protocol === '3') {
+      // Recovery: day after competition (1.4g/lb)
+      if (daysUntilWeighIn < 0) {
         return {
           carbs: { min: 300, max: 450 },
           protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
           ratio: "Full Recovery"
         };
       }
-    }
-
-    if (protocol === '3') {
-      // Monday: 25g protein
-      if (dayOfWeek === 1) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: 25, max: 25 },
-          ratio: "Fructose Heavy"
-        };
-      }
-      // Tuesday-Wednesday: 75g protein
-      if (dayOfWeek === 2 || dayOfWeek === 3) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: 75, max: 75 },
-          ratio: "Mixed Fructose/Glucose"
-        };
-      }
-      // Thursday-Friday: 100g protein
-      if (dayOfWeek === 4 || dayOfWeek === 5) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: 100, max: 100 },
-          ratio: "Performance (Glucose)"
-        };
-      }
-      // Saturday: 0.5g/lb
-      if (dayOfWeek === 6) {
+      // Competition day: 0.5g/lb
+      if (daysUntilWeighIn === 0) {
         return {
           carbs: { min: 200, max: 400 },
           protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
           ratio: "Competition Day"
         };
       }
-      // Sunday: 1.4g/lb
-      if (dayOfWeek === 0) {
+      // 1-2 days out: 100g protein (performance glucose)
+      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2) {
         return {
           carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
-          ratio: "Full Recovery"
+          protein: { min: 100, max: 100 },
+          ratio: "Performance (Glucose)"
         };
       }
+      // 3-4 days out: 75g protein (mixed)
+      if (daysUntilWeighIn >= 3 && daysUntilWeighIn <= 4) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: 75, max: 75 },
+          ratio: "Mixed Fructose/Glucose"
+        };
+      }
+      // 5 days out: 25g protein (fructose heavy)
+      if (daysUntilWeighIn === 5) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: 25, max: 25 },
+          ratio: "Fructose Heavy"
+        };
+      }
+      // 6+ days out: maintenance
+      return {
+        carbs: { min: 300, max: 450 },
+        protein: { min: 100, max: 100 },
+        ratio: "Maintenance"
+      };
     }
 
+    // Protocol 4: Hypertrophy / Build Phase (Off-season)
     if (protocol === '4') {
-      // Monday: 100g protein
-      if (dayOfWeek === 1) {
-        return {
-          carbs: { min: 350, max: 600 },
-          protein: { min: 100, max: 100 },
-          ratio: "Balanced Carbs"
-        };
-      }
-      // Tuesday-Friday: 125g protein
-      if (dayOfWeek >= 2 && dayOfWeek <= 5) {
-        return {
-          carbs: { min: 350, max: 600 },
-          protein: { min: 125, max: 125 },
-          ratio: "Glucose Emphasis"
-        };
-      }
-      // Saturday: 0.8g/lb
-      if (dayOfWeek === 6) {
-        return {
-          carbs: { min: 200, max: 400 },
-          protein: { min: Math.round(w * 0.8), max: Math.round(w * 0.8) },
-          ratio: "Competition Day"
-        };
-      }
-      // Sunday: 1.6g/lb
-      if (dayOfWeek === 0) {
+      // Recovery: day after competition (1.6g/lb max protein)
+      if (daysUntilWeighIn < 0) {
         return {
           carbs: { min: 300, max: 450 },
           protein: { min: Math.round(w * 1.6), max: Math.round(w * 1.6) },
           ratio: "Full Recovery (Max Protein)"
         };
       }
+      // Competition day: 0.8g/lb
+      if (daysUntilWeighIn === 0) {
+        return {
+          carbs: { min: 200, max: 400 },
+          protein: { min: Math.round(w * 0.8), max: Math.round(w * 0.8) },
+          ratio: "Competition Day"
+        };
+      }
+      // 1-4 days out: 125g protein (glucose emphasis)
+      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 4) {
+        return {
+          carbs: { min: 350, max: 600 },
+          protein: { min: 125, max: 125 },
+          ratio: "Glucose Emphasis"
+        };
+      }
+      // 5 days out: 100g protein (balanced carbs)
+      if (daysUntilWeighIn === 5) {
+        return {
+          carbs: { min: 350, max: 600 },
+          protein: { min: 100, max: 100 },
+          ratio: "Balanced Carbs"
+        };
+      }
+      // 6+ days out: build phase maintenance
+      return {
+        carbs: { min: 350, max: 600 },
+        protein: { min: 125, max: 150 },
+        ratio: "Build Phase"
+      };
     }
 
     return {
@@ -903,10 +1057,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return {
       highFructose: [
         { name: "Agave syrup", ratio: "90:10", serving: "1 Tbsp", carbs: 16, note: "Highest fructose" },
-        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, note: "Fast absorption, no pulp" },
-        { name: "Pear juice", ratio: "65:35", serving: "8 oz", carbs: 26, note: "High fructose" },
-        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, note: "Balanced" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, note: "Vitamin C" },
+        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, oz: 8, note: "Fast absorption, no pulp" },
+        { name: "Pear juice", ratio: "65:35", serving: "8 oz", carbs: 26, oz: 8, note: "High fructose" },
+        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, oz: 8, note: "Balanced" },
+        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, oz: 8, note: "Vitamin C" },
         { name: "Apples", ratio: "65:35", serving: "1 medium", carbs: 25, note: "Portable" },
         { name: "Pears", ratio: "65:35", serving: "1 medium", carbs: 27, note: "High fructose" },
         { name: "Grapes", ratio: "48:52", serving: "1 cup", carbs: 27, note: "Convenient" },
@@ -919,7 +1073,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         { name: "Honey", ratio: "50:50", serving: "1 Tbsp", carbs: 17, note: "All phases" },
         { name: "Sugar", ratio: "50:50", serving: "1 Tbsp", carbs: 12, note: "Simple" },
         { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Zero fiber" },
-        { name: "Coconut water", ratio: "40:60", serving: "8 oz", carbs: 9, note: "Potassium" },
+        { name: "Coconut water", ratio: "40:60", serving: "8 oz", carbs: 9, oz: 8, note: "Potassium + electrolytes" },
       ],
       highGlucose: [
         { name: "White rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Primary Thu-Fri" },
@@ -931,9 +1085,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         { name: "Rice Krispies", ratio: "0:100", serving: "1 cup", carbs: 26, note: "With honey/juice" },
         { name: "White bread (<1g fiber)", ratio: "0:100", serving: "2 slices", carbs: 26, note: "Check label" },
         { name: "Sourdough", ratio: "0:100", serving: "2 slices", carbs: 30, note: "Easy digestion" },
-        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, note: "Zero fiber" },
-        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, note: "Zero fiber" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, note: "Zero fiber" },
+        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, oz: 8, note: "Zero fiber" },
+        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, oz: 8, note: "Zero fiber" },
+        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, oz: 8, note: "Zero fiber" },
         { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Portable" },
       ],
       balanced: [
@@ -960,9 +1114,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         { name: "Rice Krispies", ratio: "0:100", serving: "1 cup", carbs: 26, note: "With honey/juice" },
         { name: "White bread (<1g fiber)", ratio: "0:100", serving: "2 slices", carbs: 26, note: "Check label" },
         { name: "Sourdough", ratio: "0:100", serving: "2 slices", carbs: 30, note: "Easy digestion" },
-        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, note: "Zero fiber" },
-        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, note: "Zero fiber" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, note: "Zero fiber" },
+        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, oz: 8, note: "Zero fiber" },
+        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, oz: 8, note: "Zero fiber" },
+        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, oz: 8, note: "Zero fiber" },
         { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Portable" },
         { name: "Honey", ratio: "50:50", serving: "2 Tbsp", carbs: 34, note: "Pure sugar" },
         { name: "Dextrose powder", ratio: "0:100", serving: "40g", carbs: 40, note: "No fiber" },
@@ -1526,370 +1680,308 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getWeeklyPlan = (): DayPlan[] => {
     const w = profile.targetWeightClass;
-    const wKg = w / 2.2;
     const today = profile.simulatedDate || new Date();
     const currentDayOfWeek = getDay(today);
     const protocol = profile.protocol;
 
     const isHeavy = w >= 175;
     const isMedium = w >= 150 && w < 175;
+    const waterLoadBonus = isHeavy ? 4 : isMedium ? 3 : 2;
 
     const galToOz = (gal: number) => Math.round(gal * 128);
 
+    // Helper to get days until weigh-in for a specific calendar day
+    const getDaysUntilForDay = (dayNum: number): number => {
+      // dayNum: 0=Sun, 1=Mon, 2=Tue, etc.
+      const daysFromToday = dayNum >= currentDayOfWeek
+        ? dayNum - currentDayOfWeek
+        : 7 - currentDayOfWeek + dayNum;
+      const targetDate = addDays(today, daysFromToday);
+      return differenceInDays(profile.weighInDate, targetDate);
+    };
+
+    // Helper to get phase name based on days until weigh-in
+    const getPhaseForDays = (daysUntil: number): string => {
+      if (daysUntil < 0) return 'Recover';
+      if (daysUntil === 0) return 'Compete';
+      if (daysUntil === 1) return 'Cut';
+      if (daysUntil === 2) return 'Cut';
+      if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
+      return 'Train';
+    };
+
+    // Helper to check if a day is a water loading day (3-5 days out for protocols 1 & 2)
+    const isWaterLoadingForDays = (daysUntil: number): boolean => {
+      if (protocol !== '1' && protocol !== '2') return false;
+      return daysUntil >= 3 && daysUntil <= 5;
+    };
+
     // Protocol 4 (Build Phase) - No weight cutting, maintain/gain weight
+    // Uses days-until-weigh-in for competition/recovery timing
     if (protocol === '4') {
-      const buildDays: DayPlan[] = [
-        {
-          day: 'Monday',
-          dayNum: 1,
-          phase: 'Train',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
-            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-            type: 'Regular'
-          },
-          carbs: { min: 350, max: 600 },
-          protein: { min: 100, max: 100 },
-          isToday: currentDayOfWeek === 1,
-          isTomorrow: currentDayOfWeek === 0
-        },
-        {
-          day: 'Tuesday',
-          dayNum: 2,
-          phase: 'Train',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
-            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-            type: 'Regular'
-          },
-          carbs: { min: 350, max: 600 },
-          protein: { min: 125, max: 125 },
-          isToday: currentDayOfWeek === 2,
-          isTomorrow: currentDayOfWeek === 1
-        },
-        {
-          day: 'Wednesday',
-          dayNum: 3,
-          phase: 'Train',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
-            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-            type: 'Regular'
-          },
-          carbs: { min: 350, max: 600 },
-          protein: { min: 125, max: 125 },
-          isToday: currentDayOfWeek === 3,
-          isTomorrow: currentDayOfWeek === 2
-        },
-        {
-          day: 'Thursday',
-          dayNum: 4,
-          phase: 'Train',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
-            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-            type: 'Regular'
-          },
-          carbs: { min: 350, max: 600 },
-          protein: { min: 125, max: 125 },
-          isToday: currentDayOfWeek === 4,
-          isTomorrow: currentDayOfWeek === 3
-        },
-        {
-          day: 'Friday',
-          dayNum: 5,
-          phase: 'Light',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun order
+
+      const buildDays: DayPlan[] = dayOrder.map(dayNum => {
+        const daysUntil = getDaysUntilForDay(dayNum);
+        const prevDayNum = dayNum === 0 ? 6 : dayNum - 1;
+
+        // Determine phase based on days until weigh-in
+        let phase = 'Train';
+        let carbs = { min: 350, max: 600 };
+        let protein = { min: 125, max: 125 };
+        let water = {
+          amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+          targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+          type: 'Regular'
+        };
+
+        if (daysUntil < 0) {
+          // Recovery day (day after competition)
+          phase = 'Recover';
+          carbs = { min: 300, max: 450 };
+          protein = { min: Math.round(w * 1.6), max: Math.round(w * 1.6) };
+        } else if (daysUntil === 0) {
+          // Competition day
+          phase = 'Compete';
+          carbs = { min: 200, max: 400 };
+          protein = { min: Math.round(w * 0.8), max: Math.round(w * 0.8) };
+        } else if (daysUntil === 1) {
+          // Day before competition - light training
+          phase = 'Light';
+          water = {
             amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
             targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
             type: 'Regular'
-          },
-          carbs: { min: 350, max: 600 },
-          protein: { min: 125, max: 125 },
-          isToday: currentDayOfWeek === 5,
-          isTomorrow: currentDayOfWeek === 4
-        },
-        {
-          day: 'Saturday',
-          dayNum: 6,
-          phase: 'Compete',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
-            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-            type: 'Regular'
-          },
-          carbs: { min: 200, max: 400 },
-          protein: { min: Math.round(w * 0.8), max: Math.round(w * 0.8) },
-          isToday: currentDayOfWeek === 6,
-          isTomorrow: currentDayOfWeek === 5
-        },
-        {
-          day: 'Sunday',
-          dayNum: 0,
-          phase: 'Recover',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
-            amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-            targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-            type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.6), max: Math.round(w * 1.6) },
-          isToday: currentDayOfWeek === 0,
-          isTomorrow: currentDayOfWeek === 6
+          };
+        } else if (daysUntil === 5) {
+          // 5 days out - slightly lower protein
+          protein = { min: 100, max: 100 };
         }
-      ];
+
+        return {
+          day: dayNames[dayNum],
+          dayNum,
+          phase,
+          weightTarget: { morning: w, postPractice: w },
+          water,
+          carbs,
+          protein,
+          isToday: currentDayOfWeek === dayNum,
+          isTomorrow: currentDayOfWeek === prevDayNum
+        };
+      });
       return buildDays;
     }
 
     // Protocol 3 (Hold Weight) - Minimal cutting, maintain walk-around weight
+    // Uses days-until-weigh-in for competition timing
     if (protocol === '3') {
-      const holdDays: DayPlan[] = [
-        {
-          day: 'Monday',
-          dayNum: 1,
-          phase: 'Maintain',
-          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
-          water: {
-            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
-            type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: 25, max: 25 },
-          isToday: currentDayOfWeek === 1,
-          isTomorrow: currentDayOfWeek === 0
-        },
-        {
-          day: 'Tuesday',
-          dayNum: 2,
-          phase: 'Maintain',
-          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
-          water: {
-            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
-            type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: 75, max: 75 },
-          isToday: currentDayOfWeek === 2,
-          isTomorrow: currentDayOfWeek === 1
-        },
-        {
-          day: 'Wednesday',
-          dayNum: 3,
-          phase: 'Maintain',
-          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
-          water: {
-            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
-            type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: 75, max: 75 },
-          isToday: currentDayOfWeek === 3,
-          isTomorrow: currentDayOfWeek === 2
-        },
-        {
-          day: 'Thursday',
-          dayNum: 4,
-          phase: 'Prep',
-          weightTarget: { morning: Math.round(w * 1.04), postPractice: Math.round(w * 1.04) },
-          water: {
-            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
-            type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: 100, max: 100 },
-          isToday: currentDayOfWeek === 4,
-          isTomorrow: currentDayOfWeek === 3
-        },
-        {
-          day: 'Friday',
-          dayNum: 5,
-          phase: 'Prep',
-          weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.03) },
-          water: {
-            amount: isHeavy ? '1.0 gal' : isMedium ? '0.75 gal' : '0.5 gal',
-            targetOz: galToOz(isHeavy ? 1.0 : isMedium ? 0.75 : 0.5),
-            type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: 100, max: 100 },
-          isToday: currentDayOfWeek === 5,
-          isTomorrow: currentDayOfWeek === 4
-        },
-        {
-          day: 'Saturday',
-          dayNum: 6,
-          phase: 'Compete',
-          weightTarget: { morning: w, postPractice: w },
-          water: {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun order
+
+      const holdDays: DayPlan[] = dayOrder.map(dayNum => {
+        const daysUntil = getDaysUntilForDay(dayNum);
+        const prevDayNum = dayNum === 0 ? 6 : dayNum - 1;
+
+        // Default maintenance values
+        let phase = 'Maintain';
+        let weightTarget = { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) };
+        let carbs = { min: 300, max: 450 };
+        let protein = { min: 75, max: 75 };
+        let water = {
+          amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
+          targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+          type: 'Regular'
+        };
+
+        if (daysUntil < 0) {
+          // Recovery day
+          phase = 'Recover';
+          protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
+        } else if (daysUntil === 0) {
+          // Competition day
+          phase = 'Compete';
+          weightTarget = { morning: w, postPractice: w };
+          carbs = { min: 200, max: 400 };
+          protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
+          water = {
             amount: 'Rehydrate',
             targetOz: galToOz(1.0),
             type: 'Rehydrate'
-          },
-          carbs: { min: 200, max: 400 },
-          protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
-          isToday: currentDayOfWeek === 6,
-          isTomorrow: currentDayOfWeek === 5
-        },
-        {
-          day: 'Sunday',
-          dayNum: 0,
-          phase: 'Recover',
-          weightTarget: { morning: Math.round(w * 1.05), postPractice: Math.round(w * 1.05) },
-          water: {
-            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
+          };
+        } else if (daysUntil === 1) {
+          // Day before - prep with lower water
+          phase = 'Prep';
+          weightTarget = { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.03) };
+          protein = { min: 100, max: 100 };
+          water = {
+            amount: isHeavy ? '1.0 gal' : isMedium ? '0.75 gal' : '0.5 gal',
+            targetOz: galToOz(isHeavy ? 1.0 : isMedium ? 0.75 : 0.5),
             type: 'Regular'
-          },
-          carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
-          isToday: currentDayOfWeek === 0,
-          isTomorrow: currentDayOfWeek === 6
+          };
+        } else if (daysUntil === 2) {
+          // 2 days out - prep
+          phase = 'Prep';
+          weightTarget = { morning: Math.round(w * 1.04), postPractice: Math.round(w * 1.04) };
+          protein = { min: 100, max: 100 };
+        } else if (daysUntil >= 5) {
+          // 5+ days out - lower protein maintenance
+          protein = { min: 25, max: 25 };
         }
-      ];
+
+        return {
+          day: dayNames[dayNum],
+          dayNum,
+          phase,
+          weightTarget,
+          water,
+          carbs,
+          protein,
+          isToday: currentDayOfWeek === dayNum,
+          isTomorrow: currentDayOfWeek === prevDayNum
+        };
+      });
       return holdDays;
     }
 
     // Protocols 1 & 2 (Body Comp & Make Weight) - Full cutting protocol
-    // Targets from PDF chart - walk-around already accounts for hydration
-    // Mon AM: 6-7% over (walk-around)
-    // Wed PM: 4-5% over (checkpoint)
-    // Fri PM: 2-3% over (critical checkpoint)
-    // Sat: competition weight
+    // Uses days-until-weigh-in for all timing:
+    // 5 days out: Water loading starts (walk-around + water bonus)
+    // 4 days out: Peak water loading
+    // 3 days out: Last load day
+    // 2 days out: Flush/transition (distilled, zero fiber)
+    // 1 day out: Critical checkpoint (sip only)
+    // 0 days: Competition day
+    // -1 day: Recovery
+    // 6+ days out: Maintenance/build phase
 
-    const days: DayPlan[] = [
-      {
-        day: 'Monday',
-        dayNum: 1,
-        phase: 'Load',
-        weightTarget: {
-          morning: Math.round(w * 1.07),
-          postPractice: Math.round(w * 1.07)
-        },
-        water: {
-          amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-          targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-          type: 'Regular'
-        },
-        carbs: { min: 325, max: 450 },
-        protein: { min: 0, max: 0 },
-        isToday: currentDayOfWeek === 1,
-        isTomorrow: currentDayOfWeek === 0,
-        waterLoadingNote: 'Water loading day - stay hydrated, weight will fluctuate'
-      },
-      {
-        day: 'Tuesday',
-        dayNum: 2,
-        phase: 'Load',
-        weightTarget: {
-          morning: Math.round(w * 1.06),
-          postPractice: Math.round(w * 1.06)
-        },
-        water: {
-          amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
-          targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
-          type: 'Regular'
-        },
-        carbs: { min: 325, max: 450 },
-        protein: { min: 0, max: 0 },
-        isToday: currentDayOfWeek === 2,
-        isTomorrow: currentDayOfWeek === 1,
-        waterLoadingNote: 'Peak loading day - continue high water intake'
-      },
-      {
-        day: 'Wednesday',
-        dayNum: 3,
-        phase: 'Load',
-        weightTarget: {
-          morning: Math.round(w * 1.05),
-          postPractice: Math.round(w * 1.05)
-        },
-        water: {
-          amount: isHeavy ? '2.0 gal' : isMedium ? '1.75 gal' : '1.5 gal',
-          targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5),
-          type: 'Regular'
-        },
-        carbs: { min: 325, max: 450 },
-        protein: { min: 25, max: 25 },
-        isToday: currentDayOfWeek === 3,
-        isTomorrow: currentDayOfWeek === 2,
-        waterLoadingNote: 'Last load day - Wed PM is first checkpoint. Flush starts tomorrow.'
-      },
-      {
-        day: 'Thursday',
-        dayNum: 4,
-        phase: 'Cut',
-        weightTarget: { morning: Math.round(w * 1.04), postPractice: Math.round(w * 1.04) },
-        water: {
-          amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
-          targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
-          type: 'Distilled'
-        },
-        carbs: { min: 325, max: 450 },
-        protein: { min: 50, max: 60 },
-        isToday: currentDayOfWeek === 4,
-        isTomorrow: currentDayOfWeek === 3,
-        waterLoadingNote: 'Flush day - water loading weight drops. ZERO fiber. Distilled only.'
-      },
-      {
-        day: 'Friday',
-        dayNum: 5,
-        phase: 'Cut',
-        weightTarget: { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.02) },
-        water: {
-          amount: isHeavy ? '12-16 oz' : isMedium ? '8-12 oz' : '8-10 oz',
-          targetOz: isHeavy ? 14 : isMedium ? 10 : 9,
-          type: 'Sip Only'
-        },
-        carbs: { min: 250, max: 350 },
-        protein: { min: 50, max: 60 },
-        isToday: currentDayOfWeek === 5,
-        isTomorrow: currentDayOfWeek === 4,
-        isCriticalCheckpoint: true,
-        waterLoadingNote: `CRITICAL: Must be ${Math.round(w * 1.02)}-${Math.round(w * 1.03)} lbs by evening for safe cut`
-      },
-      {
-        day: 'Saturday',
-        dayNum: 6,
-        phase: 'Compete',
-        weightTarget: { morning: w, postPractice: w },
-        water: {
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun order
+
+    const days: DayPlan[] = dayOrder.map(dayNum => {
+      const daysUntil = getDaysUntilForDay(dayNum);
+      const prevDayNum = dayNum === 0 ? 6 : dayNum - 1;
+      const isWaterLoading = isWaterLoadingForDays(daysUntil);
+
+      // Default values
+      let phase = 'Train';
+      let weightTarget = { morning: Math.round(w * 1.07), postPractice: Math.round(w * 1.07) };
+      let carbs = { min: 300, max: 450 };
+      let protein = { min: 75, max: 100 };
+      let water = {
+        amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
+        targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
+        type: 'Regular'
+      };
+      let waterLoadingNote: string | undefined;
+      let isCriticalCheckpoint = false;
+
+      if (daysUntil < 0) {
+        // Recovery day (day after competition)
+        phase = 'Recover';
+        weightTarget = { morning: Math.round(w * 1.07), postPractice: Math.round(w * 1.07) };
+        carbs = { min: 300, max: 450 };
+        protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
+        waterLoadingNote = 'Recovery day - return to walk-around weight with protein refeed';
+      } else if (daysUntil === 0) {
+        // Competition day
+        phase = 'Compete';
+        weightTarget = { morning: w, postPractice: w };
+        carbs = { min: 200, max: 400 };
+        protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
+        water = {
           amount: 'Rehydrate',
           targetOz: galToOz(1.0),
           type: 'Rehydrate'
-        },
-        carbs: { min: 200, max: 400 },
-        protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
-        isToday: currentDayOfWeek === 6,
-        isTomorrow: currentDayOfWeek === 5
-      },
-      {
-        day: 'Sunday',
-        dayNum: 0,
-        phase: 'Recover',
-        weightTarget: { morning: Math.round(w * 1.07), postPractice: Math.round(w * 1.07) },
-        water: {
+        };
+      } else if (daysUntil === 1) {
+        // Critical checkpoint - day before competition (sip only)
+        phase = 'Cut';
+        weightTarget = { morning: Math.round(w * 1.03), postPractice: Math.round(w * 1.02) };
+        carbs = { min: 250, max: 350 };
+        protein = { min: 50, max: 60 };
+        water = {
+          amount: isHeavy ? '12-16 oz' : isMedium ? '8-12 oz' : '8-10 oz',
+          targetOz: isHeavy ? 14 : isMedium ? 10 : 9,
+          type: 'Sip Only'
+        };
+        isCriticalCheckpoint = true;
+        waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${Math.round(w * 1.03)} lbs by evening for safe cut`;
+      } else if (daysUntil === 2) {
+        // Flush day - transition (distilled, zero fiber)
+        phase = 'Cut';
+        weightTarget = { morning: Math.round(w * 1.04), postPractice: Math.round(w * 1.04) };
+        carbs = { min: 325, max: 450 };
+        protein = { min: 50, max: 60 };
+        water = {
+          amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
+          targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
+          type: 'Distilled'
+        };
+        waterLoadingNote = 'Flush day - water loading weight drops. ZERO fiber. Distilled only.';
+      } else if (daysUntil === 3) {
+        // Last load day
+        phase = 'Load';
+        weightTarget = {
+          morning: Math.round(w * 1.05) + waterLoadBonus,
+          postPractice: Math.round(w * 1.05) + waterLoadBonus
+        };
+        carbs = { min: 325, max: 450 };
+        protein = { min: 25, max: 25 };
+        water = {
+          amount: isHeavy ? '2.0 gal' : isMedium ? '1.75 gal' : '1.5 gal',
+          targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5),
+          type: 'Regular'
+        };
+        waterLoadingNote = `Last load day - still +${waterLoadBonus} lbs. Flush starts tomorrow.`;
+      } else if (daysUntil === 4) {
+        // Peak water loading day
+        phase = 'Load';
+        weightTarget = {
+          morning: Math.round(w * 1.06) + waterLoadBonus,
+          postPractice: Math.round(w * 1.06) + waterLoadBonus
+        };
+        carbs = { min: 325, max: 450 };
+        protein = { min: 0, max: 0 };
+        water = {
+          amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
+          targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
+          type: 'Regular'
+        };
+        waterLoadingNote = `Peak loading day - heaviest day is normal (+${waterLoadBonus} lbs)`;
+      } else if (daysUntil === 5) {
+        // First water loading day
+        phase = 'Load';
+        weightTarget = {
+          morning: Math.round(w * 1.07) + waterLoadBonus,
+          postPractice: Math.round(w * 1.07) + waterLoadBonus
+        };
+        carbs = { min: 325, max: 450 };
+        protein = { min: 0, max: 0 };
+        water = {
           amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
           targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
           type: 'Regular'
-        },
-        carbs: { min: 300, max: 450 },
-        protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
-        isToday: currentDayOfWeek === 0,
-        isTomorrow: currentDayOfWeek === 6,
-        waterLoadingNote: 'Recovery day - return to walk-around weight with protein refeed'
+        };
+        waterLoadingNote = `Water loading day - expect +${waterLoadBonus} lbs water weight`;
       }
-    ];
+      // 6+ days out stays at defaults (maintenance)
+
+      return {
+        day: dayNames[dayNum],
+        dayNum,
+        phase,
+        weightTarget,
+        water,
+        carbs,
+        protein,
+        isToday: currentDayOfWeek === dayNum,
+        isTomorrow: currentDayOfWeek === prevDayNum,
+        waterLoadingNote,
+        isCriticalCheckpoint
+      };
+    });
 
     return days;
   };
@@ -1913,27 +2005,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getDriftMetrics = () => {
+    // Logs are sorted newest first, so logs[i] is more recent than logs[i+1]
+    // Overnight drift = previous post-practice - this morning (weight LOST overnight)
+    // Session loss = pre-practice - post-practice (weight LOST during practice)
     let overnightSum = 0;
     let overnightCount = 0;
     let sessionSum = 0;
     let sessionCount = 0;
 
     for (let i = 0; i < logs.length - 1; i++) {
-        const current = logs[i];
-        const next = logs[i+1];
+        const current = logs[i];    // More recent
+        const next = logs[i+1];     // Older
 
+        // Overnight drift: morning (current) vs previous day's post-practice (next)
+        // Drift = post-practice - morning = next.weight - current.weight (positive = weight lost)
         if (current.type === 'morning' && next.type === 'post-practice') {
             const diffHours = (current.date.getTime() - next.date.getTime()) / (1000 * 60 * 60);
             if (diffHours > 6 && diffHours < 16) {
-                overnightSum += (current.weight - next.weight);
+                overnightSum += (next.weight - current.weight);
                 overnightCount++;
             }
         }
 
+        // Session loss: post-practice (current) vs pre-practice (next)
+        // Loss = pre-practice - post-practice = next.weight - current.weight (positive = weight lost)
         if (current.type === 'post-practice' && next.type === 'pre-practice') {
              const diffHours = (current.date.getTime() - next.date.getTime()) / (1000 * 60 * 60);
              if (diffHours < 4) {
-                 sessionSum += (current.weight - next.weight);
+                 sessionSum += (next.weight - current.weight);
                  sessionCount++;
              }
         }
@@ -1948,17 +2047,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getStatus = (): { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string } => {
     const target = calculateTarget();
     const currentWeight = profile.currentWeight;
-    const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
-    const protocol = profile.protocol;
-
-    // Water loading applies to protocols 1 & 2 on Mon-Wed (days 1-3)
-    const isWaterLoadingProtocol = protocol === '1' || protocol === '2';
-    const isWaterLoadingDay = isWaterLoadingProtocol && dayOfWeek >= 1 && dayOfWeek <= 3;
-
-    // Water loading adds 2-4 lbs depending on weight class
-    const w = profile.targetWeightClass;
-    const waterLoadBonus = w >= 175 ? 4 : w >= 150 ? 3 : 2;
+    const waterLoading = isWaterLoadingDay();
+    const waterLoadBonus = getWaterLoadBonus();
 
     if (currentWeight === 0) {
       return { status: 'on-track', label: 'LOG WEIGHT', color: 'text-muted-foreground', bgColor: 'bg-muted/30' };
@@ -1966,8 +2056,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const diff = currentWeight - target;
 
-    // On water loading days (Mon-Wed), allow extra tolerance for water weight
-    if (isWaterLoadingDay) {
+    // On water loading days (3-5 days out), allow extra tolerance for water weight
+    if (waterLoading) {
       // If within water loading tolerance (baseline + water bonus), show as on track
       if (diff <= waterLoadBonus + 1) {
         const note = diff > 1 ? `+${diff.toFixed(1)} lbs water weight - this is OK` : undefined;
@@ -1991,41 +2081,48 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getDailyPriority = (): { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string } => {
-    const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
     const protocol = profile.protocol;
+    const daysUntilWeighIn = getDaysUntilWeighIn();
 
+    // Protocol 4 (Build Phase) - different priorities
     if (protocol === '4') {
-      switch (dayOfWeek) {
-        case 0: return { priority: "FULL RECOVERY - 1.6g/lb protein, high carbs, repair muscle tissue", urgency: 'high', icon: 'bed' };
-        case 1: return { priority: "Train hard - fuel for muscle growth", urgency: 'normal', icon: 'dumbbell' };
-        case 2: return { priority: "Train hard - peak carb intake today", urgency: 'normal', icon: 'dumbbell' };
-        case 3: return { priority: "Train hard - maintain high protein", urgency: 'normal', icon: 'dumbbell' };
-        case 4: return { priority: "Train hard - focus on recovery nutrition", urgency: 'normal', icon: 'dumbbell' };
-        case 5: return { priority: "Light session - competition prep if needed", urgency: 'normal', icon: 'target' };
-        case 6: return { priority: "COMPETE - fast carbs between matches, minimal protein until done", urgency: 'high', icon: 'trophy' };
-        default: return { priority: "Stay on protocol", urgency: 'normal', icon: 'check' };
+      if (daysUntilWeighIn < 0) {
+        return { priority: "FULL RECOVERY - 1.6g/lb protein, high carbs, repair muscle tissue", urgency: 'high', icon: 'bed' };
       }
+      if (daysUntilWeighIn === 0) {
+        return { priority: "COMPETE - fast carbs between matches, minimal protein until done", urgency: 'high', icon: 'trophy' };
+      }
+      if (daysUntilWeighIn === 1) {
+        return { priority: "Light session - competition prep if needed", urgency: 'normal', icon: 'target' };
+      }
+      // 2+ days out - normal training
+      return { priority: "Train hard - fuel for muscle growth", urgency: 'normal', icon: 'dumbbell' };
     }
 
-    switch (dayOfWeek) {
-      case 0:
-        return { priority: "RECOVERY DAY - protein refeed, rebuild glycogen stores", urgency: 'normal', icon: 'heart' };
-      case 1:
-        return { priority: "Fill the tank - high fructose carbs, max hydration starts", urgency: 'normal', icon: 'droplets' };
-      case 2:
-        return { priority: "Continue loading - fructose heavy, peak water intake tomorrow", urgency: 'normal', icon: 'droplets' };
-      case 3:
-        return { priority: "Peak water day - hit your full gallon target", urgency: 'normal', icon: 'droplets' };
-      case 4:
-        return { priority: "ZERO FIBER - check every bite. Switch to distilled water.", urgency: 'high', icon: 'alert' };
-      case 5:
-        return { priority: "SIP ONLY - monitor weight hourly. Final push to make weight.", urgency: 'critical', icon: 'scale' };
-      case 6:
-        return { priority: "COMPETE - rehydrate smart, fuel between matches", urgency: 'high', icon: 'trophy' };
-      default:
-        return { priority: "Stay on protocol", urgency: 'normal', icon: 'check' };
+    // Protocols 1, 2, 3 - use days-until-weigh-in for priorities
+    if (daysUntilWeighIn < 0) {
+      return { priority: "RECOVERY DAY - protein refeed, rebuild glycogen stores", urgency: 'normal', icon: 'heart' };
     }
+    if (daysUntilWeighIn === 0) {
+      return { priority: "COMPETE - rehydrate smart, fuel between matches", urgency: 'high', icon: 'trophy' };
+    }
+    if (daysUntilWeighIn === 1) {
+      return { priority: "SIP ONLY - monitor weight hourly. Final push to make weight.", urgency: 'critical', icon: 'scale' };
+    }
+    if (daysUntilWeighIn === 2) {
+      return { priority: "ZERO FIBER - check every bite. Switch to distilled water.", urgency: 'high', icon: 'alert' };
+    }
+    if (daysUntilWeighIn === 3) {
+      return { priority: "Peak water day - hit your full gallon target", urgency: 'normal', icon: 'droplets' };
+    }
+    if (daysUntilWeighIn === 4) {
+      return { priority: "Continue loading - fructose heavy, peak water intake tomorrow", urgency: 'normal', icon: 'droplets' };
+    }
+    if (daysUntilWeighIn === 5) {
+      return { priority: "Fill the tank - high fructose carbs, max hydration starts", urgency: 'normal', icon: 'droplets' };
+    }
+    // 6+ days out - maintenance
+    return { priority: "Maintenance - stay at walk-around weight", urgency: 'normal', icon: 'check' };
   };
 
   const getWeekDescentData = () => {
@@ -2093,10 +2190,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     let pace: 'ahead' | 'on-track' | 'behind' | null = null;
     if (currentWeight && targetWeight) {
-      const todayTarget = calculateTarget();
-      const diff = currentWeight - todayTarget;
+      const baseTarget = calculateTarget();
+      const waterLoading = isWaterLoadingDay();
+      const waterLoadBonus = getWaterLoadBonus();
+
+      // During water loading, the effective target includes the water weight
+      const effectiveTarget = waterLoading ? baseTarget + waterLoadBonus : baseTarget;
+      const diff = currentWeight - effectiveTarget;
+
+      // Small tolerance for measurement variance (1.5 lbs)
+      const tolerance = 1.5;
+
       if (diff <= -1) pace = 'ahead';
-      else if (diff <= 1) pace = 'on-track';
+      else if (diff <= tolerance) pace = 'on-track';
       else pace = 'behind';
     }
 
@@ -2229,6 +2335,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       migrateLocalStorageToSupabase,
       hasLocalStorageData,
       calculateTarget,
+      getWaterLoadBonus,
+      isWaterLoadingDay,
+      getDaysUntilWeighIn,
       getPhase,
       getTodaysFocus,
       getHydrationTarget,

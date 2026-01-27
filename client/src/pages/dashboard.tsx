@@ -340,16 +340,23 @@ export default function Dashboard() {
               <TrendingDown className="w-4 h-4 text-primary" />
               <span className="text-xs font-bold uppercase text-muted-foreground">Week Descent</span>
             </div>
-            {descentData.pace && (
-              <span className={cn(
-                "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
-                descentData.pace === 'ahead' ? "bg-green-500/20 text-green-500" :
-                descentData.pace === 'on-track' ? "bg-primary/20 text-primary" :
-                "bg-yellow-500/20 text-yellow-500"
-              )}>
-                {descentData.pace === 'ahead' ? 'AHEAD' : descentData.pace === 'on-track' ? 'ON PACE' : 'BEHIND'}
-              </span>
-            )}
+            {descentData.pace && (() => {
+              // Show water loading aware status during Mon-Wed for Protocols 1 & 2
+              const isWaterLoadingDay = (profile.protocol === '1' || profile.protocol === '2') && dayOfWeek >= 1 && dayOfWeek <= 3;
+
+              return (
+                <span className={cn(
+                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
+                  descentData.pace === 'ahead' ? "bg-green-500/20 text-green-500" :
+                  descentData.pace === 'on-track' ? (isWaterLoadingDay ? "bg-cyan-500/20 text-cyan-500" : "bg-primary/20 text-primary") :
+                  "bg-yellow-500/20 text-yellow-500"
+                )}>
+                  {descentData.pace === 'ahead' ? 'AHEAD' :
+                   descentData.pace === 'on-track' ? (isWaterLoadingDay ? 'LOADING' : 'ON PACE') :
+                   'BEHIND'}
+                </span>
+              );
+            })()}
           </div>
 
           {/* Mini weight trend visualization */}
@@ -496,6 +503,7 @@ export default function Dashboard() {
         targetWeight={targetWeight}
         simulatedDate={profile.simulatedDate}
         readOnly={isViewingHistorical}
+        isWaterLoadingDay={checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2')}
       />
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -528,6 +536,8 @@ export default function Dashboard() {
         overnightDrift={overnightDrift}
         simulatedDate={profile.simulatedDate}
         readOnly={isViewingHistorical}
+        isWaterLoadingDay={checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2')}
+        waterLoadBonus={profile.targetWeightClass >= 175 ? 4 : profile.targetWeightClass >= 150 ? 3 : 2}
       />
 
       {/* Extra Workout */}
@@ -568,7 +578,8 @@ function DailyStep({
   targetWeight,
   targetWeightRange,
   simulatedDate,
-  readOnly = false
+  readOnly = false,
+  isWaterLoadingDay = false
 }: {
   step: number;
   title: string;
@@ -583,6 +594,7 @@ function DailyStep({
   targetWeightRange?: { min: number; max: number };
   simulatedDate?: Date | null;
   readOnly?: boolean;
+  isWaterLoadingDay?: boolean;
 }) {
   const [weight, setWeight] = useState('');
   const [isLogging, setIsLogging] = useState(false);
@@ -751,17 +763,28 @@ function DailyStep({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono font-bold text-lg text-primary">{todayLog.weight} lbs</span>
                 <span className="text-xs text-muted-foreground">at {format(new Date(todayLog.date), 'h:mm a')}</span>
-                {targetWeight !== undefined ? (
-                  <span className={cn(
-                    "text-[10px] font-bold px-1.5 py-0.5 rounded",
-                    todayLog.weight <= targetWeight ? "bg-green-500/20 text-green-500" :
-                    todayLog.weight <= targetWeight + 2 ? "bg-yellow-500/20 text-yellow-500" :
-                    "bg-destructive/20 text-destructive"
-                  )}>
-                    {todayLog.weight <= targetWeight ? "ON TARGET" :
-                     `+${(todayLog.weight - targetWeight).toFixed(1)} lbs`}
-                  </span>
-                ) : targetWeightRange ? (
+                {targetWeight !== undefined ? (() => {
+                  const diff = todayLog.weight - targetWeight;
+                  const isOnTarget = diff <= 0;
+                  // During water loading, +1-4 lbs is expected and OK
+                  const isWaterLoadingOK = isWaterLoadingDay && diff > 0 && diff <= 4;
+                  const isWaterLoadingBorderline = isWaterLoadingDay && diff > 4 && diff <= 6;
+
+                  return (
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                      isOnTarget ? "bg-green-500/20 text-green-500" :
+                      isWaterLoadingOK ? "bg-cyan-500/20 text-cyan-500" :
+                      isWaterLoadingBorderline ? "bg-yellow-500/20 text-yellow-500" :
+                      diff <= 2 ? "bg-yellow-500/20 text-yellow-500" :
+                      "bg-destructive/20 text-destructive"
+                    )}>
+                      {isOnTarget ? "ON TARGET" :
+                       isWaterLoadingOK ? `+${diff.toFixed(1)} water` :
+                       `+${diff.toFixed(1)} lbs`}
+                    </span>
+                  );
+                })() : targetWeightRange ? (
                   <span className={cn(
                     "text-[10px] font-bold px-1.5 py-0.5 rounded",
                     todayLog.weight <= targetWeightRange.max ? "bg-green-500/20 text-green-500" :
@@ -1122,7 +1145,9 @@ function WeighInSection({
   targetWeight,
   overnightDrift,
   simulatedDate,
-  readOnly = false
+  readOnly = false,
+  isWaterLoadingDay = false,
+  waterLoadBonus = 0
 }: {
   logs: any[];
   addLog: any;
@@ -1132,6 +1157,8 @@ function WeighInSection({
   overnightDrift: number | null;
   simulatedDate?: Date | null;
   readOnly?: boolean;
+  isWaterLoadingDay?: boolean;
+  waterLoadBonus?: number;
 }) {
   const today = simulatedDate || new Date();
 
@@ -1209,6 +1236,8 @@ function WeighInSection({
               targetWeight={targetWeight + 1.5}
               simulatedDate={simulatedDate}
               readOnly={readOnly}
+              isWaterLoadingDay={isWaterLoadingDay}
+              waterLoadBonus={waterLoadBonus}
             />
 
             {/* Post-Practice */}
@@ -1224,6 +1253,8 @@ function WeighInSection({
               targetWeight={targetWeight}
               simulatedDate={simulatedDate}
               readOnly={readOnly}
+              isWaterLoadingDay={isWaterLoadingDay}
+              waterLoadBonus={waterLoadBonus}
             />
 
             {/* Before Bed */}
@@ -1240,6 +1271,8 @@ function WeighInSection({
               targetWeightRange={overnightDrift === null ? { min: targetWeight + 1, max: targetWeight + 2 } : undefined}
               simulatedDate={simulatedDate}
               readOnly={readOnly}
+              isWaterLoadingDay={isWaterLoadingDay}
+              waterLoadBonus={waterLoadBonus}
             />
           </div>
         )}
@@ -1261,7 +1294,9 @@ function CompactWeighIn({
   targetWeight,
   targetWeightRange,
   simulatedDate,
-  readOnly = false
+  readOnly = false,
+  isWaterLoadingDay = false,
+  waterLoadBonus = 0
 }: {
   title: string;
   description: string;
@@ -1275,6 +1310,8 @@ function CompactWeighIn({
   targetWeightRange?: { min: number; max: number };
   simulatedDate?: Date | null;
   readOnly?: boolean;
+  isWaterLoadingDay?: boolean;
+  waterLoadBonus?: number;
 }) {
   const [weight, setWeight] = useState('');
   const [isLogging, setIsLogging] = useState(false);
@@ -1326,17 +1363,21 @@ function CompactWeighIn({
   };
 
   // Get status color based on target
+  // During water loading days, use water-loaded target for comparison
   const getStatusColor = () => {
     if (!todayLog) return "";
     if (targetWeight !== undefined) {
-      const diff = todayLog.weight - targetWeight;
+      // During water loading, the effective target includes water weight
+      const effectiveTarget = isWaterLoadingDay ? targetWeight + waterLoadBonus : targetWeight;
+      const diff = todayLog.weight - effectiveTarget;
       if (diff <= 0) return "text-green-500";
-      if (diff <= 1) return "text-yellow-500";
+      if (diff <= 1.5) return isWaterLoadingDay ? "text-cyan-500" : "text-yellow-500";
       return "text-destructive";
     }
     if (targetWeightRange) {
-      if (todayLog.weight <= targetWeightRange.max) return "text-green-500";
-      if (todayLog.weight <= targetWeightRange.max + 1) return "text-yellow-500";
+      const effectiveMax = isWaterLoadingDay ? targetWeightRange.max + waterLoadBonus : targetWeightRange.max;
+      if (todayLog.weight <= effectiveMax) return "text-green-500";
+      if (todayLog.weight <= effectiveMax + 1.5) return isWaterLoadingDay ? "text-cyan-500" : "text-yellow-500";
       return "text-destructive";
     }
     return "";

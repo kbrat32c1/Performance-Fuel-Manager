@@ -12,6 +12,7 @@ interface FoodLogEntry {
   amount: number;
   timestamp: Date;
   category: string; // fructose, glucose, zerofiber, protein
+  liquidOz?: number; // for juices/liquids that also count as water
 }
 import { cn } from "@/lib/utils";
 import { format, getDay } from "date-fns";
@@ -288,15 +289,25 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
   }, [lastAdded]);
 
   // Helper to add food with visual feedback and history tracking
-  const handleFoodAdd = (index: number, macroType: 'carbs' | 'protein', amount: number, tabType: string, foodName: string) => {
+  // Also tracks water intake for liquid foods (juice, etc.)
+  const handleFoodAdd = (index: number, macroType: 'carbs' | 'protein', amount: number, tabType: string, foodName: string, liquidOz?: number) => {
+    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
+
     if (macroType === 'carbs') {
-      updateDailyTracking(dateKey, { carbsConsumed: tracking.carbsConsumed + amount });
+      updates.carbsConsumed = tracking.carbsConsumed + amount;
     } else {
-      updateDailyTracking(dateKey, { proteinConsumed: tracking.proteinConsumed + amount });
+      updates.proteinConsumed = tracking.proteinConsumed + amount;
     }
+
+    // If this is a liquid food, also add to water intake
+    if (liquidOz && liquidOz > 0) {
+      updates.waterConsumed = tracking.waterConsumed + liquidOz;
+    }
+
+    updateDailyTracking(dateKey, updates);
     setLastAdded({ index, type: tabType, amount });
 
-    // Add to food history
+    // Add to food history (include oz info for undo and display)
     const entry: FoodLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: foodName,
@@ -304,6 +315,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
       amount,
       timestamp: new Date(),
       category: tabType,
+      liquidOz: liquidOz || undefined,
     };
     setFoodHistory(prev => [...prev, entry]);
   };
@@ -313,15 +325,21 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
     if (foodHistory.length === 0) return;
 
     const lastEntry = foodHistory[foodHistory.length - 1];
+    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
 
     // Subtract the amount from tracking
     if (lastEntry.macroType === 'carbs') {
-      const newCarbs = Math.max(0, tracking.carbsConsumed - lastEntry.amount);
-      updateDailyTracking(dateKey, { carbsConsumed: newCarbs });
+      updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - lastEntry.amount);
     } else {
-      const newProtein = Math.max(0, tracking.proteinConsumed - lastEntry.amount);
-      updateDailyTracking(dateKey, { proteinConsumed: newProtein });
+      updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - lastEntry.amount);
     }
+
+    // Also undo water if it was a liquid
+    if (lastEntry.liquidOz && lastEntry.liquidOz > 0) {
+      updates.waterConsumed = Math.max(0, tracking.waterConsumed - lastEntry.liquidOz);
+    }
+
+    updateDailyTracking(dateKey, updates);
 
     // Remove from history
     setFoodHistory(prev => prev.slice(0, -1));
@@ -630,18 +648,23 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                               </span>
                               <span className="font-medium truncate">{entry.name}</span>
                             </div>
-                            <span className={cn(
-                              "font-mono font-bold shrink-0 ml-2",
-                              entry.macroType === 'carbs'
-                                ? entry.category === 'fructose'
-                                  ? "text-green-500"
-                                  : entry.category === 'zerofiber'
-                                    ? "text-red-500"
-                                    : "text-amber-500"
-                                : "text-orange-500"
-                            )}>
-                              +{entry.amount}g {entry.macroType === 'carbs' ? 'C' : 'P'}
-                            </span>
+                            <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                              <span className={cn(
+                                "font-mono font-bold",
+                                entry.macroType === 'carbs'
+                                  ? entry.category === 'fructose'
+                                    ? "text-green-500"
+                                    : entry.category === 'zerofiber'
+                                      ? "text-red-500"
+                                      : "text-amber-500"
+                                  : "text-orange-500"
+                              )}>
+                                +{entry.amount}g {entry.macroType === 'carbs' ? 'C' : 'P'}
+                              </span>
+                              {entry.liquidOz && (
+                                <span className="font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -731,10 +754,11 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                     )}
                     {filteredFructose.map((food, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'fructose';
+                      const foodOz = (food as any).oz as number | undefined;
                       return (
                         <button
                           key={i}
-                          onClick={() => handleFoodAdd(i, 'carbs', food.carbs, 'fructose', food.name)}
+                          onClick={() => handleFoodAdd(i, 'carbs', food.carbs, 'fructose', food.name, foodOz)}
                           className={cn(
                             "w-full flex items-center justify-between rounded px-2 py-2 transition-all text-left",
                             isJustAdded
@@ -749,6 +773,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                               <Plus className="w-3 h-3 text-green-500 shrink-0" />
                             )}
                             <span className="text-[11px] font-medium text-foreground truncate">{food.name}</span>
+                            {foodOz && <span className="text-[9px] text-cyan-500 font-bold">+{foodOz}oz</span>}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] shrink-0 ml-2">
                             <span className="text-muted-foreground hidden sm:inline">{food.serving}</span>
@@ -775,10 +800,11 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                     )}
                     {filteredGlucose.map((food, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'glucose';
+                      const foodOz = (food as any).oz as number | undefined;
                       return (
                         <button
                           key={i}
-                          onClick={() => handleFoodAdd(i, 'carbs', food.carbs, 'glucose', food.name)}
+                          onClick={() => handleFoodAdd(i, 'carbs', food.carbs, 'glucose', food.name, foodOz)}
                           className={cn(
                             "w-full flex items-center justify-between rounded px-2 py-2 transition-all text-left",
                             isJustAdded
@@ -793,6 +819,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                               <Plus className="w-3 h-3 text-amber-500 shrink-0" />
                             )}
                             <span className="text-[11px] font-medium text-foreground truncate">{food.name}</span>
+                            {foodOz && <span className="text-[9px] text-cyan-500 font-bold">+{foodOz}oz</span>}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] shrink-0 ml-2">
                             <span className="text-muted-foreground hidden sm:inline">{food.serving}</span>
@@ -823,10 +850,11 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                     )}
                     {filteredZeroFiber.map((food, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'zerofiber';
+                      const foodOz = (food as any).oz as number | undefined;
                       return (
                         <button
                           key={i}
-                          onClick={() => handleFoodAdd(i, 'carbs', food.carbs, 'zerofiber', food.name)}
+                          onClick={() => handleFoodAdd(i, 'carbs', food.carbs, 'zerofiber', food.name, foodOz)}
                           className={cn(
                             "w-full flex items-center justify-between rounded px-2 py-2 transition-all text-left",
                             isJustAdded
@@ -841,6 +869,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                               <Plus className="w-3 h-3 text-red-500 shrink-0" />
                             )}
                             <span className="text-[11px] font-medium text-foreground truncate">{food.name}</span>
+                            {foodOz && <span className="text-[9px] text-cyan-500 font-bold">+{foodOz}oz</span>}
                           </div>
                           <div className="flex items-center gap-2 text-[10px] shrink-0 ml-2">
                             <span className="text-muted-foreground hidden sm:inline">{food.serving}</span>

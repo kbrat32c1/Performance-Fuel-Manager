@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor } from "lucide-react";
-import { format } from "date-fns";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar } from "lucide-react";
+import { format, differenceInDays } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
@@ -88,6 +88,30 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
               </div>
             </div>
             <div className="space-y-2">
+              <Label>Next Weigh-in Date</Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  type="date"
+                  className="pl-10 bg-muted/30 border-muted h-12"
+                  value={format(new Date(profile.weighInDate), 'yyyy-MM-dd')}
+                  onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
+                />
+              </div>
+              {(() => {
+                const daysUntil = differenceInDays(new Date(profile.weighInDate), profile.simulatedDate || new Date());
+                if (daysUntil < 0) {
+                  return <p className="text-[10px] text-yellow-500">Weigh-in has passed. Update for your next competition.</p>;
+                } else if (daysUntil === 0) {
+                  return <p className="text-[10px] text-primary font-medium">Competition day!</p>;
+                } else if (daysUntil <= 5) {
+                  return <p className="text-[10px] text-muted-foreground">{daysUntil} day{daysUntil > 1 ? 's' : ''} until weigh-in - cut week protocol active</p>;
+                } else {
+                  return <p className="text-[10px] text-muted-foreground">{daysUntil} days until weigh-in - maintenance mode until cut week</p>;
+                }
+              })()}
+            </div>
+            <div className="space-y-2 pt-2 border-t border-muted">
               <Label>Protocol</Label>
               <Select
                 value={profile.protocol}
@@ -104,26 +128,16 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
-                {profile.protocol === PROTOCOLS.BODY_COMP && 'Extreme fat loss - fructose only Mon-Thu'}
-                {profile.protocol === PROTOCOLS.MAKE_WEIGHT && 'In-season weekly cut - standard protocol'}
-                {profile.protocol === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight - maintenance'}
-                {profile.protocol === PROTOCOLS.BUILD && 'Off-season muscle gain - high calories'}
+                {profile.protocol === PROTOCOLS.BODY_COMP && 'Aggressive fat loss - 0 protein until day before'}
+                {profile.protocol === PROTOCOLS.MAKE_WEIGHT && 'Standard in-season cut - water loading protocol'}
+                {profile.protocol === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight - minimal cutting'}
+                {profile.protocol === PROTOCOLS.BUILD && 'Off-season muscle gain - no weight cutting'}
               </p>
             </div>
           </TabsContent>
 
           <TabsContent value="dates" className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Next Weigh-in Date</Label>
-              <Input
-                type="date"
-                className="bg-muted/30 border-muted h-12"
-                value={format(new Date(profile.weighInDate), 'yyyy-MM-dd')}
-                onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
-              />
-            </div>
-
-            <div className="space-y-2 pt-4 border-t border-muted">
               <Label className="flex items-center gap-2">
                 Demo Mode
                 <span className="text-[10px] text-muted-foreground font-normal">(Test different days)</span>

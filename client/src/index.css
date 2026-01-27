@@ -161,3 +161,18 @@
   font-feature-settings: "tnum";
   font-variant-numeric: tabular-nums;
 }
+
+/* iOS Safe Area Support */
+.pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.h-safe-top {
+  height: env(safe-area-inset-top, 0px);
+}
+
+/* Bottom nav needs extra padding for iOS home indicator */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+  }
+}
