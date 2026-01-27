@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays } from "date-fns";
-import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -14,6 +14,7 @@ type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
   const { logs, profile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, getHydrationTarget, getMacroTargets } = useStore();
+  const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
   const macroTargets = getMacroTargets();
@@ -27,6 +28,160 @@ export default function History() {
   const [newLogWeight, setNewLogWeight] = useState('');
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Export data to CSV
+  const exportToCSV = () => {
+    const headers = ['Date', 'Type', 'Weight (lbs)', 'Time'];
+    const rows = logs.map(log => [
+      format(new Date(log.date), 'yyyy-MM-dd'),
+      log.type,
+      log.weight,
+      format(new Date(log.date), 'HH:mm')
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `weight-log-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+    toast({ title: "Exported!", description: "Weight log exported to CSV" });
+  };
+
+  // Generate coach summary text
+  const generateCoachSummary = () => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekLogs = logs.filter(log => new Date(log.date) >= weekStart);
+    const morningLogs = weekLogs.filter(l => l.type === 'morning').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let summary = `📊 Weight Report - ${format(new Date(), 'MMM d, yyyy')}\n\n`;
+    summary += `Target: ${profile.targetWeightClass} lbs\n`;
+
+    if (descentData.startWeight && descentData.currentWeight) {
+      summary += `Start of Week: ${descentData.startWeight.toFixed(1)} lbs\n`;
+      summary += `Current: ${descentData.currentWeight.toFixed(1)} lbs\n`;
+      if (descentData.totalLost !== null) {
+        summary += `Progress: ${descentData.totalLost > 0 ? '-' : '+'}${Math.abs(descentData.totalLost).toFixed(1)} lbs\n`;
+      }
+      summary += `Days to Weigh-in: ${descentData.daysRemaining}\n`;
+    }
+
+    if (morningLogs.length > 0) {
+      summary += `\n📈 Morning Weights:\n`;
+      morningLogs.forEach(log => {
+        summary += `  ${format(new Date(log.date), 'EEE')}: ${log.weight} lbs\n`;
+      });
+    }
+
+    return summary;
+  };
+
+  // Copy summary to clipboard
+  const copyToClipboard = async () => {
+    const summary = generateCoachSummary();
+    try {
+      await navigator.clipboard.writeText(summary);
+      toast({ title: "Copied!", description: "Summary copied to clipboard" });
+    } catch {
+      toast({ title: "Error", description: "Could not copy to clipboard", variant: "destructive" });
+    }
+    setShowExportMenu(false);
+  };
+
+  // Share via native share API
+  const shareWithCoach = async () => {
+    const summary = generateCoachSummary();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Weight Report',
+          text: summary,
+        });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      // Fallback to clipboard
+      await copyToClipboard();
+    }
+    setShowExportMenu(false);
+  };
+
+  // Export full backup as JSON
+  const exportBackup = () => {
+    const backup = {
+      version: 1,
+      exportDate: new Date().toISOString(),
+      profile: {
+        targetWeightClass: profile.targetWeightClass,
+        currentWeight: profile.currentWeight,
+        protocol: profile.protocol,
+      },
+      weightLogs: logs.map(log => ({
+        date: new Date(log.date).toISOString(),
+        weight: log.weight,
+        type: log.type,
+      })),
+      dailyTracking: dailyTracking,
+    };
+
+    const jsonStr = JSON.stringify(backup, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pwm-backup-${format(new Date(), 'yyyy-MM-dd')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setShowExportMenu(false);
+    toast({ title: "Backup Created!", description: "Full data backup exported" });
+  };
+
+  // Import backup from JSON file
+  const importBackup = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const backup = JSON.parse(text);
+
+        if (backup.version !== 1) {
+          toast({ title: "Error", description: "Unsupported backup version", variant: "destructive" });
+          return;
+        }
+
+        // Import weight logs
+        if (backup.weightLogs && Array.isArray(backup.weightLogs)) {
+          for (const log of backup.weightLogs) {
+            addLog({
+              date: new Date(log.date),
+              weight: log.weight,
+              type: log.type,
+            });
+          }
+        }
+
+        toast({ title: "Import Complete!", description: `Imported ${backup.weightLogs?.length || 0} weight logs` });
+      } catch {
+        toast({ title: "Error", description: "Could not read backup file", variant: "destructive" });
+      }
+    };
+    input.click();
+    setShowExportMenu(false);
+  };
 
   // Validate weight is reasonable (between 80 and 350 lbs for wrestling)
   const validateWeight = (w: number): boolean => {
@@ -191,12 +346,71 @@ export default function History() {
     <MobileLayout showNav={true}>
       {/* Header */}
       <header className="mb-4">
-        <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
-          Tracking History
-        </h2>
-        <h1 className="text-2xl font-heading font-bold uppercase italic">
-          History
-        </h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
+              Tracking History
+            </h2>
+            <h1 className="text-2xl font-heading font-bold uppercase italic">
+              History
+            </h1>
+          </div>
+          {/* Export/Share Button */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="h-8"
+            >
+              <Share2 className="w-4 h-4 mr-1" />
+              Share
+            </Button>
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute right-0 mt-1 w-48 bg-card border border-muted rounded-lg shadow-lg z-50 py-1">
+                  <button
+                    onClick={shareWithCoach}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4 text-primary" />
+                    Share with Coach
+                  </button>
+                  <button
+                    onClick={copyToClipboard}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  >
+                    <Copy className="w-4 h-4 text-muted-foreground" />
+                    Copy Summary
+                  </button>
+                  <button
+                    onClick={exportToCSV}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4 text-muted-foreground" />
+                    Export CSV
+                  </button>
+                  <div className="border-t border-muted my-1" />
+                  <button
+                    onClick={exportBackup}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4 text-green-500" />
+                    Full Backup (JSON)
+                  </button>
+                  <button
+                    onClick={importBackup}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4 text-cyan-500" />
+                    Import Backup
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </header>
 
       {/* Tab Buttons */}

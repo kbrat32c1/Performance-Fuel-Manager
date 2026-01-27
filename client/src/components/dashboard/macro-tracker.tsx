@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Utensils, Plus, Pencil, Trash2, ChevronRight, HelpCircle, Apple, Wheat, Fish, AlertTriangle, Check, Undo2, History, ChevronDown } from "lucide-react";
+import { Utensils, Plus, Pencil, Trash2, ChevronRight, HelpCircle, Apple, Wheat, Fish, AlertTriangle, Check, Undo2, History, ChevronDown, Search, X, Star } from "lucide-react";
 
 // Food log entry for tracking additions
 interface FoodLogEntry {
@@ -166,7 +166,81 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
   const [editCarbsValue, setEditCarbsValue] = useState('');
   const [editProteinValue, setEditProteinValue] = useState('');
   const [showFoodRef, setShowFoodRef] = useState(true); // Default to open for discoverability
-  const [foodTab, setFoodTab] = useState<'fructose' | 'glucose' | 'protein' | 'zerofiber'>('fructose');
+  const [foodTab, setFoodTab] = useState<'fructose' | 'glucose' | 'protein' | 'zerofiber' | 'custom'>('fructose');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [customFoodName, setCustomFoodName] = useState('');
+  const [customFoodCarbs, setCustomFoodCarbs] = useState('');
+  const [customFoodProtein, setCustomFoodProtein] = useState('');
+  const [customFoodServing, setCustomFoodServing] = useState('');
+
+  // Custom foods state - persisted to localStorage
+  const customFoodsKey = 'pwm-custom-foods';
+  const [customFoods, setCustomFoods] = useState<Array<{
+    id: string;
+    name: string;
+    carbs: number;
+    protein: number;
+    serving: string;
+  }>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(customFoodsKey);
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return [];
+        }
+      }
+    }
+    return [];
+  });
+
+  // Persist custom foods
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(customFoodsKey, JSON.stringify(customFoods));
+    }
+  }, [customFoods]);
+
+  // Add custom food
+  const handleAddCustomFood = () => {
+    if (!customFoodName || (!customFoodCarbs && !customFoodProtein)) return;
+
+    const newFood = {
+      id: `custom-${Date.now()}`,
+      name: customFoodName,
+      carbs: parseInt(customFoodCarbs) || 0,
+      protein: parseInt(customFoodProtein) || 0,
+      serving: customFoodServing || '1 serving',
+    };
+
+    setCustomFoods(prev => [...prev, newFood]);
+    setCustomFoodName('');
+    setCustomFoodCarbs('');
+    setCustomFoodProtein('');
+    setCustomFoodServing('');
+    setShowAddCustom(false);
+  };
+
+  // Delete custom food
+  const handleDeleteCustomFood = (id: string) => {
+    setCustomFoods(prev => prev.filter(f => f.id !== id));
+  };
+
+  // Filter foods by search query
+  const filterFoods = <T extends { name: string }>(foods: T[]): T[] => {
+    if (!searchQuery) return foods;
+    const query = searchQuery.toLowerCase();
+    return foods.filter(f => f.name.toLowerCase().includes(query));
+  };
+
+  // Memoized filtered food lists
+  const filteredFructose = useMemo(() => filterFoods(foodLists.highFructose), [foodLists.highFructose, searchQuery]);
+  const filteredGlucose = useMemo(() => filterFoods(foodLists.highGlucose), [foodLists.highGlucose, searchQuery]);
+  const filteredZeroFiber = useMemo(() => filterFoods(foodLists.zeroFiber), [foodLists.zeroFiber, searchQuery]);
+  const filteredProtein = useMemo(() => filterFoods(todaysFoods.protein), [todaysFoods.protein, searchQuery]);
+  const filteredCustom = useMemo(() => filterFoods(customFoods), [customFoods, searchQuery]);
 
   // Track last added food for visual feedback
   const [lastAdded, setLastAdded] = useState<{ index: number; type: string; amount: number } | null>(null);
@@ -575,6 +649,26 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                   </div>
                 )}
 
+                {/* Search Bar */}
+                <div className="relative mb-2">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search foods..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 h-9 text-sm"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
                 {/* Food Category Tabs - Scrollable on mobile */}
                 <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
                   <FoodTab
@@ -612,6 +706,14 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                       color="bg-orange-500"
                     />
                   )}
+                  <FoodTab
+                    active={foodTab === 'custom'}
+                    onClick={() => setFoodTab('custom')}
+                    label="My Foods"
+                    shortLabel="Custom"
+                    icon={Star}
+                    color="bg-purple-500"
+                  />
                 </div>
 
                 {/* Fructose Foods */}
@@ -624,7 +726,10 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                         <span className="text-[8px] bg-green-500/20 text-green-500 px-1.5 py-0.5 rounded font-bold">RECOMMENDED TODAY</span>
                       )}
                     </div>
-                    {foodLists.highFructose.map((food, i) => {
+                    {filteredFructose.length === 0 && searchQuery && (
+                      <p className="text-xs text-muted-foreground text-center py-2">No foods match "{searchQuery}"</p>
+                    )}
+                    {filteredFructose.map((food, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'fructose';
                       return (
                         <button
@@ -665,7 +770,10 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                         <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1.5 py-0.5 rounded font-bold">RECOMMENDED TODAY</span>
                       )}
                     </div>
-                    {foodLists.highGlucose.map((food, i) => {
+                    {filteredGlucose.length === 0 && searchQuery && (
+                      <p className="text-xs text-muted-foreground text-center py-2">No foods match "{searchQuery}"</p>
+                    )}
+                    {filteredGlucose.map((food, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'glucose';
                       return (
                         <button
@@ -710,7 +818,10 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                         Stick to these zero-fiber options only.
                       </p>
                     </div>
-                    {foodLists.zeroFiber.map((food, i) => {
+                    {filteredZeroFiber.length === 0 && searchQuery && (
+                      <p className="text-xs text-muted-foreground text-center py-2">No foods match "{searchQuery}"</p>
+                    )}
+                    {filteredZeroFiber.map((food, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'zerofiber';
                       return (
                         <button
@@ -748,7 +859,10 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                       <Fish className="w-3.5 h-3.5 text-orange-500" />
                       <span className="text-[10px] text-orange-500 uppercase font-bold">Protein Sources</span>
                     </div>
-                    {todaysFoods.protein.map((item, i) => {
+                    {filteredProtein.length === 0 && searchQuery && (
+                      <p className="text-xs text-muted-foreground text-center py-2">No foods match "{searchQuery}"</p>
+                    )}
+                    {filteredProtein.map((item, i) => {
                       const isJustAdded = lastAdded?.index === i && lastAdded?.type === 'protein';
                       return (
                         <button
@@ -774,6 +888,155 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
                             <span className="font-mono font-bold text-orange-500">+{item.protein}g</span>
                           </div>
                         </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Custom Foods */}
+                {foodTab === 'custom' && (
+                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-3.5 h-3.5 text-purple-500" />
+                        <span className="text-[10px] text-purple-500 uppercase font-bold">My Custom Foods</span>
+                      </div>
+                      {!showAddCustom && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowAddCustom(true)}
+                          className="h-6 text-[10px] px-2 border-purple-500/30 text-purple-500 hover:bg-purple-500/10"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Add Food
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Add Custom Food Form */}
+                    {showAddCustom && (
+                      <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 space-y-2">
+                        <Input
+                          placeholder="Food name"
+                          value={customFoodName}
+                          onChange={(e) => setCustomFoodName(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[9px] text-muted-foreground block mb-1">Carbs (g)</label>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={customFoodCarbs}
+                              onChange={(e) => setCustomFoodCarbs(e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[9px] text-muted-foreground block mb-1">Protein (g)</label>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={customFoodProtein}
+                              onChange={(e) => setCustomFoodProtein(e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <Input
+                          placeholder="Serving size (e.g., 1 cup)"
+                          value={customFoodServing}
+                          onChange={(e) => setCustomFoodServing(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={handleAddCustomFood}
+                            disabled={!customFoodName || (!customFoodCarbs && !customFoodProtein)}
+                            className="h-7 text-xs bg-purple-500 hover:bg-purple-600"
+                          >
+                            <Check className="w-3 h-3 mr-1" /> Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowAddCustom(false);
+                              setCustomFoodName('');
+                              setCustomFoodCarbs('');
+                              setCustomFoodProtein('');
+                              setCustomFoodServing('');
+                            }}
+                            className="h-7 text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Custom Foods List */}
+                    {filteredCustom.length === 0 && !showAddCustom && (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <Star className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                        <p className="text-xs">No custom foods yet</p>
+                        <p className="text-[10px]">Add your favorite foods for quick logging</p>
+                      </div>
+                    )}
+                    {filteredCustom.map((food) => {
+                      const isJustAdded = lastAdded?.index === customFoods.indexOf(food) && lastAdded?.type === 'custom';
+                      const hasCarbs = food.carbs > 0;
+                      const hasProtein = food.protein > 0;
+
+                      return (
+                        <div
+                          key={food.id}
+                          className={cn(
+                            "w-full flex items-center justify-between rounded px-2 py-2 transition-all",
+                            isJustAdded
+                              ? "bg-purple-500/30 ring-2 ring-purple-500"
+                              : "bg-purple-500/5"
+                          )}
+                        >
+                          <button
+                            onClick={() => {
+                              if (hasCarbs) {
+                                handleFoodAdd(customFoods.indexOf(food), 'carbs', food.carbs, 'custom', food.name);
+                              }
+                              if (hasProtein) {
+                                handleFoodAdd(customFoods.indexOf(food), 'protein', food.protein, 'custom', food.name);
+                              }
+                            }}
+                            className="flex items-center gap-2 min-w-0 flex-1 text-left hover:opacity-80"
+                          >
+                            {isJustAdded ? (
+                              <Check className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                            ) : (
+                              <Plus className="w-3 h-3 text-purple-500 shrink-0" />
+                            )}
+                            <div className="min-w-0">
+                              <span className="text-[11px] font-medium text-foreground truncate block">{food.name}</span>
+                              <span className="text-[9px] text-muted-foreground">{food.serving}</span>
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-2 text-[10px] shrink-0 ml-2">
+                            {hasCarbs && (
+                              <span className="font-mono font-bold text-primary">+{food.carbs}c</span>
+                            )}
+                            {hasProtein && (
+                              <span className="font-mono font-bold text-orange-500">+{food.protein}p</span>
+                            )}
+                            <button
+                              onClick={() => handleDeleteCustomFood(food.id)}
+                              className="p-1 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>

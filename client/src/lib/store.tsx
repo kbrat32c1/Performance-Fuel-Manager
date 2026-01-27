@@ -61,7 +61,7 @@ export interface DayPlan {
   day: string;
   dayNum: number;
   phase: string;
-  weightTarget: { morning: number; postPractice: number; withWaterLoading?: number };
+  weightTarget: { morning: number; postPractice: number; baseTarget?: number };
   water: { amount: string; targetOz: number; type: string };
   carbs: { min: number; max: number };
   protein: { min: number; max: number };
@@ -568,18 +568,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Protocols 1 & 2 (Body Comp & Make Weight) - use day-based targets
-    // Note: Mon-Wed targets account for water loading (athletes will be heavier)
-    const isHeavy = w >= 175;
-    const isMedium = w >= 150 && w < 175;
-    const waterLoadBonus = isHeavy ? 4 : isMedium ? 3 : 2;
-
+    // Targets from PDF chart - walk-around is 6-7% over, descends through week
+    // Mon AM: 6-7% over (walk-around, hydrated baseline)
+    // Wed PM: 4-5% over (checkpoint)
+    // Fri PM: 2-3% over (critical checkpoint for safe overnight cut)
+    // Sat AM: competition weight
     switch (dayOfWeek) {
-      case 0: return Math.round(w * 1.07); // Sunday - walk-around recovery
-      case 1: return Math.round(w * 1.07) + waterLoadBonus; // Monday - water loading
-      case 2: return Math.round(w * 1.06) + waterLoadBonus; // Tuesday - peak loading
-      case 3: return Math.round(w * 1.05) + waterLoadBonus; // Wednesday - last load day
-      case 4: return Math.round(w * 1.04); // Thursday - flush (water weight dropping)
-      case 5: return Math.round(w * 1.03); // Friday - critical checkpoint
+      case 0: return Math.round(w * 1.07); // Sunday - recovery, return to walk-around
+      case 1: return Math.round(w * 1.07); // Monday - walk-around (6-7% over)
+      case 2: return Math.round(w * 1.06); // Tuesday - still at walk-around range
+      case 3: return Math.round(w * 1.05); // Wednesday - checkpoint target (4-5% over)
+      case 4: return Math.round(w * 1.04); // Thursday - flush day
+      case 5: return Math.round(w * 1.03); // Friday - critical checkpoint (2-3% over)
       case 6: return w; // Saturday - competition weight
       default: return Math.round(w * 1.07);
     }
@@ -595,13 +595,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const isWaterLoadingProtocol = protocol === '1' || protocol === '2';
       const isWaterLoadingDay = isWaterLoadingProtocol && dayOfWeek >= 1 && dayOfWeek <= 3;
 
-      // Water loading adds 2-4 lbs depending on weight class
-      const waterLoadBonus = w >= 175 ? 4 : w >= 150 ? 3 : 2;
-
-      // Base targets from user's Weight Management Targets table
-      // Walk-around: 6-7% over weight class
-      // Wed PM (baseline): 4-5% over - but will be higher with water loading
-      // Fri PM (critical): 2-3% over - must hit for safe overnight cut
+      // Targets from PDF Weight Management chart
+      // Walk-around (Mon AM): 6-7% over weight class
+      // Wed PM checkpoint: 4-5% over
+      // Fri PM critical: 2-3% over - must hit for safe overnight cut
       const walkAroundLow = Math.round(w * 1.06);
       const walkAroundHigh = Math.round(w * 1.07);
       const wedBaselineLow = Math.round(w * 1.04);
@@ -617,13 +614,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             currentDayContext = 'Recovery day - return to walk-around weight with protein refeed';
             break;
           case 1: // Monday - Water Loading starts
-            currentDayContext = `Water loading starts - expect to be ${waterLoadBonus}+ lbs heavier than baseline`;
+            currentDayContext = 'Water loading day - stay hydrated, weight may fluctuate';
             break;
           case 2: // Tuesday - Peak Loading
-            currentDayContext = `Peak water loading - being ${waterLoadBonus}+ lbs over baseline is normal`;
+            currentDayContext = 'Peak loading day - continue high water intake';
             break;
           case 3: // Wednesday - Final Load Day
-            currentDayContext = `Last load day - ${waterLoadBonus}+ lbs over baseline is expected. Thursday begins flush.`;
+            currentDayContext = `Last load day - Wed PM checkpoint is ${wedBaselineLow}-${wedBaselineHigh} lbs. Flush starts tomorrow.`;
             break;
           case 4: // Thursday - Flush begins
             currentDayContext = 'Flush day - water weight dropping. Zero fiber. Switch to distilled.';
@@ -641,11 +638,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         currentDayContext = 'Build phase - no weight cutting required';
       }
 
+      // Calculate water loading tolerance message
+      const waterLoadBonus = w >= 175 ? 4 : w >= 150 ? 3 : 2;
+      const waterLoadingAdjustment = isWaterLoadingDay
+        ? `Expect +${waterLoadBonus - 1} to +${waterLoadBonus + 1} lbs above baseline from water loading`
+        : '';
+
       return {
           walkAround: `${walkAroundLow} - ${walkAroundHigh} lbs`,
           wedTarget: `${wedBaselineLow} - ${wedBaselineHigh} lbs`,
           friTarget: `${friLow} - ${friHigh} lbs`,
-          waterLoadingAdjustment: isWaterLoadingDay ? `+${waterLoadBonus} lbs from water loading` : '',
+          waterLoadingAdjustment,
           isWaterLoadingDay,
           currentDayContext
       };
@@ -1758,8 +1761,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Protocols 1 & 2 (Body Comp & Make Weight) - Full cutting protocol
-    // Water loading bonus based on weight class
-    const waterLoadBonus = isHeavy ? 4 : isMedium ? 3 : 2;
+    // Targets from PDF chart - walk-around already accounts for hydration
+    // Mon AM: 6-7% over (walk-around)
+    // Wed PM: 4-5% over (checkpoint)
+    // Fri PM: 2-3% over (critical checkpoint)
+    // Sat: competition weight
 
     const days: DayPlan[] = [
       {
@@ -1768,8 +1774,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         phase: 'Load',
         weightTarget: {
           morning: Math.round(w * 1.07),
-          postPractice: Math.round(w * 1.07),
-          withWaterLoading: Math.round(w * 1.07) + waterLoadBonus
+          postPractice: Math.round(w * 1.07)
         },
         water: {
           amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
@@ -1780,7 +1785,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         protein: { min: 0, max: 0 },
         isToday: currentDayOfWeek === 1,
         isTomorrow: currentDayOfWeek === 0,
-        waterLoadingNote: `Water loading starts - expect to be up to ${waterLoadBonus} lbs heavier`
+        waterLoadingNote: 'Water loading day - stay hydrated, weight will fluctuate'
       },
       {
         day: 'Tuesday',
@@ -1788,8 +1793,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         phase: 'Load',
         weightTarget: {
           morning: Math.round(w * 1.06),
-          postPractice: Math.round(w * 1.06),
-          withWaterLoading: Math.round(w * 1.06) + waterLoadBonus
+          postPractice: Math.round(w * 1.06)
         },
         water: {
           amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
@@ -1800,7 +1804,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         protein: { min: 0, max: 0 },
         isToday: currentDayOfWeek === 2,
         isTomorrow: currentDayOfWeek === 1,
-        waterLoadingNote: `Peak loading day - ${waterLoadBonus}+ lbs over baseline is normal`
+        waterLoadingNote: 'Peak loading day - continue high water intake'
       },
       {
         day: 'Wednesday',
@@ -1808,8 +1812,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         phase: 'Load',
         weightTarget: {
           morning: Math.round(w * 1.05),
-          postPractice: Math.round(w * 1.05),
-          withWaterLoading: Math.round(w * 1.05) + waterLoadBonus
+          postPractice: Math.round(w * 1.05)
         },
         water: {
           amount: isHeavy ? '2.0 gal' : isMedium ? '1.75 gal' : '1.5 gal',
@@ -1820,7 +1823,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         protein: { min: 25, max: 25 },
         isToday: currentDayOfWeek === 3,
         isTomorrow: currentDayOfWeek === 2,
-        waterLoadingNote: `Last load day - still ${waterLoadBonus}+ lbs over baseline. Flush starts tomorrow.`
+        waterLoadingNote: 'Last load day - Wed PM is first checkpoint. Flush starts tomorrow.'
       },
       {
         day: 'Thursday',
@@ -1942,9 +1945,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const getStatus = (): { status: Status; label: string; color: string; bgColor: string } => {
+  const getStatus = (): { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string } => {
     const target = calculateTarget();
     const currentWeight = profile.currentWeight;
+    const today = profile.simulatedDate || new Date();
+    const dayOfWeek = getDay(today);
+    const protocol = profile.protocol;
+
+    // Water loading applies to protocols 1 & 2 on Mon-Wed (days 1-3)
+    const isWaterLoadingProtocol = protocol === '1' || protocol === '2';
+    const isWaterLoadingDay = isWaterLoadingProtocol && dayOfWeek >= 1 && dayOfWeek <= 3;
+
+    // Water loading adds 2-4 lbs depending on weight class
+    const w = profile.targetWeightClass;
+    const waterLoadBonus = w >= 175 ? 4 : w >= 150 ? 3 : 2;
 
     if (currentWeight === 0) {
       return { status: 'on-track', label: 'LOG WEIGHT', color: 'text-muted-foreground', bgColor: 'bg-muted/30' };
@@ -1952,6 +1966,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const diff = currentWeight - target;
 
+    // On water loading days (Mon-Wed), allow extra tolerance for water weight
+    if (isWaterLoadingDay) {
+      // If within water loading tolerance (baseline + water bonus), show as on track
+      if (diff <= waterLoadBonus + 1) {
+        const note = diff > 1 ? `+${diff.toFixed(1)} lbs from water loading - normal` : undefined;
+        return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', waterLoadingNote: note };
+      }
+      // If slightly over water loading tolerance, borderline
+      if (diff <= waterLoadBonus + 3) {
+        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', waterLoadingNote: 'Above water loading range' };
+      }
+      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20' };
+    }
+
+    // Non water-loading days use standard thresholds
     if (diff <= 1) {
       return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20' };
     }
@@ -2007,9 +2036,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const morningWeights: Array<{ day: string; weight: number; date: Date }> = [];
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    for (let i = 6; i >= 0; i--) {
-      const checkDate = new Date(today);
-      checkDate.setDate(today.getDate() - i);
+    // Get the Monday of the current competition week (week containing weigh-in)
+    // Competition week runs Mon-Sat with weigh-in on Saturday
+    const weighInDate = new Date(profile.weighInDate);
+    const weekStartMonday = new Date(weighInDate);
+    // Go back to Monday of weigh-in week
+    const weighInDayOfWeek = weighInDate.getDay(); // 0=Sun, 6=Sat
+    const daysBackToMonday = weighInDayOfWeek === 0 ? 6 : weighInDayOfWeek - 1;
+    weekStartMonday.setDate(weighInDate.getDate() - daysBackToMonday);
+    weekStartMonday.setHours(0, 0, 0, 0);
+
+    // Collect morning weights from Monday through today (or through Saturday of comp week)
+    for (let i = 0; i < 7; i++) {
+      const checkDate = new Date(weekStartMonday);
+      checkDate.setDate(weekStartMonday.getDate() + i);
+
+      // Don't look for future dates
+      if (checkDate > today) break;
 
       const morningLog = logs.find(log => {
         const logDate = new Date(log.date);
@@ -2023,7 +2066,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         morningWeights.push({
           day: dayNames[checkDate.getDay()],
           weight: morningLog.weight,
-          date: checkDate
+          date: new Date(checkDate)
         });
       }
     }
@@ -2044,10 +2087,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (currentWeight && dailyAvgLoss !== null && dailyAvgLoss > 0 && daysRemaining > 0) {
       projectedSaturday = currentWeight - (dailyAvgLoss * daysRemaining);
     } else if (currentWeight && daysRemaining > 0) {
-      const neededLoss = currentWeight - targetWeight;
-      if (neededLoss > 0) {
-        projectedSaturday = currentWeight;
-      }
+      // If no loss trend yet, just show current weight as projection
+      projectedSaturday = currentWeight;
     }
 
     let pace: 'ahead' | 'on-track' | 'behind' | null = null;

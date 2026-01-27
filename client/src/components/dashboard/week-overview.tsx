@@ -212,15 +212,19 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                 </div>
               </div>
 
-              {/* Phase-specific tips */}
+              {/* Day-specific note or phase tips */}
               <div className="mt-3 pt-3 border-t border-muted/50">
                 <p className="text-xs text-muted-foreground">
-                  {selectedDayData.phase === 'Load' && "Water loading phase - drink consistently throughout the day to trigger natural diuresis."}
-                  {selectedDayData.phase === 'Cut' && "Cutting phase - follow protocol strictly. Monitor weight drift carefully."}
-                  {selectedDayData.phase === 'Compete' && "Competition day - focus on fast carbs between matches. Rehydrate with electrolytes."}
-                  {selectedDayData.phase === 'Recover' && "Recovery day - high protein to repair muscle. Eat freely to refuel."}
-                  {selectedDayData.phase === 'Train' && "Training day - maintain consistent nutrition and hydration."}
-                  {selectedDayData.phase === 'Maintain' && "Maintenance phase - stay at walk-around weight with balanced nutrition."}
+                  {selectedDayData.waterLoadingNote || (
+                    <>
+                      {selectedDayData.phase === 'Load' && "Water loading phase - drink consistently throughout the day to trigger natural diuresis."}
+                      {selectedDayData.phase === 'Cut' && "Cutting phase - follow protocol strictly. Monitor weight drift carefully."}
+                      {selectedDayData.phase === 'Compete' && "Competition day - focus on fast carbs between matches. Rehydrate with electrolytes."}
+                      {selectedDayData.phase === 'Recover' && "Recovery day - high protein to repair muscle. Eat freely to refuel."}
+                      {selectedDayData.phase === 'Train' && "Training day - maintain consistent nutrition and hydration."}
+                      {selectedDayData.phase === 'Maintain' && "Maintenance phase - stay at walk-around weight with balanced nutrition."}
+                    </>
+                  )}
                 </p>
               </div>
             </div>

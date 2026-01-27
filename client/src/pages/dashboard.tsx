@@ -10,7 +10,7 @@ import {
   ChevronRight, ChevronDown, CheckCircle2, Plus, Settings, Info,
   AlertTriangle, Flame, Zap, Trophy, Pencil, Trash2, Apple,
   Calendar, ArrowRight, Clock, Heart, Target, TrendingDown, TrendingUp, LogOut, Weight,
-  HelpCircle
+  HelpCircle, Minus, Sparkles, PartyPopper
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -148,6 +148,48 @@ export default function Dashboard() {
 
   const phaseInfo = getPhaseInfo();
 
+  // Get today's tracking data for status summary
+  const dateKey = format(displayDate, 'yyyy-MM-dd');
+  const dailyTracking = getDailyTracking(dateKey);
+
+  // Calculate today's log completion status
+  const getTodayLogs = () => {
+    const todayDate = displayDate;
+    return {
+      morning: logs.find(log => {
+        const logDate = new Date(log.date);
+        return log.type === 'morning' &&
+          logDate.getFullYear() === todayDate.getFullYear() &&
+          logDate.getMonth() === todayDate.getMonth() &&
+          logDate.getDate() === todayDate.getDate();
+      }),
+      prePractice: logs.find(log => {
+        const logDate = new Date(log.date);
+        return log.type === 'pre-practice' &&
+          logDate.getFullYear() === todayDate.getFullYear() &&
+          logDate.getMonth() === todayDate.getMonth() &&
+          logDate.getDate() === todayDate.getDate();
+      }),
+      postPractice: logs.find(log => {
+        const logDate = new Date(log.date);
+        return log.type === 'post-practice' &&
+          logDate.getFullYear() === todayDate.getFullYear() &&
+          logDate.getMonth() === todayDate.getMonth() &&
+          logDate.getDate() === todayDate.getDate();
+      }),
+      beforeBed: logs.find(log => {
+        const logDate = new Date(log.date);
+        return log.type === 'before-bed' &&
+          logDate.getFullYear() === todayDate.getFullYear() &&
+          logDate.getMonth() === todayDate.getMonth() &&
+          logDate.getDate() === todayDate.getDate();
+      }),
+    };
+  };
+
+  const todayLogs = getTodayLogs();
+  const weighInsComplete = [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length;
+
   return (
     <MobileLayout showNav={true}>
       <div {...swipeHandlers}>
@@ -199,23 +241,43 @@ export default function Dashboard() {
 
       {/* Status Badge */}
       <div className={cn(
-        "flex items-center justify-center gap-2 py-2 -mx-4 mb-4",
+        "flex flex-col items-center py-2 -mx-4 mb-4",
         statusInfo.bgColor
       )}>
-        <div className={cn(
-          "w-2 h-2 rounded-full",
-          statusInfo.status === 'on-track' ? "bg-green-500" :
-          statusInfo.status === 'borderline' ? "bg-yellow-500 animate-pulse" : "bg-destructive animate-pulse"
-        )} />
-        <span className={cn("text-xs font-bold uppercase tracking-widest", statusInfo.color)}>
-          {statusInfo.label}
-        </span>
-        {profile.currentWeight > 0 && (
-          <span className="text-xs text-muted-foreground">
-            ({profile.currentWeight.toFixed(1)} / {targetWeight.toFixed(1)} lbs)
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            "w-2 h-2 rounded-full",
+            statusInfo.status === 'on-track' ? "bg-green-500" :
+            statusInfo.status === 'borderline' ? "bg-yellow-500 animate-pulse" : "bg-destructive animate-pulse"
+          )} />
+          <span className={cn("text-xs font-bold uppercase tracking-widest", statusInfo.color)}>
+            {statusInfo.label}
           </span>
+          {profile.currentWeight > 0 && (
+            <span className="text-xs text-muted-foreground">
+              ({profile.currentWeight.toFixed(1)} / {targetWeight.toFixed(1)} lbs)
+            </span>
+          )}
+        </div>
+        {statusInfo.waterLoadingNote && (
+          <span className="text-[10px] text-cyan-500 mt-1">{statusInfo.waterLoadingNote}</span>
         )}
       </div>
+
+      {/* Today's Status - At-a-Glance Summary */}
+      <TodayStatusCard
+        morningWeight={todayLogs.morning?.weight}
+        targetWeight={targetWeight}
+        carbsConsumed={dailyTracking.carbsConsumed}
+        carbsTarget={macros.carbs.max}
+        proteinConsumed={dailyTracking.proteinConsumed}
+        proteinTarget={macros.protein.max}
+        waterConsumed={dailyTracking.waterConsumed}
+        waterTarget={hydration.targetOz}
+        weighInsComplete={weighInsComplete}
+        weighInsTotal={4}
+        isNewUser={logs.length < 7}
+      />
 
       {/* Water Loading Context Banner */}
       {checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2') && (
@@ -430,6 +492,7 @@ export default function Dashboard() {
         logType="morning"
         addLog={addLog}
         updateLog={updateLog}
+        deleteLog={deleteLog}
         targetWeight={targetWeight}
         simulatedDate={profile.simulatedDate}
         readOnly={isViewingHistorical}
@@ -460,6 +523,7 @@ export default function Dashboard() {
         logs={logs}
         addLog={addLog}
         updateLog={updateLog}
+        deleteLog={deleteLog}
         targetWeight={targetWeight}
         overnightDrift={overnightDrift}
         simulatedDate={profile.simulatedDate}
@@ -473,11 +537,11 @@ export default function Dashboard() {
       {/* INFO SECTION - Planning & Insights */}
       {/* ═══════════════════════════════════════════════════════ */}
       <div className="space-y-4">
+        {/* Weight Trend Chart - Moved up for visibility */}
+        <TrendChart />
+
         {/* What's Next */}
         <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} />
-
-        {/* Weight Trend Chart */}
-        <TrendChart />
 
         {/* History Insights */}
         <HistoryInsightsCard getHistoryInsights={getHistoryInsights} targetWeightClass={profile.targetWeightClass} />
@@ -500,6 +564,7 @@ function DailyStep({
   logType,
   addLog,
   updateLog,
+  deleteLog,
   targetWeight,
   targetWeightRange,
   simulatedDate,
@@ -513,6 +578,7 @@ function DailyStep({
   logType: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed';
   addLog: any;
   updateLog: any;
+  deleteLog: any;
   targetWeight?: number;
   targetWeightRange?: { min: number; max: number };
   simulatedDate?: Date | null;
@@ -521,6 +587,7 @@ function DailyStep({
   const [weight, setWeight] = useState('');
   const [isLogging, setIsLogging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   // Check if already logged today (use simulated date if available)
   const today = simulatedDate || new Date();
@@ -531,6 +598,23 @@ function DailyStep({
            logDate.getMonth() === today.getMonth() &&
            logDate.getDate() === today.getDate();
   });
+
+  // Get yesterday's same log type for pre-fill suggestion
+  const yesterday = subDays(today, 1);
+  const yesterdayLog = logs.find(log => {
+    const logDate = new Date(log.date);
+    return log.type === logType &&
+           logDate.getFullYear() === yesterday.getFullYear() &&
+           logDate.getMonth() === yesterday.getMonth() &&
+           logDate.getDate() === yesterday.getDate();
+  });
+
+  // Get most recent log of this type as fallback
+  const recentLog = logs
+    .filter(log => log.type === logType)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
+  const suggestedWeight = yesterdayLog?.weight || recentLog?.weight || (targetWeight ? Math.round(targetWeight) : null);
 
   const isComplete = !!todayLog;
   const { toast } = useToast();
@@ -546,6 +630,21 @@ function DailyStep({
       return false;
     }
     return true;
+  };
+
+  // Adjust weight by increment
+  const adjustWeight = (increment: number) => {
+    const current = parseFloat(weight) || suggestedWeight || 150;
+    const newWeight = Math.max(80, Math.min(350, current + increment));
+    setWeight(newWeight.toFixed(1));
+  };
+
+  const handleStartLogging = () => {
+    // Pre-fill with suggested weight
+    if (suggestedWeight) {
+      setWeight(suggestedWeight.toString());
+    }
+    setIsLogging(true);
   };
 
   const handleSubmit = () => {
@@ -565,6 +664,19 @@ function DailyStep({
         date: logDate,
         type: logType,
       });
+
+      // Show success animation
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 1500);
+
+      // Show celebration toast if on target
+      if (targetWeight && parsedWeight <= targetWeight) {
+        toast({
+          title: "On target!",
+          description: `${parsedWeight.toFixed(1)} lbs - you're right where you need to be`,
+        });
+      }
+
       setWeight('');
       setIsLogging(false);
       // Blur any focused input to close mobile keyboard
@@ -598,6 +710,16 @@ function DailyStep({
     setWeight('');
     setIsLogging(false);
     setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    if (todayLog) {
+      deleteLog(todayLog.id);
+      toast({
+        title: "Weight deleted",
+        description: `${logType.replace('-', ' ')} weigh-in removed`,
+      });
+    }
   };
 
   return (
@@ -651,42 +773,84 @@ function DailyStep({
                   </span>
                 ) : null}
                 {!readOnly && (
-                  <button
-                    onClick={handleEdit}
-                    className="ml-auto p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-                    title="Edit weight"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      onClick={handleEdit}
+                      className="p-1.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Edit weight"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                      title="Delete weight"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
               </div>
             ) : (isLogging || isEditing) ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  placeholder="Weight"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="w-24 h-9 font-mono"
-                  autoFocus
-                />
-                <span className="text-sm text-muted-foreground">lbs</span>
-                <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-9">
-                  {isEditing ? 'Update' : 'Save'}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleCancel} className="h-9">
-                  Cancel
-                </Button>
+              <div className="space-y-2">
+                {/* Weight input with +/- buttons */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => adjustWeight(-0.2)}
+                    className="h-10 w-10 p-0"
+                    title="-0.2 lbs"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
+                  <Input
+                    type="number"
+                    placeholder="Weight"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="w-24 h-10 font-mono text-center text-lg"
+                    step="0.1"
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => adjustWeight(0.2)}
+                    className="h-10 w-10 p-0"
+                    title="+0.2 lbs"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">lbs</span>
+                </div>
+                {/* Quick adjust buttons */}
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => adjustWeight(-1)} className="h-7 px-2 text-xs">-1</Button>
+                  <Button size="sm" variant="ghost" onClick={() => adjustWeight(-0.5)} className="h-7 px-2 text-xs">-0.5</Button>
+                  <Button size="sm" variant="ghost" onClick={() => adjustWeight(0.5)} className="h-7 px-2 text-xs">+0.5</Button>
+                  <Button size="sm" variant="ghost" onClick={() => adjustWeight(1)} className="h-7 px-2 text-xs">+1</Button>
+                  <div className="flex-1" />
+                  <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-7">
+                    {isEditing ? 'Update' : 'Save'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancel} className="h-7">
+                    Cancel
+                  </Button>
+                </div>
               </div>
             ) : !readOnly ? (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsLogging(true)}
-                className="h-8"
+                onClick={handleStartLogging}
+                className="h-9 px-4"
               >
-                <Scale className="w-3 h-3 mr-1" />
+                <Scale className="w-4 h-4 mr-2" />
                 Log Weight
+                {suggestedWeight && (
+                  <span className="ml-2 text-muted-foreground font-mono">~{suggestedWeight}</span>
+                )}
               </Button>
             ) : (
               <span className="text-xs text-muted-foreground italic">No data logged</span>
@@ -954,6 +1118,7 @@ function WeighInSection({
   logs,
   addLog,
   updateLog,
+  deleteLog,
   targetWeight,
   overnightDrift,
   simulatedDate,
@@ -962,13 +1127,29 @@ function WeighInSection({
   logs: any[];
   addLog: any;
   updateLog: any;
+  deleteLog: any;
   targetWeight: number;
   overnightDrift: number | null;
   simulatedDate?: Date | null;
   readOnly?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(true);
   const today = simulatedDate || new Date();
+
+  // Check if user has morning weight logged today (determines if they should focus on this section)
+  const hasMorningLog = logs.find(log => {
+    const logDate = new Date(log.date);
+    return log.type === 'morning' &&
+      logDate.getFullYear() === today.getFullYear() &&
+      logDate.getMonth() === today.getMonth() &&
+      logDate.getDate() === today.getDate();
+  });
+
+  // Check if it's afternoon/evening (when practice weigh-ins are relevant)
+  const currentHour = new Date().getHours();
+  const isPracticeTime = currentHour >= 14; // After 2 PM
+
+  // Smart default: collapsed if morning not logged yet, expanded if it's practice time
+  const [isExpanded, setIsExpanded] = useState(hasMorningLog && isPracticeTime);
 
   // Check completion status for each weigh-in type
   const getLogForType = (logType: string) => {
@@ -1024,6 +1205,7 @@ function WeighInSection({
               logType="pre-practice"
               addLog={addLog}
               updateLog={updateLog}
+              deleteLog={deleteLog}
               targetWeight={targetWeight + 1.5}
               simulatedDate={simulatedDate}
               readOnly={readOnly}
@@ -1038,6 +1220,7 @@ function WeighInSection({
               logType="post-practice"
               addLog={addLog}
               updateLog={updateLog}
+              deleteLog={deleteLog}
               targetWeight={targetWeight}
               simulatedDate={simulatedDate}
               readOnly={readOnly}
@@ -1052,6 +1235,7 @@ function WeighInSection({
               logType="before-bed"
               addLog={addLog}
               updateLog={updateLog}
+              deleteLog={deleteLog}
               targetWeight={overnightDrift !== null ? targetWeight + overnightDrift : undefined}
               targetWeightRange={overnightDrift === null ? { min: targetWeight + 1, max: targetWeight + 2 } : undefined}
               simulatedDate={simulatedDate}
@@ -1073,6 +1257,7 @@ function CompactWeighIn({
   logType,
   addLog,
   updateLog,
+  deleteLog,
   targetWeight,
   targetWeightRange,
   simulatedDate,
@@ -1085,6 +1270,7 @@ function CompactWeighIn({
   logType: 'pre-practice' | 'post-practice' | 'before-bed';
   addLog: any;
   updateLog: any;
+  deleteLog: any;
   targetWeight?: number;
   targetWeightRange?: { min: number; max: number };
   simulatedDate?: Date | null;
@@ -1133,6 +1319,12 @@ function CompactWeighIn({
     setIsEditing(false);
   };
 
+  const handleDelete = () => {
+    if (todayLog) {
+      deleteLog(todayLog.id);
+    }
+  };
+
   // Get status color based on target
   const getStatusColor = () => {
     if (!todayLog) return "";
@@ -1174,13 +1366,22 @@ function CompactWeighIn({
               {todayLog.weight} lbs
             </span>
             {!readOnly && (
-              <button
-                onClick={handleEdit}
-                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                title="Edit"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-0.5">
+                <button
+                  onClick={handleEdit}
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                  title="Edit"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
           </>
         ) : (isLogging || isEditing) ? (
@@ -1221,19 +1422,33 @@ function CompactWeighIn({
 // Hydration Tracker
 function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount: string; type: string; note: string; targetOz: number }; readOnly?: boolean }) {
   const { getDailyTracking, updateDailyTracking, profile } = useStore();
+  const { toast } = useToast();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
   const [addAmount, setAddAmount] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [justHitGoal, setJustHitGoal] = useState(false);
 
   const progress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
+  const wasUnderGoal = tracking.waterConsumed < hydration.targetOz;
 
   const quickAddAmounts = [8, 16, 24, 32];
 
   const handleAddWater = (oz: number) => {
-    updateDailyTracking(dateKey, { waterConsumed: tracking.waterConsumed + oz });
+    const newTotal = tracking.waterConsumed + oz;
+    updateDailyTracking(dateKey, { waterConsumed: newTotal });
+
+    // Celebrate when hitting goal
+    if (wasUnderGoal && newTotal >= hydration.targetOz) {
+      setJustHitGoal(true);
+      toast({
+        title: "Hydration goal reached!",
+        description: "Great job staying hydrated today!",
+      });
+      setTimeout(() => setJustHitGoal(false), 2000);
+    }
   };
 
   const handleCustomAdd = () => {
@@ -1259,17 +1474,27 @@ function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount
   };
 
   return (
-    <Card className="border-muted">
+    <Card className={cn(
+      "border-muted transition-all",
+      progress >= 100 && "bg-green-500/5 border-green-500/30",
+      justHitGoal && "ring-2 ring-green-500/50 animate-pulse"
+    )}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">
-            <span className="text-sm font-bold text-cyan-500">3</span>
+          <div className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+            progress >= 100 ? "bg-green-500" : "bg-cyan-500/10"
+          )}>
+            {progress >= 100 ? (
+              <CheckCircle2 className="w-5 h-5 text-black" />
+            ) : (
+              <Droplets className="w-4 h-4 text-cyan-500" />
+            )}
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-cyan-500" />
-                <h3 className="font-bold">Hydration: {hydration.amount}</h3>
+                <h3 className={cn("font-bold", progress >= 100 && "text-green-500")}>Hydration: {hydration.amount}</h3>
                 {/* Water Type Badge */}
                 <span className={cn(
                   "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
@@ -1982,6 +2207,166 @@ function WhyExplanation({ title, children }: { title: string; children: React.Re
         </div>
       )}
     </button>
+  );
+}
+
+// Today's Status Card - At-a-glance summary
+function TodayStatusCard({
+  morningWeight,
+  targetWeight,
+  carbsConsumed,
+  carbsTarget,
+  proteinConsumed,
+  proteinTarget,
+  waterConsumed,
+  waterTarget,
+  weighInsComplete,
+  weighInsTotal,
+  isNewUser
+}: {
+  morningWeight?: number;
+  targetWeight: number;
+  carbsConsumed: number;
+  carbsTarget: number;
+  proteinConsumed: number;
+  proteinTarget: number;
+  waterConsumed: number;
+  waterTarget: number;
+  weighInsComplete: number;
+  weighInsTotal: number;
+  isNewUser: boolean;
+}) {
+  // Calculate completion percentages
+  const carbsPercent = carbsTarget > 0 ? Math.min(100, (carbsConsumed / carbsTarget) * 100) : 0;
+  const proteinPercent = proteinTarget > 0 ? Math.min(100, (proteinConsumed / proteinTarget) * 100) : 0;
+  const waterPercent = waterTarget > 0 ? Math.min(100, (waterConsumed / waterTarget) * 100) : 0;
+
+  // Check if all tasks complete for celebration
+  const allComplete = morningWeight && carbsPercent >= 100 && proteinPercent >= 100 && waterPercent >= 100 && weighInsComplete === weighInsTotal;
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  useEffect(() => {
+    if (allComplete && !showCelebration) {
+      setShowCelebration(true);
+      // Auto-hide after 3 seconds
+      const timer = setTimeout(() => setShowCelebration(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [allComplete]);
+
+  return (
+    <div className="mb-4">
+      {/* Celebration overlay */}
+      {showCelebration && (
+        <div className="bg-gradient-to-r from-green-500/20 via-primary/20 to-green-500/20 border border-green-500/50 rounded-lg p-3 mb-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-center gap-2">
+            <PartyPopper className="w-5 h-5 text-green-500" />
+            <span className="font-bold text-green-500">All targets hit! Great work today!</span>
+            <Sparkles className="w-5 h-5 text-primary" />
+          </div>
+        </div>
+      )}
+
+      {/* New User Getting Started Hint */}
+      {isNewUser && !morningWeight && (
+        <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 mb-3">
+          <div className="flex items-start gap-2">
+            <Sparkles className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-primary uppercase">Getting Started</span>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Start by logging your morning weight below. This is the foundation of your daily tracking!
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Summary Grid */}
+      <div className="grid grid-cols-4 gap-2">
+        {/* Morning Weight */}
+        <div className={cn(
+          "rounded-lg p-2 text-center border",
+          morningWeight
+            ? morningWeight <= targetWeight
+              ? "bg-green-500/10 border-green-500/30"
+              : "bg-yellow-500/10 border-yellow-500/30"
+            : "bg-muted/30 border-muted"
+        )}>
+          <Scale className={cn(
+            "w-4 h-4 mx-auto mb-1",
+            morningWeight ? morningWeight <= targetWeight ? "text-green-500" : "text-yellow-500" : "text-muted-foreground"
+          )} />
+          <div className="text-[10px] text-muted-foreground uppercase font-medium">Weight</div>
+          {morningWeight ? (
+            <div className={cn(
+              "font-mono font-bold text-sm",
+              morningWeight <= targetWeight ? "text-green-500" : "text-yellow-500"
+            )}>
+              {morningWeight.toFixed(1)}
+            </div>
+          ) : (
+            <div className="text-xs text-muted-foreground">—</div>
+          )}
+        </div>
+
+        {/* Carbs */}
+        <div className={cn(
+          "rounded-lg p-2 text-center border",
+          carbsPercent >= 100 ? "bg-green-500/10 border-green-500/30" : "bg-muted/30 border-muted"
+        )}>
+          <Flame className={cn(
+            "w-4 h-4 mx-auto mb-1",
+            carbsPercent >= 100 ? "text-green-500" : carbsPercent > 50 ? "text-primary" : "text-muted-foreground"
+          )} />
+          <div className="text-[10px] text-muted-foreground uppercase font-medium">Carbs</div>
+          <div className={cn(
+            "font-mono font-bold text-sm",
+            carbsPercent >= 100 ? "text-green-500" : carbsPercent > 50 ? "text-primary" : "text-muted-foreground"
+          )}>
+            {carbsConsumed}g
+          </div>
+          <div className="text-[9px] text-muted-foreground">/ {carbsTarget}g</div>
+        </div>
+
+        {/* Water */}
+        <div className={cn(
+          "rounded-lg p-2 text-center border",
+          waterPercent >= 100 ? "bg-green-500/10 border-green-500/30" : "bg-muted/30 border-muted"
+        )}>
+          <Droplets className={cn(
+            "w-4 h-4 mx-auto mb-1",
+            waterPercent >= 100 ? "text-green-500" : waterPercent > 50 ? "text-cyan-500" : "text-muted-foreground"
+          )} />
+          <div className="text-[10px] text-muted-foreground uppercase font-medium">Water</div>
+          <div className={cn(
+            "font-mono font-bold text-sm",
+            waterPercent >= 100 ? "text-green-500" : waterPercent > 50 ? "text-cyan-500" : "text-muted-foreground"
+          )}>
+            {waterConsumed}oz
+          </div>
+          <div className="text-[9px] text-muted-foreground">/ {waterTarget}oz</div>
+        </div>
+
+        {/* Weigh-Ins */}
+        <div className={cn(
+          "rounded-lg p-2 text-center border",
+          weighInsComplete === weighInsTotal ? "bg-green-500/10 border-green-500/30" : "bg-muted/30 border-muted"
+        )}>
+          <CheckCircle2 className={cn(
+            "w-4 h-4 mx-auto mb-1",
+            weighInsComplete === weighInsTotal ? "text-green-500" : weighInsComplete > 0 ? "text-primary" : "text-muted-foreground"
+          )} />
+          <div className="text-[10px] text-muted-foreground uppercase font-medium">Logs</div>
+          <div className={cn(
+            "font-mono font-bold text-sm",
+            weighInsComplete === weighInsTotal ? "text-green-500" : weighInsComplete > 0 ? "text-primary" : "text-muted-foreground"
+          )}>
+            {weighInsComplete}/{weighInsTotal}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

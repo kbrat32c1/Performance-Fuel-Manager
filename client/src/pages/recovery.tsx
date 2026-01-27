@@ -2,8 +2,8 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, Clock, Droplets, Utensils, Zap, Calculator, RotateCcw, Play, Pause, FastForward } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Check, Clock, Droplets, Utensils, Zap, Calculator, RotateCcw, Play, Pause, FastForward, Bell, BellOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,72 @@ export default function Recovery() {
     const saved = localStorage.getItem('pwm-match-prep-checklist');
     return saved ? JSON.parse(saved) : {};
   });
+
+  // Notifications state
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
+    return localStorage.getItem('pwm-recovery-notifications') === 'true';
+  });
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
+  const lastPhaseNotified = useRef<string | null>(null);
+
+  // Request notification permission
+  const requestNotificationPermission = async () => {
+    if (typeof Notification === 'undefined') return;
+
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        localStorage.setItem('pwm-recovery-notifications', 'true');
+      }
+    } else if (Notification.permission === 'granted') {
+      setNotificationsEnabled(!notificationsEnabled);
+      localStorage.setItem('pwm-recovery-notifications', (!notificationsEnabled).toString());
+    }
+  };
+
+  // Send notification helper
+  const sendNotification = (title: string, body: string) => {
+    if (notificationsEnabled && notificationPermission === 'granted' && typeof Notification !== 'undefined') {
+      new Notification(title, {
+        body,
+        icon: '/android-chrome-192x192.png',
+        badge: '/android-chrome-192x192.png',
+        tag: 'recovery-phase',
+        renotify: true,
+      });
+    }
+  };
+
+  // Get current phase
+  const getCurrentPhase = (elapsedSec: number) => {
+    if (elapsedSec < 900) return 'p1';
+    if (elapsedSec < 1800) return 'p2';
+    if (elapsedSec < 3600) return 'p3';
+    return 'p4';
+  };
+
+  // Phase notifications
+  useEffect(() => {
+    if (!active || !notificationsEnabled) return;
+
+    const currentPhase = getCurrentPhase(elapsed);
+
+    if (currentPhase !== lastPhaseNotified.current) {
+      // Send notification for phase change
+      if (currentPhase === 'p2' && lastPhaseNotified.current === 'p1') {
+        sendNotification('🍎 Gut Activation Phase', 'Time for simple carbs! Fruit, honey, or gel.');
+      } else if (currentPhase === 'p3' && lastPhaseNotified.current === 'p2') {
+        sendNotification('🍽️ Refuel & Stabilize', 'Time for a complex meal with carbs + protein.');
+      } else if (currentPhase === 'p4' && lastPhaseNotified.current === 'p3') {
+        sendNotification('😴 Performance Prep', 'Rest if possible. Mental visualization time.');
+      }
+      lastPhaseNotified.current = currentPhase;
+    }
+  }, [elapsed, active, notificationsEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rehydration Calc
   const [weighInWeight, setWeighInWeight] = useState(() => {
@@ -114,6 +180,35 @@ export default function Recovery() {
         <Card className="bg-muted/10 border-primary/20 overflow-hidden relative" role="timer" aria-label="Recovery timer">
           {active && <div className="absolute inset-0 bg-primary/5 animate-pulse" aria-hidden="true" />}
           <CardContent className="p-8 text-center relative z-10">
+            {/* Notification Toggle */}
+            <div className="absolute top-3 right-3">
+              <button
+                onClick={requestNotificationPermission}
+                className={cn(
+                  "p-2 rounded-lg transition-colors flex items-center gap-1.5",
+                  notificationsEnabled && notificationPermission === 'granted'
+                    ? "bg-primary/20 text-primary"
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                )}
+                title={
+                  notificationPermission === 'denied'
+                    ? "Notifications blocked - enable in browser settings"
+                    : notificationsEnabled
+                      ? "Notifications enabled"
+                      : "Enable notifications"
+                }
+              >
+                {notificationsEnabled && notificationPermission === 'granted' ? (
+                  <Bell className="w-4 h-4" />
+                ) : (
+                  <BellOff className="w-4 h-4" />
+                )}
+                <span className="text-[10px] font-medium hidden sm:inline">
+                  {notificationsEnabled && notificationPermission === 'granted' ? 'On' : 'Off'}
+                </span>
+              </button>
+            </div>
+
             <div
               className="text-6xl font-mono font-bold tracking-tighter mb-4"
               aria-live="polite"

@@ -1,13 +1,21 @@
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { format, getDay, addDays, startOfWeek } from "date-fns";
-import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle } from "lucide-react";
+import { format, getDay, addDays, startOfWeek, isSameDay } from "date-fns";
+import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Pencil, Check, X } from "lucide-react";
+import { useState } from "react";
 
 export default function Weekly() {
-  const { profile, logs, getCheckpoints } = useStore();
+  const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData } = useStore();
   const checkpoints = getCheckpoints();
+  const descentData = getWeekDescentData();
+
+  // State for editing weights
+  const [editingDay, setEditingDay] = useState<string | null>(null);
+  const [editWeight, setEditWeight] = useState('');
 
   const today = profile.simulatedDate || new Date();
   const currentDayOfWeek = getDay(today);
@@ -132,7 +140,7 @@ export default function Weekly() {
   return (
     <MobileLayout showNav={true}>
       {/* Header */}
-      <header className="mb-6">
+      <header className="mb-4">
         <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
           Week of {format(startOfWeek(today, { weekStartsOn: 1 }), 'MMM d')}
         </h2>
@@ -143,6 +151,102 @@ export default function Weekly() {
           {profile.targetWeightClass} lb class • {weightCategory === 'light' ? '125-141' : weightCategory === 'medium' ? '149-165' : '174-197'} lb category
         </p>
       </header>
+
+      {/* Progress Summary Card */}
+      {descentData.morningWeights.length >= 1 && (
+        <Card className={cn(
+          "mb-4 border-2",
+          descentData.pace === 'ahead' ? "border-green-500/50 bg-green-500/5" :
+          descentData.pace === 'on-track' ? "border-primary/50 bg-primary/5" :
+          descentData.pace === 'behind' ? "border-orange-500/50 bg-orange-500/5" :
+          "border-muted"
+        )}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                {descentData.pace === 'ahead' && <TrendingDown className="w-5 h-5 text-green-500" />}
+                {descentData.pace === 'on-track' && <Target className="w-5 h-5 text-primary" />}
+                {descentData.pace === 'behind' && <TrendingUp className="w-5 h-5 text-orange-500" />}
+                {!descentData.pace && <Scale className="w-5 h-5 text-muted-foreground" />}
+                <span className="text-sm font-bold uppercase">
+                  {descentData.pace === 'ahead' ? "Ahead of Schedule!" :
+                   descentData.pace === 'on-track' ? "On Track" :
+                   descentData.pace === 'behind' ? "Behind Schedule" :
+                   "Week Progress"}
+                </span>
+              </div>
+              <span className={cn(
+                "text-xs font-bold px-2 py-1 rounded",
+                descentData.pace === 'ahead' ? "bg-green-500/20 text-green-500" :
+                descentData.pace === 'on-track' ? "bg-primary/20 text-primary" :
+                descentData.pace === 'behind' ? "bg-orange-500/20 text-orange-500" :
+                "bg-muted text-muted-foreground"
+              )}>
+                {descentData.daysRemaining} day{descentData.daysRemaining !== 1 ? 's' : ''} to weigh-in
+              </span>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-4 gap-2 text-center">
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Start</span>
+                <span className="font-mono font-bold text-lg">
+                  {descentData.startWeight?.toFixed(1) ?? '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Now</span>
+                <span className={cn(
+                  "font-mono font-bold text-lg",
+                  descentData.pace === 'ahead' ? "text-green-500" :
+                  descentData.pace === 'on-track' ? "text-primary" :
+                  descentData.pace === 'behind' ? "text-orange-500" : ""
+                )}>
+                  {descentData.currentWeight?.toFixed(1) ?? '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Lost</span>
+                <span className={cn(
+                  "font-mono font-bold text-lg",
+                  descentData.totalLost && descentData.totalLost > 0 ? "text-green-500" : "text-muted-foreground"
+                )}>
+                  {descentData.totalLost !== null
+                    ? descentData.totalLost > 0 ? `-${descentData.totalLost.toFixed(1)}` : `+${Math.abs(descentData.totalLost).toFixed(1)}`
+                    : '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Goal</span>
+                <span className="font-mono font-bold text-lg text-primary">
+                  {descentData.targetWeight}
+                </span>
+              </div>
+            </div>
+
+            {/* Progress Message */}
+            {descentData.totalLost !== null && descentData.currentWeight && (
+              <div className={cn(
+                "mt-3 p-2 rounded-lg text-center text-sm",
+                descentData.pace === 'ahead' ? "bg-green-500/10 text-green-500" :
+                descentData.pace === 'on-track' ? "bg-primary/10 text-primary" :
+                descentData.pace === 'behind' ? "bg-orange-500/10 text-orange-500" :
+                "bg-muted text-muted-foreground"
+              )}>
+                {descentData.pace === 'ahead' && (
+                  <>You're <strong>{Math.abs(descentData.currentWeight - descentData.targetWeight - 2).toFixed(1)} lbs</strong> ahead! You can eat a bit more.</>
+                )}
+                {descentData.pace === 'on-track' && (
+                  <>On pace! <strong>{(descentData.currentWeight - descentData.targetWeight).toFixed(1)} lbs</strong> left to cut.</>
+                )}
+                {descentData.pace === 'behind' && (
+                  <>Need to lose <strong>{(descentData.currentWeight - descentData.targetWeight).toFixed(1)} lbs</strong> more. Tighten up!</>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Weight Targets Table */}
       <section className="mb-6">
@@ -239,8 +343,54 @@ export default function Weekly() {
                         )}
                       </td>
                       <td className="p-2 text-center">
-                        {relevantLog ? (
-                          <span className="font-mono font-bold">{relevantLog.weight}</span>
+                        {editingDay === `${day.key}-${relevantLog?.type || 'morning'}` && relevantLog ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editWeight}
+                              onChange={(e) => setEditWeight(e.target.value)}
+                              className="w-16 h-7 text-center text-xs font-mono p-1"
+                              autoFocus
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                if (relevantLog && editWeight) {
+                                  updateLog(relevantLog.id, { weight: parseFloat(editWeight) });
+                                }
+                                setEditingDay(null);
+                                setEditWeight('');
+                              }}
+                              className="h-6 w-6"
+                            >
+                              <Check className="w-3 h-3 text-green-500" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingDay(null);
+                                setEditWeight('');
+                              }}
+                              className="h-6 w-6"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ) : relevantLog ? (
+                          <button
+                            onClick={() => {
+                              setEditingDay(`${day.key}-${relevantLog.type}`);
+                              setEditWeight(relevantLog.weight.toString());
+                            }}
+                            className="font-mono font-bold hover:text-primary hover:underline transition-colors flex items-center justify-center gap-1 w-full"
+                            title="Tap to edit"
+                          >
+                            {relevantLog.weight}
+                            <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-50" />
+                          </button>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
