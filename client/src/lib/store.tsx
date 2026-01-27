@@ -130,6 +130,13 @@ interface StoreContextType {
     supplements: Array<{ name: string; serving: string; note: string }>;
     fuelTanks: Array<{ name: string; loseRate: string; replenishRate: string; performanceCost: string; declinePoint: string }>;
   };
+  getTodaysFoods: () => {
+    carbs: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
+    protein: Array<{ name: string; serving: string; protein: number; note: string }>;
+    avoid: Array<{ name: string; reason: string }>;
+    carbsLabel: string;
+    proteinLabel: string;
+  };
   getHistoryInsights: () => {
     avgOvernightDrift: number | null;
     avgPracticeLoss: number | null;
@@ -723,7 +730,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const today = profile.simulatedDate || new Date();
     const dayOfWeek = getDay(today);
 
-    if (protocol === '1' || protocol === '2') {
+    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
+    // Extended 0 protein period, maximum FGF21 activation
+    if (protocol === '1') {
+      // Monday-Thursday: 0g protein (4 days fructose only - max fat burning)
+      if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+        return {
+          carbs: { min: 250, max: 400 },
+          protein: { min: 0, max: 0 },
+          ratio: "Fructose Only (60:40)"
+        };
+      }
+      // Friday: 0.20g/lb protein evening only (~35g for 175lb) - GDF15 peak
+      if (dayOfWeek === 5) {
+        return {
+          carbs: { min: 200, max: 300 },
+          protein: { min: Math.round(w * 0.2), max: Math.round(w * 0.2) },
+          ratio: "Fructose + MCT (Evening Protein)"
+        };
+      }
+      // Saturday: 1.0g/lb protein (aggressive refeed post-weigh-in)
+      if (dayOfWeek === 6) {
+        return {
+          carbs: { min: 150, max: 300 },
+          protein: { min: Math.round(w * 1.0), max: Math.round(w * 1.0) },
+          ratio: "Low Carb / Protein Refeed"
+        };
+      }
+      // Sunday: 1.4g/lb (full recovery)
+      if (dayOfWeek === 0) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
+          ratio: "Full Recovery"
+        };
+      }
+    }
+
+    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
+    if (protocol === '2') {
       // Monday-Tuesday: 0g protein (fructose only)
       if (dayOfWeek === 1 || dayOfWeek === 2) {
         return {
@@ -732,7 +777,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ratio: "Fructose Heavy (60:40)"
         };
       }
-      // Wednesday: 25g protein (dinner only)
+      // Wednesday: 25g protein (collagen + leucine at dinner)
       if (dayOfWeek === 3) {
         return {
           carbs: { min: 325, max: 450 },
@@ -740,23 +785,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ratio: "Fructose Heavy (60:40)"
         };
       }
-      // Thursday: 50-60g protein
-      if (dayOfWeek === 4) {
+      // Thursday-Friday: 60g protein (collagen + seafood)
+      if (dayOfWeek === 4 || dayOfWeek === 5) {
         return {
-          carbs: { min: 325, max: 450 },
-          protein: { min: 50, max: 60 },
+          carbs: { min: 300, max: 400 },
+          protein: { min: 60, max: 60 },
           ratio: "Glucose Heavy (Switch to Starch)"
         };
       }
-      // Friday: 50-60g protein
-      if (dayOfWeek === 5) {
-        return {
-          carbs: { min: 250, max: 350 },
-          protein: { min: 50, max: 60 },
-          ratio: "Glucose Heavy (Zero Fiber)"
-        };
-      }
-      // Saturday: 0.5g/lb (competition day - minimal until done)
+      // Saturday: 0.5g/lb (post-weigh-in rebuild)
       if (dayOfWeek === 6) {
         return {
           carbs: { min: 200, max: 400 },
@@ -1048,13 +1085,243 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // Get protocol-specific and day-specific food recommendations
+  const getTodaysFoods = () => {
+    const protocol = profile.protocol;
+    const today = profile.simulatedDate || new Date();
+    const dayOfWeek = getDay(today);
+    const foods = getFoodLists();
+
+    // Default lists
+    let carbs = foods.balanced;
+    let protein = foods.protein;
+    let avoid = foods.avoid;
+    let carbsLabel = "Balanced Carbs";
+    let proteinLabel = "Standard Protein";
+
+    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE - 4 days no protein)
+    if (protocol === '1') {
+      if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+        // Mon-Thu: High fructose, NO protein (4 days max FGF21)
+        carbs = foods.highFructose;
+        protein = []; // No protein allowed
+        avoid = [
+          { name: "ALL protein", reason: "Max FGF21 activation - no protein until Friday" },
+          { name: "Starch", reason: "Fructose only for fat oxidation" },
+          { name: "Fat", reason: "Keep calories from fructose" }
+        ];
+        carbsLabel = "Fructose Only (60:40)";
+        proteinLabel = "NO PROTEIN (Day " + (dayOfWeek) + " of 4)";
+      } else if (dayOfWeek === 5) {
+        // Fri: Fructose + MCT, small protein evening only (GDF15 peak)
+        carbs = foods.highFructose;
+        protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
+        avoid = [
+          { name: "Heavy protein", reason: "Only 0.2g/lb evening collagen" },
+          { name: "Fiber", reason: "Clear gut for weigh-in" }
+        ];
+        carbsLabel = "Fructose + MCT Oil";
+        proteinLabel = "Evening Only (0.2g/lb)";
+      } else if (dayOfWeek === 6) {
+        // Sat: Protein refeed (1.0g/lb) - aggressive rebuild
+        carbs = foods.balanced;
+        protein = foods.protein;
+        avoid = [
+          { name: "High fiber", reason: "Keep gut light during competition" }
+        ];
+        carbsLabel = "Low-Carb / Moderate Fat";
+        proteinLabel = "PROTEIN REFEED (1.0g/lb)";
+      } else {
+        // Sun: Full recovery
+        carbs = foods.recovery;
+        protein = foods.protein;
+        avoid = [];
+        carbsLabel = "Full Recovery (All Carbs)";
+        proteinLabel = "High Protein (1.4g/lb)";
+      }
+    }
+    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
+    else if (protocol === '2') {
+      if (dayOfWeek === 1 || dayOfWeek === 2) {
+        // Mon-Tue: High fructose, NO protein
+        carbs = foods.highFructose;
+        protein = []; // No protein allowed
+        avoid = foods.avoid.filter(a =>
+          a.name.includes("Mon-Wed") || a.name.includes("Protein")
+        );
+        carbsLabel = "Fructose Heavy (60:40)";
+        proteinLabel = "NO PROTEIN";
+      } else if (dayOfWeek === 3) {
+        // Wed: High fructose, 25g collagen + leucine at dinner
+        carbs = foods.highFructose;
+        protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
+        avoid = foods.avoid.filter(a =>
+          a.name.includes("Mon-Wed") || (!a.name.includes("Collagen") && a.name.includes("Protein"))
+        );
+        carbsLabel = "Fructose Heavy (60:40)";
+        proteinLabel = "25g Collagen (Dinner)";
+      } else if (dayOfWeek === 4 || dayOfWeek === 5) {
+        // Thu-Fri: Glucose/starch, 60g protein (collagen + seafood)
+        carbs = dayOfWeek === 5 ? foods.zeroFiber : foods.highGlucose;
+        protein = foods.protein.filter(p =>
+          p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+        );
+        avoid = foods.avoid.filter(a =>
+          a.name.includes("Thu-Fri") || a.name.includes("Fiber")
+        );
+        carbsLabel = dayOfWeek === 5 ? "Zero Fiber (Critical)" : "Glucose Heavy (Switch Day)";
+        proteinLabel = "60g Protein (Collagen + Seafood)";
+      } else if (dayOfWeek === 6) {
+        // Sat: Competition day - 0.5g/lb post-weigh-in
+        carbs = foods.tournament;
+        protein = foods.protein.filter(p =>
+          p.timing?.includes("Competition") || p.note?.includes("Until wrestling")
+        );
+        avoid = [
+          { name: "Heavy protein pre-match", reason: "No protein until wrestling is over" },
+          { name: "Fiber", reason: "Gut weight" },
+          { name: "Fat", reason: "Slow digestion" }
+        ];
+        carbsLabel = "Fast Carbs (Between Matches)";
+        proteinLabel = "0.5g/lb After Weigh-In";
+      } else {
+        // Sun: Full recovery - 1.4g/lb
+        carbs = foods.recovery;
+        protein = foods.protein.filter(p =>
+          p.timing?.includes("Post-comp") || p.timing?.includes("Sunday") || p.timing?.includes("Sun")
+        );
+        avoid = [];
+        carbsLabel = "Full Recovery (All Carbs)";
+        proteinLabel = "High Protein (1.4g/lb)";
+      }
+    }
+    // Protocol 3: Hold Weight
+    else if (protocol === '3') {
+      if (dayOfWeek === 1) {
+        // Mon: Fructose heavy, 25g protein (collagen)
+        carbs = foods.highFructose;
+        protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
+        avoid = [{ name: "Heavy protein", reason: "Keep light on protein today" }];
+        carbsLabel = "Fructose Heavy";
+        proteinLabel = "25g Protein (Collagen)";
+      } else if (dayOfWeek === 2 || dayOfWeek === 3) {
+        // Tue-Wed: Mixed carbs, 75g protein
+        carbs = foods.balanced;
+        protein = foods.protein.filter(p =>
+          p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri") ||
+          p.name.toLowerCase().includes("collagen") || p.name.toLowerCase().includes("egg")
+        );
+        avoid = [{ name: "High fat proteins", reason: "Stick to lean sources" }];
+        carbsLabel = "Mixed Fructose/Glucose";
+        proteinLabel = "75g Protein";
+      } else if (dayOfWeek === 4 || dayOfWeek === 5) {
+        // Thu-Fri: Glucose/performance, 100g protein
+        carbs = foods.highGlucose;
+        protein = foods.protein.filter(p =>
+          p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+        );
+        avoid = foods.avoid.filter(a => a.name.includes("Fiber"));
+        carbsLabel = "Performance (Glucose)";
+        proteinLabel = "100g Protein";
+      } else if (dayOfWeek === 6) {
+        // Sat: Competition
+        carbs = foods.tournament;
+        protein = foods.protein.filter(p => p.timing?.includes("Competition"));
+        avoid = [{ name: "Heavy protein", reason: "Keep it light until done" }];
+        carbsLabel = "Competition Day";
+        proteinLabel = "Minimal Until Done";
+      } else {
+        // Sun: Full recovery
+        carbs = foods.recovery;
+        protein = foods.protein.filter(p =>
+          p.timing?.includes("Post-comp") || p.timing?.includes("Sunday")
+        );
+        avoid = [];
+        carbsLabel = "Full Recovery";
+        proteinLabel = "High Protein (1.4g/lb)";
+      }
+    }
+    // Protocol 4: Build Phase
+    else if (protocol === '4') {
+      if (dayOfWeek === 6) {
+        // Sat: Competition
+        carbs = foods.tournament;
+        protein = foods.protein.filter(p => p.timing?.includes("Competition") || p.timing?.includes("Post-comp"));
+        avoid = [{ name: "Heavy meals pre-match", reason: "Stay light until done" }];
+        carbsLabel = "Competition Day";
+        proteinLabel = "0.8g/lb After";
+      } else if (dayOfWeek === 0) {
+        // Sun: Max recovery
+        carbs = foods.recovery;
+        protein = foods.protein; // All protein allowed
+        avoid = [];
+        carbsLabel = "Full Recovery";
+        proteinLabel = "MAX Protein (1.6g/lb)";
+      } else {
+        // Mon-Fri: Training days - all foods allowed
+        carbs = [...foods.balanced, ...foods.highGlucose.slice(0, 5)];
+        protein = foods.protein.filter(p => !p.timing?.includes("Competition"));
+        avoid = [{ name: "Junk food", reason: "Focus on quality calories" }];
+        carbsLabel = "Balanced (All Quality Carbs)";
+        proteinLabel = dayOfWeek === 1 ? "100g Protein" : "125g Protein";
+      }
+    }
+
+    return { carbs, protein, avoid, carbsLabel, proteinLabel };
+  };
+
   const getFuelingGuide = () => {
     const w = profile.currentWeight || profile.targetWeightClass;
     const protocol = profile.protocol;
     const today = profile.simulatedDate || new Date();
     const dayOfWeek = getDay(today);
 
-    if (protocol === '1' || protocol === '2') {
+    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
+    if (protocol === '1') {
+      // Monday-Thursday: 0g protein (4 days max FGF21)
+      if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+        return {
+          ratio: "Fructose Only (60:40)",
+          protein: "0g",
+          carbs: "250-400g",
+          allowed: ["Fruit", "Juice", "Honey", "Agave"],
+          avoid: ["ALL Protein", "Starch", "Fat"]
+        };
+      }
+      // Friday: 0.2g/lb evening (GDF15 peak)
+      if (dayOfWeek === 5) {
+        return {
+          ratio: "Fructose + MCT (GDF15 Peak)",
+          protein: `${Math.round(w * 0.2)}g (Evening Only)`,
+          carbs: "200-300g",
+          allowed: ["Fruit", "Juice", "MCT Oil", "Collagen (Evening)"],
+          avoid: ["Heavy Protein", "Fiber", "Starch"]
+        };
+      }
+      // Saturday: 1.0g/lb (aggressive refeed)
+      if (dayOfWeek === 6) {
+        return {
+          ratio: "Protein Refeed (Low Carb)",
+          protein: `${Math.round(w * 1.0)}g (1.0g/lb)`,
+          carbs: "150-300g",
+          allowed: ["All Protein", "Moderate Fat", "Low Carb"],
+          avoid: ["High Fiber"]
+        };
+      }
+      // Sunday: 1.4g/lb
+      if (dayOfWeek === 0) {
+        return {
+          ratio: "Full Recovery",
+          protein: `${Math.round(w * 1.4)}g (1.4g/lb)`,
+          carbs: "300-450g",
+          allowed: ["Whole Eggs", "Beef/Steak", "Chicken", "Rice", "All Fruits/Veg"],
+          avoid: ["Nothing - full recovery day"]
+        };
+      }
+    }
+
+    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD)
+    if (protocol === '2') {
       // Monday-Tuesday: 0g protein
       if (dayOfWeek === 1 || dayOfWeek === 2) {
         return {
@@ -1075,24 +1342,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Starch", "Meat", "Fat"]
         };
       }
-      // Thursday: 50-60g protein
-      if (dayOfWeek === 4) {
+      // Thursday-Friday: 60g protein
+      if (dayOfWeek === 4 || dayOfWeek === 5) {
         return {
-          ratio: "Glucose Heavy (Switch to Starch)",
-          protein: "50-60g/day",
-          carbs: "325-450g",
-          allowed: ["White Rice", "Potato", "Dextrose", "Collagen", "Egg Whites", "Seafood"],
-          avoid: ["Fiber (Fruits/Veg)", "Fatty Meat"]
-        };
-      }
-      // Friday: 50-60g protein
-      if (dayOfWeek === 5) {
-        return {
-          ratio: "Glucose Heavy (Zero Fiber)",
-          protein: "50-60g/day",
-          carbs: "250-350g",
-          allowed: ["White Rice", "Potato", "Dextrose", "Collagen", "White Fish", "Shrimp"],
-          avoid: ["ALL Fiber", "Fruits", "Vegetables"]
+          ratio: dayOfWeek === 5 ? "Glucose Heavy (Zero Fiber)" : "Glucose Heavy (Switch to Starch)",
+          protein: "60g/day",
+          carbs: dayOfWeek === 5 ? "250-350g" : "300-400g",
+          allowed: ["White Rice", "Potato", "Dextrose", "Collagen", "Seafood"],
+          avoid: dayOfWeek === 5 ? ["ALL Fiber", "Fruits", "Vegetables"] : ["Fiber (Fruits/Veg)", "Fatty Meat"]
         };
       }
       // Saturday: 0.5g/lb (competition day)
@@ -1946,6 +2203,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getDailyPriority,
       getWeekDescentData,
       getFoodLists,
+      getTodaysFoods,
       getHistoryInsights
     }}>
       {children}

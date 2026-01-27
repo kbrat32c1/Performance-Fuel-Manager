@@ -1,5 +1,6 @@
 export { DailyStep } from './daily-step';
 export { HydrationTracker } from './hydration-tracker';
+export { MacroTracker } from './macro-tracker';
 export { SettingsDialog } from './settings-dialog';
 export { InfoDialog } from './info-dialog';
 export { WeekOverview } from './week-overview';

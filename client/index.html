@@ -13,8 +13,16 @@
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="PWM - Performance Weight Management" />
     <meta name="twitter:description" content="Your coach in your pocket. Smart weight management for wrestlers." />
+    <meta property="og:image" content="https://performance-fuel-manager.vercel.app/opengraph.png" />
+    <meta name="twitter:image" content="https://performance-fuel-manager.vercel.app/opengraph.png" />
 
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PWM" />
+    <meta name="theme-color" content="#84cc16" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Barlow Condensed for Headings, Inter for UI, JetBrains Mono for Data -->
@@ -23,5 +31,15 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Register service worker for offline support
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('PWM: Service worker registered'))
+            .catch(err => console.log('PWM: Service worker registration failed', err));
+        });
+      }
+    </script>
   </body>
 </html>
