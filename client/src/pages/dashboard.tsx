@@ -1083,10 +1083,69 @@ function FuelTracker({ fuel }: { fuel: { allowed: string[]; avoid: string[]; rat
             {/* Today's Protein Sources - Prominent display */}
             {(() => {
               const proteinList = foodLists.protein;
-              // Filter protein sources based on day
+              // Filter protein sources based on day AND protocol
               const getTodayProtein = () => {
+                // Protocol 3 (Hold Weight) and Protocol 4 (Build) always have protein
+                if (profile.protocol === '3') {
+                  // Hold Weight Phase - protein every day based on targets
+                  if (dayOfWeek === 1) {
+                    return {
+                      sources: proteinList.filter(p => p.name.includes("Collagen")),
+                      message: "25g PROTEIN (Collagen)",
+                      color: "text-cyan-500",
+                      bgColor: "bg-cyan-500/10 border-cyan-500/30"
+                    };
+                  }
+                  if (dayOfWeek === 2 || dayOfWeek === 3) {
+                    return {
+                      sources: proteinList.filter(p =>
+                        p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+                      ),
+                      message: "75g PROTEIN",
+                      color: "text-primary",
+                      bgColor: "bg-primary/10 border-primary/30"
+                    };
+                  }
+                  if (dayOfWeek === 4 || dayOfWeek === 5) {
+                    return {
+                      sources: proteinList.filter(p =>
+                        p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+                      ),
+                      message: "100g PROTEIN",
+                      color: "text-primary",
+                      bgColor: "bg-primary/10 border-primary/30"
+                    };
+                  }
+                  if (dayOfWeek === 6) {
+                    return {
+                      sources: proteinList.filter(p => p.timing?.includes("Competition") || p.timing?.includes("Post-comp")),
+                      message: "COMPETITION DAY",
+                      color: "text-yellow-500",
+                      bgColor: "bg-yellow-500/10 border-yellow-500/30"
+                    };
+                  }
+                  // Sunday
+                  return {
+                    sources: proteinList,
+                    message: "FULL PROTEIN DAY",
+                    color: "text-green-500",
+                    bgColor: "bg-green-500/10 border-green-500/30"
+                  };
+                }
+
+                if (profile.protocol === '4') {
+                  // Build Phase - high protein every day
+                  return {
+                    sources: proteinList,
+                    message: "HIGH PROTEIN DAY",
+                    color: "text-green-500",
+                    bgColor: "bg-green-500/10 border-green-500/30"
+                  };
+                }
+
+                // Protocols 1 & 2 (Body Comp & Make Weight) - low/no protein Mon-Wed
                 if (dayOfWeek === 1 || dayOfWeek === 2) {
-                  // Mon-Tue: NO protein
+                  // Mon-Tue: NO protein (Protocols 1 & 2 only)
                   return { sources: [], message: "NO PROTEIN TODAY", color: "text-destructive", bgColor: "bg-destructive/10 border-destructive/30" };
                 }
                 if (dayOfWeek === 3) {

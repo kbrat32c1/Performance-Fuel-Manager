@@ -537,11 +537,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const calculateTarget = () => {
     const today = profile.simulatedDate || new Date();
-    const daysOut = Math.max(0, differenceInDays(profile.weighInDate, today));
-    if (profile.protocol !== '4') {
-        return profile.targetWeightClass * (1 + (0.01 * daysOut));
+    const dayOfWeek = getDay(today);
+    const w = profile.targetWeightClass;
+    const protocol = profile.protocol;
+
+    // Protocol 4 (Build Phase) - no cutting, stay at weight class
+    if (protocol === '4') {
+      return w;
     }
-    return profile.targetWeightClass;
+
+    // Protocol 3 (Hold Weight) - maintain near walk-around, minimal cut
+    if (protocol === '3') {
+      switch (dayOfWeek) {
+        case 0: return Math.round(w * 1.05); // Sunday - recovery
+        case 1: return Math.round(w * 1.05); // Monday
+        case 2: return Math.round(w * 1.05); // Tuesday
+        case 3: return Math.round(w * 1.05); // Wednesday
+        case 4: return Math.round(w * 1.04); // Thursday
+        case 5: return Math.round(w * 1.03); // Friday
+        case 6: return w; // Saturday - competition
+        default: return Math.round(w * 1.05);
+      }
+    }
+
+    // Protocols 1 & 2 (Body Comp & Make Weight) - use day-based targets
+    // Note: Mon-Wed targets account for water loading (athletes will be heavier)
+    const isHeavy = w >= 175;
+    const isMedium = w >= 150 && w < 175;
+    const waterLoadBonus = isHeavy ? 4 : isMedium ? 3 : 2;
+
+    switch (dayOfWeek) {
+      case 0: return Math.round(w * 1.07); // Sunday - walk-around recovery
+      case 1: return Math.round(w * 1.07) + waterLoadBonus; // Monday - water loading
+      case 2: return Math.round(w * 1.06) + waterLoadBonus; // Tuesday - peak loading
+      case 3: return Math.round(w * 1.05) + waterLoadBonus; // Wednesday - last load day
+      case 4: return Math.round(w * 1.04); // Thursday - flush (water weight dropping)
+      case 5: return Math.round(w * 1.03); // Friday - critical checkpoint
+      case 6: return w; // Saturday - competition weight
+      default: return Math.round(w * 1.07);
+    }
   };
 
   const getCheckpoints = () => {
