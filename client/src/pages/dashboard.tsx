@@ -404,7 +404,7 @@ export default function Dashboard() {
                 descentData.avgOvernightDrift !== null ? "text-cyan-500" : ""
               )}>
                 {descentData.avgOvernightDrift !== null
-                  ? `-${descentData.avgOvernightDrift.toFixed(1)}`
+                  ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}`
                   : '-'} lbs
               </span>
             </div>
@@ -415,7 +415,7 @@ export default function Dashboard() {
                 descentData.avgPracticeLoss !== null ? "text-orange-500" : ""
               )}>
                 {descentData.avgPracticeLoss !== null
-                  ? `-${descentData.avgPracticeLoss.toFixed(1)}`
+                  ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}`
                   : '-'} lbs
               </span>
             </div>
@@ -435,9 +435,9 @@ export default function Dashboard() {
           {/* Gross loss capacity note */}
           {descentData.grossDailyLoss !== null && (
             <div className="text-[9px] text-muted-foreground text-center mt-2 pt-2 border-t border-muted/50">
-              Loss capacity: <span className="text-green-500 font-mono font-bold">-{descentData.grossDailyLoss.toFixed(1)} lbs/day</span>
-              {descentData.dailyAvgLoss !== null && descentData.dailyAvgLoss !== descentData.grossDailyLoss && (
-                <span className="ml-1">(net: -{descentData.dailyAvgLoss.toFixed(1)})</span>
+              Loss capacity: <span className="text-green-500 font-mono font-bold">-{Math.abs(descentData.grossDailyLoss).toFixed(1)} lbs/day</span>
+              {descentData.dailyAvgLoss !== null && Math.abs(descentData.dailyAvgLoss) !== Math.abs(descentData.grossDailyLoss) && (
+                <span className="ml-1">(net: -{Math.abs(descentData.dailyAvgLoss).toFixed(1)})</span>
               )}
             </div>
           )}

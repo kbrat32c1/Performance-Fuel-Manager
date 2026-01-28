@@ -92,10 +92,10 @@ export default function Weekly() {
       },
       thu: {
         label: 'Flush Day',
-        target: thuTarget.base,
-        range: `${thuTarget.base}-${thuTarget.base + 1}`,
-        withLoading: null,
-        note: 'Water weight dropping'
+        target: thuTarget.range ? thuTarget.range.max : thuTarget.base,
+        range: `${thuTarget.base}`,
+        withLoading: thuTarget.range ? `${thuTarget.range.min}-${thuTarget.range.max}` : null,
+        note: thuTarget.range ? `Still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : 'Water weight dropping'
       },
       fri: {
         label: 'Fri PM Target',

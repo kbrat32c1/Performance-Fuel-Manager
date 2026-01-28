@@ -2279,9 +2279,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Gross daily loss capacity = overnight drift + practice loss
     // This is how much you CAN lose in a day when you minimize intake
+    // Use absolute values since these represent weight LOST (always positive capacity)
     let grossDailyLoss: number | null = null;
     if (avgOvernightDrift !== null) {
-      grossDailyLoss = avgOvernightDrift + (avgPracticeLoss || 0);
+      grossDailyLoss = Math.abs(avgOvernightDrift) + Math.abs(avgPracticeLoss || 0);
     }
 
     // Projection based on gross loss capacity (more accurate for final cut)
@@ -2407,15 +2408,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Projected weigh-in weight based on current trends
     // Uses gross loss capacity (drift + practice) for accurate projection
+    // Use latest morning weight for consistency with getWeekDescentData
+    const latestMorningWeight = morningLogs.length > 0 ? morningLogs[0].weight : null;
     let projectedSaturday: number | null = null;
-    if (daysUntilWeighIn > 0 && profile.currentWeight > 0 && overnightDrifts.length > 0) {
+    if (daysUntilWeighIn > 0 && latestMorningWeight && overnightDrifts.length > 0) {
       const avgOvernightLoss = overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length;
       // Use full gross loss capacity - this represents what the body CAN lose
+      // Use absolute values since these represent weight LOST
       const avgPracticeLoss = practiceLosses.length > 0
         ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
         : 0;
-      const grossDailyLoss = avgOvernightLoss + avgPracticeLoss;
-      projectedSaturday = profile.currentWeight - (grossDailyLoss * daysUntilWeighIn);
+      const grossDailyLoss = Math.abs(avgOvernightLoss) + Math.abs(avgPracticeLoss);
+      projectedSaturday = latestMorningWeight - (grossDailyLoss * daysUntilWeighIn);
     }
 
     return {
