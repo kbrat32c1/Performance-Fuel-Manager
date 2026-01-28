@@ -256,9 +256,9 @@ export default function Dashboard() {
           <span className={cn("text-xs font-bold uppercase tracking-widest", statusInfo.color)}>
             {statusInfo.label}
           </span>
-          {profile.currentWeight > 0 && (
+          {todayLogs.morning?.weight && (
             <span className="text-xs text-muted-foreground">
-              ({profile.currentWeight.toFixed(1)} / {targetWeight.toFixed(1)} lbs)
+              ({todayLogs.morning.weight.toFixed(1)} / {targetWeight.toFixed(1)} lbs)
             </span>
           )}
         </div>
