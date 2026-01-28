@@ -902,6 +902,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { amount: "To thirst", type: "Water", note: "Maintain baseline", targetOz: 100 };
   };
 
+  // Hydration target for any daysUntil value (used by getWeeklyPlan for consistency)
+  const getHydrationForDaysUntil = (daysUntil: number): { amount: string; targetOz: number; type: string } => {
+    const w = profile.targetWeightClass;
+    const isHeavy = w >= 175;
+    const isMedium = w >= 150 && w < 175;
+    const galToOz = (gal: number) => Math.round(gal * 128);
+
+    if (daysUntil < 0) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0), type: "Regular" };
+    if (daysUntil === 0) return { amount: "Rehydrate", targetOz: galToOz(1.0), type: "Rehydrate" };
+    if (daysUntil === 1) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", targetOz: isHeavy ? 14 : isMedium ? 10 : 9, type: "Sip Only" };
+    if (daysUntil === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25), type: "Regular" };
+    if (daysUntil === 3) return { amount: isHeavy ? "2.0 gal" : isMedium ? "1.75 gal" : "1.5 gal", targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5), type: "Regular" };
+    if (daysUntil === 4) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25), type: "Regular" };
+    if (daysUntil === 5) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0), type: "Regular" };
+    if (daysUntil === 6) return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75), type: "Regular" };
+    return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75), type: "Regular" };
+  };
+
   const getMacroTargets = () => {
     const w = profile.currentWeight || profile.targetWeightClass;
     const protocol = profile.protocol;
@@ -1787,10 +1805,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return 'Train';
     };
 
-    // Helper to check if a day is a water loading day (3-5 days out for protocols 1 & 2)
+    // Use centralized water loading check from constants
     const isWaterLoadingForDays = (daysUntil: number): boolean => {
-      if (protocol !== '1' && protocol !== '2') return false;
-      return daysUntil >= 3 && daysUntil <= 5;
+      return checkWaterLoadingDay(daysUntil, protocol);
     };
 
     // Protocol 4 (Build Phase) - No weight cutting, maintain/gain weight
@@ -1950,101 +1967,56 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const targetCalc = calculateTargetWeight(w, daysUntil, protocol);
       const baseWeight = Math.round(w * getWeightMultiplier(daysUntil));
 
-      // Default values - weightTarget is morning only (primary data point)
-      let phase = 'Train';
-      let weightTarget = baseWeight;
+      // Use centralized hydration target for consistency
+      const hydration = getHydrationForDaysUntil(daysUntil);
+
+      // Use centralized weight: if water loading day, use range max; otherwise base
+      const weightTarget = targetCalc.range ? targetCalc.range.max
+        : daysUntil === 0 ? w // Competition day: must hit weight class
+        : baseWeight;
+
+      // Default values
+      let phase = getPhaseForDays(daysUntil);
       let carbs = { min: 300, max: 450 };
       let protein = { min: 75, max: 100 };
-      let water = {
-        amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-        targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-        type: 'Regular'
-      };
+      let water = { amount: hydration.amount, targetOz: hydration.targetOz, type: hydration.type };
       let waterLoadingNote: string | undefined;
       let isCriticalCheckpoint = false;
 
       if (daysUntil < 0) {
         // Recovery day (day after competition)
-        phase = 'Recover';
-        weightTarget = baseWeight;
         carbs = { min: 300, max: 450 };
         protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
         waterLoadingNote = 'Recovery day - return to walk-around weight with protein refeed';
       } else if (daysUntil === 0) {
         // Competition day
-        phase = 'Compete';
-        weightTarget = w; // Must hit weight class
         carbs = { min: 200, max: 400 };
         protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
-        water = {
-          amount: 'Rehydrate',
-          targetOz: galToOz(1.0),
-          type: 'Rehydrate'
-        };
       } else if (daysUntil === 1) {
         // Critical checkpoint - day before competition (sip only)
-        phase = 'Cut';
-        weightTarget = baseWeight; // Morning target for day before
         carbs = { min: 250, max: 350 };
         protein = { min: 50, max: 60 };
-        water = {
-          amount: isHeavy ? '12-16 oz' : isMedium ? '8-12 oz' : '8-10 oz',
-          targetOz: isHeavy ? 14 : isMedium ? 10 : 9,
-          type: 'Sip Only'
-        };
         isCriticalCheckpoint = true;
         waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
       } else if (daysUntil === 2) {
-        // Flush day - still drinking 1.25 gal, water weight present (zero fiber)
-        phase = 'Cut';
-        const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = withWater;
+        // Flush day - still drinking, water weight present (zero fiber)
         carbs = { min: 325, max: 450 };
         protein = { min: 50, max: 60 };
-        water = {
-          amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
-          targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
-          type: 'Regular'
-        };
         waterLoadingNote = `Flush day - still carrying +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight. ZERO fiber.`;
       } else if (daysUntil === 3) {
-        // Last load day - use water loading range
-        phase = 'Load';
-        const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = withWater;
+        // Last load day
         carbs = { min: 325, max: 450 };
         protein = { min: 25, max: 25 };
-        water = {
-          amount: isHeavy ? '2.0 gal' : isMedium ? '1.75 gal' : '1.5 gal',
-          targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5),
-          type: 'Regular'
-        };
         waterLoadingNote = `Last load day - still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Flush starts tomorrow.`;
       } else if (daysUntil === 4) {
         // Peak water loading day
-        phase = 'Load';
-        const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = withWater;
         carbs = { min: 325, max: 450 };
         protein = { min: 0, max: 0 };
-        water = {
-          amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
-          targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
-          type: 'Regular'
-        };
         waterLoadingNote = `Peak loading day - heaviest day is normal (+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs)`;
       } else if (daysUntil === 5) {
         // First water loading day
-        phase = 'Load';
-        const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = withWater;
         carbs = { min: 325, max: 450 };
         protein = { min: 0, max: 0 };
-        water = {
-          amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-          targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-          type: 'Regular'
-        };
         waterLoadingNote = `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight`;
       }
       // 6+ days out stays at defaults (maintenance)
