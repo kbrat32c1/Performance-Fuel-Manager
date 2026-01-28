@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { format, getDay, addDays, subDays, isToday, startOfDay } from "date-fns";
+import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
 import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,12 +50,14 @@ export default function Dashboard() {
     getHistoryInsights,
     getCheckpoints,
     getTodaysFoods,
+    getDaysUntilWeighIn,
+    isWaterLoadingDay,
     clearLogs
   } = useStore();
 
   const phase = getPhase();
   const displayDate = profile.simulatedDate || new Date();
-  const dayOfWeek = getDay(displayDate);
+  const daysUntilWeighIn = getDaysUntilWeighIn();
   const isViewingHistorical = !!profile.simulatedDate;
   const today = startOfDay(new Date());
 
@@ -92,12 +94,12 @@ export default function Dashboard() {
   const foodLists = getFoodLists();
   const todaysFoods = getTodaysFoods();
 
-  // Saturday Competition Day Takeover (only for cutting protocols, not Build Phase)
-  if (phase === 'last-24h' && dayOfWeek === 6 && profile.protocol !== '4') {
+  // Competition Day Takeover (only for cutting protocols, not Build Phase)
+  if (phase === 'last-24h' && daysUntilWeighIn === 0 && profile.protocol !== '4') {
     return <CompetitionDayTakeover />;
   }
 
-  // Friday Final Push (only for cutting protocols, not Build Phase)
+  // Final Push (day before weigh-in, only for cutting protocols, not Build Phase)
   if (phase === 'last-24h' && profile.protocol !== '4') {
     return <RecoveryTakeover />;
   }
@@ -342,18 +344,18 @@ export default function Dashboard() {
               <span className="text-xs font-bold uppercase text-muted-foreground">Week Descent</span>
             </div>
             {descentData.pace && (() => {
-              // Show water loading aware status during Mon-Wed for Protocols 1 & 2
-              const isWaterLoadingDay = (profile.protocol === '1' || profile.protocol === '2') && dayOfWeek >= 1 && dayOfWeek <= 3;
+              // Show water loading aware status during water loading days (3-5 days out) for Protocols 1 & 2
+              const isWaterLoading = isWaterLoadingDay();
 
               return (
                 <span className={cn(
                   "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
                   descentData.pace === 'ahead' ? "bg-green-500/20 text-green-500" :
-                  descentData.pace === 'on-track' ? (isWaterLoadingDay ? "bg-cyan-500/20 text-cyan-500" : "bg-primary/20 text-primary") :
+                  descentData.pace === 'on-track' ? (isWaterLoading ? "bg-cyan-500/20 text-cyan-500" : "bg-primary/20 text-primary") :
                   "bg-yellow-500/20 text-yellow-500"
                 )}>
                   {descentData.pace === 'ahead' ? 'AHEAD' :
-                   descentData.pace === 'on-track' ? (isWaterLoadingDay ? 'LOADING' : 'ON PACE') :
+                   descentData.pace === 'on-track' ? (isWaterLoading ? 'LOADING' : 'ON PACE') :
                    'BEHIND'}
                 </span>
               );
@@ -465,8 +467,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Fiber Elimination Banner - Thu/Fri Only */}
-      {(dayOfWeek === 4 || dayOfWeek === 5) && (
+      {/* Fiber Elimination Banner - 1-2 days out */}
+      {(daysUntilWeighIn === 1 || daysUntilWeighIn === 2) && (
         <div className="bg-red-600/20 border border-red-500/50 rounded-lg p-3 mb-4">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse shrink-0 mt-0.5" />
@@ -480,13 +482,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Weigh-In Countdown - Wed/Thu/Fri */}
-      {(dayOfWeek === 3 || dayOfWeek === 4 || dayOfWeek === 5) && (profile.protocol === '1' || profile.protocol === '2') && (
+      {/* Weigh-In Countdown - 1-3 days out */}
+      {(daysUntilWeighIn >= 1 && daysUntilWeighIn <= 3) && (profile.protocol === '1' || profile.protocol === '2') && (
         <WeighInCountdown
           weighInDate={profile.weighInDate}
           simulatedDate={profile.simulatedDate}
-          dayOfWeek={dayOfWeek}
-          fridayTarget={dayOfWeek === 5 ? checkpoints.friTarget : undefined}
+          daysUntilWeighIn={daysUntilWeighIn}
+          dayBeforeTarget={daysUntilWeighIn === 1 ? checkpoints.friTarget : undefined}
         />
       )}
 
@@ -516,7 +518,7 @@ export default function Dashboard() {
           macros={macros}
           todaysFoods={todaysFoods}
           foodLists={foodLists}
-          dayOfWeek={dayOfWeek}
+          daysUntilWeighIn={daysUntilWeighIn}
           protocol={profile.protocol}
           readOnly={isViewingHistorical}
         />
@@ -1463,10 +1465,11 @@ function CompactWeighIn({
 
 // Hydration Tracker
 function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount: string; type: string; note: string; targetOz: number }; readOnly?: boolean }) {
-  const { getDailyTracking, updateDailyTracking, profile } = useStore();
+  const { getDailyTracking, updateDailyTracking, profile, getDaysUntilWeighIn } = useStore();
   const { toast } = useToast();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
+  const daysUntilWeighIn = getDaysUntilWeighIn();
   const tracking = getDailyTracking(dateKey);
   const [addAmount, setAddAmount] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -1650,34 +1653,29 @@ function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount
             )}
 
             {/* Why Explanations */}
-            {(() => {
-              const dayOfWeek = getDay(today);
-              return (
-                <div className="pt-3 mt-3 border-t border-muted space-y-2">
-                  {dayOfWeek >= 1 && dayOfWeek <= 3 && (
-                    <WhyExplanation title="load water Mon-Wed">
-                      <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
-                      increases urine production. When you cut water on Friday, your body keeps flushing even without
-                      intake, helping you drop water weight safely without severe dehydration.
-                    </WhyExplanation>
-                  )}
-                  {dayOfWeek === 4 && (
-                    <WhyExplanation title="distilled water Thursday">
-                      <strong>Mineral-free water flushes sodium.</strong> Distilled water has no minerals, so your body
-                      pulls sodium from tissues to balance it out. This accelerates sodium and water loss while maintaining
-                      your hydration momentum from earlier in the week.
-                    </WhyExplanation>
-                  )}
-                  {dayOfWeek === 5 && (
-                    <WhyExplanation title="sip only Friday">
-                      <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
-                      overdrive. Sipping just enough to stay functional lets your body continue eliminating water
-                      naturally. Gulping would halt this process and add weight back.
-                    </WhyExplanation>
-                  )}
-                </div>
-              );
-            })()}
+            <div className="pt-3 mt-3 border-t border-muted space-y-2">
+              {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
+                <WhyExplanation title="water loading (3-5 days out)">
+                  <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
+                  increases urine production. When you cut water the day before, your body keeps flushing even without
+                  intake, helping you drop water weight safely without severe dehydration.
+                </WhyExplanation>
+              )}
+              {daysUntilWeighIn === 2 && (
+                <WhyExplanation title="distilled water (2 days out)">
+                  <strong>Mineral-free water flushes sodium.</strong> Distilled water has no minerals, so your body
+                  pulls sodium from tissues to balance it out. This accelerates sodium and water loss while maintaining
+                  your hydration momentum from earlier in the week.
+                </WhyExplanation>
+              )}
+              {daysUntilWeighIn === 1 && (
+                <WhyExplanation title="sip only (1 day out)">
+                  <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
+                  overdrive. Sipping just enough to stay functional lets your body continue eliminating water
+                  naturally. Gulping would halt this process and add weight back.
+                </WhyExplanation>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

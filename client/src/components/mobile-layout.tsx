@@ -2,7 +2,6 @@ import React from 'react';
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useStore } from "@/lib/store";
-import { getDay } from "date-fns";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -12,13 +11,12 @@ interface MobileLayoutProps {
 
 export function MobileLayout({ children, className, showNav = true }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
-  const { profile } = useStore();
+  const { profile, getDaysUntilWeighIn } = useStore();
 
   // Determine if Recovery tab should be highlighted/shown prominently
-  const today = profile.simulatedDate || new Date();
-  const dayOfWeek = getDay(today);
-  // Show Recovery more prominently on Friday (5), Saturday (6), and Sunday (0)
-  const isRecoveryRelevant = dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0;
+  const daysUntilWeighIn = getDaysUntilWeighIn();
+  // Show Recovery more prominently 1 day before, on competition day, and day after
+  const isRecoveryRelevant = daysUntilWeighIn >= -1 && daysUntilWeighIn <= 1;
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground overflow-hidden flex flex-col items-center justify-start relative">

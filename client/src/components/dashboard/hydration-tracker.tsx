@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Droplets, Pencil, Trash2, HelpCircle, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, getDay } from "date-fns";
+import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 
 interface HydrationTrackerProps {
@@ -40,10 +40,11 @@ function WhyExplanation({ title, children }: { title: string; children: React.Re
 }
 
 export function HydrationTracker({ hydration }: HydrationTrackerProps) {
-  const { getDailyTracking, updateDailyTracking, profile } = useStore();
+  const { getDailyTracking, updateDailyTracking, profile, getDaysUntilWeighIn } = useStore();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
+  const daysUntilWeighIn = getDaysUntilWeighIn();
   const [addAmount, setAddAmount] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -77,8 +78,6 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
   const handleReset = () => {
     updateDailyTracking(dateKey, { waterConsumed: 0 });
   };
-
-  const dayOfWeek = getDay(today);
 
   return (
     <Card className="border-muted">
@@ -212,22 +211,22 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
 
             {/* Why Explanations */}
             <div className="pt-3 mt-3 border-t border-muted space-y-2">
-              {dayOfWeek >= 1 && dayOfWeek <= 3 && (
-                <WhyExplanation title="load water Mon-Wed">
+              {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
+                <WhyExplanation title="water loading (3-5 days out)">
                   <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
-                  increases urine production. When you cut water on Friday, your body keeps flushing even without
+                  increases urine production. When you cut water the day before, your body keeps flushing even without
                   intake, helping you drop water weight safely without severe dehydration.
                 </WhyExplanation>
               )}
-              {dayOfWeek === 4 && (
-                <WhyExplanation title="distilled water Thursday">
+              {daysUntilWeighIn === 2 && (
+                <WhyExplanation title="distilled water (2 days out)">
                   <strong>Mineral-free water flushes sodium.</strong> Distilled water has no minerals, so your body
                   pulls sodium from tissues to balance it out. This accelerates sodium and water loss while maintaining
                   your hydration momentum from earlier in the week.
                 </WhyExplanation>
               )}
-              {dayOfWeek === 5 && (
-                <WhyExplanation title="sip only Friday">
+              {daysUntilWeighIn === 1 && (
+                <WhyExplanation title="sip only (1 day out)">
                   <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
                   overdrive. Sipping just enough to stay functional lets your body continue eliminating water
                   naturally. Gulping would halt this process and add weight back.

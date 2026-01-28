@@ -152,14 +152,14 @@ interface StoreContextType {
   getHistoryInsights: () => {
     avgOvernightDrift: number | null;
     avgPracticeLoss: number | null;
-    avgFridayCut: number | null;
+    avgFinalCut: number | null;
     weeklyTrend: number | null;
-    projectedSaturday: number | null;
-    daysUntilSat: number;
+    projectedWeighIn: number | null;
+    daysUntilWeighIn: number;
     totalLogsThisWeek: number;
     hasEnoughData: boolean;
-    lastFridayWeight: number | null;
-    lastSaturdayWeight: number | null;
+    lastDayBeforeWeight: number | null;
+    lastCompetitionWeight: number | null;
     madeWeightLastWeek: boolean;
   };
 }
@@ -1286,10 +1286,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Get protocol-specific and day-specific food recommendations
+  // Uses daysUntilWeighIn for all timing to support any weigh-in day
   const getTodaysFoods = () => {
     const protocol = profile.protocol;
-    const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
+    const daysUntil = getDaysUntilWeighIn();
     const foods = getFoodLists();
 
     // Default lists
@@ -1299,21 +1299,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let carbsLabel = "Balanced Carbs";
     let proteinLabel = "Standard Protein";
 
-    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE - 4 days no protein)
+    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE - extended no protein)
     if (protocol === '1') {
-      if (dayOfWeek >= 1 && dayOfWeek <= 4) {
-        // Mon-Thu: High fructose, NO protein (4 days max FGF21)
+      if (daysUntil >= 2 && daysUntil <= 5) {
+        // 5-2 days out: High fructose, NO protein (max FGF21)
+        const dayNumber = 6 - daysUntil; // Day 1-4 of no protein
         carbs = foods.highFructose;
         protein = []; // No protein allowed
         avoid = [
-          { name: "ALL protein", reason: "Max FGF21 activation - no protein until Friday" },
+          { name: "ALL protein", reason: "Max FGF21 activation - no protein until day before" },
           { name: "Starch", reason: "Fructose only for fat oxidation" },
           { name: "Fat", reason: "Keep calories from fructose" }
         ];
         carbsLabel = "Fructose Only (60:40)";
-        proteinLabel = "NO PROTEIN (Day " + (dayOfWeek) + " of 4)";
-      } else if (dayOfWeek === 5) {
-        // Fri: Fructose + MCT, small protein evening only (GDF15 peak)
+        proteinLabel = `NO PROTEIN (Day ${dayNumber} of 4)`;
+      } else if (daysUntil === 1) {
+        // 1 day out: Fructose + MCT, small protein evening only (GDF15 peak)
         carbs = foods.highFructose;
         protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
         avoid = [
@@ -1322,8 +1323,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ];
         carbsLabel = "Fructose + MCT Oil";
         proteinLabel = "Evening Only (0.2g/lb)";
-      } else if (dayOfWeek === 6) {
-        // Sat: Protein refeed (1.0g/lb) - aggressive rebuild
+      } else if (daysUntil === 0) {
+        // Competition day: Protein refeed (1.0g/lb) - aggressive rebuild
         carbs = foods.balanced;
         protein = foods.protein;
         avoid = [
@@ -1331,19 +1332,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ];
         carbsLabel = "Low-Carb / Moderate Fat";
         proteinLabel = "PROTEIN REFEED (1.0g/lb)";
-      } else {
-        // Sun: Full recovery
+      } else if (daysUntil < 0) {
+        // Recovery day: Full recovery
         carbs = foods.recovery;
         protein = foods.protein;
         avoid = [];
         carbsLabel = "Full Recovery (All Carbs)";
         proteinLabel = "High Protein (1.4g/lb)";
+      } else {
+        // 6+ days out: Maintenance
+        carbs = foods.balanced;
+        protein = foods.protein;
+        avoid = [];
+        carbsLabel = "Maintenance (All Carbs)";
+        proteinLabel = "Standard Protein";
       }
     }
     // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
     else if (protocol === '2') {
-      if (dayOfWeek === 1 || dayOfWeek === 2) {
-        // Mon-Tue: High fructose, NO protein
+      if (daysUntil >= 4 && daysUntil <= 5) {
+        // 5-4 days out: High fructose, NO protein
         carbs = foods.highFructose;
         protein = []; // No protein allowed
         avoid = foods.avoid.filter(a =>
@@ -1351,8 +1359,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         );
         carbsLabel = "Fructose Heavy (60:40)";
         proteinLabel = "NO PROTEIN";
-      } else if (dayOfWeek === 3) {
-        // Wed: High fructose, 25g collagen + leucine at dinner
+      } else if (daysUntil === 3) {
+        // 3 days out: High fructose, 25g collagen + leucine at dinner
         carbs = foods.highFructose;
         protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
         avoid = foods.avoid.filter(a =>
@@ -1360,19 +1368,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         );
         carbsLabel = "Fructose Heavy (60:40)";
         proteinLabel = "25g Collagen (Dinner)";
-      } else if (dayOfWeek === 4 || dayOfWeek === 5) {
-        // Thu-Fri: Glucose/starch, 60g protein (collagen + seafood)
-        carbs = dayOfWeek === 5 ? foods.zeroFiber : foods.highGlucose;
+      } else if (daysUntil === 1 || daysUntil === 2) {
+        // 2-1 days out: Glucose/starch, 60g protein (collagen + seafood)
+        carbs = daysUntil === 1 ? foods.zeroFiber : foods.highGlucose;
         protein = foods.protein.filter(p =>
           p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
         );
         avoid = foods.avoid.filter(a =>
           a.name.includes("Thu-Fri") || a.name.includes("Fiber")
         );
-        carbsLabel = dayOfWeek === 5 ? "Zero Fiber (Critical)" : "Glucose Heavy (Switch Day)";
+        carbsLabel = daysUntil === 1 ? "Zero Fiber (Critical)" : "Glucose Heavy (Switch Day)";
         proteinLabel = "60g Protein (Collagen + Seafood)";
-      } else if (dayOfWeek === 6) {
-        // Sat: Competition day - 0.5g/lb post-weigh-in
+      } else if (daysUntil === 0) {
+        // Competition day - 0.5g/lb post-weigh-in
         carbs = foods.tournament;
         protein = foods.protein.filter(p =>
           p.timing?.includes("Competition") || p.note?.includes("Until wrestling")
@@ -1384,8 +1392,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ];
         carbsLabel = "Fast Carbs (Between Matches)";
         proteinLabel = "0.5g/lb After Weigh-In";
-      } else {
-        // Sun: Full recovery - 1.4g/lb
+      } else if (daysUntil < 0) {
+        // Recovery day - 1.4g/lb
         carbs = foods.recovery;
         protein = foods.protein.filter(p =>
           p.timing?.includes("Post-comp") || p.timing?.includes("Sunday") || p.timing?.includes("Sun")
@@ -1393,19 +1401,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         avoid = [];
         carbsLabel = "Full Recovery (All Carbs)";
         proteinLabel = "High Protein (1.4g/lb)";
+      } else {
+        // 6+ days out: Maintenance
+        carbs = foods.balanced;
+        protein = foods.protein;
+        avoid = [];
+        carbsLabel = "Maintenance (All Carbs)";
+        proteinLabel = "Standard Protein";
       }
     }
     // Protocol 3: Hold Weight
     else if (protocol === '3') {
-      if (dayOfWeek === 1) {
-        // Mon: Fructose heavy, 25g protein (collagen)
+      if (daysUntil === 5) {
+        // 5 days out: Fructose heavy, 25g protein (collagen)
         carbs = foods.highFructose;
         protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
         avoid = [{ name: "Heavy protein", reason: "Keep light on protein today" }];
         carbsLabel = "Fructose Heavy";
         proteinLabel = "25g Protein (Collagen)";
-      } else if (dayOfWeek === 2 || dayOfWeek === 3) {
-        // Tue-Wed: Mixed carbs, 75g protein
+      } else if (daysUntil === 3 || daysUntil === 4) {
+        // 4-3 days out: Mixed carbs, 75g protein
         carbs = foods.balanced;
         protein = foods.protein.filter(p =>
           p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri") ||
@@ -1414,8 +1429,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         avoid = [{ name: "High fat proteins", reason: "Stick to lean sources" }];
         carbsLabel = "Mixed Fructose/Glucose";
         proteinLabel = "75g Protein";
-      } else if (dayOfWeek === 4 || dayOfWeek === 5) {
-        // Thu-Fri: Glucose/performance, 100g protein
+      } else if (daysUntil === 1 || daysUntil === 2) {
+        // 2-1 days out: Glucose/performance, 100g protein
         carbs = foods.highGlucose;
         protein = foods.protein.filter(p =>
           p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
@@ -1423,15 +1438,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         avoid = foods.avoid.filter(a => a.name.includes("Fiber"));
         carbsLabel = "Performance (Glucose)";
         proteinLabel = "100g Protein";
-      } else if (dayOfWeek === 6) {
-        // Sat: Competition
+      } else if (daysUntil === 0) {
+        // Competition day
         carbs = foods.tournament;
         protein = foods.protein.filter(p => p.timing?.includes("Competition"));
         avoid = [{ name: "Heavy protein", reason: "Keep it light until done" }];
         carbsLabel = "Competition Day";
         proteinLabel = "Minimal Until Done";
-      } else {
-        // Sun: Full recovery
+      } else if (daysUntil < 0) {
+        // Recovery day
         carbs = foods.recovery;
         protein = foods.protein.filter(p =>
           p.timing?.includes("Post-comp") || p.timing?.includes("Sunday")
@@ -1439,47 +1454,61 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         avoid = [];
         carbsLabel = "Full Recovery";
         proteinLabel = "High Protein (1.4g/lb)";
+      } else {
+        // 6+ days out: Maintenance
+        carbs = foods.balanced;
+        protein = foods.protein;
+        avoid = [];
+        carbsLabel = "Maintenance";
+        proteinLabel = "Standard Protein";
       }
     }
     // Protocol 4: Build Phase
     else if (protocol === '4') {
-      if (dayOfWeek === 6) {
-        // Sat: Competition
+      if (daysUntil === 0) {
+        // Competition day
         carbs = foods.tournament;
         protein = foods.protein.filter(p => p.timing?.includes("Competition") || p.timing?.includes("Post-comp"));
         avoid = [{ name: "Heavy meals pre-match", reason: "Stay light until done" }];
         carbsLabel = "Competition Day";
         proteinLabel = "0.8g/lb After";
-      } else if (dayOfWeek === 0) {
-        // Sun: Max recovery
+      } else if (daysUntil < 0) {
+        // Recovery day: Max recovery
         carbs = foods.recovery;
         protein = foods.protein; // All protein allowed
         avoid = [];
         carbsLabel = "Full Recovery";
         proteinLabel = "MAX Protein (1.6g/lb)";
-      } else {
-        // Mon-Fri: Training days - all foods allowed
+      } else if (daysUntil === 5) {
+        // 5 days out: Slightly lower protein
         carbs = [...foods.balanced, ...foods.highGlucose.slice(0, 5)];
         protein = foods.protein.filter(p => !p.timing?.includes("Competition"));
         avoid = [{ name: "Junk food", reason: "Focus on quality calories" }];
         carbsLabel = "Balanced (All Quality Carbs)";
-        proteinLabel = dayOfWeek === 1 ? "100g Protein" : "125g Protein";
+        proteinLabel = "100g Protein";
+      } else {
+        // Training days - all foods allowed
+        carbs = [...foods.balanced, ...foods.highGlucose.slice(0, 5)];
+        protein = foods.protein.filter(p => !p.timing?.includes("Competition"));
+        avoid = [{ name: "Junk food", reason: "Focus on quality calories" }];
+        carbsLabel = "Balanced (All Quality Carbs)";
+        proteinLabel = "125g Protein";
       }
     }
 
     return { carbs, protein, avoid, carbsLabel, proteinLabel };
   };
 
+  // Uses daysUntilWeighIn for all timing to support any weigh-in day
   const getFuelingGuide = () => {
     const w = profile.currentWeight || profile.targetWeightClass;
     const protocol = profile.protocol;
-    const today = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(today);
+    const daysUntil = getDaysUntilWeighIn();
 
     // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
     if (protocol === '1') {
-      // Monday-Thursday: 0g protein (4 days max FGF21)
-      if (dayOfWeek >= 1 && dayOfWeek <= 4) {
+      // 5-2 days out: 0g protein (max FGF21)
+      if (daysUntil >= 2 && daysUntil <= 5) {
         return {
           ratio: "Fructose Only (60:40)",
           protein: "0g",
@@ -1488,8 +1517,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["ALL Protein", "Starch", "Fat"]
         };
       }
-      // Friday: 0.2g/lb evening (GDF15 peak)
-      if (dayOfWeek === 5) {
+      // 1 day out: 0.2g/lb evening (GDF15 peak)
+      if (daysUntil === 1) {
         return {
           ratio: "Fructose + MCT (GDF15 Peak)",
           protein: `${Math.round(w * 0.2)}g (Evening Only)`,
@@ -1498,8 +1527,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Heavy Protein", "Fiber", "Starch"]
         };
       }
-      // Saturday: 1.0g/lb (aggressive refeed)
-      if (dayOfWeek === 6) {
+      // Competition day: 1.0g/lb (aggressive refeed)
+      if (daysUntil === 0) {
         return {
           ratio: "Protein Refeed (Low Carb)",
           protein: `${Math.round(w * 1.0)}g (1.0g/lb)`,
@@ -1508,8 +1537,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["High Fiber"]
         };
       }
-      // Sunday: 1.4g/lb
-      if (dayOfWeek === 0) {
+      // Recovery day: 1.4g/lb
+      if (daysUntil < 0) {
         return {
           ratio: "Full Recovery",
           protein: `${Math.round(w * 1.4)}g (1.4g/lb)`,
@@ -1522,8 +1551,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Protocol 2: Make Weight / Fat Loss Focus (STANDARD)
     if (protocol === '2') {
-      // Monday-Tuesday: 0g protein
-      if (dayOfWeek === 1 || dayOfWeek === 2) {
+      // 5-4 days out: 0g protein
+      if (daysUntil >= 4 && daysUntil <= 5) {
         return {
           ratio: "Fructose Heavy (60:40)",
           protein: "0g",
@@ -1532,8 +1561,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["ALL Protein", "Starch", "Fat"]
         };
       }
-      // Wednesday: 25g protein (dinner only)
-      if (dayOfWeek === 3) {
+      // 3 days out: 25g protein (dinner only)
+      if (daysUntil === 3) {
         return {
           ratio: "Fructose + Collagen",
           protein: "25g (Dinner Only)",
@@ -1542,18 +1571,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Starch", "Meat", "Fat"]
         };
       }
-      // Thursday-Friday: 60g protein
-      if (dayOfWeek === 4 || dayOfWeek === 5) {
+      // 2-1 days out: 60g protein
+      if (daysUntil === 1 || daysUntil === 2) {
         return {
-          ratio: dayOfWeek === 5 ? "Glucose Heavy (Zero Fiber)" : "Glucose Heavy (Switch to Starch)",
+          ratio: daysUntil === 1 ? "Glucose Heavy (Zero Fiber)" : "Glucose Heavy (Switch to Starch)",
           protein: "60g/day",
-          carbs: dayOfWeek === 5 ? "250-350g" : "300-400g",
+          carbs: daysUntil === 1 ? "250-350g" : "300-400g",
           allowed: ["White Rice", "Potato", "Dextrose", "Collagen", "Seafood"],
-          avoid: dayOfWeek === 5 ? ["ALL Fiber", "Fruits", "Vegetables"] : ["Fiber (Fruits/Veg)", "Fatty Meat"]
+          avoid: daysUntil === 1 ? ["ALL Fiber", "Fruits", "Vegetables"] : ["Fiber (Fruits/Veg)", "Fatty Meat"]
         };
       }
-      // Saturday: 0.5g/lb (competition day)
-      if (dayOfWeek === 6) {
+      // Competition day: 0.5g/lb
+      if (daysUntil === 0) {
         return {
           ratio: "Competition Day",
           protein: `0g until done, then ${Math.round(w * 0.5)}g`,
@@ -1562,8 +1591,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Protein until wrestling is over", "Fiber", "Fat"]
         };
       }
-      // Sunday: 1.4g/lb (recovery refeed)
-      if (dayOfWeek === 0) {
+      // Recovery day: 1.4g/lb
+      if (daysUntil < 0) {
         return {
           ratio: "Full Recovery",
           protein: `${Math.round(w * 1.4)}g (1.4g/lb)`,
@@ -1575,8 +1604,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (protocol === '3') {
-      // Monday: 25g protein
-      if (dayOfWeek === 1) {
+      // 5 days out: 25g protein
+      if (daysUntil === 5) {
         return {
           ratio: "Fructose Heavy",
           protein: "25g",
@@ -1585,8 +1614,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Starch", "Fat"]
         };
       }
-      // Tuesday-Wednesday: 75g protein
-      if (dayOfWeek === 2 || dayOfWeek === 3) {
+      // 4-3 days out: 75g protein
+      if (daysUntil === 3 || daysUntil === 4) {
         return {
           ratio: "Mixed Fructose/Glucose",
           protein: "75g/day",
@@ -1595,8 +1624,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["High Fat"]
         };
       }
-      // Thursday-Friday: 100g protein
-      if (dayOfWeek === 4 || dayOfWeek === 5) {
+      // 2-1 days out: 100g protein
+      if (daysUntil === 1 || daysUntil === 2) {
         return {
           ratio: "Performance (Glucose)",
           protein: "100g/day",
@@ -1605,8 +1634,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Fiber"]
         };
       }
-      // Saturday: 0.5g/lb
-      if (dayOfWeek === 6) {
+      // Competition day: 0.5g/lb
+      if (daysUntil === 0) {
         return {
           ratio: "Competition Day",
           protein: `0g until done, then ${Math.round(w * 0.5)}g`,
@@ -1615,8 +1644,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Protein until done", "Fiber", "Fat"]
         };
       }
-      // Sunday: 1.4g/lb
-      if (dayOfWeek === 0) {
+      // Recovery day: 1.4g/lb
+      if (daysUntil < 0) {
         return {
           ratio: "Full Recovery",
           protein: `${Math.round(w * 1.4)}g (1.4g/lb)`,
@@ -1628,8 +1657,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (protocol === '4') {
-      // Monday: 100g protein
-      if (dayOfWeek === 1) {
+      // 5 days out: 100g protein
+      if (daysUntil === 5) {
         return {
           ratio: "Balanced Carbs",
           protein: "100g",
@@ -1638,8 +1667,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Junk Food"]
         };
       }
-      // Tuesday-Friday: 125g protein
-      if (dayOfWeek >= 2 && dayOfWeek <= 5) {
+      // 4-1 days out: 125g protein
+      if (daysUntil >= 1 && daysUntil <= 4) {
         return {
           ratio: "Glucose Emphasis",
           protein: "125g/day",
@@ -1648,8 +1677,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Excessive Fiber pre-workout"]
         };
       }
-      // Saturday: 0.8g/lb
-      if (dayOfWeek === 6) {
+      // Competition day: 0.8g/lb
+      if (daysUntil === 0) {
         return {
           ratio: "Competition Day",
           protein: `Minimal until done, then ${Math.round(w * 0.8)}g`,
@@ -1658,8 +1687,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avoid: ["Fiber", "Fat", "Heavy protein until done"]
         };
       }
-      // Sunday: 1.6g/lb
-      if (dayOfWeek === 0) {
+      // Recovery day: 1.6g/lb
+      if (daysUntil < 0) {
         return {
           ratio: "Full Recovery",
           protein: `${Math.round(w * 1.6)}g (1.6g/lb - Max Protein)`,
@@ -2273,9 +2302,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // Uses daysUntilWeighIn for all timing to support any weigh-in day
   const getHistoryInsights = () => {
     const now = profile.simulatedDate || new Date();
-    const dayOfWeek = getDay(now);
+    const daysUntilWeighIn = getDaysUntilWeighIn();
+    const weighInDate = startOfDay(profile.weighInDate);
 
     // Get all logs sorted by date (newest first)
     const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -2311,41 +2342,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Get Friday morning weights (last few weeks)
-    const fridayWeights = morningLogs.filter(l => getDay(l.date) === 5).slice(0, 4);
+    // Get weights from 1 day before weigh-in (final cut day) - relative to weigh-in date
+    const dayBeforeWeighInWeights = morningLogs.filter(l => {
+      const logDate = startOfDay(l.date);
+      const daysBeforeWeighIn = differenceInDays(weighInDate, logDate);
+      return daysBeforeWeighIn === 1;
+    }).slice(0, 4);
 
-    // Get Saturday weights (competition day)
-    const saturdayWeights = morningLogs.filter(l => getDay(l.date) === 6).slice(0, 4);
+    // Get competition day weights (weigh-in day)
+    const competitionDayWeights = morningLogs.filter(l => {
+      const logDate = startOfDay(l.date);
+      const daysBeforeWeighIn = differenceInDays(weighInDate, logDate);
+      return daysBeforeWeighIn === 0;
+    }).slice(0, 4);
 
-    // Calculate Friday cut success (how much lost Friday)
-    const fridayCuts: number[] = [];
-    for (const fri of fridayWeights) {
-      const thurLog = morningLogs.find(l => {
-        const daysDiff = (fri.date.getTime() - l.date.getTime()) / (1000 * 60 * 60 * 24);
-        return daysDiff > 0 && daysDiff < 2 && getDay(l.date) === 4;
+    // Calculate final cut success (how much lost on day before weigh-in)
+    const finalCuts: number[] = [];
+    for (const dayBefore of dayBeforeWeighInWeights) {
+      const twoDaysBeforeLog = morningLogs.find(l => {
+        const daysDiff = (dayBefore.date.getTime() - l.date.getTime()) / (1000 * 60 * 60 * 24);
+        return daysDiff > 0 && daysDiff < 2;
       });
-      if (thurLog) {
-        fridayCuts.push(thurLog.weight - fri.weight);
+      if (twoDaysBeforeLog) {
+        finalCuts.push(twoDaysBeforeLog.weight - dayBefore.weight);
       }
     }
 
-    // Calculate week-over-week trend (Monday to Monday)
-    const mondayWeights = morningLogs.filter(l => getDay(l.date) === 1).slice(0, 4);
-    const weeklyTrend = mondayWeights.length >= 2
-      ? mondayWeights[1].weight - mondayWeights[0].weight
+    // Calculate week-over-week trend (same day comparison across weeks)
+    const weekAgoLogs = morningLogs.filter(l => {
+      const daysDiff = differenceInDays(now, l.date);
+      return daysDiff >= 6 && daysDiff <= 8;
+    });
+    const weeklyTrend = weekAgoLogs.length > 0 && morningLogs.length > 0
+      ? weekAgoLogs[0].weight - morningLogs[0].weight
       : null;
 
-    // Projected Saturday weight based on current trends
-    let projectedSaturday: number | null = null;
-    const daysUntilSat = dayOfWeek === 0 ? 6 : 6 - dayOfWeek;
-    if (daysUntilSat > 0 && profile.currentWeight > 0 && overnightDrifts.length > 0) {
+    // Projected weigh-in weight based on current trends
+    let projectedWeighIn: number | null = null;
+    if (daysUntilWeighIn > 0 && profile.currentWeight > 0 && overnightDrifts.length > 0) {
       const avgOvernightLoss = overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length;
       // Estimate: overnight loss + practice loss per day remaining
       const avgPracticeLoss = practiceLosses.length > 0
         ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
         : 0;
       const dailyLoss = avgOvernightLoss + (avgPracticeLoss * 0.5); // Assume some rehydration
-      projectedSaturday = profile.currentWeight - (dailyLoss * daysUntilSat);
+      projectedWeighIn = profile.currentWeight - (dailyLoss * daysUntilWeighIn);
     }
 
     return {
@@ -2355,20 +2396,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       avgPracticeLoss: practiceLosses.length > 0
         ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
         : null,
-      avgFridayCut: fridayCuts.length > 0
-        ? fridayCuts.reduce((a, b) => a + b, 0) / fridayCuts.length
+      avgFinalCut: finalCuts.length > 0
+        ? finalCuts.reduce((a, b) => a + b, 0) / finalCuts.length
         : null,
       weeklyTrend,
-      projectedSaturday,
-      daysUntilSat,
+      projectedWeighIn,
+      daysUntilWeighIn,
       totalLogsThisWeek: sortedLogs.filter(l => {
         const daysDiff = (now.getTime() - l.date.getTime()) / (1000 * 60 * 60 * 24);
         return daysDiff <= 7;
       }).length,
       hasEnoughData: overnightDrifts.length >= 2 || practiceLosses.length >= 2,
-      lastFridayWeight: fridayWeights.length > 0 ? fridayWeights[0].weight : null,
-      lastSaturdayWeight: saturdayWeights.length > 0 ? saturdayWeights[0].weight : null,
-      madeWeightLastWeek: saturdayWeights.length > 0 && saturdayWeights[0].weight <= profile.targetWeightClass
+      lastDayBeforeWeight: dayBeforeWeighInWeights.length > 0 ? dayBeforeWeighInWeights[0].weight : null,
+      lastCompetitionWeight: competitionDayWeights.length > 0 ? competitionDayWeights[0].weight : null,
+      madeWeightLastWeek: competitionDayWeights.length > 0 && competitionDayWeights[0].weight <= profile.targetWeightClass
     };
   };
 

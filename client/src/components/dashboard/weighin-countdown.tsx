@@ -5,11 +5,11 @@ import { cn } from "@/lib/utils";
 interface WeighInCountdownProps {
   weighInDate: Date;
   simulatedDate: Date | null;
-  dayOfWeek: number;
-  fridayTarget?: string; // e.g., "159-161 lbs"
+  daysUntilWeighIn: number;
+  dayBeforeTarget?: string; // e.g., "159-161 lbs" - target for day before weigh-in
 }
 
-export function WeighInCountdown({ weighInDate, simulatedDate, dayOfWeek, fridayTarget }: WeighInCountdownProps) {
+export function WeighInCountdown({ weighInDate, simulatedDate, daysUntilWeighIn, dayBeforeTarget }: WeighInCountdownProps) {
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [hoursLeft, setHoursLeft] = useState<number>(0);
 
@@ -42,11 +42,11 @@ export function WeighInCountdown({ weighInDate, simulatedDate, dayOfWeek, friday
     return () => clearInterval(interval);
   }, [weighInDate, simulatedDate]);
 
-  // Day-specific messaging
+  // Day-specific messaging based on days until weigh-in
   const getMessage = () => {
-    if (dayOfWeek === 3) return "Peak water loading today";
-    if (dayOfWeek === 4) return "Start flushing - cut water intake";
-    if (dayOfWeek === 5) return "Final push to make weight";
+    if (daysUntilWeighIn === 3) return "Peak water loading today";
+    if (daysUntilWeighIn === 2) return "Start flushing - cut water intake";
+    if (daysUntilWeighIn === 1) return "Final push to make weight";
     return "Until weigh-in";
   };
 
@@ -58,13 +58,13 @@ export function WeighInCountdown({ weighInDate, simulatedDate, dayOfWeek, friday
   };
 
   const colors = getColors();
-  const isFriday = dayOfWeek === 5;
+  const isDayBefore = daysUntilWeighIn === 1;
 
   return (
     <div className={cn(colors.bg, colors.border, "border rounded-lg p-3 mb-4")}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {isFriday ? (
+          {isDayBefore ? (
             <AlertTriangle className={cn("w-5 h-5", colors.text)} />
           ) : (
             <Clock className={cn("w-5 h-5", colors.text)} />
@@ -76,10 +76,10 @@ export function WeighInCountdown({ weighInDate, simulatedDate, dayOfWeek, friday
         </div>
         <span className={cn("text-xs font-medium", colors.text)}>{getMessage()}</span>
       </div>
-      {/* Friday critical target info */}
-      {isFriday && fridayTarget && (
+      {/* Day before weigh-in critical target info */}
+      {isDayBefore && dayBeforeTarget && (
         <div className="mt-2 pt-2 border-t border-orange-500/30 text-[11px] text-muted-foreground">
-          Must be <strong className="text-orange-500">{fridayTarget}</strong> by evening for safe overnight cut.
+          Must be <strong className="text-orange-500">{dayBeforeTarget}</strong> by evening for safe overnight cut.
         </div>
       )}
     </div>

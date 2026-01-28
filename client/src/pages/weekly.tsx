@@ -10,7 +10,7 @@ import { useState } from "react";
 import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight } from "@/lib/constants";
 
 export default function Weekly() {
-  const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData, getWaterLoadBonus } = useStore();
+  const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
 
@@ -19,7 +19,7 @@ export default function Weekly() {
   const [editWeight, setEditWeight] = useState('');
 
   const today = profile.simulatedDate || new Date();
-  const currentDayOfWeek = getDay(today);
+  const currentDayOfWeek = getDay(today); // Still needed for week display (Mon-Sun navigation)
 
   // Get weight class category for water load table
   const getWeightCategory = (weightClass: number): 'light' | 'medium' | 'heavy' => {
@@ -236,31 +236,30 @@ export default function Weekly() {
 
             {/* Progress Message */}
             {descentData.totalLost !== null && descentData.currentWeight && (() => {
-              // During water loading days (Mon-Wed), show water loading aware message
-              const isWaterLoadingProtocol = profile.protocol === '1' || profile.protocol === '2';
-              const isWaterLoadingDay = isWaterLoadingProtocol && currentDayOfWeek >= 1 && currentDayOfWeek <= 3;
+              // During water loading days (3-5 days out), show water loading aware message
+              const isWaterLoading = isWaterLoadingDay();
               const toGoal = (descentData.currentWeight - descentData.targetWeight).toFixed(1);
 
               return (
                 <div className={cn(
                   "mt-3 p-2 rounded-lg text-center text-sm",
                   descentData.pace === 'ahead' ? "bg-green-500/10 text-green-500" :
-                  descentData.pace === 'on-track' ? (isWaterLoadingDay ? "bg-cyan-500/10 text-cyan-500" : "bg-primary/10 text-primary") :
+                  descentData.pace === 'on-track' ? (isWaterLoading ? "bg-cyan-500/10 text-cyan-500" : "bg-primary/10 text-primary") :
                   descentData.pace === 'behind' ? "bg-orange-500/10 text-orange-500" :
                   "bg-muted text-muted-foreground"
                 )}>
                   {descentData.pace === 'ahead' && (
-                    isWaterLoadingDay
+                    isWaterLoading
                       ? <>Lighter than expected for water loading! <strong>{toGoal} lbs</strong> above goal — you have room to load more.</>
                       : <>You're ahead of schedule! <strong>{toGoal} lbs</strong> left to cut — great progress.</>
                   )}
                   {descentData.pace === 'on-track' && (
-                    isWaterLoadingDay
+                    isWaterLoading
                       ? <>Water loading on track. <strong>{toGoal} lbs</strong> above goal — this is normal and will flush out Thu-Fri.</>
                       : <>On pace! <strong>{toGoal} lbs</strong> left to cut.</>
                   )}
                   {descentData.pace === 'behind' && (
-                    isWaterLoadingDay
+                    isWaterLoading
                       ? <>Slightly heavy for water loading. <strong>{toGoal} lbs</strong> above goal — watch intake today.</>
                       : <>Need to lose <strong>{toGoal} lbs</strong> more. Tighten up!</>
                   )}

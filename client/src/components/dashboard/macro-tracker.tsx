@@ -15,7 +15,7 @@ interface FoodLogEntry {
   liquidOz?: number; // for juices/liquids that also count as water
 }
 import { cn } from "@/lib/utils";
-import { format, getDay } from "date-fns";
+import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 
 interface MacroTrackerProps {
@@ -33,7 +33,7 @@ interface MacroTrackerProps {
     proteinLabel: string;
   };
   foodLists: ReturnType<ReturnType<typeof useStore>['getFoodLists']>;
-  dayOfWeek: number;
+  daysUntilWeighIn: number;
   protocol: string;
   readOnly?: boolean;
 }
@@ -154,7 +154,7 @@ function FoodTab({
   );
 }
 
-export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protocol, readOnly = false }: MacroTrackerProps) {
+export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn, protocol, readOnly = false }: MacroTrackerProps) {
   const { getDailyTracking, updateDailyTracking, profile } = useStore();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
@@ -391,10 +391,10 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
     }
   };
 
-  // Determine if we're in fructose or glucose phase
-  const isFructosePhase = dayOfWeek >= 1 && dayOfWeek <= 3;
-  const isGlucosePhase = dayOfWeek >= 4 && dayOfWeek <= 5;
-  const isZeroFiberPhase = dayOfWeek === 4 || dayOfWeek === 5; // Thu/Fri - critical for weigh-in
+  // Determine if we're in fructose or glucose phase based on days until weigh-in
+  const isFructosePhase = daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5; // 3-5 days out
+  const isGlucosePhase = daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2; // 1-2 days out
+  const isZeroFiberPhase = daysUntilWeighIn === 1 || daysUntilWeighIn === 2; // 1-2 days out - critical for weigh-in
   const isProteinAllowed = todaysFoods.protein.length > 0;
 
   // Get protein status info
@@ -402,13 +402,16 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
     if (protocol === '3' || protocol === '4') {
       return { allowed: true, message: todaysFoods.proteinLabel, color: "text-primary", bgColor: "bg-primary/10 border-primary/30" };
     }
-    if (dayOfWeek === 1 || dayOfWeek === 2) {
+    if (daysUntilWeighIn >= 4 && daysUntilWeighIn <= 5) {
+      // 4-5 days out: NO PROTEIN
       return { allowed: false, message: "NO PROTEIN TODAY", color: "text-destructive", bgColor: "bg-destructive/10 border-destructive/30" };
     }
-    if (dayOfWeek === 3) {
+    if (daysUntilWeighIn === 3) {
+      // 3 days out: Collagen only
       return { allowed: true, message: "COLLAGEN ONLY (Dinner)", color: "text-orange-500", bgColor: "bg-orange-500/10 border-orange-500/30" };
     }
-    if (dayOfWeek === 6) {
+    if (daysUntilWeighIn === 0) {
+      // Competition day: Protein after weigh-in
       return { allowed: true, message: "PROTEIN AFTER WEIGH-IN", color: "text-yellow-500", bgColor: "bg-yellow-500/10 border-yellow-500/30" };
     }
     return { allowed: true, message: todaysFoods.proteinLabel, color: "text-primary", bgColor: "bg-primary/10 border-primary/30" };
@@ -555,20 +558,20 @@ export function MacroTracker({ macros, todaysFoods, foodLists, dayOfWeek, protoc
 
             {/* Why Explanations */}
             <div className="space-y-2 mb-3">
-              {dayOfWeek >= 1 && dayOfWeek <= 3 && (
-                <WhyExplanation title="fructose heavy">
+              {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
+                <WhyExplanation title="fructose heavy (3-5 days out)">
                   <strong>Fructose burns fat better.</strong> Unlike glucose, fructose is processed by the liver and doesn't spike
                   insulin as much. This keeps your body in a fat-burning state while still providing energy for training.
                 </WhyExplanation>
               )}
-              {dayOfWeek >= 4 && dayOfWeek <= 5 && (
-                <WhyExplanation title="switch to glucose">
+              {daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2 && (
+                <WhyExplanation title="switch to glucose (1-2 days out)">
                   <strong>Glucose for quick energy.</strong> As you approach competition, we shift from fructose to glucose-based
                   carbs (rice, potatoes). Glucose goes straight to muscle glycogen for explosive energy without fiber.
                 </WhyExplanation>
               )}
-              {(dayOfWeek === 1 || dayOfWeek === 2) && protocol !== '3' && protocol !== '4' && (
-                <WhyExplanation title="no protein">
+              {(daysUntilWeighIn >= 4 && daysUntilWeighIn <= 5) && protocol !== '3' && protocol !== '4' && (
+                <WhyExplanation title="no protein (4-5 days out)">
                   <strong>Protein blocks fat burning.</strong> During the metabolic phase, protein triggers insulin and mTOR
                   pathways that shut down fat oxidation. Keeping protein minimal lets you burn more actual body fat.
                 </WhyExplanation>
