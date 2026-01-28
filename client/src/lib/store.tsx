@@ -1783,15 +1783,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const galToOz = (gal: number) => Math.round(gal * 128);
 
-    // Helper to get days until weigh-in for a specific calendar day
-    // Uses startOfDay to avoid timezone/time-of-day issues with differenceInDays
+    // Helper to get days until weigh-in for a specific calendar day in the current comp week
+    // The week runs Mon-Sun, so we calculate relative to the Monday of the weigh-in week
     const getDaysUntilForDay = (dayNum: number): number => {
       // dayNum: 0=Sun, 1=Mon, 2=Tue, etc.
-      const daysFromToday = dayNum >= currentDayOfWeek
-        ? dayNum - currentDayOfWeek
-        : 7 - currentDayOfWeek + dayNum;
-      const targetDate = startOfDay(addDays(today, daysFromToday));
       const weighIn = startOfDay(profile.weighInDate);
+      const weighInDow = getDay(weighIn); // 0=Sun, 6=Sat
+      // Find Monday of the weigh-in week
+      const daysBackToMonday = weighInDow === 0 ? 6 : weighInDow - 1;
+      const weekMonday = startOfDay(addDays(weighIn, -daysBackToMonday));
+      // Target day relative to Monday of weigh-in week
+      // dayNum 1=Mon -> offset 0, 2=Tue -> 1, ... 0=Sun -> 6
+      const dayOffset = dayNum === 0 ? 6 : dayNum - 1;
+      const targetDate = startOfDay(addDays(weekMonday, dayOffset));
       return differenceInDays(weighIn, targetDate);
     };
 
