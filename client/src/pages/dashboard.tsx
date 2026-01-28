@@ -49,7 +49,8 @@ export default function Dashboard() {
     getWeekDescentData,
     getHistoryInsights,
     getCheckpoints,
-    getTodaysFoods
+    getTodaysFoods,
+    clearLogs
   } = useStore();
 
   const phase = getPhase();
@@ -214,7 +215,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <SettingsDialog profile={profile} updateProfile={updateProfile} resetData={useStore().resetData} />
+            <SettingsDialog profile={profile} updateProfile={updateProfile} resetData={useStore().resetData} clearLogs={clearLogs} />
             <InfoDialog />
           </div>
         </header>
@@ -314,16 +315,16 @@ export default function Dashboard() {
               {driftMetrics.overnight !== null && (
                 <div>
                   <span className="text-muted-foreground">Overnight avg: </span>
-                  <span className={cn("font-mono font-bold", driftMetrics.overnight < 0 ? "text-primary" : "text-yellow-500")}>
-                    {driftMetrics.overnight > 0 ? '+' : ''}{driftMetrics.overnight.toFixed(1)} lbs
+                  <span className={cn("font-mono font-bold", driftMetrics.overnight > 0 ? "text-primary" : "text-yellow-500")}>
+                    {driftMetrics.overnight > 0 ? '-' : '+'}{Math.abs(driftMetrics.overnight).toFixed(1)} lbs
                   </span>
                 </div>
               )}
               {driftMetrics.session !== null && (
                 <div>
                   <span className="text-muted-foreground">Practice avg: </span>
-                  <span className={cn("font-mono font-bold", driftMetrics.session < 0 ? "text-primary" : "text-yellow-500")}>
-                    {driftMetrics.session > 0 ? '+' : ''}{driftMetrics.session.toFixed(1)} lbs
+                  <span className={cn("font-mono font-bold", driftMetrics.session > 0 ? "text-primary" : "text-yellow-500")}>
+                    {driftMetrics.session > 0 ? '-' : '+'}{Math.abs(driftMetrics.session).toFixed(1)} lbs
                   </span>
                 </div>
               )}

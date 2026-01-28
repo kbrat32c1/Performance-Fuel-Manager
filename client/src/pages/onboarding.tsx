@@ -11,6 +11,7 @@ import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle } fr
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ProtocolWizard } from "@/components/protocol-wizard";
+import { getWeightMultiplier } from "@/lib/constants";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -169,7 +170,7 @@ export default function Onboarding() {
                         <span className="text-muted-foreground">Ideal Walk-Around</span>
                         <span className="block text-[10px] text-muted-foreground/70">Target by Sunday for easier cuts</span>
                       </div>
-                      <span className="font-mono font-bold text-primary">{(profile.targetWeightClass * 1.07).toFixed(1)} lbs</span>
+                      <span className="font-mono font-bold text-primary">{(profile.targetWeightClass * getWeightMultiplier(5)).toFixed(1)} lbs</span>
                    </div>
 
                    {(() => {
@@ -302,7 +303,7 @@ export default function Onboarding() {
                      }
 
                      // Standard warnings
-                     if (profile.currentWeight > profile.targetWeightClass * 1.07) {
+                     if (profile.currentWeight > profile.targetWeightClass * getWeightMultiplier(5)) {
                        return (
                          <div className="bg-destructive/10 text-destructive p-3 rounded text-xs font-bold leading-relaxed flex gap-2">
                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />

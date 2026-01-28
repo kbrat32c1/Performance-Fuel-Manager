@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar } from "lucide-react";
-import { format, differenceInDays } from "date-fns";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Check, X } from "lucide-react";
+import { format, differenceInDays, startOfDay, parseISO } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
@@ -16,16 +16,85 @@ interface SettingsDialogProps {
   profile: any;
   updateProfile: (updates: any) => void;
   resetData: () => Promise<void>;
+  clearLogs: () => Promise<void>;
 }
 
-export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDialogProps) {
+export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }: SettingsDialogProps) {
   const { signOut, user } = useAuth();
   const { theme, setTheme } = useTheme();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showWeightClassConfirm, setShowWeightClassConfirm] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // Local state for pending changes
+  const [pendingChanges, setPendingChanges] = useState<any>({});
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Reset pending changes when dialog opens
+  useEffect(() => {
+    if (open) {
+      setPendingChanges({});
+      setHasChanges(false);
+      setShowWeightClassConfirm(false);
+    }
+  }, [open]);
+
+  // Get the current value (pending or actual)
+  const getValue = (key: string) => {
+    return pendingChanges[key] !== undefined ? pendingChanges[key] : profile[key];
+  };
+
+  // Update pending changes
+  const handleChange = (updates: any) => {
+    setPendingChanges((prev: any) => ({ ...prev, ...updates }));
+    setHasChanges(true);
+  };
+
+  // Check if weight class has changed
+  const newWeightClass = pendingChanges.targetWeightClass;
+  const oldWeightClass = profile.targetWeightClass;
+  const weightClassChanged = newWeightClass !== undefined &&
+    Number(newWeightClass) !== Number(oldWeightClass);
+
+  // Save all changes
+  const handleSave = () => {
+    if (hasChanges) {
+      // If weight class changed, show confirmation dialog
+      if (weightClassChanged) {
+        setShowWeightClassConfirm(true);
+        return;
+      }
+      updateProfile(pendingChanges);
+    }
+    setOpen(false);
+  };
+
+  // Save with clear logs option
+  const handleSaveWithClearLogs = async () => {
+    await clearLogs();
+    updateProfile(pendingChanges);
+    setShowWeightClassConfirm(false);
+    setOpen(false);
+  };
+
+  // Save and keep logs
+  const handleSaveKeepLogs = () => {
+    updateProfile(pendingChanges);
+    setShowWeightClassConfirm(false);
+    setOpen(false);
+  };
+
+  // Cancel and discard changes
+  const handleCancel = () => {
+    setPendingChanges({});
+    setHasChanges(false);
+    setOpen(false);
+  };
 
   const handleReset = async () => {
     await resetData();
     setShowResetConfirm(false);
+    setOpen(false);
     window.location.href = '/onboarding';
   };
 
@@ -34,19 +103,27 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
     window.location.href = '/';
   };
 
+  // Calculate days until weigh-in using pending or actual values
+  const weighInDate = getValue('weighInDate');
+  const simulatedDate = getValue('simulatedDate');
+  const daysUntil = differenceInDays(
+    startOfDay(new Date(weighInDate)),
+    startOfDay(simulatedDate || new Date())
+  );
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground">
           <Settings className="w-5 h-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[90%] rounded-xl bg-card border-muted max-h-[85vh] overflow-y-auto">
+      <DialogContent className="w-[90%] max-w-md rounded-xl bg-card border-muted max-h-[75vh] overflow-y-auto flex flex-col !top-[10%] !translate-y-0">
         <DialogHeader>
           <DialogTitle className="font-heading uppercase italic text-xl">Settings</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="profile" className="w-full mt-2">
+        <Tabs defaultValue="profile" className="w-full mt-2 flex-1 flex flex-col">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="dates">Dates</TabsTrigger>
@@ -54,15 +131,15 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
             <TabsTrigger value="data">Data</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="profile" className="space-y-4 py-4">
+          <TabsContent value="profile" className="space-y-4 py-4 min-h-[340px]">
             <div className="space-y-2">
               <Label>Current Weight (lbs)</Label>
               <div className="relative">
                 <Weight className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
                   type="number"
-                  value={profile.currentWeight || ''}
-                  onChange={(e) => updateProfile({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
+                  value={getValue('currentWeight') || ''}
+                  onChange={(e) => handleChange({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
                   className="pl-10 font-mono h-12"
                   placeholder="Enter weight"
                 />
@@ -73,8 +150,8 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
               <div className="relative">
                 <Target className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
                 <Select
-                  value={profile.targetWeightClass.toString()}
-                  onValueChange={(v) => updateProfile({ targetWeightClass: parseInt(v) })}
+                  value={getValue('targetWeightClass').toString()}
+                  onValueChange={(v) => handleChange({ targetWeightClass: parseInt(v) })}
                 >
                   <SelectTrigger className="pl-10 font-mono h-12">
                     <SelectValue placeholder="Select class" />
@@ -94,12 +171,18 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
                 <Input
                   type="date"
                   className="pl-10 bg-muted/30 border-muted h-12"
-                  value={format(new Date(profile.weighInDate), 'yyyy-MM-dd')}
-                  onChange={(e) => updateProfile({ weighInDate: new Date(e.target.value) })}
+                  value={format(new Date(weighInDate), 'yyyy-MM-dd')}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      // Parse as local date to avoid timezone shift
+                      const [year, month, day] = e.target.value.split('-').map(Number);
+                      const localDate = new Date(year, month - 1, day, 12, 0, 0); // noon to avoid DST issues
+                      handleChange({ weighInDate: localDate });
+                    }
+                  }}
                 />
               </div>
               {(() => {
-                const daysUntil = differenceInDays(new Date(profile.weighInDate), profile.simulatedDate || new Date());
                 if (daysUntil < 0) {
                   return <p className="text-[10px] text-yellow-500">Weigh-in has passed. Update for your next competition.</p>;
                 } else if (daysUntil === 0) {
@@ -114,8 +197,8 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
             <div className="space-y-2 pt-2 border-t border-muted">
               <Label>Protocol</Label>
               <Select
-                value={profile.protocol}
-                onValueChange={(v) => updateProfile({ protocol: v as any })}
+                value={getValue('protocol')}
+                onValueChange={(v) => handleChange({ protocol: v as any })}
               >
                 <SelectTrigger className="font-mono h-12">
                   <SelectValue />
@@ -128,15 +211,15 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
                 </SelectContent>
               </Select>
               <p className="text-[10px] text-muted-foreground">
-                {profile.protocol === PROTOCOLS.BODY_COMP && 'Aggressive fat loss - 0 protein until day before'}
-                {profile.protocol === PROTOCOLS.MAKE_WEIGHT && 'Standard in-season cut - water loading protocol'}
-                {profile.protocol === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight - minimal cutting'}
-                {profile.protocol === PROTOCOLS.BUILD && 'Off-season muscle gain - no weight cutting'}
+                {getValue('protocol') === PROTOCOLS.BODY_COMP && 'Aggressive fat loss - 0 protein until day before'}
+                {getValue('protocol') === PROTOCOLS.MAKE_WEIGHT && 'Standard in-season cut - water loading protocol'}
+                {getValue('protocol') === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight - minimal cutting'}
+                {getValue('protocol') === PROTOCOLS.BUILD && 'Off-season muscle gain - no weight cutting'}
               </p>
             </div>
           </TabsContent>
 
-          <TabsContent value="dates" className="space-y-4 py-4">
+          <TabsContent value="dates" className="space-y-4 py-4 min-h-[340px]">
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
                 Demo Mode
@@ -149,14 +232,23 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
                 <Input
                   type="date"
                   className="bg-muted/30 border-muted flex-1 h-12"
-                  value={profile.simulatedDate ? format(new Date(profile.simulatedDate), 'yyyy-MM-dd') : ''}
-                  onChange={(e) => updateProfile({ simulatedDate: e.target.value ? new Date(e.target.value) : null })}
+                  value={simulatedDate ? format(new Date(simulatedDate), 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      // Parse as local date to avoid timezone shift
+                      const [year, month, day] = e.target.value.split('-').map(Number);
+                      const localDate = new Date(year, month - 1, day, 12, 0, 0);
+                      handleChange({ simulatedDate: localDate });
+                    } else {
+                      handleChange({ simulatedDate: null });
+                    }
+                  }}
                 />
-                {profile.simulatedDate && (
+                {simulatedDate && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => updateProfile({ simulatedDate: null })}
+                    onClick={() => handleChange({ simulatedDate: null })}
                     className="h-12"
                   >
                     Clear
@@ -179,7 +271,7 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
                       variant="outline"
                       size="sm"
                       className="text-[10px] h-8 px-3"
-                      onClick={() => updateProfile({ simulatedDate: targetDate })}
+                      onClick={() => handleChange({ simulatedDate: targetDate })}
                     >
                       {day}
                     </Button>
@@ -189,7 +281,7 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
             </div>
           </TabsContent>
 
-          <TabsContent value="theme" className="space-y-4 py-4">
+          <TabsContent value="theme" className="space-y-4 py-4 min-h-[340px]">
             <div className="space-y-3">
               <Label>Appearance</Label>
               <p className="text-xs text-muted-foreground">
@@ -236,7 +328,7 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
             </div>
           </TabsContent>
 
-          <TabsContent value="data" className="space-y-4 py-4">
+          <TabsContent value="data" className="space-y-4 py-4 min-h-[340px]">
             {user && (
               <div className="space-y-3 pb-4 border-b border-muted">
                 <h4 className="font-bold text-sm">Account</h4>
@@ -295,6 +387,69 @@ export function SettingsDialog({ profile, updateProfile, resetData }: SettingsDi
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Weight Class Change Confirmation */}
+        {showWeightClassConfirm && (
+          <div className="absolute inset-0 bg-background/95 flex items-center justify-center p-4 rounded-xl z-50">
+            <div className="space-y-4 w-full max-w-sm">
+              <div className="space-y-2 text-center">
+                <h4 className="font-bold text-lg">Weight Class Changed</h4>
+                <p className="text-sm text-muted-foreground">
+                  You changed your weight class from {oldWeightClass} lbs to {newWeightClass} lbs.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Would you like to clear your existing weight logs and start fresh?
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  onClick={handleSaveWithClearLogs}
+                  className="w-full h-12"
+                  variant="destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear Logs & Save
+                </Button>
+                <Button
+                  onClick={handleSaveKeepLogs}
+                  className="w-full h-12"
+                  variant="outline"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Keep Logs & Save
+                </Button>
+                <Button
+                  onClick={() => setShowWeightClassConfirm(false)}
+                  className="w-full h-12"
+                  variant="ghost"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Go Back
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Save/Cancel Footer */}
+        <DialogFooter className="flex gap-2 pt-4 border-t border-muted mt-4">
+          <Button
+            variant="outline"
+            onClick={handleCancel}
+            className="flex-1 h-12"
+          >
+            <X className="w-4 h-4 mr-2" />
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            className="flex-1 h-12"
+            disabled={!hasChanges}
+          >
+            <Check className="w-4 h-4 mr-2" />
+            Save Changes
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

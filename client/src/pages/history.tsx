@@ -19,7 +19,7 @@ export default function History() {
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
   const macroTargets = getMacroTargets();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState('');
   const [isAddingLog, setIsAddingLog] = useState(false);

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { format, getDay, addDays, startOfWeek, isSameDay } from "date-fns";
 import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Pencil, Check, X } from "lucide-react";
 import { useState } from "react";
+import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight } from "@/lib/constants";
 
 export default function Weekly() {
   const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData, getWaterLoadBonus } = useStore();
@@ -49,61 +50,71 @@ export default function Weekly() {
   // Water loading bonus from centralized helper
   const waterLoadBonus = getWaterLoadBonus();
 
-  // Weight targets by day (from your document - page 2)
-  // Baseline targets + water loading adjustment for Mon-Wed
+  // Weight targets by day - uses centralized getWeightMultiplier from constants.ts
+  // This ensures all weight displays across the app use the same calculations
   const getWeightTargets = () => {
     const w = profile.targetWeightClass;
-    const walkAround = w * 1.07;
-    const wedBaseline = w * 1.045; // midpoint of 1.04-1.05
-    const friTarget = w * 1.025; // midpoint of 1.02-1.03
+    const protocol = profile.protocol;
+
+    // Helper to get target for a specific days-until-weigh-in value
+    const getTarget = (daysUntil: number) => calculateTargetWeight(w, daysUntil, protocol);
+
+    // Days mapping: Mon=5, Tue=4, Wed=3, Thu=2, Fri=1, Sat=0, Sun=-1 (for standard Sat weigh-in)
+    const monTarget = getTarget(5);
+    const tueTarget = getTarget(4);
+    const wedTarget = getTarget(3);
+    const thuTarget = getTarget(2);
+    const friTarget = getTarget(1);
+    const satTarget = getTarget(0);
+    const sunTarget = getTarget(-1);
 
     return {
       mon: {
         label: 'Walk-Around',
-        target: walkAround,
-        range: `${(w * 1.06).toFixed(0)}-${(w * 1.07).toFixed(0)}`,
-        withLoading: `${Math.round(w * 1.06 + waterLoadBonus)}-${Math.round(w * 1.07 + waterLoadBonus)}`,
-        note: `+${waterLoadBonus} lbs water loading`
+        target: monTarget.range ? monTarget.range.max : monTarget.base, // Use water-loaded target for consistency
+        range: `${monTarget.base}`,
+        withLoading: monTarget.range ? `${monTarget.range.min}-${monTarget.range.max}` : null,
+        note: monTarget.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water loading` : undefined
       },
       tue: {
         label: 'Peak Loading',
-        target: walkAround + waterLoadBonus,
-        range: `${Math.round(w * 1.06 + waterLoadBonus)}-${Math.round(w * 1.07 + waterLoadBonus)}`,
+        target: tueTarget.range ? tueTarget.range.max : tueTarget.base,
+        range: tueTarget.range ? `${tueTarget.range.min}-${tueTarget.range.max}` : `${tueTarget.base}`,
         withLoading: null,
         note: 'Heaviest day is normal'
       },
       wed: {
         label: 'Wed PM Target',
-        target: wedBaseline + waterLoadBonus,
-        range: `${(w * 1.04).toFixed(0)}-${(w * 1.05).toFixed(0)}`,
-        withLoading: `${Math.round(w * 1.04 + waterLoadBonus)}-${Math.round(w * 1.05 + waterLoadBonus)}`,
-        note: `Still +${waterLoadBonus} lbs loading`
+        target: wedTarget.range ? wedTarget.range.max : wedTarget.base,
+        range: `${wedTarget.base}`,
+        withLoading: wedTarget.range ? `${wedTarget.range.min}-${wedTarget.range.max}` : null,
+        note: wedTarget.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs loading` : undefined
       },
       thu: {
         label: 'Flush Day',
-        target: (wedBaseline + friTarget) / 2,
-        range: `${Math.round(w * 1.03)}-${Math.round(w * 1.04)}`,
+        target: thuTarget.base,
+        range: `${thuTarget.base}-${thuTarget.base + 1}`,
         withLoading: null,
         note: 'Water weight dropping'
       },
       fri: {
         label: 'Fri PM Target',
-        target: friTarget,
-        range: `${(w * 1.02).toFixed(0)}-${(w * 1.03).toFixed(0)}`,
+        target: friTarget.base,
+        range: `${friTarget.base}-${friTarget.base + 1}`,
         withLoading: null,
         note: 'CRITICAL checkpoint'
       },
       sat: {
         label: 'Competition',
-        target: w,
-        range: `${w}`,
+        target: satTarget.base,
+        range: `${satTarget.base}`,
         withLoading: null,
         note: 'Weigh-in weight'
       },
       sun: {
         label: 'Recovery',
-        target: walkAround,
-        range: `${Math.round(w * 1.06)}-${Math.round(w * 1.07)}`,
+        target: sunTarget.base,
+        range: `${sunTarget.base}-${sunTarget.base + 1}`,
         withLoading: null,
         note: 'Rebuilding'
       },
@@ -239,7 +250,9 @@ export default function Weekly() {
                   "bg-muted text-muted-foreground"
                 )}>
                   {descentData.pace === 'ahead' && (
-                    <>You're <strong>{Math.abs(descentData.currentWeight - descentData.targetWeight).toFixed(1)} lbs</strong> under target! You can eat a bit more.</>
+                    isWaterLoadingDay
+                      ? <>Lighter than expected for water loading! <strong>{toGoal} lbs</strong> above goal — you have room to load more.</>
+                      : <>You're ahead of schedule! <strong>{toGoal} lbs</strong> left to cut — great progress.</>
                   )}
                   {descentData.pace === 'on-track' && (
                     isWaterLoadingDay
@@ -304,16 +317,14 @@ export default function Weekly() {
 
                   let status: 'on-track' | 'behind' | 'ahead' | 'none' = 'none';
                   if (relevantLog) {
-                    // For water loading days (Mon-Wed), compare against water-loaded target
-                    // Protocols 1 & 2 have water loading; 3 & 4 do not
-                    const hasWaterLoading = (profile.protocol === '1' || profile.protocol === '2') && isLoadingDay;
-                    const effectiveTarget = hasWaterLoading ? target.target + waterLoadBonus : target.target;
-                    const diff = relevantLog.weight - effectiveTarget;
+                    // target.target already includes water loading for Mon-Wed (uses range.max)
+                    // No need to add waterLoadBonus again
+                    const diff = relevantLog.weight - target.target;
 
                     // Small tolerance for measurement variance
                     const tolerance = 1.5;
 
-                    if (diff <= 0) status = 'ahead'; // Under target is always good
+                    if (diff <= -1) status = 'ahead'; // Under target by more than 1 lb
                     else if (diff <= tolerance) status = 'on-track'; // Within tolerance
                     else status = 'behind'; // Over tolerance
                   }

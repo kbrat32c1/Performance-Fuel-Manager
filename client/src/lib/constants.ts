@@ -271,3 +271,123 @@ export const STORAGE_KEYS = {
   MATCH_COUNT: 'pwm-match-count',
   THEME: 'pwm-theme',
 } as const;
+
+// =============================================================================
+// CENTRALIZED WEIGHT TARGET SYSTEM
+// All weight targets should be calculated using these functions for consistency
+// =============================================================================
+
+/**
+ * Weight target multipliers by days until weigh-in
+ * These are the SINGLE SOURCE OF TRUTH for all weight calculations
+ */
+export const WEIGHT_TARGET_BY_DAYS_OUT = {
+  // Days until weigh-in -> multiplier of target weight class
+  5: 1.07,  // 5 days out: walk-around + water loading
+  4: 1.06,  // 4 days out: peak water loading
+  3: 1.05,  // 3 days out: last load day
+  2: 1.04,  // 2 days out: flush day
+  1: 1.03,  // 1 day out: critical checkpoint
+  0: 1.00,  // Competition day: make weight
+  [-1]: 1.07, // Recovery day: back to walk-around
+} as const;
+
+/**
+ * Water loading range (lbs above baseline) - consistent 2-4 lbs
+ */
+export const WATER_LOADING_RANGE = {
+  MIN: 2,
+  MAX: 4,
+} as const;
+
+/**
+ * Days that include water loading bonus (protocols 1 & 2 only)
+ */
+export const WATER_LOADING_DAYS = [5, 4, 3] as const; // 5, 4, 3 days out
+
+/**
+ * Get the weight multiplier for a given number of days until weigh-in
+ */
+export function getWeightMultiplier(daysUntil: number): number {
+  if (daysUntil < 0) return WEIGHT_TARGET_BY_DAYS_OUT[-1]; // Recovery
+  if (daysUntil === 0) return WEIGHT_TARGET_BY_DAYS_OUT[0]; // Competition
+  if (daysUntil === 1) return WEIGHT_TARGET_BY_DAYS_OUT[1]; // Critical
+  if (daysUntil === 2) return WEIGHT_TARGET_BY_DAYS_OUT[2]; // Flush
+  if (daysUntil === 3) return WEIGHT_TARGET_BY_DAYS_OUT[3]; // Last load
+  if (daysUntil === 4) return WEIGHT_TARGET_BY_DAYS_OUT[4]; // Peak load
+  if (daysUntil === 5) return WEIGHT_TARGET_BY_DAYS_OUT[5]; // First load
+  // 6+ days out: maintenance at walk-around
+  return WEIGHT_TARGET_BY_DAYS_OUT[5]; // 1.07 (walk-around)
+}
+
+/**
+ * Check if a given day is a water loading day
+ */
+export function isWaterLoadingDay(daysUntil: number, protocol: string): boolean {
+  if (protocol !== PROTOCOLS.BODY_COMP && protocol !== PROTOCOLS.MAKE_WEIGHT) {
+    return false;
+  }
+  return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3);
+}
+
+/**
+ * Calculate the target weight for a given day
+ * This is the SINGLE function to use for all weight target displays
+ */
+export function calculateTargetWeight(
+  targetWeightClass: number,
+  daysUntil: number,
+  protocol: string,
+  includeWaterLoading: boolean = true
+): { base: number; withWaterLoad: number | null; range: { min: number; max: number } | null } {
+  const multiplier = getWeightMultiplier(daysUntil);
+  const base = Math.round(targetWeightClass * multiplier);
+
+  const waterLoading = includeWaterLoading && isWaterLoadingDay(daysUntil, protocol);
+
+  if (waterLoading) {
+    return {
+      base,
+      withWaterLoad: base + WATER_LOADING_RANGE.MAX, // Use max for single display
+      range: {
+        min: base + WATER_LOADING_RANGE.MIN,
+        max: base + WATER_LOADING_RANGE.MAX,
+      },
+    };
+  }
+
+  return {
+    base,
+    withWaterLoad: null,
+    range: null,
+  };
+}
+
+/**
+ * Get a formatted weight target string for display
+ */
+export function formatWeightTarget(
+  targetWeightClass: number,
+  daysUntil: number,
+  protocol: string
+): string {
+  const target = calculateTargetWeight(targetWeightClass, daysUntil, protocol);
+
+  if (target.range) {
+    return `${target.range.min}-${target.range.max}`;
+  }
+
+  return `${target.base}`;
+}
+
+/**
+ * Get phase name based on days until weigh-in
+ */
+export function getPhaseForDaysUntil(daysUntil: number): string {
+  if (daysUntil < 0) return 'Recover';
+  if (daysUntil === 0) return 'Compete';
+  if (daysUntil === 1) return 'Cut';
+  if (daysUntil === 2) return 'Cut';
+  if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
+  return 'Train';
+}
