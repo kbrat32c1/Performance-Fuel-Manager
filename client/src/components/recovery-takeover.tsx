@@ -63,7 +63,7 @@ export function RecoveryTakeover() {
 
   // Friday pre-weigh-in checklist
   const preWeighInSteps = [
-    { id: 'sip', label: 'Sip only - no gulping water', desc: '8-16oz distilled max' },
+    { id: 'sip', label: 'Sip only - no gulping water', desc: '8-16oz max' },
     { id: 'bladder', label: 'Empty bladder before every weigh', desc: 'Check weight after bathroom' },
     { id: 'fiber', label: 'ZERO fiber consumed', desc: 'No vegetables, fruits, whole grains' },
     { id: 'sweat', label: 'Light sweat session if needed', desc: 'Only if >1lb over target' },

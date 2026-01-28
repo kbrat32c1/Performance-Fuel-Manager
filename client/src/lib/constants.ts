@@ -283,11 +283,12 @@ export const STORAGE_KEYS = {
  */
 export const WEIGHT_TARGET_BY_DAYS_OUT = {
   // Days until weigh-in -> multiplier of target weight class
-  5: 1.07,  // 5 days out: walk-around + water loading
-  4: 1.06,  // 4 days out: peak water loading
-  3: 1.05,  // 3 days out: last load day
-  2: 1.04,  // 2 days out: flush day
-  1: 1.03,  // 1 day out: critical checkpoint
+  // Note: Water loading days (5, 4, 3) add 2-4 lbs ON TOP of these multipliers
+  5: 1.07,  // 5 days out: walk-around + water loading (+2-4 lbs)
+  4: 1.06,  // 4 days out: peak water loading (+2-4 lbs)
+  3: 1.05,  // 3 days out: last load day (+2-4 lbs)
+  2: 1.04,  // 2 days out: flush day (138 AM for 133 class, ~136 after practice)
+  1: 1.03,  // 1 day out: critical checkpoint (137 lbs for 133 class)
   0: 1.00,  // Competition day: make weight
   [-1]: 1.07, // Recovery day: back to walk-around
 } as const;
@@ -303,7 +304,7 @@ export const WATER_LOADING_RANGE = {
 /**
  * Days that include water loading bonus (protocols 1 & 2 only)
  */
-export const WATER_LOADING_DAYS = [5, 4, 3] as const; // 5, 4, 3 days out
+export const WATER_LOADING_DAYS = [5, 4, 3, 2] as const; // 5, 4, 3, 2 days out (still drinking 1.25 gal Thu)
 
 /**
  * Get the weight multiplier for a given number of days until weigh-in
@@ -327,7 +328,7 @@ export function isWaterLoadingDay(daysUntil: number, protocol: string): boolean 
   if (protocol !== PROTOCOLS.BODY_COMP && protocol !== PROTOCOLS.MAKE_WEIGHT) {
     return false;
   }
-  return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3);
+  return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3 | 2);
 }
 
 /**

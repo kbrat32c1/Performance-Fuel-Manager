@@ -93,11 +93,9 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                 {/* Water Type Badge */}
                 <span className={cn(
                   "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
-                  hydration.type === 'Distilled'
-                    ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/50"
-                    : hydration.type === 'Sip Only'
-                      ? "bg-orange-500/20 text-orange-500 border border-orange-500/50 animate-pulse"
-                      : "bg-cyan-500/20 text-cyan-500"
+                  hydration.type === 'Sip Only'
+                    ? "bg-orange-500/20 text-orange-500 border border-orange-500/50 animate-pulse"
+                    : "bg-cyan-500/20 text-cyan-500"
                 )}>
                   {hydration.type}
                 </span>
@@ -219,10 +217,10 @@ export function HydrationTracker({ hydration }: HydrationTrackerProps) {
                 </WhyExplanation>
               )}
               {daysUntilWeighIn === 2 && (
-                <WhyExplanation title="distilled water (2 days out)">
-                  <strong>Mineral-free water flushes sodium.</strong> Distilled water has no minerals, so your body
-                  pulls sodium from tissues to balance it out. This accelerates sodium and water loss while maintaining
-                  your hydration momentum from earlier in the week.
+                <WhyExplanation title="flush day (2 days out)">
+                  <strong>Water weight starts dropping.</strong> After days of high water intake, your body is in
+                  full flush mode. Maintain high intake to keep kidneys active while cutting sodium and fiber
+                  to accelerate water loss.
                 </WhyExplanation>
               )}
               {daysUntilWeighIn === 1 && (

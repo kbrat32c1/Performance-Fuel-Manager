@@ -162,7 +162,6 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                     <span className="font-mono font-bold text-cyan-500 block">{selectedDayData.water.amount}</span>
                     <span className={cn(
                       "text-[10px] font-bold uppercase",
-                      selectedDayData.water.type === 'Distilled' ? "text-yellow-500" :
                       selectedDayData.water.type === 'Sip Only' ? "text-orange-500" : "text-muted-foreground"
                     )}>
                       {selectedDayData.water.type}

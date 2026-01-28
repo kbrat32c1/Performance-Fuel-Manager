@@ -732,7 +732,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntilWeighIn === 1) {
           currentDayContext = `CRITICAL: Must be ${criticalLow}-${criticalHigh} lbs by evening for safe overnight cut`;
         } else if (daysUntilWeighIn === 2) {
-          currentDayContext = 'Flush day - water weight dropping. Zero fiber. Switch to distilled.';
+          currentDayContext = 'Flush day - water weight dropping. Zero fiber.';
         } else if (daysUntilWeighIn === 3) {
           currentDayContext = `Last load day - checkpoint is ${midWeekBaselineLow}-${midWeekBaselineHigh} lbs. Flush starts tomorrow.`;
         } else if (daysUntilWeighIn === 4) {
@@ -823,7 +823,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 5 days out: water loading day 1
     // 4 days out: water loading day 2 (peak)
     // 3 days out: water loading day 3
-    // 2 days out: flush/transition (distilled water, zero fiber)
+    // 2 days out: flush/transition (zero fiber)
     // 1 day out: performance prep (sip only, final cut)
     // 0 days: competition
 
@@ -868,10 +868,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (daysUntilWeighIn === 3) return { amount: isHeavy ? "2.0 gal" : isMedium ? "1.75 gal" : "1.5 gal", type: "Regular", note: "Water loading day 3", targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5) };
 
       // Flush day (2 days out)
-      if (daysUntilWeighIn === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Distilled", note: "Flush day - switch to distilled", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
+      if (daysUntilWeighIn === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Regular", note: "Flush day - water weight dropping", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
 
       // Cut day (1 day out)
-      if (daysUntilWeighIn === 1) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", type: "Distilled", note: "Sip only - final cut", targetOz: isHeavy ? 14 : isMedium ? 10 : 9 };
+      if (daysUntilWeighIn === 1) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", type: "Sip Only", note: "Sip only - final cut", targetOz: isHeavy ? 14 : isMedium ? 10 : 9 };
 
       // 6 days out (transition to loading)
       if (daysUntilWeighIn === 6) return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", type: "Regular", note: "Prep for water loading", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75) };
@@ -1932,7 +1932,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 5 days out: Water loading starts (walk-around + water bonus)
     // 4 days out: Peak water loading
     // 3 days out: Last load day
-    // 2 days out: Flush/transition (distilled, zero fiber)
+    // 2 days out: Flush/transition (zero fiber)
     // 1 day out: Critical checkpoint (sip only)
     // 0 days: Competition day
     // -1 day: Recovery
@@ -1995,7 +1995,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isCriticalCheckpoint = true;
         waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
       } else if (daysUntil === 2) {
-        // Flush day - transition (distilled, zero fiber)
+        // Flush day - transition (zero fiber)
         phase = 'Cut';
         weightTarget = baseWeight;
         carbs = { min: 325, max: 450 };
@@ -2003,9 +2003,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         water = {
           amount: isHeavy ? '1.75 gal' : isMedium ? '1.5 gal' : '1.25 gal',
           targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
-          type: 'Distilled'
+          type: 'Regular'
         };
-        waterLoadingNote = 'Flush day - water loading weight drops. ZERO fiber. Distilled only.';
+        waterLoadingNote = 'Flush day - water loading weight drops. ZERO fiber.';
       } else if (daysUntil === 3) {
         // Last load day - use water loading range
         phase = 'Load';
@@ -2143,9 +2143,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let projectionWarning: string | undefined;
     if (descentData.projectedSaturday !== null && descentData.daysRemaining > 0) {
       const projectedOver = descentData.projectedSaturday - profile.targetWeightClass;
-      // Use 3% threshold - this is the safe cut limit for final 24 hours
-      const safeOverLimit = profile.targetWeightClass * 0.03;
-      if (projectedOver > safeOverLimit) {
+      // Any projection over target weight class is a warning - you need to hit exactly target on weigh-in day
+      // Allow small tolerance (0.5 lbs) for measurement variance
+      if (projectedOver > 0.5) {
         projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in`;
       }
     }
@@ -2213,7 +2213,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { priority: "SIP ONLY - monitor weight hourly. Final push to make weight.", urgency: 'critical', icon: 'scale' };
     }
     if (daysUntilWeighIn === 2) {
-      return { priority: "ZERO FIBER - check every bite. Switch to distilled water.", urgency: 'high', icon: 'alert' };
+      return { priority: "ZERO FIBER - check every bite. Water weight dropping.", urgency: 'high', icon: 'alert' };
     }
     if (daysUntilWeighIn === 3) {
       return { priority: "Peak water day - hit your full gallon target", urgency: 'normal', icon: 'droplets' };

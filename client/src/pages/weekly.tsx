@@ -41,8 +41,8 @@ export default function Weekly() {
     mon: { type: 'Regular', sodium: 'Normal' },
     tue: { type: 'Regular', sodium: 'Normal' },
     wed: { type: 'Regular', sodium: 'Moderate' },
-    thu: { type: 'Distilled', sodium: 'Low' },
-    fri: { type: 'Distilled', sodium: 'Very Low' },
+    thu: { type: 'Regular', sodium: 'Low' },
+    fri: { type: 'Regular', sodium: 'Very Low' },
     sat: { type: 'Regular', sodium: 'Reintroduce' },
     sun: { type: 'Regular', sodium: 'Normal' },
   };
@@ -528,7 +528,7 @@ export default function Weekly() {
                       <td className="p-2 text-center">
                         <span className={cn(
                           "text-[10px] px-1.5 py-0.5 rounded",
-                          waterInfo.type === 'Distilled' ? "bg-yellow-500/20 text-yellow-500" : "bg-cyan-500/20 text-cyan-500"
+                          "bg-cyan-500/20 text-cyan-500"
                         )}>
                           {waterInfo.type}
                         </span>
@@ -550,7 +550,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-[10px] text-muted-foreground mt-2">
-          Peak hydration Wed • Switch to distilled Thu • Sharp cut Fri
+          Peak hydration Wed • Flush starts Thu • Sharp cut Fri
         </p>
       </section>
 
@@ -629,7 +629,7 @@ export default function Weekly() {
           <Card className="p-3 border-yellow-500/30 bg-yellow-500/5">
             <h4 className="font-bold text-sm text-yellow-500 mb-1">Thursday: Flush Day</h4>
             <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• Switch to distilled water - ZERO sodium</li>
+              <li>• Cut sodium intake - ZERO sodium</li>
               <li>• ZERO fiber - check every bite</li>
               <li>• Water loading weight starts dropping rapidly</li>
               <li>• Still high water intake to maintain flush</li>
