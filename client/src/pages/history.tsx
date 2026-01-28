@@ -498,13 +498,13 @@ export default function History() {
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Drift</span>
                   <span className={cn("font-mono font-bold text-xs", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
-                    {descentData.avgOvernightDrift !== null ? `-${descentData.avgOvernightDrift.toFixed(1)}` : '-'} lbs
+                    {descentData.avgOvernightDrift !== null ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}` : '-'} lbs
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Practice</span>
                   <span className={cn("font-mono font-bold text-xs", descentData.avgPracticeLoss !== null ? "text-orange-500" : "")}>
-                    {descentData.avgPracticeLoss !== null ? `-${descentData.avgPracticeLoss.toFixed(1)}` : '-'} lbs
+                    {descentData.avgPracticeLoss !== null ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}` : '-'} lbs
                   </span>
                 </div>
                 <div>
