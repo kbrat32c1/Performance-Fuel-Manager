@@ -265,6 +265,9 @@ export default function Dashboard() {
         {statusInfo.waterLoadingNote && (
           <span className="text-[10px] text-cyan-500 mt-1">{statusInfo.waterLoadingNote}</span>
         )}
+        {statusInfo.projectionWarning && (
+          <span className="text-[10px] text-orange-500 mt-1 font-bold">{statusInfo.projectionWarning}</span>
+        )}
       </div>
 
       {/* Today's Status - At-a-Glance Summary */}

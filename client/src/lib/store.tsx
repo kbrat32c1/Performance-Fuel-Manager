@@ -117,7 +117,7 @@ interface StoreContextType {
   getTomorrowPlan: () => DayPlan | null;
   getNextTarget: () => { label: string; weight: number; description: string } | null;
   getDriftMetrics: () => { overnight: number | null; session: number | null };
-  getStatus: () => { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string };
+  getStatus: () => { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string; projectionWarning?: string };
   getDailyPriority: () => { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string };
   getWeekDescentData: () => {
     startWeight: number | null;
@@ -2126,11 +2126,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const getStatus = (): { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string } => {
+  const getStatus = (): { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string; projectionWarning?: string } => {
     const target = calculateTarget();
     const currentWeight = profile.currentWeight;
     const waterLoading = isWaterLoadingDay();
     const waterLoadBonus = getWaterLoadBonus();
+    const descentData = getWeekDescentData();
 
     if (currentWeight === 0) {
       return { status: 'on-track', label: 'LOG WEIGHT', color: 'text-muted-foreground', bgColor: 'bg-muted/30' };
@@ -2138,29 +2139,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const diff = currentWeight - target;
 
+    // Check if projection shows we won't make weight
+    let projectionWarning: string | undefined;
+    if (descentData.projectedSaturday !== null && descentData.daysRemaining > 0) {
+      const projectedOver = descentData.projectedSaturday - profile.targetWeightClass;
+      if (projectedOver > 2) {
+        projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in`;
+      }
+    }
+
     // On water loading days (3-5 days out), allow extra tolerance for water weight
     // Water loading adds 2-4 lbs above baseline - this is expected and healthy
     if (waterLoading) {
       // If within 2-4 lb water loading tolerance, show as on track
       if (diff <= 4) {
         const note = diff > 1 ? `+${diff.toFixed(1)} lbs water weight - within 2-4 lb range` : undefined;
+        // But if projection shows we won't make weight, downgrade to borderline/risk
+        if (projectionWarning) {
+          return { status: 'borderline', label: 'CHECK PROJECTION', color: 'text-orange-500', bgColor: 'bg-orange-500/20', waterLoadingNote: note, projectionWarning };
+        }
         return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', waterLoadingNote: note };
       }
       // If slightly over 4 lb water loading tolerance, borderline
       if (diff <= 6) {
-        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - above 2-4 lb water loading range` };
+        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - above 2-4 lb water loading range`, projectionWarning };
       }
-      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - significantly over target` };
+      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - significantly over target`, projectionWarning };
     }
 
     // Non water-loading days use standard thresholds
     if (diff <= 1) {
+      // If projection shows we won't make weight, downgrade to borderline
+      if (projectionWarning) {
+        return { status: 'borderline', label: 'CHECK PROJECTION', color: 'text-orange-500', bgColor: 'bg-orange-500/20', projectionWarning };
+      }
       return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20' };
     }
     if (diff <= 3) {
-      return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20' };
+      return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', projectionWarning };
     }
-    return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20' };
+    return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', projectionWarning };
   };
 
   const getDailyPriority = (): { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string } => {
