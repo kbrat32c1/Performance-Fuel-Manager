@@ -392,29 +392,27 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Stats row */}
+          {/* Stats row - Loss capacity breakdown */}
           <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-muted">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Lost</span>
+              <span className="text-[10px] text-muted-foreground block">Drift</span>
               <span className={cn(
                 "font-mono font-bold text-sm",
-                descentData.totalLost !== null && descentData.totalLost > 0 ? "text-green-500" :
-                descentData.totalLost !== null && descentData.totalLost < 0 ? "text-red-500" : ""
+                descentData.avgOvernightDrift !== null ? "text-cyan-500" : ""
               )}>
-                {descentData.totalLost !== null
-                  ? (descentData.totalLost > 0 ? `-${descentData.totalLost.toFixed(1)}` : `+${Math.abs(descentData.totalLost).toFixed(1)}`)
+                {descentData.avgOvernightDrift !== null
+                  ? `-${descentData.avgOvernightDrift.toFixed(1)}`
                   : '-'} lbs
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg/Day</span>
+              <span className="text-[10px] text-muted-foreground block">Practice</span>
               <span className={cn(
                 "font-mono font-bold text-sm",
-                descentData.dailyAvgLoss !== null && descentData.dailyAvgLoss > 0 ? "text-green-500" :
-                descentData.dailyAvgLoss !== null && descentData.dailyAvgLoss < 0 ? "text-red-500" : ""
+                descentData.avgPracticeLoss !== null ? "text-orange-500" : ""
               )}>
-                {descentData.dailyAvgLoss !== null
-                  ? (descentData.dailyAvgLoss > 0 ? `-${descentData.dailyAvgLoss.toFixed(1)}` : `+${Math.abs(descentData.dailyAvgLoss).toFixed(1)}`)
+                {descentData.avgPracticeLoss !== null
+                  ? `-${descentData.avgPracticeLoss.toFixed(1)}`
                   : '-'} lbs
               </span>
             </div>
@@ -430,6 +428,16 @@ export default function Dashboard() {
               </span>
             </div>
           </div>
+
+          {/* Gross loss capacity note */}
+          {descentData.grossDailyLoss !== null && (
+            <div className="text-[9px] text-muted-foreground text-center mt-2 pt-2 border-t border-muted/50">
+              Loss capacity: <span className="text-green-500 font-mono font-bold">-{descentData.grossDailyLoss.toFixed(1)} lbs/day</span>
+              {descentData.dailyAvgLoss !== null && descentData.dailyAvgLoss !== descentData.grossDailyLoss && (
+                <span className="ml-1">(net: -{descentData.dailyAvgLoss.toFixed(1)})</span>
+              )}
+            </div>
+          )}
         </div>
       )}
 

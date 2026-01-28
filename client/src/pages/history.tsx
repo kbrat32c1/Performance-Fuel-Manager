@@ -461,7 +461,7 @@ export default function History() {
               </span>
             </div>
 
-            {/* Stats Grid */}
+            {/* Stats Grid - Weight Progress */}
             <div className="grid grid-cols-4 gap-2 text-center">
               <div>
                 <span className="text-[10px] text-muted-foreground block">Start</span>
@@ -491,6 +491,37 @@ export default function History() {
                 </span>
               </div>
             </div>
+
+            {/* Loss Capacity Breakdown */}
+            {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null) && (
+              <div className="grid grid-cols-3 gap-2 text-center pt-2 mt-2 border-t border-muted">
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Drift</span>
+                  <span className={cn("font-mono font-bold text-xs", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
+                    {descentData.avgOvernightDrift !== null ? `-${descentData.avgOvernightDrift.toFixed(1)}` : '-'} lbs
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Practice</span>
+                  <span className={cn("font-mono font-bold text-xs", descentData.avgPracticeLoss !== null ? "text-orange-500" : "")}>
+                    {descentData.avgPracticeLoss !== null ? `-${descentData.avgPracticeLoss.toFixed(1)}` : '-'} lbs
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Projected</span>
+                  <span className={cn(
+                    "font-mono font-bold text-xs",
+                    descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
+                      ? "text-green-500"
+                      : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight + 2
+                        ? "text-orange-500"
+                        : "text-red-500"
+                  )}>
+                    {descentData.projectedSaturday !== null ? `${descentData.projectedSaturday.toFixed(1)}` : '-'} lbs
+                  </span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -125,8 +125,11 @@ interface StoreContextType {
     targetWeight: number;
     daysRemaining: number;
     totalLost: number | null;
-    dailyAvgLoss: number | null;
-    projectedSaturday: number | null;
+    dailyAvgLoss: number | null; // Net morning-to-morning (includes food/water intake)
+    grossDailyLoss: number | null; // Gross loss capacity (drift + practice)
+    avgOvernightDrift: number | null;
+    avgPracticeLoss: number | null;
+    projectedSaturday: number | null; // Based on gross loss capacity
     pace: 'ahead' | 'on-track' | 'behind' | null;
     morningWeights: Array<{ day: string; weight: number; date: Date }>;
   };
@@ -2252,6 +2255,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const currentWeight = morningWeights.length > 0 ? morningWeights[morningWeights.length - 1].weight : null;
     const totalLost = startWeight && currentWeight ? startWeight - currentWeight : null;
 
+    // Net daily average (morning-to-morning, includes food/water intake)
     let dailyAvgLoss: number | null = null;
     if (morningWeights.length >= 2 && startWeight && currentWeight) {
       const firstDate = morningWeights[0].date;
@@ -2260,12 +2264,63 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       dailyAvgLoss = (startWeight - currentWeight) / actualDaysBetween;
     }
 
+    // Calculate gross loss capacity from drift and practice metrics
+    // This shows how much weight you CAN lose when you stop eating/drinking
+    const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    // Overnight drift (weight lost while sleeping)
+    const overnightDrifts: number[] = [];
+    for (let i = 0; i < sortedLogs.length - 1; i++) {
+      const current = sortedLogs[i];
+      const prev = sortedLogs[i + 1];
+      if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
+        const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
+        if (hoursDiff > 4 && hoursDiff < 16) {
+          overnightDrifts.push(prev.weight - current.weight);
+        }
+      }
+    }
+
+    // Practice losses (sweat rate)
+    const practiceLosses: number[] = [];
+    for (let i = 0; i < sortedLogs.length - 1; i++) {
+      const post = sortedLogs[i];
+      const pre = sortedLogs[i + 1];
+      if (post.type === 'post-practice' && pre.type === 'pre-practice') {
+        const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
+        if (hoursDiff < 6) {
+          practiceLosses.push(pre.weight - post.weight);
+        }
+      }
+    }
+
+    const avgOvernightDrift = overnightDrifts.length > 0
+      ? overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length
+      : null;
+    const avgPracticeLoss = practiceLosses.length > 0
+      ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
+      : null;
+
+    // Gross daily loss capacity = overnight drift + practice loss
+    // This is how much you CAN lose in a day when you minimize intake
+    let grossDailyLoss: number | null = null;
+    if (avgOvernightDrift !== null) {
+      grossDailyLoss = avgOvernightDrift + (avgPracticeLoss || 0);
+    }
+
+    // Projection based on gross loss capacity (more accurate for final cut)
     let projectedSaturday: number | null = null;
-    if (currentWeight && dailyAvgLoss !== null && dailyAvgLoss > 0 && daysRemaining > 0) {
-      projectedSaturday = currentWeight - (dailyAvgLoss * daysRemaining);
-    } else if (currentWeight && daysRemaining > 0) {
-      // If no loss trend yet, just show current weight as projection
-      projectedSaturday = currentWeight;
+    if (currentWeight && daysRemaining > 0) {
+      if (grossDailyLoss !== null && grossDailyLoss > 0) {
+        // Use gross capacity - this is what you can actually lose
+        projectedSaturday = currentWeight - (grossDailyLoss * daysRemaining);
+      } else if (dailyAvgLoss !== null && dailyAvgLoss > 0) {
+        // Fallback to net loss if no gross data
+        projectedSaturday = currentWeight - (dailyAvgLoss * daysRemaining);
+      } else {
+        // No trend data - show current weight
+        projectedSaturday = currentWeight;
+      }
     }
 
     let pace: 'ahead' | 'on-track' | 'behind' | null = null;
@@ -2289,8 +2344,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       targetWeight,
       daysRemaining,
       totalLost,
-      dailyAvgLoss,
-      projectedSaturday,
+      dailyAvgLoss, // Net (morning-to-morning)
+      grossDailyLoss, // Gross capacity (drift + practice)
+      avgOvernightDrift,
+      avgPracticeLoss,
+      projectedSaturday, // Based on gross capacity
       pace,
       morningWeights
     };
@@ -2372,15 +2430,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       : null;
 
     // Projected weigh-in weight based on current trends
+    // Uses gross loss capacity (drift + practice) for accurate projection
     let projectedSaturday: number | null = null;
     if (daysUntilWeighIn > 0 && profile.currentWeight > 0 && overnightDrifts.length > 0) {
       const avgOvernightLoss = overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length;
-      // Estimate: overnight loss + practice loss per day remaining
+      // Use full gross loss capacity - this represents what the body CAN lose
       const avgPracticeLoss = practiceLosses.length > 0
         ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
         : 0;
-      const dailyLoss = avgOvernightLoss + (avgPracticeLoss * 0.5); // Assume some rehydration
-      projectedSaturday = profile.currentWeight - (dailyLoss * daysUntilWeighIn);
+      const grossDailyLoss = avgOvernightLoss + avgPracticeLoss;
+      projectedSaturday = profile.currentWeight - (grossDailyLoss * daysUntilWeighIn);
     }
 
     return {
