@@ -513,7 +513,7 @@ export default function History() {
                     "font-mono font-bold text-xs",
                     descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
                       ? "text-green-500"
-                      : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight + 2
+                      : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight * 1.03
                         ? "text-orange-500"
                         : "text-red-500"
                   )}>

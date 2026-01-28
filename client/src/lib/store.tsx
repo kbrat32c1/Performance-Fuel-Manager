@@ -2143,7 +2143,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let projectionWarning: string | undefined;
     if (descentData.projectedSaturday !== null && descentData.daysRemaining > 0) {
       const projectedOver = descentData.projectedSaturday - profile.targetWeightClass;
-      if (projectedOver > 2) {
+      // Use 3% threshold - this is the safe cut limit for final 24 hours
+      const safeOverLimit = profile.targetWeightClass * 0.03;
+      if (projectedOver > safeOverLimit) {
         projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in`;
       }
     }

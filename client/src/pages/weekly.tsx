@@ -255,7 +255,7 @@ export default function Weekly() {
                     "font-mono font-bold text-sm",
                     descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
                       ? "text-green-500"
-                      : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight + 2
+                      : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight * 1.03
                         ? "text-orange-500"
                         : "text-red-500"
                   )}>
