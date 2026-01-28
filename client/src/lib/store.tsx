@@ -1995,9 +1995,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isCriticalCheckpoint = true;
         waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
       } else if (daysUntil === 2) {
-        // Flush day - transition (zero fiber)
+        // Flush day - still drinking 1.25 gal, water weight present (zero fiber)
         phase = 'Cut';
-        weightTarget = baseWeight;
+        const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
+        weightTarget = withWater;
         carbs = { min: 325, max: 450 };
         protein = { min: 50, max: 60 };
         water = {
@@ -2005,7 +2006,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25),
           type: 'Regular'
         };
-        waterLoadingNote = 'Flush day - water loading weight drops. ZERO fiber.';
+        waterLoadingNote = `Flush day - still carrying +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight. ZERO fiber.`;
       } else if (daysUntil === 3) {
         // Last load day - use water loading range
         phase = 'Load';
