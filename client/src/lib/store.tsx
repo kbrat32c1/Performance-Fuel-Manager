@@ -836,45 +836,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getHydrationTarget = () => {
-    const w = profile.targetWeightClass;
     const phase = getPhase();
     const useAdvancedLogic = profile.dashboardMode === 'pro' || profile.protocol === '1' || profile.protocol === '2';
     const daysUntilWeighIn = getDaysUntilWeighIn();
 
-    const galToOz = (gal: number) => gal * 128;
-    const isHeavy = w >= 175;
-    const isMedium = w >= 150 && w < 175;
-
-    // Protocol 1 & 2: Use days-until-weigh-in for water loading schedule
+    // Protocol 1 & 2: Use centralized hydration helper based on days until weigh-in
     if (useAdvancedLogic) {
-      // Recovery day (after competition)
-      if (daysUntilWeighIn < 0) {
-        return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", type: "Regular", note: "Rehydrate fully", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0) };
-      }
-
-      // Competition day
-      if (daysUntilWeighIn === 0) {
-        return { amount: "Rehydrate", type: "Regular", note: "Post-weigh-in rehydration", targetOz: galToOz(1.0) };
-      }
-
-      // 7+ days out: maintenance hydration
-      if (daysUntilWeighIn >= 7) {
-        return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", type: "Regular", note: "Maintenance hydration", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75) };
-      }
-
-      // Water loading phase (5, 4, 3 days out)
-      if (daysUntilWeighIn === 5) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", type: "Regular", note: "Water loading day 1", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0) };
-      if (daysUntilWeighIn === 4) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Regular", note: "Water loading day 2 (peak)", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
-      if (daysUntilWeighIn === 3) return { amount: isHeavy ? "2.0 gal" : isMedium ? "1.75 gal" : "1.5 gal", type: "Regular", note: "Water loading day 3", targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5) };
-
-      // Flush day (2 days out)
-      if (daysUntilWeighIn === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", type: "Regular", note: "Flush day - water weight dropping", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25) };
-
-      // Cut day (1 day out)
-      if (daysUntilWeighIn === 1) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", type: "Sip Only", note: "Sip only - final cut", targetOz: isHeavy ? 14 : isMedium ? 10 : 9 };
-
-      // 6 days out (transition to loading)
-      if (daysUntilWeighIn === 6) return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", type: "Regular", note: "Prep for water loading", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75) };
+      const hydration = getHydrationForDaysUntil(daysUntilWeighIn);
+      // Add note based on days out
+      let note = "Maintenance hydration";
+      if (daysUntilWeighIn < 0) note = "Rehydrate fully";
+      else if (daysUntilWeighIn === 0) note = "Post-weigh-in rehydration";
+      else if (daysUntilWeighIn === 1) note = "Sip only - final cut";
+      else if (daysUntilWeighIn === 2) note = "Flush day - water weight dropping";
+      else if (daysUntilWeighIn === 3) note = "Water loading day 3";
+      else if (daysUntilWeighIn === 4) note = "Water loading day 2 (peak)";
+      else if (daysUntilWeighIn === 5) note = "Water loading day 1";
+      else if (daysUntilWeighIn === 6) note = "Prep for water loading";
+      return { amount: hydration.amount, type: hydration.type, note, targetOz: hydration.targetOz };
     }
 
     // Fallback for other protocols
