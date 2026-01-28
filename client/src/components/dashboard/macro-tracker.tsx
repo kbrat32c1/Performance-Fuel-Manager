@@ -249,33 +249,48 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
   // Food history log for undo functionality - persisted to localStorage per day
   const foodHistoryKey = `pwm-food-history-${dateKey}`;
-  const [foodHistory, setFoodHistory] = useState<FoodLogEntry[]>(() => {
-    // Load from localStorage on initial render
+  const [foodHistory, setFoodHistory] = useState<FoodLogEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Load food history when dateKey changes (new day or date navigation)
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(foodHistoryKey);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           // Restore Date objects from ISO strings
-          return parsed.map((entry: any) => ({
+          setFoodHistory(parsed.map((entry: any) => ({
             ...entry,
             timestamp: new Date(entry.timestamp)
-          }));
+          })));
         } catch {
-          return [];
+          setFoodHistory([]);
         }
+      } else {
+        setFoodHistory([]);
       }
     }
-    return [];
-  });
-  const [showHistory, setShowHistory] = useState(false);
+  }, [foodHistoryKey]);
 
   // Persist food history to localStorage whenever it changes
+  // Use a ref to track if this is the initial load to avoid overwriting
+  const isInitialLoad = useRef(true);
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Skip the first save that happens right after loading
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false;
+        return;
+      }
       localStorage.setItem(foodHistoryKey, JSON.stringify(foodHistory));
     }
   }, [foodHistory, foodHistoryKey]);
+
+  // Reset initial load flag when dateKey changes
+  useEffect(() => {
+    isInitialLoad.current = true;
+  }, [dateKey]);
 
   // Clear the "added" indicator after animation
   useEffect(() => {
