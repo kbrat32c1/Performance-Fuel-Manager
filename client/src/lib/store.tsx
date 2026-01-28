@@ -69,7 +69,7 @@ export interface DayPlan {
   day: string;
   dayNum: number;
   phase: string;
-  weightTarget: { morning: number; postPractice: number; baseTarget?: number };
+  weightTarget: number; // Morning weigh-in target (primary data point)
   water: { amount: string; targetOz: number; type: string };
   carbs: { min: number; max: number };
   protein: { min: number; max: number };
@@ -1837,7 +1837,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           day: dayNames[dayNum],
           dayNum,
           phase,
-          weightTarget: { morning: w, postPractice: w },
+          weightTarget: w, // Morning target (primary data point)
           water,
           carbs,
           protein,
@@ -1868,7 +1868,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Default maintenance values
         let phase = 'Maintain';
-        let weightTarget = { morning: holdTarget, postPractice: holdTarget };
+        let weightTarget = holdTarget; // Morning target (primary data point)
         let carbs = { min: 300, max: 450 };
         let protein = { min: 75, max: 75 };
         let water = {
@@ -1947,9 +1947,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const targetCalc = calculateTargetWeight(w, daysUntil, protocol);
       const baseWeight = Math.round(w * getWeightMultiplier(daysUntil));
 
-      // Default values
+      // Default values - weightTarget is morning only (primary data point)
       let phase = 'Train';
-      let weightTarget = { morning: baseWeight, postPractice: baseWeight };
+      let weightTarget = baseWeight;
       let carbs = { min: 300, max: 450 };
       let protein = { min: 75, max: 100 };
       let water = {
@@ -1963,14 +1963,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (daysUntil < 0) {
         // Recovery day (day after competition)
         phase = 'Recover';
-        weightTarget = { morning: baseWeight, postPractice: baseWeight };
+        weightTarget = baseWeight;
         carbs = { min: 300, max: 450 };
         protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
         waterLoadingNote = 'Recovery day - return to walk-around weight with protein refeed';
       } else if (daysUntil === 0) {
         // Competition day
         phase = 'Compete';
-        weightTarget = { morning: w, postPractice: w };
+        weightTarget = w; // Must hit weight class
         carbs = { min: 200, max: 400 };
         protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
         water = {
@@ -1981,7 +1981,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } else if (daysUntil === 1) {
         // Critical checkpoint - day before competition (sip only)
         phase = 'Cut';
-        weightTarget = { morning: baseWeight, postPractice: Math.round(w * 1.02) };
+        weightTarget = baseWeight; // Morning target for day before
         carbs = { min: 250, max: 350 };
         protein = { min: 50, max: 60 };
         water = {
@@ -1994,7 +1994,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } else if (daysUntil === 2) {
         // Flush day - transition (distilled, zero fiber)
         phase = 'Cut';
-        weightTarget = { morning: baseWeight, postPractice: baseWeight };
+        weightTarget = baseWeight;
         carbs = { min: 325, max: 450 };
         protein = { min: 50, max: 60 };
         water = {
@@ -2007,7 +2007,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Last load day - use water loading range
         phase = 'Load';
         const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = { morning: withWater, postPractice: withWater };
+        weightTarget = withWater;
         carbs = { min: 325, max: 450 };
         protein = { min: 25, max: 25 };
         water = {
@@ -2020,7 +2020,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Peak water loading day
         phase = 'Load';
         const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = { morning: withWater, postPractice: withWater };
+        weightTarget = withWater;
         carbs = { min: 325, max: 450 };
         protein = { min: 0, max: 0 };
         water = {
@@ -2033,7 +2033,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // First water loading day
         phase = 'Load';
         const withWater = targetCalc.range ? targetCalc.range.max : baseWeight;
-        weightTarget = { morning: withWater, postPractice: withWater };
+        weightTarget = withWater;
         carbs = { min: 325, max: 450 };
         protein = { min: 0, max: 0 };
         water = {
@@ -2070,15 +2070,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getNextTarget = () => {
     const todayTarget = calculateTarget();
-    const lastLog = logs[0];
     const daysUntil = getDaysUntilWeighIn();
-
-    if (!lastLog || lastLog.type === 'morning') {
-        return { label: "Pre-Practice", weight: todayTarget + 1.5, description: "Hydrated Limit" };
-    }
-    if (lastLog.type === 'pre-practice') {
-        return { label: "Post-Practice", weight: todayTarget, description: "End of Day Target" };
-    }
 
     // Tomorrow's target uses the centralized calculation
     const tomorrowDaysUntil = daysUntil - 1;
@@ -2086,7 +2078,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Use the water-loaded value if applicable, otherwise base
     const tomorrowTarget = tomorrowCalc.withWaterLoad || tomorrowCalc.base;
 
-    return { label: "Tomorrow Morning", weight: tomorrowTarget, description: "Overnight Drift Goal" };
+    // Always show tomorrow's morning target as the next goal
+    // Morning weigh-in is the primary data point for tracking progress
+    return { label: "Tomorrow AM", weight: tomorrowTarget, description: "Morning Target" };
   };
 
   const getDriftMetrics = () => {

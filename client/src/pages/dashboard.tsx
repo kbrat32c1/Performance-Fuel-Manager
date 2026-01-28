@@ -1867,12 +1867,12 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
                     phaseBgColors[day.phase] || 'bg-muted'
                   )} />
 
-                  {/* Weight Target */}
+                  {/* Weight Target (Morning) */}
                   <span className={cn(
                     "font-mono text-[11px] font-bold",
                     day.isToday ? "text-foreground" : "text-muted-foreground"
                   )}>
-                    {day.weightTarget.morning}
+                    {day.weightTarget}
                   </span>
 
                   {/* Today/Tomorrow Badge */}
@@ -1916,21 +1916,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {/* Weight Targets */}
+                {/* Weight Target (Morning) */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Scale className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground uppercase font-bold">Weight</span>
+                    <span className="text-xs text-muted-foreground uppercase font-bold">Morning Target</span>
                   </div>
                   <div className="bg-background/50 rounded-lg p-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-muted-foreground">Morning</span>
-                      <span className="font-mono font-bold">{selectedDayData.weightTarget.morning} lbs</span>
-                    </div>
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="text-[10px] text-muted-foreground">Post-Practice</span>
-                      <span className="font-mono font-bold">{selectedDayData.weightTarget.postPractice} lbs</span>
-                    </div>
+                    <span className="font-mono font-bold text-lg">{selectedDayData.weightTarget} lbs</span>
                   </div>
                 </div>
 

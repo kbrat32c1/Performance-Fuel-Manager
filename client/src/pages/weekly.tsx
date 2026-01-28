@@ -307,8 +307,8 @@ export default function Weekly() {
                 {days.map((day) => {
                   const target = weightTargets[day.key as keyof typeof weightTargets];
                   const morningLog = getLoggedWeight(day.dayNum, 'morning');
-                  const postLog = getLoggedWeight(day.dayNum, 'post-practice');
-                  const relevantLog = day.key === 'wed' || day.key === 'fri' ? postLog : morningLog;
+                  // Morning weigh-in is the primary data point for all days
+                  const relevantLog = morningLog;
                   const isToday = currentDayOfWeek === day.dayNum;
                   const isPast = (day.dayNum < currentDayOfWeek && currentDayOfWeek !== 0) || (day.dayNum !== 0 && currentDayOfWeek === 0);
                   const isLoadingDay = day.key === 'mon' || day.key === 'tue' || day.key === 'wed';
@@ -565,7 +565,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-[10px] text-muted-foreground mt-2">
-          Walk-Around = Competition × 1.06-1.07 • Wed PM = Post-Practice • Fri PM = Pre-Practice
+          Walk-Around = Competition × 1.06-1.07 • All targets are morning weigh-in
         </p>
       </section>
 
