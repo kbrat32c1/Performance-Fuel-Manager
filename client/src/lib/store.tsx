@@ -152,14 +152,14 @@ interface StoreContextType {
   getHistoryInsights: () => {
     avgOvernightDrift: number | null;
     avgPracticeLoss: number | null;
-    avgFinalCut: number | null;
+    avgFridayCut: number | null;
     weeklyTrend: number | null;
-    projectedWeighIn: number | null;
-    daysUntilWeighIn: number;
+    projectedSaturday: number | null;
+    daysUntilSat: number;
     totalLogsThisWeek: number;
     hasEnoughData: boolean;
-    lastDayBeforeWeight: number | null;
-    lastCompetitionWeight: number | null;
+    lastFridayWeight: number | null;
+    lastSaturdayWeight: number | null;
     madeWeightLastWeek: boolean;
   };
 }
@@ -2378,7 +2378,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       : null;
 
     // Projected weigh-in weight based on current trends
-    let projectedWeighIn: number | null = null;
+    let projectedSaturday: number | null = null;
     if (daysUntilWeighIn > 0 && profile.currentWeight > 0 && overnightDrifts.length > 0) {
       const avgOvernightLoss = overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length;
       // Estimate: overnight loss + practice loss per day remaining
@@ -2386,7 +2386,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
         : 0;
       const dailyLoss = avgOvernightLoss + (avgPracticeLoss * 0.5); // Assume some rehydration
-      projectedWeighIn = profile.currentWeight - (dailyLoss * daysUntilWeighIn);
+      projectedSaturday = profile.currentWeight - (dailyLoss * daysUntilWeighIn);
     }
 
     return {
@@ -2396,19 +2396,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       avgPracticeLoss: practiceLosses.length > 0
         ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
         : null,
-      avgFinalCut: finalCuts.length > 0
+      avgFridayCut: finalCuts.length > 0
         ? finalCuts.reduce((a, b) => a + b, 0) / finalCuts.length
         : null,
       weeklyTrend,
-      projectedWeighIn,
-      daysUntilWeighIn,
+      projectedSaturday,
+      daysUntilSat: daysUntilWeighIn, // Keep old property name for backward compat
       totalLogsThisWeek: sortedLogs.filter(l => {
         const daysDiff = (now.getTime() - l.date.getTime()) / (1000 * 60 * 60 * 24);
         return daysDiff <= 7;
       }).length,
       hasEnoughData: overnightDrifts.length >= 2 || practiceLosses.length >= 2,
-      lastDayBeforeWeight: dayBeforeWeighInWeights.length > 0 ? dayBeforeWeighInWeights[0].weight : null,
-      lastCompetitionWeight: competitionDayWeights.length > 0 ? competitionDayWeights[0].weight : null,
+      lastFridayWeight: dayBeforeWeighInWeights.length > 0 ? dayBeforeWeighInWeights[0].weight : null,
+      lastSaturdayWeight: competitionDayWeights.length > 0 ? competitionDayWeights[0].weight : null,
       madeWeightLastWeek: competitionDayWeights.length > 0 && competitionDayWeights[0].weight <= profile.targetWeightClass
     };
   };
