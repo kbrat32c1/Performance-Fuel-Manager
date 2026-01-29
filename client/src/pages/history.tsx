@@ -5,15 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays, differenceInDays, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
+import { getPhaseForDaysUntil } from "@/lib/constants";
 
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, getHydrationTarget, getMacroTargets } = useStore();
+  const { logs, profile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
@@ -22,12 +24,19 @@ export default function History() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState('');
+  const [editingExtraId, setEditingExtraId] = useState<string | null>(null);
+  const [editExtraBefore, setEditExtraBefore] = useState('');
+  const [editExtraAfter, setEditExtraAfter] = useState('');
   const [isAddingLog, setIsAddingLog] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newLogType, setNewLogType] = useState('');
   const [newLogWeight, setNewLogWeight] = useState('');
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
+
+  // Current phase for color theming
+  const daysUntil = getDaysUntilWeighIn();
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Export data to CSV
@@ -233,6 +242,64 @@ export default function History() {
 
   const selectedDateLogs = selectedDate ? getLogsForDate(selectedDate) : [];
 
+  // Group extra-before/after pairs into single "Extra Workout" entries
+  const getGroupedLogs = (logs: any[]) => {
+    const result: any[] = [];
+    const usedIds = new Set<string>();
+
+    for (const log of logs) {
+      if (usedIds.has(log.id)) continue;
+
+      if (log.type === 'extra-before') {
+        // Find closest matching extra-after on the same day, within 3 hours
+        const beforeTime = new Date(log.date).getTime();
+        const beforeDay = format(startOfDay(new Date(log.date)), 'yyyy-MM-dd');
+        let afterLog: any = null;
+        let bestDiff = Infinity;
+        for (const l of logs) {
+          if (l.type !== 'extra-after' || usedIds.has(l.id)) continue;
+          const afterTime = new Date(l.date).getTime();
+          const afterDay = format(startOfDay(new Date(l.date)), 'yyyy-MM-dd');
+          if (afterDay !== beforeDay) continue;
+          const diff = afterTime - beforeTime;
+          if (diff >= 0 && diff < 3 * 60 * 60 * 1000 && diff < bestDiff) {
+            afterLog = l;
+            bestDiff = diff;
+          }
+        }
+
+        if (afterLog) {
+          usedIds.add(log.id);
+          usedIds.add(afterLog.id);
+          const loss = log.weight - afterLog.weight;
+          result.push({
+            ...log,
+            type: 'extra-workout',
+            beforeWeight: log.weight,
+            afterWeight: afterLog.weight,
+            loss: loss,
+            afterId: afterLog.id, // Keep reference for deletion
+            isGrouped: true
+          });
+        } else {
+          // Orphan extra-before (no matching after yet)
+          result.push(log);
+        }
+      } else if (log.type === 'extra-after') {
+        // Only show orphan extra-after if not already paired
+        if (!usedIds.has(log.id)) {
+          result.push(log);
+        }
+      } else {
+        result.push(log);
+      }
+    }
+
+    return result;
+  };
+
+  const groupedSelectedDateLogs = getGroupedLogs(selectedDateLogs);
+
   // Get log type icon
   const getLogTypeIcon = (type: string) => {
     switch (type) {
@@ -240,19 +307,25 @@ export default function History() {
       case 'pre-practice': return <Dumbbell className="w-4 h-4 text-primary" />;
       case 'post-practice': return <Dumbbell className="w-4 h-4 text-orange-500" />;
       case 'before-bed': return <Moon className="w-4 h-4 text-purple-500" />;
+      case 'check-in': return <Scale className="w-4 h-4 text-cyan-500" />;
+      case 'extra-workout': return <Dumbbell className="w-4 h-4 text-orange-500" />;
+      case 'extra-before': return <Dumbbell className="w-4 h-4 text-orange-400" />;
+      case 'extra-after': return <Dumbbell className="w-4 h-4 text-orange-400" />;
       default: return <Scale className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
   // Get log type label
-  const getLogTypeLabel = (type: string) => {
+  const getLogTypeLabel = (type: string, log?: any) => {
     switch (type) {
       case 'morning': return 'Morning';
       case 'pre-practice': return 'Pre-Practice';
       case 'post-practice': return 'Post-Practice';
       case 'before-bed': return 'Before Bed';
-      case 'extra-before': return 'Extra (Before)';
-      case 'extra-after': return 'Extra (After)';
+      case 'extra-workout': return 'Extra Workout';
+      case 'extra-before': return 'Extra (pending)';
+      case 'extra-after': return 'Extra (pending)';
+      case 'check-in': return 'Check-in';
       default: return type;
     }
   };
@@ -289,6 +362,37 @@ export default function History() {
   const cancelEdit = () => {
     setEditingId(null);
     setEditWeight('');
+  };
+
+  // Extra workout edit handlers
+  const startExtraEdit = (log: any) => {
+    setEditingExtraId(log.id);
+    setEditExtraBefore(log.beforeWeight.toString());
+    setEditExtraAfter(log.afterWeight.toString());
+  };
+
+  const saveExtraEdit = (log: any) => {
+    const beforeWeight = parseFloat(editExtraBefore);
+    const afterWeight = parseFloat(editExtraAfter);
+    if (!validateWeight(beforeWeight) || !validateWeight(afterWeight)) return;
+
+    updateLog(log.id, { weight: beforeWeight });
+    if (log.afterId) {
+      updateLog(log.afterId, { weight: afterWeight });
+    }
+    setEditingExtraId(null);
+    setEditExtraBefore('');
+    setEditExtraAfter('');
+
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  const cancelExtraEdit = () => {
+    setEditingExtraId(null);
+    setEditExtraBefore('');
+    setEditExtraAfter('');
   };
 
   // Delete confirmation handler
@@ -449,15 +553,15 @@ export default function History() {
         <>
       {/* Week Summary Card - Only show with valid data */}
       {descentData.morningWeights.length >= 2 && descentData.totalLost !== null && (
-        <Card className="mb-4 border-primary/30 bg-primary/5">
+        <Card className={cn("mb-4", phaseStyle.border, phaseStyle.bgSubtle)}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <TrendingDown className="w-4 h-4 text-primary" />
+                <TrendingDown className={cn("w-4 h-4", phaseStyle.text)} />
                 <span className="text-xs font-bold uppercase text-muted-foreground">This Week</span>
               </div>
               <span className="text-xs text-muted-foreground">
-                {descentData.daysRemaining} day{descentData.daysRemaining !== 1 ? 's' : ''} to weigh-in
+                {getTimeUntilWeighIn()} to weigh-in
               </span>
             </div>
 
@@ -471,7 +575,7 @@ export default function History() {
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground block">Now</span>
-                <span className="font-mono font-bold text-sm text-primary">
+                <span className={cn("font-mono font-bold text-sm", phaseStyle.text)}>
                   {descentData.currentWeight?.toFixed(1) ?? '-'}
                 </span>
               </div>
@@ -567,6 +671,14 @@ export default function History() {
               const isSelected = selectedDate && isSameDay(day, selectedDate);
               const dayHasLogs = hasLogs(day);
 
+              // Calculate phase for this specific calendar day
+              const weighInDate = startOfDay(profile.weighInDate);
+              const dayDaysUntil = differenceInDays(weighInDate, startOfDay(day));
+              // Normalize: if past this weigh-in, wrap to 7-day cycle
+              const normalizedDaysUntil = dayDaysUntil < 0 ? ((dayDaysUntil % 7) + 7) % 7 : dayDaysUntil > 6 ? dayDaysUntil % 7 : dayDaysUntil;
+              const dayPhase = getPhaseForDaysUntil(normalizedDaysUntil);
+              const dayPhaseStyle = getPhaseStyle(dayPhase);
+
               return (
                 <button
                   key={i}
@@ -580,14 +692,21 @@ export default function History() {
                     !isCurrentMonth && "text-muted-foreground/30",
                     isCurrentMonth && !dayHasLogs && "text-muted-foreground",
                     isCurrentMonth && dayHasLogs && "text-foreground font-bold",
-                    isToday && "ring-2 ring-primary",
-                    isSelected && "bg-primary text-black",
-                    !isSelected && dayHasLogs && "bg-primary/10"
+                    isToday && "ring-2",
+                    isToday && currentPhase === 'Load' && "ring-primary",
+                    isToday && currentPhase === 'Prep' && "ring-violet-400",
+                    isToday && currentPhase === 'Cut' && "ring-orange-500",
+                    isToday && currentPhase === 'Compete' && "ring-yellow-500",
+                    isToday && currentPhase === 'Recover' && "ring-cyan-500",
+                    isToday && currentPhase === 'Train' && "ring-green-500",
+                    isSelected && dayPhaseStyle.bg,
+                    isSelected && "text-black",
+                    !isSelected && dayHasLogs && dayPhaseStyle.bgLight
                   )}
                 >
                   <span>{format(day, 'd')}</span>
                   {dayHasLogs && !isSelected && (
-                    <div className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full bg-primary" />
+                    <div className={cn("absolute bottom-0.5 w-1.5 h-1.5 rounded-full", dayPhaseStyle.bg)} />
                   )}
                 </button>
               );
@@ -699,7 +818,7 @@ export default function History() {
           })()}
 
           {/* Individual Logs */}
-          {selectedDateLogs.length === 0 && !isAddingLog ? (
+          {groupedSelectedDateLogs.length === 0 && !isAddingLog ? (
             <Card className="border-dashed border-muted">
               <CardContent className="p-4 text-center">
                 <p className="text-muted-foreground text-sm mb-2">No logs for this day</p>
@@ -710,11 +829,115 @@ export default function History() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {selectedDateLogs.map((log) => (
-                <Card key={log.id} className="border-muted">
+              {groupedSelectedDateLogs.map((log) => (
+                <Card key={log.id} className={cn("border-muted", log.type === 'extra-workout' && "border-orange-500/30 bg-orange-500/5")}>
                   <CardContent className="p-3">
-                    {editingId === log.id ? (
-                      // Edit mode
+                    {/* Extra Workout grouped display */}
+                    {log.type === 'extra-workout' ? (
+                      deletingId === log.id ? (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {getLogTypeIcon(log.type)}
+                            <span className="text-sm font-bold text-destructive">Delete this workout?</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                deleteLog(log.id);
+                                if (log.afterId) deleteLog(log.afterId);
+                                setDeletingId(null);
+                              }}
+                              className="h-7 text-xs"
+                            >
+                              <Check className="w-3 h-3 mr-1" /> Delete
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setDeletingId(null)}
+                              className="h-7 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : editingExtraId === log.id ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            {getLogTypeIcon(log.type)}
+                            <span className="font-bold text-sm text-orange-500">Edit Extra Workout</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-12">Before</span>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editExtraBefore}
+                              onChange={(e) => setEditExtraBefore(e.target.value)}
+                              className="w-20 h-8 font-mono"
+                              autoFocus
+                            />
+                            <span className="text-xs text-muted-foreground">→</span>
+                            <span className="text-xs text-muted-foreground w-10">After</span>
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editExtraAfter}
+                              onChange={(e) => setEditExtraAfter(e.target.value)}
+                              className="w-20 h-8 font-mono"
+                            />
+                            <span className="text-sm text-muted-foreground">lbs</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button size="icon" variant="ghost" onClick={() => saveExtraEdit(log)} className="h-8 w-8">
+                              <Check className="w-4 h-4 text-green-500" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={cancelExtraEdit} className="h-8 w-8">
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {getLogTypeIcon(log.type)}
+                            <div>
+                              <span className="font-bold text-sm text-orange-500">Extra Workout</span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {format(new Date(log.date), 'h:mm a')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="text-right">
+                              <span className="font-mono font-bold text-lg text-green-500">-{log.loss.toFixed(1)} lbs</span>
+                              <div className="text-[10px] text-muted-foreground">
+                                {log.beforeWeight} → {log.afterWeight}
+                              </div>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => startExtraEdit(log)}
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setDeletingId(log.id)}
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    ) : editingId === log.id ? (
+                      // Edit mode for regular logs
                       <div className="flex items-center gap-2">
                         {getLogTypeIcon(log.type)}
                         <span className="text-sm font-bold">{getLogTypeLabel(log.type)}</span>
@@ -735,7 +958,7 @@ export default function History() {
                         </Button>
                       </div>
                     ) : deletingId === log.id ? (
-                      // Delete confirmation mode
+                      // Delete confirmation mode for regular logs
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           {getLogTypeIcon(log.type)}

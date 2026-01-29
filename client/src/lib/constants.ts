@@ -151,36 +151,78 @@ export const CARB_TARGETS = {
   },
 } as const;
 
-// Water load schedule by weight category (gallons)
-export const WATER_SCHEDULE = {
-  LIGHT: {
-    MON: '1.0 gal',
-    TUE: '1.25 gal',
-    WED: '1.5 gal',
-    THU: '1.25 gal',
-    FRI: '0.25-0.5 gal',
-    SAT: 'Rehydrate',
-    SUN: '1.0 gal',
-  },
-  MEDIUM: {
-    MON: '1.25 gal',
-    TUE: '1.5 gal',
-    WED: '1.75 gal',
-    THU: '1.5 gal',
-    FRI: '0.25-0.5 gal',
-    SAT: 'Rehydrate',
-    SUN: '1.25 gal',
-  },
-  HEAVY: {
-    MON: '1.5 gal',
-    TUE: '1.75 gal',
-    WED: '2.0 gal',
-    THU: '1.75 gal',
-    FRI: '0.25-0.5 gal',
-    SAT: 'Rehydrate',
-    SUN: '1.5 gal',
-  },
+// =============================================================================
+// WATER & SODIUM PROTOCOL (Research-based: oz/lb body mass scaling)
+// Sources: PubMed 29182412 (Reale et al.), ISSN Position Stand PMC11894756, Gatorade SSI
+// Protocol: 3 days load → 1 day restrict → 1 day sips → weigh-in → rehydrate
+// =============================================================================
+
+/**
+ * Water loading protocol by day (fluid ounces per pound of body weight).
+ * Conversion: ml/kg × 0.01534 = oz/lb  (1 ml = 0.03381 oz, 1 kg = 2.2046 lb)
+ * Research: 100 ml/kg ≈ 1.53 oz/lb, 15 ml/kg ≈ 0.23 oz/lb.
+ * Research shows 100 ml/kg loading produces ~3.2% BM loss vs ~2.4% at 40 ml/kg.
+ * Days indexed by daysUntilWeighIn (5=Mon, 4=Tue, 3=Wed, 2=Thu, 1=Fri, 0=Sat).
+ */
+export const WATER_OZ_PER_LB = {
+  5: 1.2,   // Mon: Baseline loading ≈80 ml/kg (~1.0-1.5 gal depending on size)
+  4: 1.5,   // Tue: Peak loading ≈100 ml/kg — maximize diuresis
+  3: 1.5,   // Wed: Peak loading ≈100 ml/kg — peak hydration
+  2: 0.3,   // Thu: Sharp restriction ≈20 ml/kg — ADH still suppressed, high urine output continues
+  1: 0.08,  // Fri: Sips only ≈5 ml/kg — final flush
+  0: 0,     // Sat: Weigh-in → rehydrate immediately after
+  [-1]: 0.75,// Sun: Normalize ≈50 ml/kg — return to baseline
 } as const;
+
+/**
+ * Sodium targets (mg/day) by daysUntilWeighIn.
+ * Salt-loading Mon-Wed trains kidneys to excrete aggressively;
+ * sudden restriction Thu-Fri causes continued sodium (and water) excretion.
+ * SAFETY: Never eliminate sodium completely — causes dangerous imbalances.
+ */
+export const SODIUM_MG_BY_DAY = {
+  5: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
+  4: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
+  3: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
+  2: { target: 2500, label: 'Normal — stop adding salt', color: 'text-primary' },
+  1: { target: 1000, label: 'Minimal — under 1,000mg', color: 'text-orange-500' },
+  0: { target: 0, label: 'Reintroduce post weigh-in', color: 'text-cyan-500' },
+  [-1]: { target: 3000, label: 'Normal — replenish', color: 'text-green-500' },
+} as const;
+
+/**
+ * Compute the water target in fluid ounces for a given day and body weight.
+ * Returns the raw oz value for use in hydration tracking.
+ */
+export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
+  if (daysUntil === 0) return 0; // Weigh-in day — rehydrate after
+  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
+  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 3.5;
+  return Math.round(ozPerLb * weightLbs);
+}
+
+/**
+ * Get formatted water target string (e.g. "1.50 gal", "Sips only", "Rehydrate").
+ */
+export function getWaterTargetGallons(daysUntil: number, weightLbs: number): string {
+  if (daysUntil === 0) return 'Rehydrate';
+  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
+  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 3.5;
+  if (ozPerLb <= 0.1) return 'Sips only';
+  const totalOz = ozPerLb * weightLbs;
+  const gallons = totalOz / 128;
+  // Round to nearest 0.25
+  const rounded = Math.round(gallons * 4) / 4;
+  return `${rounded.toFixed(rounded % 1 === 0 ? 1 : 2)} gal`;
+}
+
+/**
+ * Get sodium info for a given day.
+ */
+export function getSodiumTarget(daysUntil: number) {
+  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
+  return SODIUM_MG_BY_DAY[key as keyof typeof SODIUM_MG_BY_DAY] ?? SODIUM_MG_BY_DAY[-1];
+}
 
 // Phase definitions
 export const PHASES = {
@@ -212,9 +254,18 @@ export const LOG_TYPES = {
   BEFORE_BED: 'before-bed',
   EXTRA_BEFORE: 'extra-before',
   EXTRA_AFTER: 'extra-after',
+  CHECK_IN: 'check-in',
 } as const;
 
 export type LogType = typeof LOG_TYPES[keyof typeof LOG_TYPES];
+
+// Core weigh-in types that count toward daily 1/4 completion
+export const CORE_WEIGH_IN_TYPES = [
+  LOG_TYPES.MORNING,
+  LOG_TYPES.PRE_PRACTICE,
+  LOG_TYPES.POST_PRACTICE,
+  LOG_TYPES.BEFORE_BED,
+] as const;
 
 // Default log times (hours in 24h format)
 export const LOG_TIMES = {
@@ -224,6 +275,7 @@ export const LOG_TIMES = {
   [LOG_TYPES.BEFORE_BED]: 22,
   [LOG_TYPES.EXTRA_BEFORE]: 18,
   [LOG_TYPES.EXTRA_AFTER]: 18,
+  [LOG_TYPES.CHECK_IN]: 12,
 } as const;
 
 // Rehydration calculations
@@ -303,8 +355,11 @@ export const WATER_LOADING_RANGE = {
 
 /**
  * Days that include water loading bonus (protocols 1 & 2 only)
+ * Mon-Wed only (5,4,3 days out). Thursday (2 days out) is the
+ * restriction/cutoff phase — water intake drops sharply to trigger
+ * continued high urine output via suppressed ADH.
  */
-export const WATER_LOADING_DAYS = [5, 4, 3, 2] as const; // 5, 4, 3, 2 days out (still drinking 1.25 gal Thu)
+export const WATER_LOADING_DAYS = [5, 4, 3] as const;
 
 /**
  * Get the weight multiplier for a given number of days until weigh-in
@@ -328,7 +383,7 @@ export function isWaterLoadingDay(daysUntil: number, protocol: string): boolean 
   if (protocol !== PROTOCOLS.BODY_COMP && protocol !== PROTOCOLS.MAKE_WEIGHT) {
     return false;
   }
-  return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3 | 2);
+  return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3);
 }
 
 /**
@@ -388,7 +443,7 @@ export function getPhaseForDaysUntil(daysUntil: number): string {
   if (daysUntil < 0) return 'Recover';
   if (daysUntil === 0) return 'Compete';
   if (daysUntil === 1) return 'Cut';
-  if (daysUntil === 2) return 'Cut';
+  if (daysUntil === 2) return 'Prep';
   if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
   return 'Train';
 }

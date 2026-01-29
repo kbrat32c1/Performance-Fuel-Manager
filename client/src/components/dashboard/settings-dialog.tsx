@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Check, X } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X } from "lucide-react";
 import { format, differenceInDays, startOfDay, parseISO } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -193,6 +193,32 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   return <p className="text-[10px] text-muted-foreground">{daysUntil} days until weigh-in - maintenance mode until cut week</p>;
                 }
               })()}
+            </div>
+            <div className="space-y-2">
+              <Label>Weigh-in Time</Label>
+              <div className="relative">
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
+                <Select
+                  value={getValue('weighInTime') || '07:00'}
+                  onValueChange={(v) => handleChange({ weighInTime: v })}
+                >
+                  <SelectTrigger className="pl-10 font-mono h-12">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const hour = Math.floor(i / 2);
+                      const min = i % 2 === 0 ? '00' : '30';
+                      const value = `${hour.toString().padStart(2, '0')}:${min}`;
+                      const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+                      const ampm = hour < 12 ? 'AM' : 'PM';
+                      const label = `${displayHour}:${min} ${ampm}`;
+                      return <SelectItem key={value} value={value}>{label}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[10px] text-muted-foreground">What time do you step on the scale?</p>
             </div>
             <div className="space-y-2 pt-2 border-t border-muted">
               <Label>Protocol</Label>

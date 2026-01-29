@@ -9,6 +9,10 @@ import {
   calculateTargetWeight,
   WATER_LOADING_RANGE,
   PROTOCOLS,
+  LOG_TYPES,
+  CORE_WEIGH_IN_TYPES,
+  getWaterTargetOz,
+  getWaterTargetGallons,
 } from './constants';
 
 // Types
@@ -35,6 +39,7 @@ export interface AthleteProfile {
   currentWeight: number;
   targetWeightClass: number;
   weighInDate: Date;
+  weighInTime: string; // "HH:MM" format, e.g. "07:00"
   matchDate: Date;
   dashboardMode: 'pro';
   protocol: Protocol;
@@ -47,7 +52,7 @@ export interface WeightLog {
   id: string;
   date: Date;
   weight: number;
-  type: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-before' | 'extra-after';
+  type: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-before' | 'extra-after' | 'check-in';
   urineColor?: number; // 1-8
   notes?: string;
 }
@@ -68,6 +73,7 @@ export interface DailyTracking {
 export interface DayPlan {
   day: string;
   dayNum: number;
+  date: Date;
   phase: string;
   weightTarget: number; // Morning weigh-in target (primary data point)
   water: { amount: string; targetOz: number; type: string };
@@ -99,6 +105,8 @@ interface StoreContextType {
   getWaterLoadBonus: () => number;
   isWaterLoadingDay: () => boolean;
   getDaysUntilWeighIn: () => number;
+  getDaysUntilForDay: (dayNum: number) => number;
+  getTimeUntilWeighIn: () => string;
   getPhase: () => Phase;
   getTodaysFocus: () => { title: string; actions: string[], warning?: string };
   getHydrationTarget: () => { amount: string; type: string; note: string; targetOz: number };
@@ -117,7 +125,25 @@ interface StoreContextType {
   getTomorrowPlan: () => DayPlan | null;
   getNextTarget: () => { label: string; weight: number; description: string } | null;
   getDriftMetrics: () => { overnight: number | null; session: number | null };
-  getStatus: () => { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string; projectionWarning?: string };
+  getStatus: () => {
+    status: Status;
+    label: string;
+    color: string;
+    bgColor: string;
+    waterLoadingNote?: string;
+    projectionWarning?: string;
+    recommendation?: {
+      extraWorkoutsNeeded: number;
+      totalWorkoutsNeeded: number;
+      todayWorkoutsDone: number;
+      todayLoss: number;
+      message: string;
+      urgency: 'moderate' | 'high' | 'critical';
+      switchProtocol: boolean;
+      avgExtraWorkoutLoss: number | null;
+    };
+  };
+  getExtraWorkoutStats: () => { avgLoss: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number };
   getDailyPriority: () => { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string };
   getWeekDescentData: () => {
     startWeight: number | null;
@@ -172,6 +198,7 @@ const defaultProfile: AthleteProfile = {
   currentWeight: 0,
   targetWeightClass: 157,
   weighInDate: addDays(new Date(), 5), // 5 days out
+  weighInTime: '07:00', // Default 7 AM weigh-in
   matchDate: addDays(new Date(), 5),
   dashboardMode: 'pro',
   protocol: '2', // Default to Make Weight Phase
@@ -241,6 +268,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           currentWeight: profileData.current_weight || 0,
           targetWeightClass: profileData.target_weight_class || 157,
           weighInDate: parseLocalDate(profileData.weigh_in_date),
+          weighInTime: profileData.weigh_in_time || '07:00',
           matchDate: parseLocalDate(profileData.weigh_in_date),
           dashboardMode: 'pro',
           protocol: String(profileData.protocol) as Protocol,
@@ -311,7 +339,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           current_weight: parsed.currentWeight || 0,
           target_weight_class: parsed.targetWeightClass || 157,
           weigh_in_date: parsed.weighInDate ? new Date(parsed.weighInDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          weigh_in_time: '08:00',
+          weigh_in_time: parsed.weighInTime || '07:00',
           protocol: parseInt(parsed.protocol) || 2,
           has_completed_onboarding: true,
           simulated_date: null,
@@ -321,7 +349,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Migrate logs
       if (savedLogs) {
         const parsedLogs = JSON.parse(savedLogs);
-        const validTypes = ['morning', 'pre-practice', 'post-practice', 'before-bed'];
+        const validTypes = Object.values(LOG_TYPES);
         const logsToInsert = parsedLogs
           .filter((log: any) => validTypes.includes(log.type))
           .map((log: any) => ({
@@ -414,7 +442,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           current_weight: newProfile.currentWeight,
           target_weight_class: newProfile.targetWeightClass,
           weigh_in_date: weighInDateStr,
-          weigh_in_time: '08:00',
+          weigh_in_time: newProfile.weighInTime || '07:00',
           protocol: parseInt(newProfile.protocol),
           has_completed_onboarding: newProfile.hasCompletedOnboarding || false,
           simulated_date: simulatedDateStr,
@@ -427,6 +455,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Add log to Supabase
   const addLog = async (log: Omit<WeightLog, 'id'>) => {
+    // Duplicate prevention: core weigh-in types + check-in allow only one per day
+    const UNIQUE_PER_DAY_TYPES = [...CORE_WEIGH_IN_TYPES, LOG_TYPES.CHECK_IN];
+    if (UNIQUE_PER_DAY_TYPES.includes(log.type as any)) {
+      const logDay = format(startOfDay(new Date(log.date)), 'yyyy-MM-dd');
+      const duplicate = logs.find(l =>
+        l.type === log.type &&
+        format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === logDay
+      );
+      if (duplicate) {
+        toast({
+          title: "Already logged",
+          description: `You already have a ${log.type} weigh-in for today. Edit or delete the existing entry instead.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const tempId = Math.random().toString(36).substr(2, 9);
     const newLog = { ...log, id: tempId };
 
@@ -447,8 +493,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       try {
-        // Only insert valid log types
-        const validTypes = ['morning', 'pre-practice', 'post-practice', 'before-bed'];
+        // Only insert valid log types (all weight log types)
+        const validTypes = Object.values(LOG_TYPES);
         if (validTypes.includes(log.type)) {
           const { data, error } = await supabase.from('weight_logs').insert({
             user_id: user.id,
@@ -732,9 +778,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntilWeighIn === 1) {
           currentDayContext = `CRITICAL: Must be ${criticalLow}-${criticalHigh} lbs by evening for safe overnight cut`;
         } else if (daysUntilWeighIn === 2) {
-          currentDayContext = 'Flush day - water weight dropping. Zero fiber.';
+          currentDayContext = 'Water restriction day — zero fiber, ADH still flushing.';
         } else if (daysUntilWeighIn === 3) {
-          currentDayContext = `Last load day - checkpoint is ${midWeekBaselineLow}-${midWeekBaselineHigh} lbs. Flush starts tomorrow.`;
+          currentDayContext = `Last load day - checkpoint is ${midWeekBaselineLow}-${midWeekBaselineHigh} lbs. Water restriction starts tomorrow.`;
         } else if (daysUntilWeighIn === 4) {
           currentDayContext = 'Peak loading day - continue high water intake';
         } else if (daysUntilWeighIn === 5) {
@@ -784,6 +830,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return differenceInDays(weighIn, today);
   };
 
+  // Helper: Get formatted time until weigh-in at 30-min granularity
+  const getTimeUntilWeighIn = (): string => {
+    const now = profile.simulatedDate || new Date();
+    const weighIn = new Date(profile.weighInDate);
+    const [h, m] = (profile.weighInTime || '07:00').split(':').map(Number);
+    weighIn.setHours(h, m, 0, 0);
+    const diff = weighIn.getTime() - now.getTime();
+    if (diff <= 0) return 'WEIGH-IN TIME';
+    const totalMinutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    // Round to nearest 30-min increment
+    const roundedMin = minutes >= 15 && minutes < 45 ? 30 : minutes >= 45 ? 0 : 0;
+    const displayHours = minutes >= 45 ? hours + 1 : hours;
+    const days = Math.floor(displayHours / 24);
+    const remainHours = displayHours % 24;
+    if (days === 0) {
+      return roundedMin === 30 ? `${hours}h 30m` : `${displayHours}h`;
+    }
+    if (roundedMin === 30) {
+      return `${days}d ${hours % 24}h 30m`;
+    }
+    return remainHours === 0 ? `${days}d` : `${days}d ${remainHours}h`;
+  };
+
   // Helper: Check if we're in post-competition recovery (day after weigh-in)
   const isRecoveryDay = (): boolean => {
     const daysUntil = getDaysUntilWeighIn();
@@ -801,12 +872,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return 2;
   };
 
-  // Helper: Check if today is a water loading day (3-5 days out, protocols 1 & 2 only)
+  // Helper: Check if today is a water loading day
+  // Uses centralized WATER_LOADING_DAYS from constants.ts for consistency
   const isWaterLoadingDay = (): boolean => {
     const protocol = profile.protocol;
-    if (protocol !== '1' && protocol !== '2') return false;
     const daysUntil = getDaysUntilWeighIn();
-    return daysUntil >= 3 && daysUntil <= 5;
+    return checkWaterLoadingDay(daysUntil, protocol);
   };
 
   const getPhase = (): Phase => {
@@ -823,80 +894,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 5 days out: water loading day 1
     // 4 days out: water loading day 2 (peak)
     // 3 days out: water loading day 3
-    // 2 days out: flush/transition (zero fiber)
+    // 2 days out: water restriction day, zero fiber transition
     // 1 day out: performance prep (sip only, final cut)
     // 0 days: competition
 
     if (daysUntilWeighIn >= 6) return 'metabolic'; // Maintenance/build phase
     if (daysUntilWeighIn >= 3) return 'metabolic'; // Water loading phase (days 5,4,3) - same phase, different hydration
-    if (daysUntilWeighIn === 2) return 'transition'; // Flush day
+    if (daysUntilWeighIn === 2) return 'transition'; // Water restriction day, zero fiber
     if (daysUntilWeighIn === 1) return 'performance-prep'; // Cut day
 
     return 'metabolic';
   };
 
   const getHydrationTarget = () => {
-    const phase = getPhase();
-    const useAdvancedLogic = profile.dashboardMode === 'pro' || profile.protocol === '1' || profile.protocol === '2';
     const daysUntilWeighIn = getDaysUntilWeighIn();
 
-    // Protocol 1 & 2: Use centralized hydration helper based on days until weigh-in
-    if (useAdvancedLogic) {
-      const hydration = getHydrationForDaysUntil(daysUntilWeighIn);
-      // Add note based on days out
-      let note = "Maintenance hydration";
-      if (daysUntilWeighIn < 0) note = "Rehydrate fully";
-      else if (daysUntilWeighIn === 0) note = "Post-weigh-in rehydration";
-      else if (daysUntilWeighIn === 1) note = "Sip only - final cut";
-      else if (daysUntilWeighIn === 2) note = "Flush day - water weight dropping";
-      else if (daysUntilWeighIn === 3) note = "Water loading day 3";
-      else if (daysUntilWeighIn === 4) note = "Water loading day 2 (peak)";
-      else if (daysUntilWeighIn === 5) note = "Water loading day 1";
-      else if (daysUntilWeighIn === 6) note = "Prep for water loading";
-      return { amount: hydration.amount, type: hydration.type, note, targetOz: hydration.targetOz };
-    }
+    // All protocols use the centralized oz/lb hydration system
+    const hydration = getHydrationForDaysUntil(daysUntilWeighIn);
 
-    // Fallback for other protocols
-    if (phase === 'metabolic' || phase === 'transition') {
-      let amount = "90-105 oz";
-      let targetOz = 98;
-      if (w >= 141) { amount = "100-115 oz"; targetOz = 108; }
-      if (w >= 157) { amount = "110-120 oz"; targetOz = 115; }
-      if (w >= 165) { amount = "115-130 oz"; targetOz = 123; }
-      if (w >= 184) { amount = "125-140 oz"; targetOz = 133; }
-      if (w >= 285) { amount = "150-170 oz"; targetOz = 160; }
+    // Add contextual note based on days out
+    let note = "Maintenance hydration";
+    if (daysUntilWeighIn < 0) note = "Rehydrate fully";
+    else if (daysUntilWeighIn === 0) note = "Post-weigh-in rehydration";
+    else if (daysUntilWeighIn === 1) note = "Sip only — final cut";
+    else if (daysUntilWeighIn === 2) note = "Water restriction — zero fiber, ADH still flushing";
+    else if (daysUntilWeighIn === 3) note = "Water loading day 3 (peak)";
+    else if (daysUntilWeighIn === 4) note = "Water loading day 2 (peak)";
+    else if (daysUntilWeighIn === 5) note = "Water loading day 1";
+    else if (daysUntilWeighIn === 6) note = "Prep for water loading";
 
-      return {
-        amount,
-        type: "Electrolyte Mix",
-        note: "Add 1-2g sodium/L",
-        targetOz
-      };
-    }
-
-    if (phase === 'performance-prep') {
-      return { amount: "Sip to thirst", type: "Water", note: "Do not gulp. Monitor drift.", targetOz: 16 };
-    }
-
-    return { amount: "To thirst", type: "Water", note: "Maintain baseline", targetOz: 100 };
+    return { amount: hydration.amount, type: hydration.type, note, targetOz: hydration.targetOz };
   };
 
   // Hydration target for any daysUntil value (used by getWeeklyPlan for consistency)
   const getHydrationForDaysUntil = (daysUntil: number): { amount: string; targetOz: number; type: string } => {
-    const w = profile.targetWeightClass;
-    const isHeavy = w >= 175;
-    const isMedium = w >= 150 && w < 175;
-    const galToOz = (gal: number) => Math.round(gal * 128);
+    // Use the athlete's current weight (or walk-around estimate) for oz/lb scaling
+    const athleteWeight = logs.length > 0
+      ? logs[logs.length - 1].weight
+      : Math.round(profile.targetWeightClass * 1.07);
 
-    if (daysUntil < 0) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0), type: "Regular" };
-    if (daysUntil === 0) return { amount: "Rehydrate", targetOz: galToOz(1.0), type: "Rehydrate" };
-    if (daysUntil === 1) return { amount: isHeavy ? "12-16 oz" : isMedium ? "8-12 oz" : "8-10 oz", targetOz: isHeavy ? 14 : isMedium ? 10 : 9, type: "Sip Only" };
-    if (daysUntil === 2) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25), type: "Regular" };
-    if (daysUntil === 3) return { amount: isHeavy ? "2.0 gal" : isMedium ? "1.75 gal" : "1.5 gal", targetOz: galToOz(isHeavy ? 2.0 : isMedium ? 1.75 : 1.5), type: "Regular" };
-    if (daysUntil === 4) return { amount: isHeavy ? "1.75 gal" : isMedium ? "1.5 gal" : "1.25 gal", targetOz: galToOz(isHeavy ? 1.75 : isMedium ? 1.5 : 1.25), type: "Regular" };
-    if (daysUntil === 5) return { amount: isHeavy ? "1.5 gal" : isMedium ? "1.25 gal" : "1.0 gal", targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0), type: "Regular" };
-    if (daysUntil === 6) return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75), type: "Regular" };
-    return { amount: isHeavy ? "1.25 gal" : isMedium ? "1.0 gal" : "0.75 gal", targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75), type: "Regular" };
+    const targetOz = getWaterTargetOz(daysUntil, athleteWeight);
+    const amount = getWaterTargetGallons(daysUntil, athleteWeight);
+
+    // Determine type label based on phase
+    let type = "Regular";
+    if (daysUntil === 0) type = "Rehydrate";
+    else if (daysUntil === 1) type = "Sip Only";
+    else if (daysUntil === 2) type = "Restriction";
+    else if (daysUntil >= 3 && daysUntil <= 5) type = "Loading";
+    else if (daysUntil < 0) type = "Recovery";
+
+    return { amount, targetOz, type };
   };
 
   const getMacroTargets = () => {
@@ -1750,6 +1798,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { title, actions, warning };
   };
 
+  // Helper to get days until weigh-in for a specific calendar day in the current comp week
+  // The week runs Mon-Sun, so we calculate relative to the Monday of the weigh-in week
+  const getDaysUntilForDay = (dayNum: number): number => {
+    // dayNum: 0=Sun, 1=Mon, 2=Tue, etc.
+    const weighIn = startOfDay(profile.weighInDate);
+    const weighInDow = getDay(weighIn); // 0=Sun, 6=Sat
+    // Find Monday of the weigh-in week
+    const daysBackToMonday = weighInDow === 0 ? 6 : weighInDow - 1;
+    const weekMonday = startOfDay(addDays(weighIn, -daysBackToMonday));
+    // Target day relative to Monday of weigh-in week
+    // dayNum 1=Mon -> offset 0, 2=Tue -> 1, ... 0=Sun -> 6
+    const dayOffset = dayNum === 0 ? 6 : dayNum - 1;
+    const targetDate = startOfDay(addDays(weekMonday, dayOffset));
+    return differenceInDays(weighIn, targetDate);
+  };
+
   const getWeeklyPlan = (): DayPlan[] => {
     const w = profile.targetWeightClass;
     const today = startOfDay(profile.simulatedDate || new Date());
@@ -1762,20 +1826,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const galToOz = (gal: number) => Math.round(gal * 128);
 
-    // Helper to get days until weigh-in for a specific calendar day in the current comp week
-    // The week runs Mon-Sun, so we calculate relative to the Monday of the weigh-in week
-    const getDaysUntilForDay = (dayNum: number): number => {
-      // dayNum: 0=Sun, 1=Mon, 2=Tue, etc.
+    // Helper to get the actual calendar date for a given day-of-week in the comp week
+    const getDateForDay = (dayNum: number): Date => {
       const weighIn = startOfDay(profile.weighInDate);
-      const weighInDow = getDay(weighIn); // 0=Sun, 6=Sat
-      // Find Monday of the weigh-in week
+      const weighInDow = getDay(weighIn);
       const daysBackToMonday = weighInDow === 0 ? 6 : weighInDow - 1;
       const weekMonday = startOfDay(addDays(weighIn, -daysBackToMonday));
-      // Target day relative to Monday of weigh-in week
-      // dayNum 1=Mon -> offset 0, 2=Tue -> 1, ... 0=Sun -> 6
       const dayOffset = dayNum === 0 ? 6 : dayNum - 1;
-      const targetDate = startOfDay(addDays(weekMonday, dayOffset));
-      return differenceInDays(weighIn, targetDate);
+      return startOfDay(addDays(weekMonday, dayOffset));
     };
 
     // Helper to get phase name based on days until weigh-in
@@ -1783,7 +1841,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (daysUntil < 0) return 'Recover';
       if (daysUntil === 0) return 'Compete';
       if (daysUntil === 1) return 'Cut';
-      if (daysUntil === 2) return 'Cut';
+      if (daysUntil === 2) return 'Prep';
       if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
       return 'Train';
     };
@@ -1839,6 +1897,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           day: dayNames[dayNum],
           dayNum,
+          date: getDateForDay(dayNum),
           phase,
           weightTarget: w, // Morning target (primary data point)
           water,
@@ -1915,6 +1974,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           day: dayNames[dayNum],
           dayNum,
+          date: getDateForDay(dayNum),
           phase,
           weightTarget,
           water,
@@ -1982,15 +2042,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isCriticalCheckpoint = true;
         waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
       } else if (daysUntil === 2) {
-        // Flush day - still drinking, water weight present (zero fiber)
+        // 2 days out - water RESTRICTION day. ADH still suppressed from loading → high urine output continues.
         carbs = { min: 325, max: 450 };
         protein = { min: 50, max: 60 };
-        waterLoadingNote = `Flush day - still carrying +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight. ZERO fiber.`;
+        waterLoadingNote = `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.`;
       } else if (daysUntil === 3) {
-        // Last load day
+        // Last load day (day 3 of loading)
         carbs = { min: 325, max: 450 };
         protein = { min: 25, max: 25 };
-        waterLoadingNote = `Last load day - still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Flush starts tomorrow.`;
+        waterLoadingNote = `Last load day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Water restriction starts tomorrow.`;
       } else if (daysUntil === 4) {
         // Peak water loading day
         carbs = { min: 325, max: 450 };
@@ -2007,6 +2067,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return {
         day: dayNames[dayNum],
         dayNum,
+        date: getDateForDay(dayNum),
         phase,
         weightTarget,
         water,
@@ -2082,106 +2143,349 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
-  const getStatus = (): { status: Status; label: string; color: string; bgColor: string; waterLoadingNote?: string; projectionWarning?: string } => {
-    const target = calculateTarget();
-    const currentWeight = profile.currentWeight;
-    const waterLoading = isWaterLoadingDay();
-    const waterLoadBonus = getWaterLoadBonus();
-    const descentData = getWeekDescentData();
+  // Calculate extra workout statistics from logged extra-before/extra-after pairs
+  const getExtraWorkoutStats = (): { avgLoss: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number } => {
+    const today = startOfDay(profile.simulatedDate || new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
 
-    if (currentWeight === 0) {
-      return { status: 'on-track', label: 'LOG WEIGHT', color: 'text-muted-foreground', bgColor: 'bg-muted/30' };
+    // Find all extra-before logs and pair them with their extra-after
+    const extraBeforeLogs = logs.filter(l => l.type === 'extra-before')
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const extraAfterLogs = logs.filter(l => l.type === 'extra-after')
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const workoutLosses: number[] = [];
+    let todayWorkouts = 0;
+    let todayLoss = 0;
+    const usedAfterIds = new Set<string>();
+
+    for (const before of extraBeforeLogs) {
+      const beforeTime = new Date(before.date).getTime();
+      const beforeDay = format(startOfDay(new Date(before.date)), 'yyyy-MM-dd');
+
+      // Find the closest matching after log on the same day, within 3 hours, not already used
+      let bestAfter: typeof extraAfterLogs[0] | null = null;
+      let bestTimeDiff = Infinity;
+
+      for (const a of extraAfterLogs) {
+        if (usedAfterIds.has(a.id)) continue;
+        const afterTime = new Date(a.date).getTime();
+        const afterDay = format(startOfDay(new Date(a.date)), 'yyyy-MM-dd');
+        // Must be same day
+        if (afterDay !== beforeDay) continue;
+        const timeDiff = afterTime - beforeTime;
+        // Must be after the before log, within 3 hours (workout + logging time)
+        if (timeDiff >= 0 && timeDiff < 3 * 60 * 60 * 1000 && timeDiff < bestTimeDiff) {
+          bestAfter = a;
+          bestTimeDiff = timeDiff;
+        }
+      }
+
+      if (bestAfter) {
+        usedAfterIds.add(bestAfter.id);
+        const loss = before.weight - bestAfter.weight;
+        if (loss > 0) { // Only count if weight was lost
+          workoutLosses.push(loss);
+
+          // Check if this workout is from today
+          if (beforeDay === todayStr) {
+            todayWorkouts++;
+            todayLoss += loss;
+          }
+        }
+      }
     }
 
+    return {
+      avgLoss: workoutLosses.length > 0
+        ? workoutLosses.reduce((a, b) => a + b, 0) / workoutLosses.length
+        : null,
+      totalWorkouts: workoutLosses.length,
+      todayWorkouts,
+      todayLoss
+    };
+  };
+
+  const getStatus = (): {
+    status: Status;
+    label: string;
+    color: string;
+    bgColor: string;
+    contextMessage: string;
+    waterLoadingNote?: string;
+    projectionWarning?: string;
+    recommendation?: {
+      extraWorkoutsNeeded: number;
+      totalWorkoutsNeeded: number;
+      todayWorkoutsDone: number;
+      todayLoss: number;
+      message: string;
+      urgency: 'moderate' | 'high' | 'critical';
+      switchProtocol: boolean;
+      avgExtraWorkoutLoss: number | null;
+    };
+  } => {
+    const waterLoading = isWaterLoadingDay();
+    const descentData = getWeekDescentData();
+
+    // Get morning weight and most recent weigh-in today
+    const today = startOfDay(profile.simulatedDate || new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const todayMorningLog = logs.find(l =>
+      format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr && l.type === 'morning'
+    );
+    const morningWeight = todayMorningLog?.weight || 0;
+
+    // Most recent weigh-in of any type (mirrors getWeekDescentData logic)
+    const allTodayStatusLogs = logs.filter(l =>
+      format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const currentWeight = allTodayStatusLogs.length > 0 ? allTodayStatusLogs[0].weight : morningWeight;
+
+    if (morningWeight === 0 && currentWeight === 0) {
+      return { status: 'on-track', label: 'LOG WEIGHT', color: 'text-muted-foreground', bgColor: 'bg-muted/30', contextMessage: 'Log morning weight' };
+    }
+
+    // calculateTarget() already includes water loading for protocols 1 & 2
+    // So we DON'T add water bonus again - just compare directly to the target
+    const target = calculateTarget();
+    // Use current weight (most recent weigh-in) for diff so status updates throughout the day
     const diff = currentWeight - target;
+    // Whether projection shows making weight (within 0.5 lb tolerance)
+    const projectedToMakeWeight = descentData.projectedSaturday !== null && descentData.daysRemaining > 0
+      && descentData.projectedSaturday <= profile.targetWeightClass + 0.5;
 
     // Check if projection shows we won't make weight
     let projectionWarning: string | undefined;
+    let recommendation: {
+      extraWorkoutsNeeded: number;
+      totalWorkoutsNeeded: number;
+      todayWorkoutsDone: number;
+      todayLoss: number;
+      message: string;
+      urgency: 'moderate' | 'high' | 'critical';
+      switchProtocol: boolean;
+      avgExtraWorkoutLoss: number | null;
+    } | undefined;
+
     if (descentData.projectedSaturday !== null && descentData.daysRemaining > 0) {
       const projectedOver = descentData.projectedSaturday - profile.targetWeightClass;
       // Any projection over target weight class is a warning - you need to hit exactly target on weigh-in day
       // Allow small tolerance (0.5 lbs) for measurement variance
       if (projectedOver > 0.5) {
         projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in`;
-      }
-    }
 
-    // On water loading days (3-5 days out), allow extra tolerance for water weight
-    // Water loading adds 2-4 lbs above baseline - this is expected and healthy
-    if (waterLoading) {
-      // If within 2-4 lb water loading tolerance, show as on track
-      if (diff <= 4) {
-        const note = diff > 1 ? `+${diff.toFixed(1)} lbs water weight - within 2-4 lb range` : undefined;
-        // But if projection shows we won't make weight, downgrade to borderline/risk
-        if (projectionWarning) {
-          return { status: 'borderline', label: 'CHECK PROJECTION', color: 'text-orange-500', bgColor: 'bg-orange-500/20', waterLoadingNote: note, projectionWarning };
+        // Calculate recommendation based on how much over and days remaining
+        const extraStats = getExtraWorkoutStats();
+        const daysRemaining = descentData.daysRemaining;
+
+        // Default workout loss estimate if no data (conservative 1.5 lbs per 30-45 min session)
+        const avgWorkoutLoss = extraStats.avgLoss ?? 1.5;
+
+        // Calculate how many extra workouts needed
+        const workoutsNeeded = Math.ceil(projectedOver / avgWorkoutLoss);
+
+        // Base recommendation object with common fields
+        const baseRec = {
+          totalWorkoutsNeeded: workoutsNeeded,
+          todayWorkoutsDone: extraStats.todayWorkouts,
+          todayLoss: extraStats.todayLoss,
+          avgExtraWorkoutLoss: extraStats.avgLoss
+        };
+
+        // Build estimate disclaimer
+        const usingEstimate = extraStats.avgLoss === null;
+        const estimateNote = usingEstimate
+          ? ' (est. 1.5 lb/workout - log one to personalize)'
+          : '';
+
+        // Determine urgency and message based on how much over and days remaining
+        if (projectedOver > 4) {
+          // 4+ lbs over - critical
+          if (daysRemaining < 3) {
+            // Less than 3 days with 4+ lbs to lose - DANGER
+            recommendation = {
+              ...baseRec,
+              extraWorkoutsNeeded: workoutsNeeded,
+              message: `DANGER: ${projectedOver.toFixed(1)} lbs over with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left. Consider moving up a weight class.`,
+              urgency: 'critical',
+              switchProtocol: true
+            };
+          } else {
+            // 3+ days with 4+ lbs - switch protocol + extra workouts
+            recommendation = {
+              ...baseRec,
+              extraWorkoutsNeeded: workoutsNeeded,
+              message: `${workoutsNeeded}+ extra workouts needed before weigh-in${estimateNote}. Switch to Body Comp protocol.`,
+              urgency: 'critical',
+              switchProtocol: true
+            };
+          }
+        } else if (projectedOver > 2) {
+          // 2-4 lbs over - high urgency
+          if (daysRemaining < 3) {
+            recommendation = {
+              ...baseRec,
+              extraWorkoutsNeeded: workoutsNeeded,
+              message: `${workoutsNeeded} extra workouts needed before weigh-in${estimateNote}. Consider switching protocols.`,
+              urgency: 'high',
+              switchProtocol: true
+            };
+          } else {
+            recommendation = {
+              ...baseRec,
+              extraWorkoutsNeeded: workoutsNeeded,
+              message: `${workoutsNeeded} extra workouts needed before weigh-in${estimateNote} OR switch protocol.`,
+              urgency: 'high',
+              switchProtocol: false
+            };
+          }
+        } else {
+          // 1-2 lbs over - moderate
+          recommendation = {
+            ...baseRec,
+            extraWorkoutsNeeded: workoutsNeeded,
+            message: `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed before weigh-in${estimateNote}.`,
+            urgency: 'moderate',
+            switchProtocol: false
+          };
         }
-        return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', waterLoadingNote: note };
+
+        // Adjust message if they have logged extra workouts today
+        if (extraStats.todayWorkouts > 0) {
+          const remainingWorkouts = Math.max(0, workoutsNeeded - extraStats.todayWorkouts);
+          if (remainingWorkouts === 0) {
+            recommendation.message = `Today's workout${extraStats.todayWorkouts > 1 ? 's' : ''} helped (-${extraStats.todayLoss.toFixed(1)} lbs). Still ${projectedOver.toFixed(1)} lbs over - keep cutting.`;
+          } else {
+            recommendation.message = `${remainingWorkouts} more workout${remainingWorkouts > 1 ? 's' : ''} needed before weigh-in. Today: -${extraStats.todayLoss.toFixed(1)} lbs.`;
+          }
+          recommendation.extraWorkoutsNeeded = remainingWorkouts;
+        }
       }
-      // If slightly over 4 lb water loading tolerance, borderline
-      if (diff <= 6) {
-        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - above 2-4 lb water loading range`, projectionWarning };
-      }
-      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', waterLoadingNote: `+${diff.toFixed(1)} lbs - significantly over target`, projectionWarning };
     }
 
-    // Non water-loading days use standard thresholds
-    if (diff <= 1) {
-      // If projection shows we won't make weight, downgrade to borderline
-      if (projectionWarning) {
-        return { status: 'borderline', label: 'CHECK PROJECTION', color: 'text-orange-500', bgColor: 'bg-orange-500/20', projectionWarning };
+    // Build contextMessage — a human-readable one-liner for the command bar
+    const projStr = descentData.projectedSaturday !== null && descentData.daysRemaining > 0
+      ? ` → proj ${descentData.projectedSaturday.toFixed(1)}`
+      : '';
+    const buildContextMessage = (): string => {
+      if (waterLoading) {
+        if (diff <= 0) return `${currentWeight.toFixed(1)} lbs — on target${projStr}`;
+        return `${currentWeight.toFixed(1)} lbs — +${diff.toFixed(1)} above${projStr}`;
       }
-      return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20' };
+      if (diff <= 0) return `${currentWeight.toFixed(1)} lbs — on target${projStr}`;
+      return `${currentWeight.toFixed(1)} lbs — ${diff.toFixed(1)} above${projStr}`;
+    };
+    const contextMessage = buildContextMessage();
+
+    // On water loading days, target already includes +2-4 lb water weight allowance
+    // diff <= 0 means at or below the water-adjusted target (on track)
+    // diff > 0 means over even the generous water loading allowance
+    if (waterLoading) {
+      if (diff <= 0) {
+        if (projectionWarning) {
+          return { status: 'borderline', label: 'CHECK PROJECTION', color: 'text-orange-500', bgColor: 'bg-orange-500/20', contextMessage, projectionWarning, recommendation };
+        }
+        return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage };
+      }
+      // Slightly over water loading target (within 2 lbs) - borderline
+      if (diff <= 2) {
+        if (projectedToMakeWeight && !projectionWarning) {
+          return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target (loading)` };
+        }
+        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target`, projectionWarning, recommendation };
+      }
+      // Significantly over - upgrade to borderline if projection shows making weight
+      if (projectedToMakeWeight && !projectionWarning) {
+        return { status: 'borderline', label: 'PROJECTED OK', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target (loading)` };
+      }
+      return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target`, projectionWarning, recommendation };
+    }
+
+    // Non water-loading days — factor projection into status level
+    if (diff <= 1) {
+      // Close to target — downgrade if projection shows missing weight
+      if (projectionWarning) {
+        return { status: 'borderline', label: 'CHECK PROJECTION', color: 'text-orange-500', bgColor: 'bg-orange-500/20', contextMessage, projectionWarning, recommendation };
+      }
+      return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage };
     }
     if (diff <= 3) {
-      return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', projectionWarning };
+      // Moderately over — upgrade to ON TRACK if projection shows making weight
+      if (projectedToMakeWeight && !projectionWarning) {
+        return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage };
+      }
+      return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, projectionWarning, recommendation };
     }
-    return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', projectionWarning };
+    // Significantly over — upgrade to BORDERLINE if projection shows making weight
+    if (projectedToMakeWeight && !projectionWarning) {
+      return { status: 'borderline', label: 'PROJECTED OK', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage };
+    }
+    return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', contextMessage, projectionWarning, recommendation };
   };
 
-  const getDailyPriority = (): { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string } => {
+  const getDailyPriority = (): { priority: string; subtext?: string; urgency: 'normal' | 'high' | 'critical'; icon: string; actionType?: 'log-weight' | 'log-workout' | 'check-food' } => {
     const protocol = profile.protocol;
     const daysUntilWeighIn = getDaysUntilWeighIn();
+    const statusData = getStatus();
+
+    // Build projection/recommendation subtext — keep it short
+    const buildSubtext = (): string | undefined => {
+      if (statusData.projectionWarning && statusData.recommendation) {
+        const rec = statusData.recommendation;
+        if (rec.extraWorkoutsNeeded > 0) {
+          return `${statusData.projectionWarning}. ${rec.extraWorkoutsNeeded} extra workout${rec.extraWorkoutsNeeded > 1 ? 's' : ''} needed.`;
+        }
+        return statusData.projectionWarning;
+      }
+      if (statusData.projectionWarning) {
+        return statusData.projectionWarning;
+      }
+      if (statusData.waterLoadingNote) {
+        return `${statusData.waterLoadingNote} — normal during water loading.`;
+      }
+      return undefined;
+    };
 
     // Protocol 4 (Build Phase) - different priorities
     if (protocol === '4') {
       if (daysUntilWeighIn < 0) {
-        return { priority: "FULL RECOVERY - 1.6g/lb protein, high carbs, repair muscle tissue", urgency: 'high', icon: 'bed' };
+        return { priority: "FULL RECOVERY - 1.6g/lb protein, high carbs, repair muscle tissue", subtext: buildSubtext(), urgency: 'high', icon: 'bed' };
       }
       if (daysUntilWeighIn === 0) {
-        return { priority: "COMPETE - fast carbs between matches, minimal protein until done", urgency: 'high', icon: 'trophy' };
+        return { priority: "COMPETE - fast carbs between matches, minimal protein until done", subtext: buildSubtext(), urgency: 'high', icon: 'trophy' };
       }
       if (daysUntilWeighIn === 1) {
-        return { priority: "Light session - competition prep if needed", urgency: 'normal', icon: 'target' };
+        return { priority: "Light session - competition prep if needed", subtext: buildSubtext(), urgency: 'normal', icon: 'target' };
       }
       // 2+ days out - normal training
-      return { priority: "Train hard - fuel for muscle growth", urgency: 'normal', icon: 'dumbbell' };
+      return { priority: "Train hard - fuel for muscle growth", subtext: buildSubtext(), urgency: 'normal', icon: 'dumbbell' };
     }
 
     // Protocols 1, 2, 3 - use days-until-weigh-in for priorities
     if (daysUntilWeighIn < 0) {
-      return { priority: "RECOVERY DAY - protein refeed, rebuild glycogen stores", urgency: 'normal', icon: 'heart' };
+      return { priority: "RECOVERY DAY - protein refeed, rebuild glycogen stores", subtext: buildSubtext(), urgency: 'normal', icon: 'heart' };
     }
     if (daysUntilWeighIn === 0) {
-      return { priority: "COMPETE - rehydrate smart, fuel between matches", urgency: 'high', icon: 'trophy' };
+      return { priority: "COMPETE - rehydrate smart, fuel between matches", subtext: buildSubtext(), urgency: 'high', icon: 'trophy' };
     }
     if (daysUntilWeighIn === 1) {
-      return { priority: "SIP ONLY - monitor weight hourly. Final push to make weight.", urgency: 'critical', icon: 'scale' };
+      return { priority: "SIP ONLY - monitor weight hourly. Final push to make weight.", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
     }
     if (daysUntilWeighIn === 2) {
-      return { priority: "ZERO FIBER - check every bite. Water weight dropping.", urgency: 'high', icon: 'alert' };
+      return { priority: "ZERO FIBER - check every bite. Water weight dropping.", subtext: buildSubtext(), urgency: 'high', icon: 'alert', actionType: 'check-food' };
     }
     if (daysUntilWeighIn === 3) {
-      return { priority: "Peak water day - hit your full gallon target", urgency: 'normal', icon: 'droplets' };
+      return { priority: "Peak water day - hit your full gallon target", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     if (daysUntilWeighIn === 4) {
-      return { priority: "Continue loading - fructose heavy, peak water intake tomorrow", urgency: 'normal', icon: 'droplets' };
+      return { priority: "Continue loading - fructose heavy, peak water intake tomorrow", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     if (daysUntilWeighIn === 5) {
-      return { priority: "Fill the tank - high fructose carbs, max hydration starts", urgency: 'normal', icon: 'droplets' };
+      return { priority: "Fill the tank - high fructose carbs, max hydration starts", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
-    // 6+ days out - maintenance
-    return { priority: "Maintenance - stay at walk-around weight", urgency: 'normal', icon: 'check' };
+    // 6+ days out - pre-loading phase
+    return { priority: `${daysUntilWeighIn} days out — train hard, eat normally`, subtext: buildSubtext(), urgency: 'normal', icon: 'check' };
   };
 
   const getWeekDescentData = () => {
@@ -2228,16 +2532,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const startWeight = morningWeights.length > 0 ? morningWeights[0].weight : null;
-    const currentWeight = morningWeights.length > 0 ? morningWeights[morningWeights.length - 1].weight : null;
-    const totalLost = startWeight && currentWeight ? startWeight - currentWeight : null;
+    // For morning-to-morning tracking, use latest morning weight
+    const latestMorningWeight = morningWeights.length > 0 ? morningWeights[morningWeights.length - 1].weight : null;
+    const totalLost = startWeight && latestMorningWeight ? startWeight - latestMorningWeight : null;
+
+    // For projections, use the most recent weigh-in of ANY type (morning, check-in, post-practice, etc.)
+    // This gives real-time projection updates whenever they step on the scale
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const allTodayLogs = logs.filter(l => {
+      const logDate = new Date(l.date);
+      return format(startOfDay(logDate), 'yyyy-MM-dd') === todayStr;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Get the most recent weigh-in today, or fall back to latest morning weight
+    const mostRecentWeighIn = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
+    const currentWeight = mostRecentWeighIn;
 
     // Net daily average (morning-to-morning, includes food/water intake)
     let dailyAvgLoss: number | null = null;
-    if (morningWeights.length >= 2 && startWeight && currentWeight) {
+    if (morningWeights.length >= 2 && startWeight && latestMorningWeight) {
       const firstDate = morningWeights[0].date;
       const lastDate = morningWeights[morningWeights.length - 1].date;
       const actualDaysBetween = Math.max(1, Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
-      dailyAvgLoss = (startWeight - currentWeight) / actualDaysBetween;
+      dailyAvgLoss = (startWeight - latestMorningWeight) / actualDaysBetween;
     }
 
     // Calculate gross loss capacity from drift and practice metrics
@@ -2285,17 +2602,90 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       grossDailyLoss = Math.abs(avgOvernightDrift) + Math.abs(avgPracticeLoss || 0);
     }
 
-    // Projection based on gross loss capacity (more accurate for final cut)
+    // Hybrid projection: uses different strategies for loading vs cut days.
+    //
+    // LOADING DAYS (3+ days out): Project from latest MORNING weight using net daily loss.
+    //   Mid-day weights are misleadingly low because the athlete eats/drinks back after practice.
+    //   Post-practice weight of 142 doesn't mean tomorrow's morning will be 142 - drift.
+    //   Tomorrow morning = today's morning - net daily loss (accounts for eating back).
+    //
+    // CUT DAYS (1-2 days out): Project from most recent weigh-in using remaining losses.
+    //   The athlete is NOT eating/drinking back, so every loss sticks.
+    //   Post-practice 142 → overnight drift → tomorrow morning ≈ 142 - 1.8 = 140.2
+    //   This is the real-time approach — updates with every weigh-in.
     let projectedSaturday: number | null = null;
-    if (currentWeight && daysRemaining > 0) {
-      if (grossDailyLoss !== null && grossDailyLoss > 0) {
-        // Use gross capacity - this is what you can actually lose
-        projectedSaturday = currentWeight - (grossDailyLoss * daysRemaining);
-      } else if (dailyAvgLoss !== null && dailyAvgLoss > 0) {
-        // Fallback to net loss if no gross data
-        projectedSaturday = currentWeight - (dailyAvgLoss * daysRemaining);
-      } else {
-        // No trend data - show current weight
+
+    if (daysRemaining > 0) {
+      const hasDriftData = avgOvernightDrift !== null && Math.abs(avgOvernightDrift!) > 0;
+      const hasPracticeData = avgPracticeLoss !== null && Math.abs(avgPracticeLoss!) > 0;
+      const hasNetData = dailyAvgLoss !== null && dailyAvgLoss > 0;
+      const hasGrossData = grossDailyLoss !== null && grossDailyLoss > 0;
+      const drift = hasDriftData ? Math.abs(avgOvernightDrift!) : 0;
+      const practice = hasPracticeData ? Math.abs(avgPracticeLoss!) : 0;
+      const isLoadingToday = daysRemaining >= 3;
+
+      if (hasDriftData || hasNetData) {
+        let projected: number;
+
+        // Step 1: Handle today based on phase
+        if (isLoadingToday && latestMorningWeight) {
+          // LOADING DAY: start from morning weight, apply net daily loss for today
+          // This ignores mid-day dips because athlete eats/drinks back
+          projected = latestMorningWeight;
+          const todayLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
+          projected -= todayLoss;
+        } else if (currentWeight) {
+          // CUT DAY (or no morning weight): start from most recent weigh-in
+          // Apply only remaining losses based on what's already happened
+          projected = currentWeight;
+          const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
+          let todayRemainingLoss = 0;
+
+          if (lastLogType) {
+            if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
+              todayRemainingLoss = practice + drift;
+            } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
+              todayRemainingLoss = drift;
+            } else if (lastLogType === 'extra-after') {
+              // Extra workouts are ADDITIONAL to normal practice+drift.
+              // Practice hasn't happened yet, so still count practice + drift as remaining.
+              todayRemainingLoss = practice + drift;
+            } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
+              // Check if practice has actually happened by looking for a post-practice log
+              const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
+              todayRemainingLoss = hasPracticeLog ? drift : (practice + drift);
+            }
+          } else {
+            // No logs today on a cut day — full gross capacity
+            todayRemainingLoss = practice + drift;
+          }
+          projected -= todayRemainingLoss;
+        } else {
+          // No weight data at all
+          projected = latestMorningWeight || 0;
+        }
+
+        // Step 2: Future full days (tomorrow through weigh-in day)
+        for (let d = daysRemaining - 1; d > 0; d--) {
+          if (d >= 3) {
+            // Future loading day: net morning-to-morning loss
+            const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
+            projected -= loadingLoss;
+          } else {
+            // Future cut day: gross capacity (drift + practice, no eating back)
+            if (hasGrossData) {
+              projected -= grossDailyLoss!;
+            } else if (hasNetData) {
+              projected -= dailyAvgLoss! * 2.5;
+            }
+          }
+        }
+
+        projectedSaturday = projected;
+      } else if (latestMorningWeight) {
+        // No trend data yet - show latest morning weight
+        projectedSaturday = latestMorningWeight;
+      } else if (currentWeight) {
         projectedSaturday = currentWeight;
       }
     }
@@ -2406,20 +2796,105 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ? weekAgoLogs[0].weight - morningLogs[0].weight
       : null;
 
-    // Projected weigh-in weight based on current trends
-    // Uses gross loss capacity (drift + practice) for accurate projection
-    // Use latest morning weight for consistency with getWeekDescentData
+    // Real-time phase-aware projection (mirrors getWeekDescentData logic)
+    // Starts from most recent weigh-in, applies remaining today losses + future day losses
     const latestMorningWeight = morningLogs.length > 0 ? morningLogs[0].weight : null;
+
+    // Calculate net daily loss from morning weights
+    let netDailyLoss: number | null = null;
+    if (morningLogs.length >= 2) {
+      const oldestMorning = morningLogs[morningLogs.length - 1];
+      const newestMorning = morningLogs[0];
+      const daysBetween = Math.max(1, Math.round(
+        (newestMorning.date.getTime() - oldestMorning.date.getTime()) / (1000 * 60 * 60 * 24)
+      ));
+      netDailyLoss = (oldestMorning.weight - newestMorning.weight) / daysBetween;
+      if (netDailyLoss <= 0) netDailyLoss = null;
+    }
+
+    // Calculate gross capacity components
+    const avgOvernightLoss = overnightDrifts.length > 0
+      ? overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length
+      : null;
+    const avgPracticeLossVal = practiceLosses.length > 0
+      ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
+      : null;
+    const grossCapacity = avgOvernightLoss !== null
+      ? Math.abs(avgOvernightLoss) + Math.abs(avgPracticeLossVal || 0)
+      : null;
+    const hasDriftData = avgOvernightLoss !== null && Math.abs(avgOvernightLoss) > 0;
+    const hasPracticeData = avgPracticeLossVal !== null && Math.abs(avgPracticeLossVal) > 0;
+    const hasGrossData = grossCapacity !== null && grossCapacity > 0;
+    const hasNetData = netDailyLoss !== null;
+
+    // Hybrid projection (mirrors getWeekDescentData logic)
+    // Loading days: project from morning weight (mid-day dips are temporary — athlete eats back)
+    // Cut days: project from most recent weigh-in (losses stick — no eating back)
+    const today = startOfDay(profile.simulatedDate || new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const allTodayLogs = logs.filter(l => {
+      const logDate = new Date(l.date);
+      return format(startOfDay(logDate), 'yyyy-MM-dd') === todayStr;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const mostRecentWeight = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
+    const isLoadingToday = daysUntilWeighIn >= 3;
+
     let projectedSaturday: number | null = null;
-    if (daysUntilWeighIn > 0 && latestMorningWeight && overnightDrifts.length > 0) {
-      const avgOvernightLoss = overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length;
-      // Use full gross loss capacity - this represents what the body CAN lose
-      // Use absolute values since these represent weight LOST
-      const avgPracticeLoss = practiceLosses.length > 0
-        ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
-        : 0;
-      const grossDailyLoss = Math.abs(avgOvernightLoss) + Math.abs(avgPracticeLoss);
-      projectedSaturday = latestMorningWeight - (grossDailyLoss * daysUntilWeighIn);
+    if (daysUntilWeighIn > 0 && (hasDriftData || hasNetData)) {
+      const drift = hasDriftData ? Math.abs(avgOvernightLoss!) : 0;
+      const practice = hasPracticeData ? Math.abs(avgPracticeLossVal!) : 0;
+      let projected: number;
+
+      // Step 1: Handle today based on phase
+      if (isLoadingToday && latestMorningWeight) {
+        // Loading day: start from morning weight, apply net daily loss
+        projected = latestMorningWeight;
+        const todayLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
+        projected -= todayLoss;
+      } else if (mostRecentWeight) {
+        // Cut day: start from most recent weigh-in, apply remaining losses
+        projected = mostRecentWeight;
+        const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
+        let todayRemainingLoss = 0;
+
+        if (lastLogType) {
+          if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
+            todayRemainingLoss = practice + drift;
+          } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
+            todayRemainingLoss = drift;
+          } else if (lastLogType === 'extra-after') {
+            // Extra workouts are ADDITIONAL to normal practice+drift.
+            // Practice hasn't happened yet, so still count practice + drift as remaining.
+            todayRemainingLoss = practice + drift;
+          } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
+            // Check if practice has actually happened by looking for a post-practice log
+            const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
+            todayRemainingLoss = hasPracticeLog ? drift : (practice + drift);
+          }
+        } else {
+          todayRemainingLoss = practice + drift;
+        }
+        projected -= todayRemainingLoss;
+      } else {
+        projected = latestMorningWeight || 0;
+      }
+
+      // Step 2: Future full days
+      for (let d = daysUntilWeighIn - 1; d > 0; d--) {
+        if (d >= 3) {
+          const loadingLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
+          projected -= loadingLoss;
+        } else {
+          if (hasGrossData) {
+            projected -= grossCapacity!;
+          } else if (hasNetData) {
+            projected -= netDailyLoss! * 2.5;
+          }
+        }
+      }
+
+      projectedSaturday = projected;
     }
 
     return {
@@ -2467,6 +2942,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getWaterLoadBonus,
       isWaterLoadingDay,
       getDaysUntilWeighIn,
+      getDaysUntilForDay,
+      getTimeUntilWeighIn,
       getPhase,
       getTodaysFocus,
       getHydrationTarget,
@@ -2478,6 +2955,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getTomorrowPlan,
       getNextTarget,
       getDriftMetrics,
+      getExtraWorkoutStats,
       getStatus,
       getDailyPriority,
       getWeekDescentData,

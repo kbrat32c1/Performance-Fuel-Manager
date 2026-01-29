@@ -166,7 +166,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
   const [isEditingProtein, setIsEditingProtein] = useState(false);
   const [editCarbsValue, setEditCarbsValue] = useState('');
   const [editProteinValue, setEditProteinValue] = useState('');
-  const [showFoodRef, setShowFoodRef] = useState(true); // Default to open for discoverability
+  const [showFoodRef, setShowFoodRef] = useState(false); // Default closed to keep card compact
   const [foodTab, setFoodTab] = useState<'fructose' | 'glucose' | 'protein' | 'zerofiber' | 'custom'>('fructose');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddCustom, setShowAddCustom] = useState(false);
@@ -360,6 +360,27 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     setFoodHistory(prev => prev.slice(0, -1));
   };
 
+  // Delete a specific food entry by id
+  const handleDeleteEntry = (entryId: string) => {
+    const entry = foodHistory.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
+
+    if (entry.macroType === 'carbs') {
+      updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - entry.amount);
+    } else {
+      updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - entry.amount);
+    }
+
+    if (entry.liquidOz && entry.liquidOz > 0) {
+      updates.waterConsumed = Math.max(0, tracking.waterConsumed - entry.liquidOz);
+    }
+
+    updateDailyTracking(dateKey, updates);
+    setFoodHistory(prev => prev.filter(e => e.id !== entryId));
+  };
+
   const carbProgress = macros.carbs.max > 0 ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100) : 0;
   const proteinProgress = macros.protein.max > 0 ? Math.min(100, (tracking.proteinConsumed / macros.protein.max) * 100) : 0;
 
@@ -465,8 +486,8 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                         autoFocus
                       />
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={handleSaveCarbs} className="h-6 px-2 text-[10px]">Save</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setIsEditingCarbs(false)} className="h-6 px-2 text-[10px]">Cancel</Button>
+                        <Button size="sm" variant="ghost" onClick={handleSaveCarbs} className="h-8 px-3 text-xs">Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditingCarbs(false)} className="h-8 px-3 text-xs">Cancel</Button>
                       </div>
                     </div>
                   ) : (
@@ -481,7 +502,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                       {!readOnly && (
                         <button
                           onClick={handleEditCarbs}
-                          className="mt-1 p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                          className="mt-1 p-2 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                           title="Edit carbs"
                         >
                           <Pencil className="w-3 h-3" />
@@ -504,8 +525,8 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                         autoFocus
                       />
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={handleSaveProtein} className="h-6 px-2 text-[10px]">Save</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setIsEditingProtein(false)} className="h-6 px-2 text-[10px]">Cancel</Button>
+                        <Button size="sm" variant="ghost" onClick={handleSaveProtein} className="h-8 px-3 text-xs">Save</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setIsEditingProtein(false)} className="h-8 px-3 text-xs">Cancel</Button>
                       </div>
                     </div>
                   ) : (
@@ -520,7 +541,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                       {!readOnly && (
                         <button
                           onClick={handleEditProtein}
-                          className="mt-1 p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+                          className="mt-1 p-2 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                           title="Edit protein"
                         >
                           <Pencil className="w-3 h-3" />
@@ -645,7 +666,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                     </div>
 
                     {showHistory && (
-                      <div className="space-y-1 max-h-[150px] overflow-y-auto">
+                      <div className="space-y-1 max-h-[25vh] overflow-y-auto">
                         {[...foodHistory].reverse().map((entry) => (
                           <div
                             key={entry.id}
@@ -682,6 +703,13 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                               {entry.liquidOz && (
                                 <span className="font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
                               )}
+                              <button
+                                onClick={() => handleDeleteEntry(entry.id)}
+                                className="p-2 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+                                title={`Remove ${entry.name}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -759,7 +787,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
                 {/* Fructose Foods */}
                 {foodTab === 'fructose' && (
-                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[35vh] overflow-y-auto">
                     <div className="flex items-center gap-2 mb-2">
                       <Apple className="w-3.5 h-3.5 text-green-500" />
                       <span className="text-[10px] text-green-500 uppercase font-bold">Fructose Sources</span>
@@ -805,7 +833,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
                 {/* Glucose/Starch Foods */}
                 {foodTab === 'glucose' && (
-                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[35vh] overflow-y-auto">
                     <div className="flex items-center gap-2 mb-2">
                       <Wheat className="w-3.5 h-3.5 text-amber-500" />
                       <span className="text-[10px] text-amber-500 uppercase font-bold">Glucose/Starch Sources</span>
@@ -849,9 +877,9 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                   </div>
                 )}
 
-                {/* Zero Fiber Foods - Critical for Thu/Fri */}
+                {/* Zero Fiber Foods - Critical for restriction/cut days */}
                 {foodTab === 'zerofiber' && isZeroFiberPhase && (
-                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[35vh] overflow-y-auto">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                       <span className="text-[10px] text-red-500 uppercase font-bold">Zero Fiber Only</span>
@@ -859,7 +887,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                     </div>
                     <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-2 mb-2">
                       <p className="text-[10px] text-red-400">
-                        <strong>Fiber = gut weight.</strong> Any fiber Thu/Fri stays in your system through weigh-in.
+                        <strong>Fiber = gut weight.</strong> Any fiber during restriction/cut days stays in your system through weigh-in.
                         Stick to these zero-fiber options only.
                       </p>
                     </div>
@@ -901,7 +929,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
                 {/* Protein Sources */}
                 {foodTab === 'protein' && isProteinAllowed && (
-                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[35vh] overflow-y-auto">
                     <div className="flex items-center gap-2 mb-2">
                       <Fish className="w-3.5 h-3.5 text-orange-500" />
                       <span className="text-[10px] text-orange-500 uppercase font-bold">Protein Sources</span>
@@ -942,7 +970,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
                 {/* Custom Foods */}
                 {foodTab === 'custom' && (
-                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[35vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Star className="w-3.5 h-3.5 text-purple-500" />
@@ -1078,7 +1106,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                             )}
                             <button
                               onClick={() => handleDeleteCustomFood(food.id)}
-                              className="p-1 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                              className="p-2 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive min-w-[36px] min-h-[36px] flex items-center justify-center"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>

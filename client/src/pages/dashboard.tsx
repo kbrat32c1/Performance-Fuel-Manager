@@ -15,7 +15,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
-import { useState, useEffect, useCallback } from "react";
+import { getPhaseStyleForDaysUntil, PHASE_STYLES, getPhaseStyle } from "@/lib/phase-colors";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecoveryTakeover } from "@/components/recovery-takeover";
@@ -51,6 +52,7 @@ export default function Dashboard() {
     getCheckpoints,
     getTodaysFoods,
     getDaysUntilWeighIn,
+    getTimeUntilWeighIn,
     isWaterLoadingDay,
     clearLogs
   } = useStore();
@@ -60,6 +62,9 @@ export default function Dashboard() {
   const daysUntilWeighIn = getDaysUntilWeighIn();
   const isViewingHistorical = !!profile.simulatedDate;
   const today = startOfDay(new Date());
+
+  // Ref for scrolling to extra workout section
+  const extraWorkoutRef = useRef<HTMLDivElement>(null);
 
   // Handle date navigation
   const handleDateChange = useCallback((date: Date | null) => {
@@ -119,20 +124,25 @@ export default function Dashboard() {
     }
   };
 
-  // Get phase display info - using document terminology
+  // Get phase display info - driven by days-until-weigh-in, not day-of-week
   const getPhaseInfo = () => {
-    switch (phase) {
-      case 'metabolic':
-        return { label: 'Metabolic Phase', days: 'Mon-Wed', color: 'text-primary' };
-      case 'transition':
-        return { label: 'Transition Phase', days: 'Thu', color: 'text-yellow-500' };
-      case 'performance-prep':
-        return { label: 'Performance-Prep', days: 'Fri', color: 'text-orange-500' };
-      case 'recovery':
-        return { label: 'Recovery Phase', days: 'Sun', color: 'text-cyan-500' };
-      default:
-        return { label: 'Active', days: '', color: 'text-primary' };
+    if (daysUntilWeighIn < 0) {
+      return { label: 'Recovery', color: 'text-cyan-500' };
     }
+    if (daysUntilWeighIn === 0) {
+      return { label: 'Competition Day', color: 'text-yellow-500' };
+    }
+    if (daysUntilWeighIn === 1) {
+      return { label: 'Cut Phase', color: 'text-orange-500' };
+    }
+    if (daysUntilWeighIn === 2) {
+      return { label: 'Prep Phase', color: 'text-violet-400' };
+    }
+    if (daysUntilWeighIn <= 5) {
+      return { label: 'Loading Phase', color: 'text-primary' };
+    }
+    // 6+ days out
+    return { label: 'Training Phase', color: 'text-primary' };
   };
 
   const statusInfo = getStatus();
@@ -150,6 +160,9 @@ export default function Dashboard() {
     : null; // null indicates we should show a range
 
   const phaseInfo = getPhaseInfo();
+
+  // Phase color mapping for UI elements
+  const { phase: currentPhaseName, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn);
 
   // Get today's tracking data for status summary
   const dateKey = format(displayDate, 'yyyy-MM-dd');
@@ -192,6 +205,17 @@ export default function Dashboard() {
 
   const todayLogs = getTodayLogs();
   const weighInsComplete = [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length;
+
+  // Most recent weigh-in today (any type) for metrics strip
+  const mostRecentLog = logs
+    .filter(l => {
+      const ld = new Date(l.date);
+      return ld.getFullYear() === displayDate.getFullYear() &&
+        ld.getMonth() === displayDate.getMonth() &&
+        ld.getDate() === displayDate.getDate();
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  const currentDisplayWeight = mostRecentLog?.weight ?? todayLogs.morning?.weight;
 
   return (
     <MobileLayout showNav={true}>
@@ -242,265 +266,245 @@ export default function Dashboard() {
           </div>
         )}
 
-      {/* Status Badge */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* DAILY COMMAND BAR — single-line status at a glance     */}
+      {/* ═══════════════════════════════════════════════════════ */}
       <div className={cn(
-        "flex flex-col items-center py-2 -mx-4 mb-4",
-        statusInfo.bgColor
+        "flex items-center justify-between px-3 py-2 -mx-4 mb-3 rounded-none",
+        statusInfo.status === 'on-track' ? "bg-green-500/10" :
+        statusInfo.status === 'borderline' ? "bg-yellow-500/10" :
+        "bg-red-500/10"
       )}>
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            "w-2 h-2 rounded-full",
-            statusInfo.status === 'on-track' ? "bg-green-500" :
-            statusInfo.status === 'borderline' ? "bg-yellow-500 animate-pulse" : "bg-destructive animate-pulse"
-          )} />
-          <span className={cn("text-xs font-bold uppercase tracking-widest", statusInfo.color)}>
+        {/* Phase pill + countdown */}
+        <div className="flex items-center gap-1.5">
+          <span className={cn(
+            "text-[10px] font-bold uppercase px-2 py-0.5 rounded-full",
+            phaseStyle.bgMedium, phaseStyle.text
+          )}>
+            {daysUntilWeighIn > 5 ? `${daysUntilWeighIn}D OUT` :
+             daysUntilWeighIn === 5 ? `LOAD · DAY 1` :
+             daysUntilWeighIn === 4 ? `LOAD · DAY 2` :
+             daysUntilWeighIn === 3 ? `LOAD · DAY 3` :
+             daysUntilWeighIn === 2 ? `PREP · ZERO FIBER` :
+             daysUntilWeighIn === 1 ? `CUT · SIP ONLY` :
+             daysUntilWeighIn === 0 ? 'COMPETE' :
+             'RECOVERY'}
+          </span>
+          {daysUntilWeighIn >= 0 && (
+            <span className={cn(
+              "text-[10px] font-bold px-1.5 py-0.5 rounded",
+              phaseStyle.text, phaseStyle.bgLight
+            )}>
+              {getTimeUntilWeighIn()}
+            </span>
+          )}
+        </div>
+
+        {/* Status label + context */}
+        <div className="flex items-center gap-1.5">
+          <span className={cn(
+            "text-[10px] font-bold uppercase",
+            statusInfo.status === 'on-track' ? "text-green-500" :
+            statusInfo.status === 'borderline' ? "text-yellow-500" :
+            "text-red-500"
+          )}>
             {statusInfo.label}
           </span>
-          {todayLogs.morning?.weight && (
-            <span className="text-xs text-muted-foreground">
-              ({todayLogs.morning.weight.toFixed(1)} / {targetWeight.toFixed(1)} lbs)
-            </span>
-          )}
+          <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">
+            {statusInfo.contextMessage}
+          </span>
         </div>
-        {statusInfo.waterLoadingNote && (
-          <span className="text-[10px] text-cyan-500 mt-1">{statusInfo.waterLoadingNote}</span>
-        )}
-        {statusInfo.projectionWarning && (
-          <span className="text-[10px] text-orange-500 mt-1 font-bold">{statusInfo.projectionWarning}</span>
-        )}
       </div>
 
-      {/* Today's Status - At-a-Glance Summary */}
-      <TodayStatusCard
-        morningWeight={todayLogs.morning?.weight}
-        targetWeight={targetWeight}
-        carbsConsumed={dailyTracking.carbsConsumed}
-        carbsTarget={macros.carbs.max}
-        proteinConsumed={dailyTracking.proteinConsumed}
-        proteinTarget={macros.protein.max}
-        waterConsumed={dailyTracking.waterConsumed}
-        waterTarget={hydration.targetOz}
-        weighInsComplete={weighInsComplete}
-        weighInsTotal={4}
-        isNewUser={logs.length < 7}
-      />
-
-      {/* Water Loading Context Banner */}
-      {checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2') && (
-        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <Droplets className="w-4 h-4 text-cyan-500 mt-0.5 shrink-0" />
-            <div>
-              <span className="text-xs font-bold text-cyan-500 uppercase">Water Loading Active</span>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                <strong className="text-cyan-500">It's normal to be 2-4 lbs heavier</strong> than your target during water loading. This extra weight will flush out Thu-Fri.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      {/* Next Target - Always Visible */}
-      {nextTarget && (
-        <div className="bg-card border border-primary/30 rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" />
-              <span className="text-xs font-bold uppercase text-muted-foreground">Next Target</span>
-            </div>
-            <div className="text-right">
-              <span className="font-mono font-bold text-lg text-primary">{nextTarget.weight.toFixed(1)} lbs</span>
-              <span className="text-xs text-muted-foreground ml-2">{nextTarget.label}</span>
-            </div>
-          </div>
-          {/* Drift metrics when available */}
-          {(driftMetrics.overnight !== null || driftMetrics.session !== null) && (
-            <div className="flex gap-4 mt-2 pt-2 border-t border-muted text-xs">
-              {driftMetrics.overnight !== null && (
-                <div>
-                  <span className="text-muted-foreground">Overnight avg: </span>
-                  <span className={cn("font-mono font-bold", driftMetrics.overnight > 0 ? "text-primary" : "text-yellow-500")}>
-                    {driftMetrics.overnight > 0 ? '-' : '+'}{Math.abs(driftMetrics.overnight).toFixed(1)} lbs
-                  </span>
-                </div>
-              )}
-              {driftMetrics.session !== null && (
-                <div>
-                  <span className="text-muted-foreground">Practice avg: </span>
-                  <span className={cn("font-mono font-bold", driftMetrics.session > 0 ? "text-primary" : "text-yellow-500")}>
-                    {driftMetrics.session > 0 ? '-' : '+'}{Math.abs(driftMetrics.session).toFixed(1)} lbs
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Week Descent Tracker - Only show for today's view with valid data */}
-      {!profile.simulatedDate && descentData.morningWeights.length >= 2 && (
-        <div className="bg-card border border-muted rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="w-4 h-4 text-primary" />
-              <span className="text-xs font-bold uppercase text-muted-foreground">Week Descent</span>
-            </div>
-            {descentData.pace && (() => {
-              // Show water loading aware status during water loading days (3-5 days out) for Protocols 1 & 2
-              const isWaterLoading = isWaterLoadingDay();
-
-              return (
-                <span className={cn(
-                  "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
-                  descentData.pace === 'ahead' ? "bg-green-500/20 text-green-500" :
-                  descentData.pace === 'on-track' ? (isWaterLoading ? "bg-cyan-500/20 text-cyan-500" : "bg-primary/20 text-primary") :
-                  "bg-yellow-500/20 text-yellow-500"
-                )}>
-                  {descentData.pace === 'ahead' ? 'AHEAD' :
-                   descentData.pace === 'on-track' ? (isWaterLoading ? 'LOADING' : 'ON PACE') :
-                   'BEHIND'}
-                </span>
-              );
-            })()}
-          </div>
-
-          {/* Mini weight trend visualization */}
-          <div className="flex items-end justify-between gap-1 h-12 mb-2">
-            {descentData.morningWeights.map((entry, i) => {
-              const weights = descentData.morningWeights.map(e => e.weight);
-              const maxW = Math.max(...weights);
-              const minW = Math.min(...weights, descentData.targetWeight);
-              const range = maxW - minW || 1;
-              const heightPercent = ((entry.weight - minW) / range) * 100;
-              const isLatest = i === descentData.morningWeights.length - 1;
-
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div
-                    className={cn(
-                      "w-full rounded-t transition-all",
-                      isLatest ? "bg-primary" : "bg-primary/40"
-                    )}
-                    style={{ height: `${Math.max(heightPercent, 10)}%` }}
-                  />
-                  <span className="text-[8px] text-muted-foreground">{entry.day}</span>
-                </div>
-              );
-            })}
-            {/* Target marker */}
-            <div className="flex-1 flex flex-col items-center gap-1">
-              <div className="w-full h-[10%] rounded-t border-2 border-dashed border-green-500/50" />
-              <span className="text-[8px] text-green-500">Goal</span>
-            </div>
-          </div>
-
-          {/* Stats row - Loss capacity breakdown */}
-          <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-muted">
-            <div>
-              <span className="text-[10px] text-muted-foreground block">Drift</span>
-              <span className={cn(
-                "font-mono font-bold text-sm",
-                descentData.avgOvernightDrift !== null ? "text-cyan-500" : ""
-              )}>
-                {descentData.avgOvernightDrift !== null
-                  ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}`
-                  : '-'} lbs
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-muted-foreground block">Practice</span>
-              <span className={cn(
-                "font-mono font-bold text-sm",
-                descentData.avgPracticeLoss !== null ? "text-orange-500" : ""
-              )}>
-                {descentData.avgPracticeLoss !== null
-                  ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}`
-                  : '-'} lbs
-              </span>
-            </div>
-            <div>
-              <span className="text-[10px] text-muted-foreground block">Projected</span>
-              <span className={cn(
-                "font-mono font-bold text-sm",
-                descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
-                  ? "text-green-500"
-                  : "text-yellow-500"
-              )}>
-                {descentData.projectedSaturday !== null ? `${descentData.projectedSaturday.toFixed(1)}` : '-'} lbs
-              </span>
-            </div>
-          </div>
-
-          {/* Gross loss capacity note */}
-          {descentData.grossDailyLoss !== null && (
-            <div className="text-[9px] text-muted-foreground text-center mt-2 pt-2 border-t border-muted/50">
-              Loss capacity: <span className="text-green-500 font-mono font-bold">-{Math.abs(descentData.grossDailyLoss).toFixed(1)} lbs/day</span>
-              {descentData.dailyAvgLoss !== null && (
-                <span className="ml-1">(net: {descentData.dailyAvgLoss > 0 ? '-' : '+'}{Math.abs(descentData.dailyAvgLoss).toFixed(1)})</span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Daily Priority Banner */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* FOCUS CARD — one question: "What should I do now?"     */}
+      {/* ═══════════════════════════════════════════════════════ */}
       <div className={cn(
-        "border rounded-lg p-3 mb-4",
-        dailyPriority.urgency === 'normal' ? "bg-primary/10 border-primary/30" :
-        dailyPriority.urgency === 'high' ? "bg-yellow-500/20 border-yellow-500/50" :
-        "bg-destructive/20 border-destructive/50"
+        "border rounded-lg p-4 mb-3",
+        dailyPriority.urgency === 'critical' ? "border-red-500/40 bg-red-500/5" :
+        dailyPriority.urgency === 'high' ? "border-yellow-500/40 bg-yellow-500/5" :
+        "border-primary/30 bg-primary/5"
       )}>
-        <div className="flex items-center gap-2">
-          {dailyPriority.urgency === 'critical' ? (
-            <AlertTriangle className="w-4 h-4 text-destructive animate-pulse shrink-0" />
-          ) : dailyPriority.urgency === 'high' ? (
-            <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0" />
-          ) : (
-            <Zap className="w-4 h-4 text-primary shrink-0" />
-          )}
-          <div>
-            <span className={cn(
-              "text-[10px] font-bold uppercase",
-              dailyPriority.urgency === 'critical' ? "text-destructive" :
-              dailyPriority.urgency === 'high' ? "text-yellow-500" : "text-primary"
-            )}>
-              Most Important Now
-            </span>
-            <p className={cn(
-              "text-sm font-medium",
-              dailyPriority.urgency === 'critical' ? "text-destructive" :
-              dailyPriority.urgency === 'high' ? "text-yellow-500" : "text-foreground"
-            )}>
-              {dailyPriority.priority}
-            </p>
-          </div>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          Your Focus Today
+        </span>
+        <p className="text-sm font-medium text-foreground mt-1.5 leading-snug">
+          {dailyPriority.priority}
+        </p>
+        {/* Fiber warning inline for cut days */}
+        {(daysUntilWeighIn === 1 || daysUntilWeighIn === 2) && (
+          <p className="text-xs text-orange-400 mt-2">
+            No vegetables, fruits with skin, whole grains, or beans. Check every ingredient.
+          </p>
+        )}
+        {/* Subtext — projection warning, recommendation, or water loading context */}
+        {dailyPriority.subtext && (
+          <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+            {dailyPriority.subtext}
+          </p>
+        )}
+        {/* Action button when recommendation suggests extra workouts */}
+        {statusInfo.recommendation && statusInfo.recommendation.extraWorkoutsNeeded > 0 && !isViewingHistorical && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              extraWorkoutRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+            className="mt-3 h-7 text-xs px-4 border-muted-foreground/30"
+          >
+            <Dumbbell className="w-3 h-3 mr-1.5" />
+            Log Extra Workout
+          </Button>
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* METRICS STRIP — static grid                             */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-4 gap-1 mb-4 bg-muted/30 rounded-lg p-2">
+        {/* Weight — most recent weigh-in today */}
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] text-muted-foreground uppercase">
+            {mostRecentLog && mostRecentLog.type !== 'morning' ? 'Current' : 'Weight'}
+          </span>
+          <span className="text-[13px] font-mono font-bold text-foreground">
+            {currentDisplayWeight ? currentDisplayWeight.toFixed(1) : '—'}
+          </span>
+        </div>
+
+        {/* Water */}
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] text-muted-foreground uppercase">Water</span>
+          <span className="text-[13px] font-mono font-bold text-foreground">
+            {dailyTracking.waterConsumed}/{hydration.targetOz}<span className="text-[9px] text-muted-foreground">oz</span>
+          </span>
+        </div>
+
+        {/* Weigh-ins */}
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] text-muted-foreground uppercase">Weigh-ins</span>
+          <span className="text-[13px] font-mono font-bold text-foreground">
+            {weighInsComplete}/4
+          </span>
+        </div>
+
+        {/* Projected */}
+        <div className="flex flex-col items-center">
+          <span className="text-[9px] text-muted-foreground uppercase">Projected</span>
+          <span className={cn(
+            "text-[13px] font-mono font-bold",
+            descentData.projectedSaturday !== null && descentData.daysRemaining > 0
+              ? (descentData.projectedSaturday <= descentData.targetWeight ? "text-green-500" : "text-yellow-500")
+              : "text-muted-foreground"
+          )}>
+            {descentData.projectedSaturday !== null && descentData.daysRemaining > 0
+              ? descentData.projectedSaturday.toFixed(1)
+              : '—'}
+          </span>
         </div>
       </div>
 
-      {/* Fiber Elimination Banner - 1-2 days out */}
-      {(daysUntilWeighIn === 1 || daysUntilWeighIn === 2) && (
-        <div className="bg-red-600/20 border border-red-500/50 rounded-lg p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse shrink-0 mt-0.5" />
-            <div>
-              <span className="text-red-500 font-bold uppercase text-sm block">ZERO FIBER TODAY</span>
-              <p className="text-xs text-red-400 mt-0.5">
-                No vegetables, fruits with skin, whole grains, or beans. Check every ingredient - fiber adds gut weight that won't clear by weigh-in.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Weigh-In Countdown - 1-3 days out */}
+      {/* Weigh-In Countdown - 1-3 days out (kept but simplified) */}
       {(daysUntilWeighIn >= 1 && daysUntilWeighIn <= 3) && (profile.protocol === '1' || profile.protocol === '2') && (
         <WeighInCountdown
-          weighInDate={profile.weighInDate}
-          simulatedDate={profile.simulatedDate}
           daysUntilWeighIn={daysUntilWeighIn}
           dayBeforeTarget={daysUntilWeighIn === 1 ? checkpoints.friTarget : undefined}
         />
+      )}
+
+      {/* Week Descent — collapsed by default */}
+      {!profile.simulatedDate && descentData.morningWeights.length >= 2 && (
+        <details className="mb-4">
+          <summary className="flex items-center justify-between cursor-pointer bg-card border border-muted rounded-lg p-3">
+            <div className="flex items-center gap-2">
+              <TrendingDown className={cn("w-4 h-4", phaseStyle.text)} />
+              <span className="text-xs font-bold uppercase text-muted-foreground">Week Descent</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {descentData.pace && (() => {
+                return (
+                  <span className={cn(
+                    "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
+                    phaseStyle.bgLight, phaseStyle.text
+                  )}>
+                    {currentPhaseName.toUpperCase()}
+                  </span>
+                );
+              })()}
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </div>
+          </summary>
+          <div className="bg-card border border-t-0 border-muted rounded-b-lg p-3 pt-2">
+            {/* Mini weight trend visualization */}
+            <div className="flex items-end justify-between gap-1 h-12 mb-2">
+              {descentData.morningWeights.map((entry, i) => {
+                const weights = descentData.morningWeights.map(e => e.weight);
+                const maxW = Math.max(...weights);
+                const minW = Math.min(...weights, descentData.targetWeight);
+                const range = maxW - minW || 1;
+                const heightPercent = ((entry.weight - minW) / range) * 100;
+                const isLatest = i === descentData.morningWeights.length - 1;
+
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className={cn(
+                        "w-full rounded-t transition-all",
+                        isLatest ? phaseStyle.bg : phaseStyle.bgBar
+                      )}
+                      style={{ height: `${Math.max(heightPercent, 10)}%` }}
+                    />
+                    <span className="text-[8px] text-muted-foreground">
+                      {entry.date ? `${new Date(entry.date).getMonth() + 1}/${new Date(entry.date).getDate()}` : entry.day}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full h-[10%] rounded-t border-2 border-dashed border-green-500/50" />
+                <span className="text-[8px] text-green-500">Goal</span>
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-muted">
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Drift</span>
+                <span className={cn(
+                  "font-mono font-bold text-sm",
+                  descentData.avgOvernightDrift !== null ? "text-cyan-500" : ""
+                )}>
+                  {descentData.avgOvernightDrift !== null
+                    ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}`
+                    : '-'} lbs
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Practice</span>
+                <span className={cn(
+                  "font-mono font-bold text-sm",
+                  descentData.avgPracticeLoss !== null ? "text-orange-500" : ""
+                )}>
+                  {descentData.avgPracticeLoss !== null
+                    ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}`
+                    : '-'} lbs
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground block">Projected</span>
+                <span className={cn(
+                  "font-mono font-bold text-sm",
+                  descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
+                    ? "text-green-500"
+                    : "text-yellow-500"
+                )}>
+                  {descentData.projectedSaturday !== null ? `${descentData.projectedSaturday.toFixed(1)}` : '-'} lbs
+                </span>
+              </div>
+            </div>
+          </div>
+        </details>
       )}
 
       {/* Morning Weigh-In - Always first */}
@@ -555,7 +559,12 @@ export default function Dashboard() {
       />
 
       {/* Extra Workout */}
-      <ExtraWorkoutLog addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} readOnly={isViewingHistorical} />
+      <div ref={extraWorkoutRef}>
+        <ExtraWorkoutLog addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} readOnly={isViewingHistorical} />
+      </div>
+
+      {/* Quick Check-in */}
+      <QuickCheckIn addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} readOnly={isViewingHistorical} targetWeight={targetWeight} />
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* INFO SECTION - Planning & Insights */}
@@ -828,7 +837,7 @@ function DailyStep({
                   </div>
                 )}
               </div>
-            ) : (isLogging || isEditing) ? (
+            ) : isEditing ? (
               <div className="space-y-2">
                 {/* Weight input with +/- buttons */}
                 <div className="flex items-center gap-1">
@@ -868,32 +877,19 @@ function DailyStep({
                   <Button size="sm" variant="ghost" onClick={() => adjustWeight(0.5)} className="h-7 px-2 text-xs">+0.5</Button>
                   <Button size="sm" variant="ghost" onClick={() => adjustWeight(1)} className="h-7 px-2 text-xs">+1</Button>
                   <div className="flex-1" />
-                  <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-7">
-                    {isEditing ? 'Update' : 'Save'}
+                  <Button size="sm" onClick={handleUpdate} className="h-7">
+                    Update
                   </Button>
                   <Button size="sm" variant="ghost" onClick={handleCancel} className="h-7">
                     Cancel
                   </Button>
                 </div>
               </div>
-            ) : !readOnly ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleStartLogging}
-                className="h-9 px-4"
-              >
-                <Scale className="w-4 h-4 mr-2" />
-                Log Weight
-                {suggestedWeight && (
-                  <span className="ml-2 text-muted-foreground font-mono">~{suggestedWeight}</span>
-                )}
-              </Button>
             ) : (
-              <span className="text-xs text-muted-foreground italic">No data logged</span>
+              <span className="text-xs text-muted-foreground italic">Not yet logged</span>
             )}
 
-            {!isComplete && !isLogging && (
+            {!isComplete && !isEditing && (
               <div className="mt-2 space-y-1">
                 {targetWeight !== undefined ? (
                   <p className="text-[10px] text-muted-foreground">
@@ -904,11 +900,8 @@ function DailyStep({
                     Target: {targetWeightRange.min.toFixed(1)}-{targetWeightRange.max.toFixed(1)} lbs
                   </p>
                 ) : null}
-                <p className="text-[10px] text-yellow-500 font-medium">
-                  {logType === 'morning' && "Log morning weight to track overnight drift"}
-                  {logType === 'pre-practice' && "Log pre-practice to measure session loss"}
-                  {logType === 'post-practice' && "Log post-practice to see sweat rate"}
-                  {logType === 'before-bed' && "Log before bed to predict tomorrow's weight"}
+                <p className="text-[10px] text-muted-foreground">
+                  Tap <span className="text-primary font-bold">+</span> to log
                 </p>
               </div>
             )}
@@ -939,17 +932,24 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, re
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Group extra workouts by pairs (before/after logged close together)
-  const extraWorkouts: { before: any; after: any; time: Date }[] = [];
+  const extraWorkouts: { before: any; after: any | null; time: Date }[] = [];
+  const usedAfterIds = new Set<string>();
   for (let i = 0; i < todayExtraLogs.length; i++) {
     const log = todayExtraLogs[i];
     if (log.type === 'extra-before') {
-      // Find matching after within 5 minutes
+      // Find matching after within 5 minutes that hasn't been used
       const after = todayExtraLogs.find(l =>
         l.type === 'extra-after' &&
-        Math.abs(new Date(l.date).getTime() - new Date(log.date).getTime()) < 5 * 60 * 1000
+        !usedAfterIds.has(l.id) &&
+        new Date(l.date).getTime() - new Date(log.date).getTime() >= 0 &&
+        new Date(l.date).getTime() - new Date(log.date).getTime() < 5 * 60 * 1000
       );
       if (after) {
+        usedAfterIds.add(after.id);
         extraWorkouts.push({ before: log, after, time: new Date(log.date) });
+      } else {
+        // Orphaned extra-before - show as pending
+        extraWorkouts.push({ before: log, after: null, time: new Date(log.date) });
       }
     }
   }
@@ -958,7 +958,8 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, re
     if (beforeWeight && afterWeight) {
       // Use simulated date if available
       const baseDate = new Date(today);
-      baseDate.setHours(18, 0, 0, 0); // Default extra workout time
+      const realNow = new Date();
+      baseDate.setHours(realNow.getHours(), realNow.getMinutes(), realNow.getSeconds(), 0);
 
       // Log before weight
       addLog({
@@ -978,21 +979,21 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, re
     }
   };
 
-  const handleDelete = (workout: { before: any; after: any }) => {
+  const handleDelete = (workout: { before: any; after: any | null }) => {
     deleteLog(workout.before.id);
-    deleteLog(workout.after.id);
+    if (workout.after) deleteLog(workout.after.id);
   };
 
-  const handleEdit = (workout: { before: any; after: any }) => {
+  const handleEdit = (workout: { before: any; after: any | null }) => {
     setEditingId(workout.before.id);
     setEditBefore(workout.before.weight.toString());
-    setEditAfter(workout.after.weight.toString());
+    setEditAfter(workout.after ? workout.after.weight.toString() : '');
   };
 
-  const handleSaveEdit = (workout: { before: any; after: any }) => {
+  const handleSaveEdit = (workout: { before: any; after: any | null }) => {
     if (editBefore && editAfter) {
       updateLog(workout.before.id, { weight: parseFloat(editBefore) });
-      updateLog(workout.after.id, { weight: parseFloat(editAfter) });
+      if (workout.after) updateLog(workout.after.id, { weight: parseFloat(editAfter) });
       setEditingId(null);
       setEditBefore('');
       setEditAfter('');
@@ -1003,7 +1004,7 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, re
     <div className="space-y-2">
       {/* Show logged extra workouts */}
       {extraWorkouts.map((workout, i) => {
-        const weightLoss = workout.before.weight - workout.after.weight;
+        const weightLoss = workout.after ? workout.before.weight - workout.after.weight : null;
         const isEditing = editingId === workout.before.id;
 
         if (isEditing) {
@@ -1051,22 +1052,32 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, re
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Dumbbell className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm font-bold text-orange-500">Extra Workout</span>
+                  <span className="text-sm font-bold text-orange-500">
+                    Extra Workout{!workout.after ? ' (pending)' : ''}
+                  </span>
                   <span className="text-xs text-muted-foreground">
                     {format(workout.time, 'h:mm a')}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
-                    <span className="font-mono text-sm">
-                      {workout.before.weight} → {workout.after.weight} lbs
-                    </span>
-                    <span className={cn(
-                      "text-xs font-bold ml-2",
-                      weightLoss > 0 ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {weightLoss > 0 ? `-${weightLoss.toFixed(1)}` : `+${Math.abs(weightLoss).toFixed(1)}`}
-                    </span>
+                    {workout.after ? (
+                      <>
+                        <span className="font-mono text-sm">
+                          {workout.before.weight} → {workout.after.weight} lbs
+                        </span>
+                        <span className={cn(
+                          "text-xs font-bold ml-2",
+                          weightLoss !== null && weightLoss > 0 ? "text-primary" : "text-muted-foreground"
+                        )}>
+                          {weightLoss !== null && (weightLoss > 0 ? `-${weightLoss.toFixed(1)}` : `+${Math.abs(weightLoss).toFixed(1)}`)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-mono text-sm text-muted-foreground">
+                        {workout.before.weight} lbs → …
+                      </span>
+                    )}
                   </div>
                   {!readOnly && (
                     <>
@@ -1093,59 +1104,148 @@ function ExtraWorkoutLog({ addLog, logs, simulatedDate, deleteLog, updateLog, re
         );
       })}
 
-      {/* Add new extra workout - hide in read-only mode */}
-      {!readOnly && (
-        <Card className="border-dashed border-muted">
-          <CardContent className="p-4">
-            {!isOpen ? (
-              <button
-                onClick={() => setIsOpen(true)}
-                className="w-full flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors py-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="text-sm">Add Extra Workout</span>
-              </button>
-            ) : (
-            <div className="space-y-3">
-              <h4 className="font-bold text-sm">Extra Workout Weight Loss</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Before</Label>
-                  <Input
-                    type="number"
-                    placeholder="Weight"
-                    value={beforeWeight}
-                    onChange={(e) => setBeforeWeight(e.target.value)}
-                    className="font-mono"
-                    step="0.1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs">After</Label>
-                  <Input
-                    type="number"
-                    placeholder="Weight"
-                    value={afterWeight}
-                    onChange={(e) => setAfterWeight(e.target.value)}
-                    className="font-mono"
-                    step="0.1"
-                  />
-                </div>
-              </div>
-              {beforeWeight && afterWeight && (
-                <p className="text-sm text-primary font-bold">
-                  Lost: {(parseFloat(beforeWeight) - parseFloat(afterWeight)).toFixed(1)} lbs
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleSubmit}>Save</Button>
-                <Button size="sm" variant="ghost" onClick={() => setIsOpen(false)}>Cancel</Button>
-              </div>
-            </div>
-          )}
-          </CardContent>
-        </Card>
+      {/* No inline form - use FAB to log extra workouts */}
+    </div>
+  );
+}
+
+// Quick Check-in - anytime weight check that doesn't count toward daily 1/4
+function QuickCheckIn({ addLog, logs, simulatedDate, deleteLog, updateLog, readOnly = false, targetWeight }: {
+  addLog: any;
+  logs: any[];
+  simulatedDate?: Date | null;
+  deleteLog: any;
+  updateLog: any;
+  readOnly?: boolean;
+  targetWeight: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [weight, setWeight] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editWeight, setEditWeight] = useState('');
+
+  const today = simulatedDate || new Date();
+
+  // Get today's check-ins
+  const todayCheckIns = logs.filter(log => {
+    const logDate = new Date(log.date);
+    return log.type === 'check-in' &&
+      logDate.getFullYear() === today.getFullYear() &&
+      logDate.getMonth() === today.getMonth() &&
+      logDate.getDate() === today.getDate();
+  }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const handleSubmit = () => {
+    if (weight) {
+      const now = new Date(today);
+      now.setHours(new Date().getHours(), new Date().getMinutes(), 0, 0);
+
+      addLog({
+        date: now,
+        weight: parseFloat(weight),
+        type: 'check-in'
+      });
+
+      setWeight('');
+      setIsOpen(false);
+    }
+  };
+
+  if (readOnly) return null;
+
+  return (
+    <div className="space-y-2">
+      {/* Show today's check-ins */}
+      {todayCheckIns.length > 0 && (
+        <div className="space-y-1">
+          {todayCheckIns.map((checkIn) => {
+            const diff = checkIn.weight - targetWeight;
+            const isEditing = editingId === checkIn.id;
+
+            return (
+              <Card key={checkIn.id} className="border-muted bg-muted/10">
+                <CardContent className="p-3">
+                  {isEditing ? (
+                    <div className="flex items-center gap-2">
+                      <Scale className="w-4 h-4 text-cyan-500" />
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={editWeight}
+                        onChange={(e) => setEditWeight(e.target.value)}
+                        className="w-20 h-7 text-center text-xs font-mono p-1"
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (editWeight) {
+                            updateLog(checkIn.id, { weight: parseFloat(editWeight) });
+                          }
+                          setEditingId(null);
+                          setEditWeight('');
+                        }}
+                        className="h-6 px-2"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditWeight('');
+                        }}
+                        className="h-6 px-2"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Scale className="w-4 h-4 text-cyan-500" />
+                        <span className="text-xs text-muted-foreground">Check-in</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {format(new Date(checkIn.date), 'h:mm a')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingId(checkIn.id);
+                            setEditWeight(checkIn.weight.toString());
+                          }}
+                          className="font-mono font-bold hover:text-primary hover:underline transition-colors"
+                        >
+                          {checkIn.weight} lbs
+                        </button>
+                        <span className={cn(
+                          "text-xs font-mono",
+                          diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-destructive"
+                        )}>
+                          ({diff > 0 ? '+' : ''}{diff.toFixed(1)} vs target)
+                        </span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => deleteLog(checkIn.id)}
+                          className="h-6 w-6"
+                        >
+                          <Trash2 className="w-3 h-3 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
+
+      {/* No inline form - use FAB to log check-ins */}
     </div>
   );
 }
@@ -1439,7 +1539,7 @@ function CompactWeighIn({
               </div>
             )}
           </>
-        ) : (isLogging || isEditing) ? (
+        ) : isEditing ? (
           <div className="flex items-center gap-1">
             <Input
               type="number"
@@ -1450,22 +1550,13 @@ function CompactWeighIn({
               step="0.1"
               autoFocus
             />
-            <Button size="sm" onClick={isEditing ? handleUpdate : handleSubmit} className="h-8 px-2">
-              {isEditing ? 'Save' : 'Log'}
+            <Button size="sm" onClick={handleUpdate} className="h-8 px-2">
+              Save
             </Button>
             <Button size="sm" variant="ghost" onClick={handleCancel} className="h-8 px-2">
               <span className="sr-only">Cancel</span>×
             </Button>
           </div>
-        ) : !readOnly ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsLogging(true)}
-            className="h-8 text-xs"
-          >
-            Log
-          </Button>
         ) : (
           <span className="text-xs text-muted-foreground italic">—</span>
         )}
@@ -1533,7 +1624,7 @@ function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount
     <Card className={cn(
       "border-muted transition-all",
       progress >= 100 && "bg-green-500/5 border-green-500/30",
-      justHitGoal && "ring-2 ring-green-500/50 animate-pulse"
+      justHitGoal && "ring-2 ring-green-500/50"
     )}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
@@ -1555,7 +1646,7 @@ function HydrationTracker({ hydration, readOnly = false }: { hydration: { amount
                 <span className={cn(
                   "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
                   hydration.type === 'Sip Only'
-                    ? "bg-orange-500/20 text-orange-500 border border-orange-500/50 animate-pulse"
+                    ? "bg-orange-500/20 text-orange-500 border border-orange-500/50"
                     : "bg-cyan-500/20 text-cyan-500"
                 )}>
                   {hydration.type}
@@ -1795,24 +1886,6 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const weekPlan = getWeeklyPlan();
 
-  const phaseColors: Record<string, { text: string; bg: string; border: string }> = {
-    'Load': { text: 'text-primary', bg: 'bg-primary/20', border: 'border-primary/50' },
-    'Cut': { text: 'text-orange-500', bg: 'bg-orange-500/20', border: 'border-orange-500/50' },
-    'Compete': { text: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50' },
-    'Recover': { text: 'text-cyan-500', bg: 'bg-cyan-500/20', border: 'border-cyan-500/50' },
-    'Train': { text: 'text-green-500', bg: 'bg-green-500/20', border: 'border-green-500/50' },
-    'Maintain': { text: 'text-blue-500', bg: 'bg-blue-500/20', border: 'border-blue-500/50' }
-  };
-
-  const phaseBgColors: Record<string, string> = {
-    'Load': 'bg-primary',
-    'Cut': 'bg-orange-500',
-    'Compete': 'bg-yellow-500',
-    'Recover': 'bg-cyan-500',
-    'Train': 'bg-green-500',
-    'Maintain': 'bg-blue-500'
-  };
-
   const selectedDayData = selectedDay !== null ? weekPlan.find(d => d.dayNum === selectedDay) : null;
 
   return (
@@ -1836,7 +1909,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
                 key={day.day}
                 className={cn(
                   "flex-1",
-                  phaseBgColors[day.phase] || 'bg-muted',
+                  getPhaseStyle(day.phase).bg || 'bg-muted',
                   day.isToday && "ring-2 ring-white ring-inset"
                 )}
               />
@@ -1846,7 +1919,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
           {/* Day Cards Grid */}
           <div className="grid grid-cols-7 gap-0.5 p-2 bg-muted/20">
             {weekPlan.map((day) => {
-              const colors = phaseColors[day.phase] || phaseColors['Load'];
+              const colors = getPhaseStyle(day.phase);
               const isSelected = selectedDay === day.dayNum;
 
               return (
@@ -1856,24 +1929,31 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
                   className={cn(
                     "flex flex-col items-center p-1.5 rounded-lg transition-all text-center",
                     day.isToday && "ring-2 ring-primary",
-                    isSelected && colors.bg,
+                    isSelected && colors.bgMedium,
                     isSelected && colors.border,
                     isSelected && "border",
                     !isSelected && !day.isToday && "hover:bg-muted/50"
                   )}
                 >
-                  {/* Day Name */}
+                  {/* Day Name + Date */}
                   <span className={cn(
                     "text-[10px] font-bold uppercase",
                     day.isToday ? "text-primary" : "text-muted-foreground"
                   )}>
                     {day.day.slice(0, 3)}
                   </span>
+                  <span className="text-[8px] text-muted-foreground">
+                    {(() => {
+                      if (!day.date) return '';
+                      const d = new Date(day.date);
+                      return isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
+                    })()}
+                  </span>
 
                   {/* Phase Indicator Dot */}
                   <div className={cn(
                     "w-2 h-2 rounded-full my-1",
-                    phaseBgColors[day.phase] || 'bg-muted'
+                    getPhaseStyle(day.phase).bg || 'bg-muted'
                   )} />
 
                   {/* Weight Target (Morning) */}
@@ -1904,14 +1984,24 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
           {selectedDayData && (
             <div className={cn(
               "border-t p-4 animate-in slide-in-from-top-2 duration-200",
-              phaseColors[selectedDayData.phase]?.bg || 'bg-muted/20'
+              getPhaseStyle(selectedDayData.phase).bgMedium || 'bg-muted/20'
             )}>
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h5 className="font-bold text-lg">{selectedDayData.day}</h5>
+                  <h5 className="font-bold text-lg">
+                    {selectedDayData.day}
+                    {selectedDayData.date && (
+                      <span className="text-sm text-muted-foreground font-normal ml-2">
+                        {(() => {
+                          const d = new Date(selectedDayData.date);
+                          return isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
+                        })()}
+                      </span>
+                    )}
+                  </h5>
                   <span className={cn(
                     "text-xs font-bold uppercase",
-                    phaseColors[selectedDayData.phase]?.text || 'text-primary'
+                    getPhaseStyle(selectedDayData.phase).text || 'text-primary'
                   )}>
                     {selectedDayData.phase} Phase
                   </span>
@@ -1992,7 +2082,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
               <div className="mt-3 pt-3 border-t border-muted/50">
                 <p className="text-xs text-muted-foreground">
                   {selectedDayData.phase === 'Load' && "Water loading phase - drink consistently throughout the day to trigger natural diuresis."}
-                  {selectedDayData.phase === 'Cut' && "Cutting phase - follow protocol strictly. Monitor weight drift carefully."}
+                  {selectedDayData.phase === 'Prep' && "Prep day - zero fiber, full water. Last day of normal drinking before the cut."}
+                  {selectedDayData.phase === 'Cut' && "Cutting phase - sip only. Follow protocol strictly. Monitor weight drift carefully."}
                   {selectedDayData.phase === 'Compete' && "Competition day - focus on fast carbs between matches. Rehydrate with electrolytes."}
                   {selectedDayData.phase === 'Recover' && "Recovery day - high protein to repair muscle. Eat freely to refuel."}
                   {selectedDayData.phase === 'Train' && "Training day - maintain consistent nutrition and hydration."}
@@ -2006,9 +2097,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan }: { getTomorrowPlan: ()
 
       {/* Phase Legend */}
       <div className="flex flex-wrap justify-center gap-3 px-2">
-        {['Load', 'Cut', 'Compete', 'Recover'].map((phase) => (
+        {['Load', 'Prep', 'Cut', 'Compete', 'Recover'].map((phase) => (
           <div key={phase} className="flex items-center gap-1">
-            <div className={cn("w-2 h-2 rounded-full", phaseBgColors[phase])} />
+            <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
             <span className="text-[10px] text-muted-foreground">{phase}</span>
           </div>
         ))}
@@ -2100,17 +2191,17 @@ function HistoryInsightsCard({
                 </div>
               )}
 
-              {/* Friday Cut */}
+              {/* Final Cut — day before weigh-in */}
               {insights.avgFridayCut !== null && (
                 <div className="bg-muted/20 rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-1">
                     <TrendingDown className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-[10px] uppercase text-muted-foreground font-bold">Friday Cut</span>
+                    <span className="text-[10px] uppercase text-muted-foreground font-bold">Final Cut</span>
                   </div>
                   <span className="font-mono font-bold text-lg text-primary">
                     {insights.avgFridayCut.toFixed(1)} lbs
                   </span>
-                  <p className="text-[10px] text-muted-foreground">Thu→Fri average drop</p>
+                  <p className="text-[10px] text-muted-foreground">Day-before average drop</p>
                 </div>
               )}
 
@@ -2136,7 +2227,7 @@ function HistoryInsightsCard({
               )}
             </div>
 
-            {/* Saturday Projection */}
+            {/* Weigh-In Projection */}
             {insights.projectedSaturday !== null && insights.daysUntilSat > 0 && (
               <div className={cn(
                 "rounded-lg p-3 border",
@@ -2149,7 +2240,7 @@ function HistoryInsightsCard({
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[10px] uppercase text-muted-foreground font-bold block">
-                      Saturday Projection
+                      Weigh-In Projection
                     </span>
                     <span className={cn(
                       "font-mono font-bold text-2xl",
@@ -2189,13 +2280,13 @@ function HistoryInsightsCard({
                 <div className="flex items-center justify-between text-xs">
                   {insights.lastFridayWeight && (
                     <div>
-                      <span className="text-muted-foreground">Friday: </span>
+                      <span className="text-muted-foreground">Day Before: </span>
                       <span className="font-mono font-bold">{insights.lastFridayWeight.toFixed(1)} lbs</span>
                     </div>
                   )}
                   {insights.lastSaturdayWeight && (
                     <div>
-                      <span className="text-muted-foreground">Saturday: </span>
+                      <span className="text-muted-foreground">Weigh-In: </span>
                       <span className={cn(
                         "font-mono font-bold",
                         insights.madeWeightLastWeek ? "text-green-500" : "text-orange-500"

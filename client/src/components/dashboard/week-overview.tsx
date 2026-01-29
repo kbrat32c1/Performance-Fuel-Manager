@@ -2,28 +2,11 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Scale, Droplets, Flame, Dumbbell, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getPhaseStyle } from "@/lib/phase-colors";
 
 interface WeekOverviewProps {
   getWeeklyPlan: () => any[];
 }
-
-const PHASE_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  'Load': { text: 'text-primary', bg: 'bg-primary/20', border: 'border-primary/50' },
-  'Cut': { text: 'text-orange-500', bg: 'bg-orange-500/20', border: 'border-orange-500/50' },
-  'Compete': { text: 'text-yellow-500', bg: 'bg-yellow-500/20', border: 'border-yellow-500/50' },
-  'Recover': { text: 'text-cyan-500', bg: 'bg-cyan-500/20', border: 'border-cyan-500/50' },
-  'Train': { text: 'text-green-500', bg: 'bg-green-500/20', border: 'border-green-500/50' },
-  'Maintain': { text: 'text-blue-500', bg: 'bg-blue-500/20', border: 'border-blue-500/50' }
-};
-
-const PHASE_BG_COLORS: Record<string, string> = {
-  'Load': 'bg-primary',
-  'Cut': 'bg-orange-500',
-  'Compete': 'bg-yellow-500',
-  'Recover': 'bg-cyan-500',
-  'Train': 'bg-green-500',
-  'Maintain': 'bg-blue-500'
-};
 
 export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -52,7 +35,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                 key={day.day}
                 className={cn(
                   "flex-1",
-                  PHASE_BG_COLORS[day.phase] || 'bg-muted',
+                  getPhaseStyle(day.phase).bg || 'bg-muted',
                   day.isToday && "ring-2 ring-white ring-inset"
                 )}
               />
@@ -62,7 +45,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
           {/* Day Cards Grid */}
           <div className="grid grid-cols-7 gap-0.5 p-2 bg-muted/20">
             {weekPlan.map((day) => {
-              const colors = PHASE_COLORS[day.phase] || PHASE_COLORS['Load'];
+              const colors = getPhaseStyle(day.phase);
               const isSelected = selectedDay === day.dayNum;
 
               return (
@@ -72,24 +55,31 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                   className={cn(
                     "flex flex-col items-center p-1.5 rounded-lg transition-all text-center min-h-[72px]",
                     day.isToday && "ring-2 ring-primary",
-                    isSelected && colors.bg,
+                    isSelected && colors.bgMedium,
                     isSelected && colors.border,
                     isSelected && "border",
                     !isSelected && !day.isToday && "hover:bg-muted/50"
                   )}
                 >
-                  {/* Day Name */}
+                  {/* Day Name + Date */}
                   <span className={cn(
                     "text-[10px] font-bold uppercase",
                     day.isToday ? "text-primary" : "text-muted-foreground"
                   )}>
                     {day.day.slice(0, 3)}
                   </span>
+                  <span className="text-[8px] text-muted-foreground">
+                    {(() => {
+                      if (!day.date) return '';
+                      const d = new Date(day.date);
+                      return isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
+                    })()}
+                  </span>
 
                   {/* Phase Indicator Dot */}
                   <div className={cn(
                     "w-2 h-2 rounded-full my-1",
-                    PHASE_BG_COLORS[day.phase] || 'bg-muted'
+                    getPhaseStyle(day.phase).bg || 'bg-muted'
                   )} />
 
                   {/* Weight Target (Morning) */}
@@ -120,14 +110,21 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
           {selectedDayData && (
             <div className={cn(
               "border-t p-4 animate-in slide-in-from-top-2 duration-200",
-              PHASE_COLORS[selectedDayData.phase]?.bg || 'bg-muted/20'
+              getPhaseStyle(selectedDayData.phase).bgMedium || 'bg-muted/20'
             )}>
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h5 className="font-bold text-lg">{selectedDayData.day}</h5>
+                  <h5 className="font-bold text-lg">
+                    {selectedDayData.day}
+                    {selectedDayData.date && (
+                      <span className="text-sm text-muted-foreground font-normal ml-2">
+                        {new Date(selectedDayData.date).getMonth() + 1}/{new Date(selectedDayData.date).getDate()}
+                      </span>
+                    )}
+                  </h5>
                   <span className={cn(
                     "text-xs font-bold uppercase",
-                    PHASE_COLORS[selectedDayData.phase]?.text || 'text-primary'
+                    getPhaseStyle(selectedDayData.phase).text || 'text-primary'
                   )}>
                     {selectedDayData.phase} Phase
                   </span>
@@ -210,7 +207,8 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                   {selectedDayData.waterLoadingNote || (
                     <>
                       {selectedDayData.phase === 'Load' && "Water loading phase - drink consistently throughout the day to trigger natural diuresis."}
-                      {selectedDayData.phase === 'Cut' && "Cutting phase - follow protocol strictly. Monitor weight drift carefully."}
+                      {selectedDayData.phase === 'Prep' && "Prep day - zero fiber, full water. Last day of normal drinking before the cut."}
+                      {selectedDayData.phase === 'Cut' && "Cutting phase - sip only. Follow protocol strictly. Monitor weight drift carefully."}
                       {selectedDayData.phase === 'Compete' && "Competition day - focus on fast carbs between matches. Rehydrate with electrolytes."}
                       {selectedDayData.phase === 'Recover' && "Recovery day - high protein to repair muscle. Eat freely to refuel."}
                       {selectedDayData.phase === 'Train' && "Training day - maintain consistent nutrition and hydration."}
@@ -226,9 +224,9 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
 
       {/* Phase Legend */}
       <div className="flex flex-wrap justify-center gap-3 px-2">
-        {['Load', 'Cut', 'Compete', 'Recover'].map((phase) => (
+        {['Load', 'Prep', 'Cut', 'Compete', 'Recover'].map((phase) => (
           <div key={phase} className="flex items-center gap-1">
-            <div className={cn("w-2 h-2 rounded-full", PHASE_BG_COLORS[phase])} />
+            <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
             <span className="text-[10px] text-muted-foreground">{phase}</span>
           </div>
         ))}

@@ -62,8 +62,8 @@
   --popover: 0 0% 100%;
   --popover-foreground: 240 10% 3.9%;
 
-  /* Electric Lime - slightly deeper for light mode contrast */
-  --primary: 84 85% 40%;
+  /* System Green - calmer, readable */
+  --primary: 142 71% 35%;
   --primary-foreground: 0 0% 100%;
 
   /* Cool Cyan - adjusted for light mode */
@@ -81,9 +81,9 @@
 
   --border: 240 5.9% 90%;
   --input: 240 5.9% 90%;
-  --ring: 84 85% 40%;
+  --ring: 142 71% 35%;
 
-  --chart-1: 84 85% 40%;  /* Lime (Glycogen/Performance) */
+  --chart-1: 142 71% 35%;  /* Green (Performance) */
   --chart-2: 190 80% 45%; /* Cyan (Water) */
   --chart-3: 30 90% 50%;  /* Amber (Gut/Warning) */
   --chart-4: 0 84% 60%;   /* Red (Fat/Danger) */
@@ -101,8 +101,8 @@
   --popover: 240 10% 3.9%;
   --popover-foreground: 0 0% 98%;
 
-  /* Electric Lime - High Energy/Performance */
-  --primary: 84 100% 50%;
+  /* System Green - calmer, still readable on dark */
+  --primary: 142 71% 45%;
   --primary-foreground: 240 5.9% 10%;
 
   /* Cool Cyan - Hydration/Tech */
@@ -120,9 +120,9 @@
 
   --border: 240 3.7% 15.9%;
   --input: 240 3.7% 15.9%;
-  --ring: 84 100% 50%;
+  --ring: 142 71% 45%;
 
-  --chart-1: 84 100% 50%; /* Lime (Glycogen/Performance) */
+  --chart-1: 142 71% 45%; /* Green (Performance) */
   --chart-2: 190 90% 50%; /* Cyan (Water) */
   --chart-3: 30 100% 50%; /* Amber (Gut/Warning) */
   --chart-4: 0 84% 60%;   /* Red (Fat/Danger) */
@@ -139,6 +139,11 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading uppercase tracking-wide;
   }
+}
+
+/* Hide scrollbar for metrics strip */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Custom Scrollbar for sleek look */

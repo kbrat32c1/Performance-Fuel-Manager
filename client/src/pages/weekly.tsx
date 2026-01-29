@@ -1,138 +1,128 @@
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { format, getDay, addDays, startOfWeek, isSameDay } from "date-fns";
-import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Pencil, Check, X } from "lucide-react";
-import { useState } from "react";
-import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight } from "@/lib/constants";
+import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Dumbbell } from "lucide-react";
+import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWaterTargetGallons, getSodiumTarget } from "@/lib/constants";
+import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 
 export default function Weekly() {
-  const { profile, logs, getCheckpoints, updateLog, addLog, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay } = useStore();
+  const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
-
-  // State for editing weights
-  const [editingDay, setEditingDay] = useState<string | null>(null);
-  const [editWeight, setEditWeight] = useState('');
 
   const today = profile.simulatedDate || new Date();
   const currentDayOfWeek = getDay(today); // Still needed for week display (Mon-Sun navigation)
 
-  // Get weight class category for water load table
-  const getWeightCategory = (weightClass: number): 'light' | 'medium' | 'heavy' => {
-    if (weightClass <= 141) return 'light';
-    if (weightClass <= 165) return 'medium';
-    return 'heavy';
+  // Current phase based on days until weigh-in
+  const daysUntil = getDaysUntilWeighIn();
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil);
+
+  // Dynamically compute daysUntil for each day of the week based on actual weigh-in date
+  // dayNum: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  const dayToDaysUntil: Record<string, number> = {
+    mon: getDaysUntilForDay(1),
+    tue: getDaysUntilForDay(2),
+    wed: getDaysUntilForDay(3),
+    thu: getDaysUntilForDay(4),
+    fri: getDaysUntilForDay(5),
+    sat: getDaysUntilForDay(6),
+    sun: getDaysUntilForDay(0),
   };
 
-  const weightCategory = getWeightCategory(profile.targetWeightClass);
+  // Use athlete's current walk-around weight (or target × 1.07 as fallback)
+  const athleteWeightLbs = logs.length > 0
+    ? logs[logs.length - 1].weight
+    : Math.round(profile.targetWeightClass * 1.07);
 
-  // Water load schedule from your document (page 10)
-  const waterLoadSchedule = {
-    light: { mon: '1.0 gal', tue: '1.25 gal', wed: '1.5 gal', thu: '1.25 gal', fri: '0.25-0.5 gal', sat: 'Rehydrate', sun: '1.0 gal' },
-    medium: { mon: '1.25 gal', tue: '1.5 gal', wed: '1.75 gal', thu: '1.5 gal', fri: '0.25-0.5 gal', sat: 'Rehydrate', sun: '1.25 gal' },
-    heavy: { mon: '1.5 gal', tue: '1.75 gal', wed: '2.0 gal', thu: '1.75 gal', fri: '0.25-0.5 gal', sat: 'Rehydrate', sun: '1.5 gal' },
+  // Compute water targets using ml/kg scaling from research
+  const getWaterForDay = (dayKey: string) => {
+    const daysOut = dayToDaysUntil[dayKey] ?? 5;
+    return getWaterTargetGallons(daysOut, athleteWeightLbs);
   };
 
-  const waterTypes = {
-    mon: { type: 'Regular', sodium: 'Normal' },
-    tue: { type: 'Regular', sodium: 'Normal' },
-    wed: { type: 'Regular', sodium: 'Moderate' },
-    thu: { type: 'Regular', sodium: 'Low' },
-    fri: { type: 'Regular', sodium: 'Very Low' },
-    sat: { type: 'Regular', sodium: 'Reintroduce' },
-    sun: { type: 'Regular', sodium: 'Normal' },
+  // Compute sodium target for each day
+  const getSodiumForDay = (dayKey: string) => {
+    const daysOut = dayToDaysUntil[dayKey] ?? 5;
+    return getSodiumTarget(daysOut);
   };
 
   // Water loading bonus from centralized helper
   const waterLoadBonus = getWaterLoadBonus();
 
-  // Weight targets by day - uses centralized getWeightMultiplier from constants.ts
-  // This ensures all weight displays across the app use the same calculations
+  // Weight targets by day - dynamically computed from actual weigh-in date
   const getWeightTargets = () => {
     const w = profile.targetWeightClass;
     const protocol = profile.protocol;
-
-    // Helper to get target for a specific days-until-weigh-in value
     const getTarget = (daysUntil: number) => calculateTargetWeight(w, daysUntil, protocol);
 
-    // Days mapping: Mon=5, Tue=4, Wed=3, Thu=2, Fri=1, Sat=0, Sun=-1 (for standard Sat weigh-in)
-    const monTarget = getTarget(5);
-    const tueTarget = getTarget(4);
-    const wedTarget = getTarget(3);
-    const thuTarget = getTarget(2);
-    const friTarget = getTarget(1);
-    const satTarget = getTarget(0);
-    const sunTarget = getTarget(-1);
+    // Build targets for each day using dynamic daysUntil
+    const buildDayTarget = (dayKey: string) => {
+      const du = dayToDaysUntil[dayKey];
+      const t = getTarget(du);
+
+      // Label and note based on days-until, not day-of-week
+      if (du === 0) return {
+        label: 'Weigh-in', target: t.base, range: `${t.base}`,
+        withLoading: null, note: 'Weigh-in weight'
+      };
+      if (du < 0) return {
+        label: 'Recovery', target: t.base, range: `${t.base}-${t.base + 1}`,
+        withLoading: null, note: 'Rebuilding'
+      };
+      if (du === 1) return {
+        label: 'Final Cut', target: t.base, range: `${t.base}-${t.base + 1}`,
+        withLoading: null, note: 'CRITICAL checkpoint'
+      };
+      if (du === 2) return {
+        label: 'Restriction', target: t.range ? t.range.max : t.base, range: `${t.base}`,
+        withLoading: t.range ? `${t.range.min}-${t.range.max}` : null,
+        note: t.range ? `Still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : 'Water weight dropping'
+      };
+      if (du >= 3 && du <= 4) return {
+        label: du === 4 ? 'Peak Loading' : 'Loading',
+        target: t.range ? t.range.max : t.base,
+        range: t.range ? `${t.range.min}-${t.range.max}` : `${t.base}`,
+        withLoading: du === 3 ? (t.range ? `${t.range.min}-${t.range.max}` : null) : null,
+        note: du === 4 ? 'Heaviest day is normal' : (t.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs loading` : undefined)
+      };
+      // du === 5 or du > 5
+      return {
+        label: du === 5 ? 'Walk-Around' : 'Training',
+        target: t.range ? t.range.max : t.base,
+        range: `${t.base}`,
+        withLoading: t.range ? `${t.range.min}-${t.range.max}` : null,
+        note: t.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water loading` : undefined
+      };
+    };
 
     return {
-      mon: {
-        label: 'Walk-Around',
-        target: monTarget.range ? monTarget.range.max : monTarget.base, // Use water-loaded target for consistency
-        range: `${monTarget.base}`,
-        withLoading: monTarget.range ? `${monTarget.range.min}-${monTarget.range.max}` : null,
-        note: monTarget.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water loading` : undefined
-      },
-      tue: {
-        label: 'Peak Loading',
-        target: tueTarget.range ? tueTarget.range.max : tueTarget.base,
-        range: tueTarget.range ? `${tueTarget.range.min}-${tueTarget.range.max}` : `${tueTarget.base}`,
-        withLoading: null,
-        note: 'Heaviest day is normal'
-      },
-      wed: {
-        label: 'Wed PM Target',
-        target: wedTarget.range ? wedTarget.range.max : wedTarget.base,
-        range: `${wedTarget.base}`,
-        withLoading: wedTarget.range ? `${wedTarget.range.min}-${wedTarget.range.max}` : null,
-        note: wedTarget.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs loading` : undefined
-      },
-      thu: {
-        label: 'Flush Day',
-        target: thuTarget.range ? thuTarget.range.max : thuTarget.base,
-        range: `${thuTarget.base}`,
-        withLoading: thuTarget.range ? `${thuTarget.range.min}-${thuTarget.range.max}` : null,
-        note: thuTarget.range ? `Still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : 'Water weight dropping'
-      },
-      fri: {
-        label: 'Fri PM Target',
-        target: friTarget.base,
-        range: `${friTarget.base}-${friTarget.base + 1}`,
-        withLoading: null,
-        note: 'CRITICAL checkpoint'
-      },
-      sat: {
-        label: 'Competition',
-        target: satTarget.base,
-        range: `${satTarget.base}`,
-        withLoading: null,
-        note: 'Weigh-in weight'
-      },
-      sun: {
-        label: 'Recovery',
-        target: sunTarget.base,
-        range: `${sunTarget.base}-${sunTarget.base + 1}`,
-        withLoading: null,
-        note: 'Rebuilding'
-      },
+      mon: buildDayTarget('mon'),
+      tue: buildDayTarget('tue'),
+      wed: buildDayTarget('wed'),
+      thu: buildDayTarget('thu'),
+      fri: buildDayTarget('fri'),
+      sat: buildDayTarget('sat'),
+      sun: buildDayTarget('sun'),
     };
   };
 
   const weightTargets = getWeightTargets();
 
-  // Days of the week
+  // Days of the week with phases computed from actual weigh-in date
   const days = [
-    { key: 'mon', label: 'Mon', dayNum: 1, phase: 'Load' },
-    { key: 'tue', label: 'Tue', dayNum: 2, phase: 'Load' },
-    { key: 'wed', label: 'Wed', dayNum: 3, phase: 'Load' },
-    { key: 'thu', label: 'Thu', dayNum: 4, phase: 'Cut' },
-    { key: 'fri', label: 'Fri', dayNum: 5, phase: 'Cut' },
-    { key: 'sat', label: 'Sat', dayNum: 6, phase: 'Compete' },
-    { key: 'sun', label: 'Sun', dayNum: 0, phase: 'Rebuild' },
-  ];
+    { key: 'mon', label: 'Mon', dayNum: 1 },
+    { key: 'tue', label: 'Tue', dayNum: 2 },
+    { key: 'wed', label: 'Wed', dayNum: 3 },
+    { key: 'thu', label: 'Thu', dayNum: 4 },
+    { key: 'fri', label: 'Fri', dayNum: 5 },
+    { key: 'sat', label: 'Sat', dayNum: 6 },
+    { key: 'sun', label: 'Sun', dayNum: 0 },
+  ].map(d => ({
+    ...d,
+    phase: getPhaseStyleForDaysUntil(dayToDaysUntil[d.key]).phase,
+  }));
 
   // Get logged weight for a specific day
   const getLoggedWeight = (dayNum: number, type: string) => {
@@ -147,6 +137,37 @@ export default function Weekly() {
     });
   };
 
+  // Get extra workouts for a specific day
+  const getExtraWorkoutsForDay = (dayNum: number) => {
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const targetDate = addDays(weekStart, dayNum === 0 ? 6 : dayNum - 1);
+
+    const extraBefore = logs.filter(log => {
+      const logDate = new Date(log.date);
+      return log.type === 'extra-before' &&
+        logDate.getDate() === targetDate.getDate() &&
+        logDate.getMonth() === targetDate.getMonth();
+    });
+
+    let totalLoss = 0;
+    let count = 0;
+
+    for (const before of extraBefore) {
+      const after = logs.find(log => {
+        if (log.type !== 'extra-after') return false;
+        const timeDiff = Math.abs(new Date(log.date).getTime() - new Date(before.date).getTime());
+        return timeDiff < 5 * 60 * 1000;
+      });
+
+      if (after) {
+        totalLoss += before.weight - after.weight;
+        count++;
+      }
+    }
+
+    return { count, totalLoss };
+  };
+
   return (
     <MobileLayout showNav={true}>
       {/* Header */}
@@ -158,7 +179,7 @@ export default function Weekly() {
           Weekly Plan
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {profile.targetWeightClass} lb class • {weightCategory === 'light' ? '125-141' : weightCategory === 'medium' ? '149-165' : '174-197'} lb category
+          {profile.targetWeightClass} lb class • Water scaled to {athleteWeightLbs} lbs
         </p>
       </header>
 
@@ -166,17 +187,14 @@ export default function Weekly() {
       {descentData.morningWeights.length >= 1 && (
         <Card className={cn(
           "mb-4 border-2",
-          descentData.pace === 'ahead' ? "border-green-500/50 bg-green-500/5" :
-          descentData.pace === 'on-track' ? "border-primary/50 bg-primary/5" :
-          descentData.pace === 'behind' ? "border-orange-500/50 bg-orange-500/5" :
-          "border-muted"
+          phaseStyle.border, phaseStyle.bgSubtle
         )}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                {descentData.pace === 'ahead' && <TrendingDown className="w-5 h-5 text-green-500" />}
-                {descentData.pace === 'on-track' && <Target className="w-5 h-5 text-primary" />}
-                {descentData.pace === 'behind' && <TrendingUp className="w-5 h-5 text-orange-500" />}
+                {descentData.pace === 'ahead' && <TrendingDown className={cn("w-5 h-5", phaseStyle.text)} />}
+                {descentData.pace === 'on-track' && <Target className={cn("w-5 h-5", phaseStyle.text)} />}
+                {descentData.pace === 'behind' && <TrendingUp className={cn("w-5 h-5", phaseStyle.text)} />}
                 {!descentData.pace && <Scale className="w-5 h-5 text-muted-foreground" />}
                 <span className="text-sm font-bold uppercase">
                   {descentData.pace === 'ahead' ? "Ahead of Schedule!" :
@@ -187,12 +205,9 @@ export default function Weekly() {
               </div>
               <span className={cn(
                 "text-xs font-bold px-2 py-1 rounded",
-                descentData.pace === 'ahead' ? "bg-green-500/20 text-green-500" :
-                descentData.pace === 'on-track' ? "bg-primary/20 text-primary" :
-                descentData.pace === 'behind' ? "bg-orange-500/20 text-orange-500" :
-                "bg-muted text-muted-foreground"
+                phaseStyle.text, phaseStyle.bgLight
               )}>
-                {descentData.daysRemaining} day{descentData.daysRemaining !== 1 ? 's' : ''} to weigh-in
+                {getTimeUntilWeighIn()} to weigh-in
               </span>
             </div>
 
@@ -208,9 +223,7 @@ export default function Weekly() {
                 <span className="text-[10px] text-muted-foreground block">Now</span>
                 <span className={cn(
                   "font-mono font-bold text-lg",
-                  descentData.pace === 'ahead' ? "text-green-500" :
-                  descentData.pace === 'on-track' ? "text-primary" :
-                  descentData.pace === 'behind' ? "text-orange-500" : ""
+                  phaseStyle.text
                 )}>
                   {descentData.currentWeight?.toFixed(1) ?? '—'}
                 </span>
@@ -228,7 +241,7 @@ export default function Weekly() {
               </div>
               <div>
                 <span className="text-[10px] text-muted-foreground block">Goal</span>
-                <span className="font-mono font-bold text-lg text-primary">
+                <span className={cn("font-mono font-bold text-lg", phaseStyle.text)}>
                   {descentData.targetWeight}
                 </span>
               </div>
@@ -269,11 +282,23 @@ export default function Weekly() {
             {descentData.grossDailyLoss !== null && (
               <div className="text-[9px] text-muted-foreground text-center mt-2 pt-2 border-t border-muted/50">
                 Loss capacity: <span className="text-green-500 font-mono font-bold">-{descentData.grossDailyLoss.toFixed(1)} lbs/day</span>
-                {descentData.dailyAvgLoss !== null && descentData.dailyAvgLoss !== descentData.grossDailyLoss && (
-                  <span className="ml-1">(net: -{descentData.dailyAvgLoss.toFixed(1)})</span>
-                )}
               </div>
             )}
+
+            {/* Extra workout stats */}
+            {(() => {
+              const extraStats = getExtraWorkoutStats();
+              if (extraStats.totalWorkouts === 0) return null;
+              return (
+                <div className="text-[9px] text-muted-foreground text-center mt-1">
+                  <Dumbbell className="w-3 h-3 inline mr-1 text-orange-500" />
+                  Extra workouts: <span className="text-orange-500 font-mono font-bold">{extraStats.totalWorkouts}</span>
+                  {extraStats.avgLoss && (
+                    <span className="ml-1">(avg: -{extraStats.avgLoss.toFixed(1)} lbs each)</span>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Progress Message */}
             {descentData.totalLost !== null && descentData.currentWeight && (() => {
@@ -284,24 +309,21 @@ export default function Weekly() {
               return (
                 <div className={cn(
                   "mt-3 p-2 rounded-lg text-center text-sm",
-                  descentData.pace === 'ahead' ? "bg-green-500/10 text-green-500" :
-                  descentData.pace === 'on-track' ? (isWaterLoading ? "bg-cyan-500/10 text-cyan-500" : "bg-primary/10 text-primary") :
-                  descentData.pace === 'behind' ? "bg-orange-500/10 text-orange-500" :
-                  "bg-muted text-muted-foreground"
+                  phaseStyle.bgLight, phaseStyle.text
                 )}>
                   {descentData.pace === 'ahead' && (
                     isWaterLoading
-                      ? <>Lighter than expected for water loading! <strong>{toGoal} lbs</strong> above goal — you have room to load more.</>
+                      ? <>Lighter than expected for {currentPhase === 'Prep' ? 'prep' : 'water loading'}! <strong>{toGoal} lbs</strong> to cut — you have room to load more.</>
                       : <>You're ahead of schedule! <strong>{toGoal} lbs</strong> left to cut — great progress.</>
                   )}
                   {descentData.pace === 'on-track' && (
                     isWaterLoading
-                      ? <>Water loading on track. <strong>{toGoal} lbs</strong> above goal — this is normal and will flush out Thu-Fri.</>
+                      ? <>{currentPhase === 'Prep' ? 'Prep phase' : 'Water loading'} on track. <strong>{toGoal} lbs</strong> to cut — normal for this phase, will drop when you cut water.</>
                       : <>On pace! <strong>{toGoal} lbs</strong> left to cut.</>
                   )}
                   {descentData.pace === 'behind' && (
                     isWaterLoading
-                      ? <>Slightly heavy for water loading. <strong>{toGoal} lbs</strong> above goal — watch intake today.</>
+                      ? <>Running heavy for {currentPhase === 'Prep' ? 'prep phase' : 'water loading'}. <strong>{toGoal} lbs</strong> to cut — watch intake today.</>
                       : <>Need to lose <strong>{toGoal} lbs</strong> more. Tighten up!</>
                   )}
                 </div>
@@ -317,15 +339,19 @@ export default function Weekly() {
           <Scale className="w-4 h-4" /> Weight Targets
         </h3>
 
-        {/* Water Loading Context Banner */}
+        {/* Phase-Aware Protocol Banner */}
         {checkpoints.isWaterLoadingDay && (
-          <div className="mb-3 p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+          <div className={cn("mb-3 p-2 rounded-lg border", phaseStyle.bgLight, phaseStyle.border)}>
             <div className="flex items-center gap-2">
-              <Droplets className="w-4 h-4 text-cyan-500" />
-              <span className="text-xs text-cyan-500 font-bold">WATER LOADING ACTIVE</span>
+              <Droplets className={cn("w-4 h-4", phaseStyle.text)} />
+              <span className={cn("text-xs font-bold", phaseStyle.text)}>
+                {currentPhase === 'Prep' ? 'PREP DAY — ZERO FIBER' : 'WATER LOADING ACTIVE'}
+              </span>
             </div>
             <p className="text-[10px] text-muted-foreground mt-1">
-              {checkpoints.waterLoadingAdjustment} — this is expected and part of the protocol.
+              {currentPhase === 'Prep'
+                ? "Last day of full water. Eliminate fiber to clear the GI tract before the cut."
+                : `${checkpoints.waterLoadingAdjustment} — this is expected and part of the protocol.`}
             </p>
           </div>
         )}
@@ -352,8 +378,9 @@ export default function Weekly() {
                   const relevantLog = morningLog;
                   const isToday = currentDayOfWeek === day.dayNum;
                   const isPast = (day.dayNum < currentDayOfWeek && currentDayOfWeek !== 0) || (day.dayNum !== 0 && currentDayOfWeek === 0);
-                  const isLoadingDay = day.key === 'mon' || day.key === 'tue' || day.key === 'wed';
-                  const isCritical = day.key === 'fri';
+                  const dayDaysUntil = dayToDaysUntil[day.key];
+                  const isLoadingDay = dayDaysUntil >= 3 && dayDaysUntil <= 5;
+                  const isCritical = dayDaysUntil === 1;
 
                   let status: 'on-track' | 'behind' | 'ahead' | 'none' = 'none';
                   if (relevantLog) {
@@ -374,7 +401,7 @@ export default function Weekly() {
                       key={day.key}
                       className={cn(
                         "border-t border-muted",
-                        isToday && "bg-primary/10",
+                        isToday && phaseStyle.bgLight,
                         isCritical && !isToday && "bg-orange-500/5"
                       )}
                     >
@@ -382,10 +409,10 @@ export default function Weekly() {
                         <div className="flex items-center gap-2">
                           <span className={cn(
                             "font-bold",
-                            isToday && "text-primary",
+                            isToday && phaseStyle.text,
                             isCritical && !isToday && "text-orange-500"
                           )}>{day.label}</span>
-                          {isToday && <span className="text-[10px] bg-primary text-black px-1 rounded">TODAY</span>}
+                          {isToday && <span className={cn("text-[10px] text-black px-1 rounded", phaseStyle.bg)}>TODAY</span>}
                           {isCritical && !isToday && <span className="text-[10px] bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
                         </div>
                         <span className="text-[10px] text-muted-foreground">{target.label}</span>
@@ -412,54 +439,20 @@ export default function Weekly() {
                         )}
                       </td>
                       <td className="p-2 text-center">
-                        {editingDay === `${day.key}-${relevantLog?.type || 'morning'}` && relevantLog ? (
-                          <div className="flex items-center justify-center gap-1">
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={editWeight}
-                              onChange={(e) => setEditWeight(e.target.value)}
-                              className="w-16 h-7 text-center text-xs font-mono p-1"
-                              autoFocus
-                            />
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                if (relevantLog && editWeight) {
-                                  updateLog(relevantLog.id, { weight: parseFloat(editWeight) });
-                                }
-                                setEditingDay(null);
-                                setEditWeight('');
-                              }}
-                              className="h-6 w-6"
-                            >
-                              <Check className="w-3 h-3 text-green-500" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingDay(null);
-                                setEditWeight('');
-                              }}
-                              className="h-6 w-6"
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
+                        {relevantLog ? (
+                          <div>
+                            <span className="font-mono font-bold">{relevantLog.weight}</span>
+                            {(() => {
+                              const extraWorkouts = getExtraWorkoutsForDay(day.dayNum);
+                              if (extraWorkouts.count === 0) return null;
+                              return (
+                                <div className="text-[9px] text-orange-500 flex items-center justify-center gap-0.5">
+                                  <Dumbbell className="w-2.5 h-2.5" />
+                                  <span>-{extraWorkouts.totalLoss.toFixed(1)}</span>
+                                </div>
+                              );
+                            })()}
                           </div>
-                        ) : relevantLog ? (
-                          <button
-                            onClick={() => {
-                              setEditingDay(`${day.key}-${relevantLog.type}`);
-                              setEditWeight(relevantLog.weight.toString());
-                            }}
-                            className="font-mono font-bold hover:text-primary hover:underline transition-colors flex items-center justify-center gap-1 w-full"
-                            title="Tap to edit"
-                          >
-                            {relevantLog.weight}
-                            <Pencil className="w-2.5 h-2.5 text-muted-foreground opacity-50" />
-                          </button>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
@@ -478,7 +471,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-[10px] text-muted-foreground mt-2">
-          Mon-Wed targets include water loading weight • Fri PM is critical checkpoint
+          Loading day targets include water loading weight • 1 day out is critical checkpoint
         </p>
       </section>
 
@@ -489,57 +482,59 @@ export default function Weekly() {
         </h3>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-xs min-w-[340px]">
               <thead>
                 <tr className="bg-muted/50">
-                  <th className="p-2 text-left font-bold">Day</th>
-                  <th className="p-2 text-center font-bold">Amount</th>
-                  <th className="p-2 text-center font-bold">Type</th>
-                  <th className="p-2 text-center font-bold">Sodium</th>
+                  <th className="p-2 text-left font-bold whitespace-nowrap">Day</th>
+                  <th className="p-2 text-center font-bold whitespace-nowrap">Water</th>
+                  <th className="p-2 text-center font-bold whitespace-nowrap">Na+</th>
+                  <th className="p-2 text-left font-bold whitespace-nowrap">Sodium Plan</th>
                 </tr>
               </thead>
               <tbody>
                 {days.map((day) => {
-                  const waterAmount = waterLoadSchedule[weightCategory][day.key as keyof typeof waterLoadSchedule.light];
-                  const waterInfo = waterTypes[day.key as keyof typeof waterTypes];
+                  const waterAmount = getWaterForDay(day.key);
+                  const sodiumInfo = getSodiumForDay(day.key);
                   const isToday = currentDayOfWeek === day.dayNum;
+                  const daysOut = dayToDaysUntil[day.key] ?? 5;
 
                   return (
                     <tr
                       key={day.key}
                       className={cn(
                         "border-t border-muted",
-                        isToday && "bg-primary/10"
+                        isToday && phaseStyle.bgLight
                       )}
                     >
                       <td className="p-2">
-                        <span className={cn("font-bold", isToday && "text-primary")}>{day.label}</span>
-                        {isToday && <span className="text-[10px] bg-primary text-black px-1 rounded ml-1">TODAY</span>}
+                        <span className={cn("font-bold", isToday && phaseStyle.text)}>{day.label}</span>
+                        {isToday && <span className={cn("text-[10px] text-black px-1 rounded ml-1", phaseStyle.bg)}>TODAY</span>}
                       </td>
                       <td className="p-2 text-center">
                         <span className={cn(
                           "font-mono font-bold",
-                          day.key === 'wed' && "text-cyan-500",
-                          day.key === 'fri' && "text-orange-500"
+                          daysOut >= 3 && "text-cyan-500",
+                          daysOut === 2 && "text-yellow-500",
+                          daysOut === 1 && "text-orange-500",
+                          daysOut === 0 && "text-green-500"
                         )}>
                           {waterAmount}
                         </span>
                       </td>
                       <td className="p-2 text-center">
                         <span className={cn(
-                          "text-[10px] px-1.5 py-0.5 rounded",
-                          "bg-cyan-500/20 text-cyan-500"
+                          "text-[10px] font-mono font-bold",
+                          sodiumInfo.color
                         )}>
-                          {waterInfo.type}
+                          {sodiumInfo.target > 0 ? `${(sodiumInfo.target / 1000).toFixed(1)}g` : '—'}
                         </span>
                       </td>
-                      <td className="p-2 text-center">
+                      <td className="p-2 text-left">
                         <span className={cn(
-                          "text-[10px]",
-                          waterInfo.sodium === 'Very Low' && "text-orange-500 font-bold",
-                          waterInfo.sodium === 'Low' && "text-yellow-500"
+                          "text-[10px] whitespace-nowrap",
+                          sodiumInfo.color
                         )}>
-                          {waterInfo.sodium}
+                          {sodiumInfo.label}
                         </span>
                       </td>
                     </tr>
@@ -550,7 +545,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-[10px] text-muted-foreground mt-2">
-          Peak hydration Wed • Flush starts Thu • Sharp cut Fri
+          Based on Reale et al. acute weight management protocol (100 ml/kg peak loading) • Scaled to {athleteWeightLbs} lbs ({Math.round(athleteWeightLbs * 0.4536)} kg)
         </p>
       </section>
 
@@ -566,8 +561,8 @@ export default function Weekly() {
                 <tr className="bg-muted/50">
                   <th className="p-2 text-left font-bold">Class</th>
                   <th className="p-2 text-center font-bold">Walk-Around</th>
-                  <th className="p-2 text-center font-bold">Wed PM</th>
-                  <th className="p-2 text-center font-bold">Fri PM</th>
+                  <th className="p-2 text-center font-bold">3 Days Out</th>
+                  <th className="p-2 text-center font-bold">1 Day Out</th>
                 </tr>
               </thead>
               <tbody>
@@ -588,12 +583,12 @@ export default function Weekly() {
                       key={row.class}
                       className={cn(
                         "border-t border-muted",
-                        isUserClass && "bg-primary/10"
+                        isUserClass && phaseStyle.bgLight
                       )}
                     >
                       <td className="p-2">
-                        <span className={cn("font-bold", isUserClass && "text-primary")}>{row.class}</span>
-                        {isUserClass && <span className="text-[10px] bg-primary text-black px-1 rounded ml-1">YOU</span>}
+                        <span className={cn("font-bold", isUserClass && phaseStyle.text)}>{row.class}</span>
+                        {isUserClass && <span className={cn("text-[10px] text-black px-1 rounded ml-1", phaseStyle.bg)}>YOU</span>}
                       </td>
                       <td className="p-2 text-center font-mono">{row.walk}</td>
                       <td className="p-2 text-center font-mono">{row.wed}</td>
@@ -616,35 +611,55 @@ export default function Weekly() {
           Checkpoint Rules
         </h3>
         <div className="space-y-3">
-          <Card className="p-3 border-cyan-500/30 bg-cyan-500/5">
-            <h4 className="font-bold text-sm text-cyan-500 mb-1">Mon-Wed: Water Loading Phase</h4>
-            <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• <strong className="text-cyan-500">Expect to be +{waterLoadBonus} lbs heavier</strong> than baseline targets</li>
-              <li>• Walk-around weight: {checkpoints.walkAround}</li>
-              <li>• Being heavier during loading is NORMAL and part of the protocol</li>
-              <li>• Peak water intake Wednesday (heaviest day)</li>
-            </ul>
-          </Card>
+          {(() => {
+            // Build dynamic day labels for each protocol phase
+            const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+            const loadingDays = dayKeys.filter(k => dayToDaysUntil[k] >= 3 && dayToDaysUntil[k] <= 5);
+            const restrictionDays = dayKeys.filter(k => dayToDaysUntil[k] === 2);
+            const criticalDays = dayKeys.filter(k => dayToDaysUntil[k] === 1);
+            const peakDay = dayKeys.find(k => dayToDaysUntil[k] === 4); // Peak loading day
 
-          <Card className="p-3 border-yellow-500/30 bg-yellow-500/5">
-            <h4 className="font-bold text-sm text-yellow-500 mb-1">Thursday: Flush Day</h4>
-            <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• Cut sodium intake - ZERO sodium</li>
-              <li>• ZERO fiber - check every bite</li>
-              <li>• Water loading weight starts dropping rapidly</li>
-              <li>• Still high water intake to maintain flush</li>
-            </ul>
-          </Card>
+            const toLabel = (keys: string[]) => keys.map(k => dayLabels[dayKeys.indexOf(k)]).join(', ');
+            const rangeLabel = (keys: string[]) => {
+              if (keys.length <= 2) return toLabel(keys);
+              return `${dayLabels[dayKeys.indexOf(keys[0])]}–${dayLabels[dayKeys.indexOf(keys[keys.length - 1])]}`;
+            };
 
-          <Card className="p-3 border-orange-500/30 bg-orange-500/5">
-            <h4 className="font-bold text-sm text-orange-500 mb-1">Friday PM: CRITICAL Checkpoint</h4>
-            <ul className="text-xs text-muted-foreground space-y-0.5">
-              <li>• <strong className="text-orange-500">Must be {checkpoints.friTarget}</strong></li>
-              <li>• Final 3% drops from Fri practice + overnight drift</li>
-              <li>• Above range? May need extra activity or hot bath</li>
-              <li>• Below range? You're ahead - can eat more</li>
-            </ul>
-          </Card>
+            return (
+              <>
+                <Card className="p-3 border-cyan-500/30 bg-cyan-500/5">
+                  <h4 className="font-bold text-sm text-cyan-500 mb-1">{rangeLabel(loadingDays)}: Water Loading Phase</h4>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    <li>• <strong className="text-cyan-500">Expect to be +{waterLoadBonus} lbs heavier</strong> than baseline targets</li>
+                    <li>• Walk-around weight: {checkpoints.walkAround}</li>
+                    <li>• Being heavier during loading is NORMAL and part of the protocol</li>
+                    {peakDay && <li>• Peak water intake {dayLabels[dayKeys.indexOf(peakDay)]} (heaviest day)</li>}
+                  </ul>
+                </Card>
+
+                <Card className="p-3 border-violet-400/30 bg-violet-400/5">
+                  <h4 className="font-bold text-sm text-violet-400 mb-1">{toLabel(restrictionDays)}: Water Restriction Begins</h4>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    <li>• Sharp water drop — ADH still suppressed from loading, urine output stays high</li>
+                    <li>• Sodium back to normal (~2,500mg) — stop adding extra salt</li>
+                    <li>• ZERO fiber — check every bite</li>
+                    <li>• Water weight drops fast as body keeps flushing</li>
+                  </ul>
+                </Card>
+
+                <Card className="p-3 border-orange-500/30 bg-orange-500/5">
+                  <h4 className="font-bold text-sm text-orange-500 mb-1">{toLabel(criticalDays)} PM: CRITICAL Checkpoint</h4>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    <li>• <strong className="text-orange-500">Must be {checkpoints.friTarget}</strong></li>
+                    <li>• Final 3% drops from practice + overnight drift</li>
+                    <li>• Above range? May need extra activity or hot bath</li>
+                    <li>• Below range? You're ahead - can eat more</li>
+                  </ul>
+                </Card>
+              </>
+            );
+          })()}
         </div>
       </section>
 

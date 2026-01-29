@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useStore } from "@/lib/store";
+import { QuickLogFAB } from "@/components/quick-log-fab";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -59,6 +60,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
             />
           </nav>
         )}
+        {showNav && <QuickLogFAB />}
       </div>
     </div>
   );
