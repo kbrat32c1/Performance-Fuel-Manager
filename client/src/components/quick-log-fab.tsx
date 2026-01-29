@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Scale, Sun, Dumbbell, Moon, CheckCircle2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,14 @@ const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; icon: React.React
   { value: 'check-in', label: 'Check-in', icon: <Scale className="w-4 h-4" />, color: 'text-cyan-500', selectedBg: 'border-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/30' },
 ];
 
-function getDefaultType(): LogTypeOption {
+function getDefaultType(loggedTypes?: Set<string>): LogTypeOption {
+  // If we know what's already logged, pick the next unlogged core type
+  if (loggedTypes) {
+    for (const t of CORE_TYPES) {
+      if (!loggedTypes.has(t)) return t;
+    }
+  }
+  // Fallback: time-based
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 9) return 'morning';
   if (hour >= 9 && hour < 14) return 'pre-practice';
@@ -71,17 +78,31 @@ export function QuickLogFAB() {
     return sorted[0].weight.toString();
   }, [logs]);
 
-  const handleOpen = () => {
-    setSelectedType(getDefaultType());
+  const handleOpen = useCallback((type?: LogTypeOption) => {
+    setSelectedType(type || getDefaultType(loggedTypes));
     setWeight(suggestedWeight);
     setBeforeWeight(suggestedWeight);
     setAfterWeight('');
     setIsOpen(true);
     // Focus input after drawer animation settles (no autoFocus to prevent mobile jump)
     setTimeout(() => {
-      inputRef.current?.focus();
+      if (type === 'extra-workout') {
+        beforeRef.current?.focus();
+      } else {
+        inputRef.current?.focus();
+      }
     }, 350);
-  };
+  }, [loggedTypes, suggestedWeight]);
+
+  // Listen for external open requests (from TodayTimeline etc.)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      handleOpen(detail?.type as LogTypeOption | undefined);
+    };
+    window.addEventListener('open-quick-log', handler);
+    return () => window.removeEventListener('open-quick-log', handler);
+  }, [handleOpen]);
 
   const handleTypeSelect = useCallback((type: LogTypeOption) => {
     setSelectedType(type);
@@ -145,7 +166,7 @@ export function QuickLogFAB() {
     <>
       {/* Floating Action Button */}
       <button
-        onClick={handleOpen}
+        onClick={() => handleOpen()}
         className="fixed bottom-[5.5rem] right-5 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(132,204,22,0.4)] flex items-center justify-center active:scale-90 transition-transform"
         aria-label="Log Weight"
       >

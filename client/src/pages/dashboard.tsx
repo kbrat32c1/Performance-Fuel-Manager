@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
 import { getPhaseStyleForDaysUntil, PHASE_STYLES, getPhaseStyle } from "@/lib/phase-colors";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecoveryTakeover } from "@/components/recovery-takeover";
@@ -404,6 +404,18 @@ export default function Dashboard() {
           </span>
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TODAY'S WEIGH-IN TIMELINE — at-a-glance log status     */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      <TodayTimeline
+        todayLogs={todayLogs}
+        logs={logs}
+        displayDate={displayDate}
+        mostRecentLog={mostRecentLog}
+        targetWeight={targetWeight}
+        readOnly={isViewingHistorical}
+      />
 
       {/* Weigh-In Countdown - 1-3 days out (kept but simplified) */}
       {(daysUntilWeighIn >= 1 && daysUntilWeighIn <= 3) && (profile.protocol === '1' || profile.protocol === '2') && (
@@ -1246,6 +1258,135 @@ function QuickCheckIn({ addLog, logs, simulatedDate, deleteLog, updateLog, readO
       )}
 
       {/* No inline form - use FAB to log check-ins */}
+    </div>
+  );
+}
+
+// Today's Weigh-In Timeline — compact horizontal strip
+function TodayTimeline({
+  todayLogs,
+  logs,
+  displayDate,
+  mostRecentLog,
+  targetWeight,
+  readOnly = false,
+}: {
+  todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
+  logs: any[];
+  displayDate: Date;
+  mostRecentLog: any;
+  targetWeight: number;
+  readOnly?: boolean;
+}) {
+  // Get extra workouts and check-ins for today
+  const todayExtras = useMemo(() => {
+    return logs.filter(log => {
+      const ld = new Date(log.date);
+      return (log.type === 'extra-after') &&
+        ld.getFullYear() === displayDate.getFullYear() &&
+        ld.getMonth() === displayDate.getMonth() &&
+        ld.getDate() === displayDate.getDate();
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [logs, displayDate]);
+
+  const todayCheckIns = useMemo(() => {
+    return logs.filter(log => {
+      const ld = new Date(log.date);
+      return log.type === 'check-in' &&
+        ld.getFullYear() === displayDate.getFullYear() &&
+        ld.getMonth() === displayDate.getMonth() &&
+        ld.getDate() === displayDate.getDate();
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [logs, displayDate]);
+
+  const coreSlots = [
+    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500' },
+    { key: 'pre', label: 'PRE', icon: <Dumbbell className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500' },
+    { key: 'post', label: 'POST', icon: <Dumbbell className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500' },
+    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500' },
+  ];
+
+  const handleSlotTap = (type: string) => {
+    if (readOnly) return;
+    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+  };
+
+  return (
+    <div className="mb-3">
+      {/* Core 4 weigh-in slots */}
+      <div className="grid grid-cols-4 gap-1 bg-card border border-muted rounded-lg p-2">
+        {coreSlots.map((slot) => {
+          const isMostRecent = mostRecentLog && slot.log && mostRecentLog.id === slot.log.id;
+          const hasWeight = !!slot.log;
+          const diff = hasWeight ? slot.log.weight - targetWeight : null;
+
+          return (
+            <button
+              key={slot.key}
+              onClick={() => handleSlotTap(slot.type)}
+              disabled={readOnly && !hasWeight}
+              className={cn(
+                "flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-all",
+                hasWeight
+                  ? "hover:bg-muted/50"
+                  : readOnly
+                    ? "opacity-40"
+                    : "hover:bg-primary/10 border border-dashed border-muted-foreground/20",
+                isMostRecent && "ring-1 ring-primary/40 bg-primary/5"
+              )}
+            >
+              <div className="flex items-center gap-1">
+                <span className={cn("opacity-70", hasWeight ? slot.color : "text-muted-foreground")}>
+                  {slot.icon}
+                </span>
+                <span className={cn(
+                  "text-[9px] font-bold uppercase",
+                  hasWeight ? slot.color : "text-muted-foreground"
+                )}>
+                  {slot.label}
+                </span>
+              </div>
+              <span className={cn(
+                "text-[12px] font-mono",
+                hasWeight
+                  ? isMostRecent ? "font-bold text-foreground" : "text-foreground"
+                  : "text-muted-foreground/50"
+              )}>
+                {hasWeight ? slot.log.weight.toFixed(1) : '—'}
+              </span>
+              {hasWeight && diff !== null && (
+                <span className={cn(
+                  "text-[8px] font-mono",
+                  diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-red-400"
+                )}>
+                  {diff <= 0 ? 'on target' : `+${diff.toFixed(1)}`}
+                </span>
+              )}
+              {!hasWeight && !readOnly && (
+                <span className="text-[8px] text-primary/60">tap to log</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Extra workouts and check-ins (shown below if they exist) */}
+      {(todayExtras.length > 0 || todayCheckIns.length > 0) && (
+        <div className="flex gap-2 mt-1.5 px-1">
+          {todayExtras.map((extra, i) => (
+            <div key={`extra-${i}`} className="flex items-center gap-1 text-[10px] text-orange-500">
+              <Dumbbell className="w-2.5 h-2.5" />
+              <span className="font-mono">{extra.weight.toFixed(1)}</span>
+            </div>
+          ))}
+          {todayCheckIns.map((ci, i) => (
+            <div key={`ci-${i}`} className="flex items-center gap-1 text-[10px] text-cyan-500">
+              <Scale className="w-2.5 h-2.5" />
+              <span className="font-mono">{ci.weight.toFixed(1)}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
