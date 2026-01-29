@@ -63,9 +63,6 @@ export default function Dashboard() {
   const isViewingHistorical = !!profile.simulatedDate;
   const today = startOfDay(new Date());
 
-  // Ref for scrolling to extra workout section
-  const extraWorkoutRef = useRef<HTMLDivElement>(null);
-
   // Handle date navigation
   const handleDateChange = useCallback((date: Date | null) => {
     updateProfile({ simulatedDate: date });
@@ -349,7 +346,7 @@ export default function Dashboard() {
             size="sm"
             variant="outline"
             onClick={() => {
-              extraWorkoutRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: 'extra-workout' } }));
             }}
             className="mt-3 h-7 text-xs px-4 border-muted-foreground/30"
           >
@@ -414,6 +411,8 @@ export default function Dashboard() {
         displayDate={displayDate}
         mostRecentLog={mostRecentLog}
         targetWeight={targetWeight}
+        updateLog={updateLog}
+        deleteLog={deleteLog}
         readOnly={isViewingHistorical}
       />
 
@@ -519,23 +518,6 @@ export default function Dashboard() {
         </details>
       )}
 
-      {/* Morning Weigh-In - Always first */}
-      <DailyStep
-        step={1}
-        title="Morning Weigh-In"
-        description="First thing after waking, before eating or drinking"
-        icon={Sun}
-        logs={logs}
-        logType="morning"
-        addLog={addLog}
-        updateLog={updateLog}
-        deleteLog={deleteLog}
-        targetWeight={targetWeight}
-        simulatedDate={profile.simulatedDate}
-        readOnly={isViewingHistorical}
-        isWaterLoadingDay={checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2')}
-      />
-
       {/* ═══════════════════════════════════════════════════════ */}
       {/* FUEL SECTION - Food & Hydration grouped together */}
       {/* ═══════════════════════════════════════════════════════ */}
@@ -553,30 +535,6 @@ export default function Dashboard() {
         {/* Hydration */}
         <HydrationTracker hydration={hydration} readOnly={isViewingHistorical} />
       </div>
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* PRACTICE WEIGH-INS */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      <WeighInSection
-        logs={logs}
-        addLog={addLog}
-        updateLog={updateLog}
-        deleteLog={deleteLog}
-        targetWeight={targetWeight}
-        overnightDrift={overnightDrift}
-        simulatedDate={profile.simulatedDate}
-        readOnly={isViewingHistorical}
-        isWaterLoadingDay={checkpoints.isWaterLoadingDay && (profile.protocol === '1' || profile.protocol === '2')}
-        waterLoadBonus={profile.targetWeightClass >= 175 ? 4 : profile.targetWeightClass >= 150 ? 3 : 2}
-      />
-
-      {/* Extra Workout */}
-      <div ref={extraWorkoutRef}>
-        <ExtraWorkoutLog addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} readOnly={isViewingHistorical} />
-      </div>
-
-      {/* Quick Check-in */}
-      <QuickCheckIn addLog={addLog} logs={logs} simulatedDate={profile.simulatedDate} deleteLog={deleteLog} updateLog={updateLog} readOnly={isViewingHistorical} targetWeight={targetWeight} />
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* INFO SECTION - Planning & Insights */}
@@ -1262,13 +1220,15 @@ function QuickCheckIn({ addLog, logs, simulatedDate, deleteLog, updateLog, readO
   );
 }
 
-// Today's Weigh-In Timeline — compact horizontal strip
+// Today's Weigh-In Timeline — single weigh-in hub
 function TodayTimeline({
   todayLogs,
   logs,
   displayDate,
   mostRecentLog,
   targetWeight,
+  updateLog,
+  deleteLog,
   readOnly = false,
 }: {
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
@@ -1276,19 +1236,42 @@ function TodayTimeline({
   displayDate: Date;
   mostRecentLog: any;
   targetWeight: number;
+  updateLog: (id: string, data: any) => void;
+  deleteLog: (id: string) => void;
   readOnly?: boolean;
 }) {
-  // Get extra workouts and check-ins for today
-  const todayExtras = useMemo(() => {
-    return logs.filter(log => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editWeight, setEditWeight] = useState('');
+  const { toast } = useToast();
+
+  // Get extra workouts for today (paired before/after)
+  const extraWorkouts = useMemo(() => {
+    const todayExtraLogs = logs.filter(log => {
       const ld = new Date(log.date);
-      return (log.type === 'extra-after') &&
+      return (log.type === 'extra-before' || log.type === 'extra-after') &&
         ld.getFullYear() === displayDate.getFullYear() &&
         ld.getMonth() === displayDate.getMonth() &&
         ld.getDate() === displayDate.getDate();
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const pairs: { before: any; after: any | null; time: Date }[] = [];
+    const usedAfterIds = new Set<string>();
+    for (const log of todayExtraLogs) {
+      if (log.type === 'extra-before') {
+        const after = todayExtraLogs.find(l =>
+          l.type === 'extra-after' &&
+          !usedAfterIds.has(l.id) &&
+          new Date(l.date).getTime() - new Date(log.date).getTime() >= 0 &&
+          new Date(l.date).getTime() - new Date(log.date).getTime() < 5 * 60 * 1000
+        );
+        if (after) usedAfterIds.add(after.id);
+        pairs.push({ before: log, after: after || null, time: new Date(log.date) });
+      }
+    }
+    return pairs;
   }, [logs, displayDate]);
 
+  // Get check-ins for today
   const todayCheckIns = useMemo(() => {
     return logs.filter(log => {
       const ld = new Date(log.date);
@@ -1306,32 +1289,82 @@ function TodayTimeline({
     { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500' },
   ];
 
-  const handleSlotTap = (type: string) => {
+  const handleSlotTap = (type: string, log: any) => {
     if (readOnly) return;
-    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+    if (log) {
+      // Logged — open inline edit
+      setEditingId(log.id);
+      setEditWeight(log.weight.toString());
+    } else {
+      // Empty — open FAB
+      window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+    }
   };
 
+  const handleSaveEdit = (id: string) => {
+    const parsed = parseFloat(editWeight);
+    if (isNaN(parsed) || parsed < 80 || parsed > 350) return;
+    updateLog(id, { weight: parsed });
+    setEditingId(null);
+    setEditWeight('');
+  };
+
+  const handleDelete = (id: string, type: string) => {
+    deleteLog(id);
+    setEditingId(null);
+    setEditWeight('');
+    toast({ title: "Deleted", description: `${type.replace('-', ' ')} weigh-in removed` });
+  };
+
+  const hasExtrasOrCheckIns = extraWorkouts.length > 0 || todayCheckIns.length > 0;
+
   return (
-    <div className="mb-3">
+    <div className="mb-3 space-y-2">
       {/* Core 4 weigh-in slots */}
       <div className="grid grid-cols-4 gap-1 bg-card border border-muted rounded-lg p-2">
         {coreSlots.map((slot) => {
           const isMostRecent = mostRecentLog && slot.log && mostRecentLog.id === slot.log.id;
           const hasWeight = !!slot.log;
           const diff = hasWeight ? slot.log.weight - targetWeight : null;
+          const isEditing = editingId === slot.log?.id;
+
+          if (isEditing) {
+            return (
+              <div key={slot.key} className="flex flex-col items-center gap-1 py-1">
+                <span className={cn("text-[9px] font-bold uppercase", slot.color)}>{slot.label}</span>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={editWeight}
+                  onChange={(e) => setEditWeight(e.target.value)}
+                  className="w-full h-7 text-center text-[11px] font-mono p-0.5"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveEdit(slot.log.id);
+                    if (e.key === 'Escape') { setEditingId(null); setEditWeight(''); }
+                  }}
+                />
+                <div className="flex gap-0.5">
+                  <button onClick={() => handleSaveEdit(slot.log.id)} className="text-[8px] text-green-500 font-bold px-1">Save</button>
+                  <button onClick={() => handleDelete(slot.log.id, slot.type)} className="text-[8px] text-red-400 font-bold px-1">Del</button>
+                  <button onClick={() => { setEditingId(null); setEditWeight(''); }} className="text-[8px] text-muted-foreground px-1">X</button>
+                </div>
+              </div>
+            );
+          }
 
           return (
             <button
               key={slot.key}
-              onClick={() => handleSlotTap(slot.type)}
+              onClick={() => handleSlotTap(slot.type, slot.log)}
               disabled={readOnly && !hasWeight}
               className={cn(
                 "flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-all",
                 hasWeight
-                  ? "hover:bg-muted/50"
+                  ? "hover:bg-muted/50 active:scale-95"
                   : readOnly
                     ? "opacity-40"
-                    : "hover:bg-primary/10 border border-dashed border-muted-foreground/20",
+                    : "hover:bg-primary/10 border border-dashed border-muted-foreground/20 active:scale-95",
                 isMostRecent && "ring-1 ring-primary/40 bg-primary/5"
               )}
             >
@@ -1370,23 +1403,73 @@ function TodayTimeline({
         })}
       </div>
 
-      {/* Extra workouts and check-ins (shown below if they exist) */}
-      {(todayExtras.length > 0 || todayCheckIns.length > 0) && (
-        <div className="flex gap-2 mt-1.5 px-1">
-          {todayExtras.map((extra, i) => (
-            <div key={`extra-${i}`} className="flex items-center gap-1 text-[10px] text-orange-500">
-              <Dumbbell className="w-2.5 h-2.5" />
-              <span className="font-mono">{extra.weight.toFixed(1)}</span>
+      {/* Extra workouts — before/after with loss */}
+      {extraWorkouts.map((workout, i) => {
+        const loss = workout.after ? workout.before.weight - workout.after.weight : null;
+        return (
+          <div key={`extra-${i}`} className="flex items-center justify-between bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Dumbbell className="w-3.5 h-3.5 text-orange-500" />
+              <span className="text-[11px] font-bold text-orange-500">Extra</span>
+              <span className="text-[10px] text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
             </div>
-          ))}
-          {todayCheckIns.map((ci, i) => (
-            <div key={`ci-${i}`} className="flex items-center gap-1 text-[10px] text-cyan-500">
-              <Scale className="w-2.5 h-2.5" />
-              <span className="font-mono">{ci.weight.toFixed(1)}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-foreground">
+                {workout.before.weight} → {workout.after ? workout.after.weight : '…'}
+              </span>
+              {loss !== null && loss > 0 && (
+                <span className="text-[10px] font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
+              )}
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    deleteLog(workout.before.id);
+                    if (workout.after) deleteLog(workout.after.id);
+                    toast({ title: "Deleted", description: "Extra workout removed" });
+                  }}
+                  className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        );
+      })}
+
+      {/* Check-ins */}
+      {todayCheckIns.map((ci) => {
+        const diff = ci.weight - targetWeight;
+        return (
+          <div key={ci.id} className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Scale className="w-3.5 h-3.5 text-cyan-500" />
+              <span className="text-[11px] font-bold text-cyan-500">Check-in</span>
+              <span className="text-[10px] text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
+              <span className={cn(
+                "text-[10px] font-mono",
+                diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-red-400"
+              )}>
+                {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+              </span>
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    deleteLog(ci.id);
+                    toast({ title: "Deleted", description: "Check-in removed" });
+                  }}
+                  className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
