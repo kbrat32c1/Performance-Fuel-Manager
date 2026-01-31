@@ -25,16 +25,13 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
       return;
     }
 
-    // Check onboarding status for routes that require it
-    if (requireOnboarding && !profile.hasCompletedOnboarding && location !== '/onboarding') {
-      setLocation('/onboarding');
-      return;
-    }
-
-    // If on onboarding page but already completed, redirect to dashboard
-    if (location === '/onboarding' && profile.hasCompletedOnboarding) {
+    // Determine the correct destination and redirect once
+    if (requireOnboarding && !profile.hasCompletedOnboarding) {
+      if (location !== '/onboarding') {
+        setLocation('/onboarding');
+      }
+    } else if (location === '/onboarding' && profile.hasCompletedOnboarding) {
       setLocation('/dashboard');
-      return;
     }
   }, [isLoading, user, profile.hasCompletedOnboarding, location, setLocation, requireOnboarding]);
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pwm-v53';
+const CACHE_NAME = 'pwm-v54';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -31,6 +31,19 @@ self.addEventListener('activate', (event) => {
     })
   );
   self.clients.claim();
+});
+
+// Notification click - open/focus the app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('/dashboard');
+    })
+  );
 });
 
 // Fetch event - network first, fallback to cache

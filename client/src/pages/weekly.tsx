@@ -132,6 +132,7 @@ export default function Weekly() {
     return logs.find(log => {
       const logDate = new Date(log.date);
       return log.type === type &&
+        logDate.getFullYear() === targetDate.getFullYear() &&
         logDate.getDate() === targetDate.getDate() &&
         logDate.getMonth() === targetDate.getMonth();
     });
@@ -145,6 +146,7 @@ export default function Weekly() {
     const extraBefore = logs.filter(log => {
       const logDate = new Date(log.date);
       return log.type === 'extra-before' &&
+        logDate.getFullYear() === targetDate.getFullYear() &&
         logDate.getDate() === targetDate.getDate() &&
         logDate.getMonth() === targetDate.getMonth();
     });
@@ -155,8 +157,11 @@ export default function Weekly() {
     for (const before of extraBefore) {
       const after = logs.find(log => {
         if (log.type !== 'extra-after') return false;
-        const timeDiff = Math.abs(new Date(log.date).getTime() - new Date(before.date).getTime());
-        return timeDiff < 5 * 60 * 1000;
+        const afterDate = new Date(log.date);
+        // Must be on the same day
+        if (afterDate.getDate() !== targetDate.getDate() || afterDate.getMonth() !== targetDate.getMonth()) return false;
+        const timeDiff = Math.abs(afterDate.getTime() - new Date(before.date).getTime());
+        return timeDiff < 3 * 60 * 60 * 1000;
       });
 
       if (after) {
@@ -255,12 +260,22 @@ export default function Weekly() {
                   <span className={cn("font-mono font-bold text-sm", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
                     {descentData.avgOvernightDrift !== null ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}` : '—'} lbs
                   </span>
+                  {descentData.avgDriftRateOzPerHr !== null && (
+                    <span className="block text-[9px] font-mono text-cyan-400">
+                      {descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Practice</span>
                   <span className={cn("font-mono font-bold text-sm", descentData.avgPracticeLoss !== null ? "text-orange-500" : "")}>
                     {descentData.avgPracticeLoss !== null ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}` : '—'} lbs
                   </span>
+                  {descentData.avgSweatRateOzPerHr !== null && (
+                    <span className="block text-[9px] font-mono text-orange-400">
+                      {descentData.avgSweatRateOzPerHr.toFixed(2)} lbs/hr
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Projected</span>

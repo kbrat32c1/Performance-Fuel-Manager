@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://xcqsnrqjghcxuotoaryv.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjcXNucnFqZ2hjeHVvdG9hcnl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0MTY3NDIsImV4cCI6MjA4NDk5Mjc0Mn0.ZuBigsjqFDET1irku7JSRaOBTLtSlOHPFmzEuhVEha8';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xcqsnrqjghcxuotoaryv.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+if (!supabaseAnonKey) {
+  console.error('Missing VITE_SUPABASE_ANON_KEY environment variable');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -17,6 +21,7 @@ export interface DbProfile {
   protocol: number;
   has_completed_onboarding: boolean;
   simulated_date: string | null;
+  share_token: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -13,6 +13,7 @@ import {
   CORE_WEIGH_IN_TYPES,
   getWaterTargetOz,
   getWaterTargetGallons,
+  STATUS_THRESHOLDS,
 } from './constants';
 
 // Types
@@ -55,6 +56,8 @@ export interface WeightLog {
   type: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-before' | 'extra-after' | 'check-in';
   urineColor?: number; // 1-8
   notes?: string;
+  duration?: number; // workout duration in minutes (stored on post-practice and extra-after logs)
+  sleepHours?: number; // hours of sleep (stored on morning logs for drift rate calculation)
 }
 
 export interface WaterLog {
@@ -83,6 +86,7 @@ export interface DayPlan {
   isTomorrow: boolean;
   waterLoadingNote?: string;
   isCriticalCheckpoint?: boolean;
+  weightWarning?: string;
 }
 
 interface StoreContextType {
@@ -97,7 +101,7 @@ interface StoreContextType {
   deleteLog: (id: string) => void;
   updateDailyTracking: (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => void;
   getDailyTracking: (date: string) => DailyTracking;
-  resetData: () => void;
+  resetData: () => Promise<void>;
   clearLogs: () => Promise<void>;
   migrateLocalStorageToSupabase: () => Promise<void>;
   hasLocalStorageData: () => boolean;
@@ -110,7 +114,7 @@ interface StoreContextType {
   getPhase: () => Phase;
   getTodaysFocus: () => { title: string; actions: string[], warning?: string };
   getHydrationTarget: () => { amount: string; type: string; note: string; targetOz: number };
-  getMacroTargets: () => { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string };
+  getMacroTargets: () => { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string; note?: string; weightWarning?: string };
   getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
   getCheckpoints: () => {
     walkAround: string;
@@ -130,6 +134,7 @@ interface StoreContextType {
     label: string;
     color: string;
     bgColor: string;
+    contextMessage: string;
     waterLoadingNote?: string;
     projectionWarning?: string;
     recommendation?: {
@@ -154,33 +159,39 @@ interface StoreContextType {
     dailyAvgLoss: number | null; // Net morning-to-morning (includes food/water intake)
     grossDailyLoss: number | null; // Gross loss capacity (drift + practice)
     avgOvernightDrift: number | null;
+    avgDriftRateOzPerHr: number | null;
+    avgLoadingDrift: number | null;
+    avgCutDrift: number | null;
     avgPracticeLoss: number | null;
-    projectedSaturday: number | null; // Based on gross loss capacity
+    avgSweatRateOzPerHr: number | null;
+    projectedSaturday: number | null; // Phase-aware projection
     pace: 'ahead' | 'on-track' | 'behind' | null;
     morningWeights: Array<{ day: string; weight: number; date: Date }>;
   };
   getFoodLists: () => {
-    highFructose: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
-    balanced: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
-    highGlucose: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
-    zeroFiber: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
-    recovery: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
-    protein: Array<{ name: string; serving: string; protein: number; note: string; timing?: string }>;
+    highFructose: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
+    balanced: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
+    highGlucose: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
+    zeroFiber: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
+    recovery: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
+    protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }>;
     avoid: Array<{ name: string; reason: string }>;
-    tournament: Array<{ name: string; ratio: string; serving: string; carbs: number; timing: string }>;
+    tournament: Array<{ name: string; ratio: string; serving: string; carbs: number; timing?: string; note?: string }>;
     supplements: Array<{ name: string; serving: string; note: string }>;
     fuelTanks: Array<{ name: string; loseRate: string; replenishRate: string; performanceCost: string; declinePoint: string }>;
   };
   getTodaysFoods: () => {
-    carbs: Array<{ name: string; ratio: string; serving: string; carbs: number; note: string }>;
-    protein: Array<{ name: string; serving: string; protein: number; note: string }>;
+    carbs: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string; timing?: string }>;
+    protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }>;
     avoid: Array<{ name: string; reason: string }>;
     carbsLabel: string;
     proteinLabel: string;
   };
   getHistoryInsights: () => {
     avgOvernightDrift: number | null;
+    avgDriftRateOzPerHr: number | null;
     avgPracticeLoss: number | null;
+    avgSweatRateOzPerHr: number | null;
     avgFridayCut: number | null;
     weeklyTrend: number | null;
     projectedSaturday: number | null;
@@ -191,6 +202,23 @@ interface StoreContextType {
     lastSaturdayWeight: number | null;
     madeWeightLastWeek: boolean;
   };
+}
+
+/**
+ * Exponential Moving Average — gives more weight to recent values.
+ * Alpha=0.4: most recent value gets ~40%, next ~24%, next ~14%, etc.
+ * Expects values in newest-first order (from sortedLogs).
+ */
+const EMA_ALPHA = 0.4;
+function computeEMA(values: number[]): number | null {
+  if (values.length === 0) return null;
+  if (values.length === 1) return values[0];
+  // Start from oldest, accumulate toward newest
+  let ema = values[values.length - 1];
+  for (let i = values.length - 2; i >= 0; i--) {
+    ema = EMA_ALPHA * values[i] + (1 - EMA_ALPHA) * ema;
+  }
+  return ema;
 }
 
 const defaultProfile: AthleteProfile = {
@@ -296,6 +324,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           weight: log.weight,
           date: new Date(log.date),
           type: log.type as WeightLog['type'],
+          ...(log.duration !== undefined && log.duration !== null && { duration: log.duration }),
+          ...(log.sleep_hours !== undefined && log.sleep_hours !== null && { sleepHours: log.sleep_hours }),
         })));
       }
 
@@ -324,6 +354,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const migrateLocalStorageToSupabase = async () => {
     if (!user) return;
 
+    let profileOk = false;
+    let logsOk = false;
+    let trackingOk = false;
+
     try {
       // Get localStorage data
       const savedProfile = localStorage.getItem('pwm-profile');
@@ -333,7 +367,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Migrate profile
       if (savedProfile) {
         const parsed = JSON.parse(savedProfile);
-        await supabase.from('profiles').upsert({
+        const { error } = await supabase.from('profiles').upsert({
           user_id: user.id,
           name: parsed.name || 'Athlete',
           current_weight: parsed.currentWeight || 0,
@@ -344,6 +378,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           has_completed_onboarding: true,
           simulated_date: null,
         }, { onConflict: 'user_id' });
+        if (error) throw new Error(`Profile migration failed: ${error.message}`);
+        profileOk = true;
+      } else {
+        profileOk = true;
       }
 
       // Migrate logs
@@ -360,8 +398,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }));
 
         if (logsToInsert.length > 0) {
-          await supabase.from('weight_logs').insert(logsToInsert);
+          const { error } = await supabase.from('weight_logs').insert(logsToInsert);
+          if (error) throw new Error(`Logs migration failed: ${error.message}`);
         }
+        logsOk = true;
+      } else {
+        logsOk = true;
       }
 
       // Migrate daily tracking
@@ -377,23 +419,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (trackingToInsert.length > 0) {
           for (const tracking of trackingToInsert) {
-            await supabase.from('daily_tracking').upsert(tracking, {
+            const { error } = await supabase.from('daily_tracking').upsert(tracking, {
               onConflict: 'user_id,date'
             });
+            if (error) throw new Error(`Tracking migration failed: ${error.message}`);
           }
         }
+        trackingOk = true;
+      } else {
+        trackingOk = true;
       }
 
-      // Clear localStorage after successful migration
-      localStorage.removeItem('pwm-profile');
-      localStorage.removeItem('pwm-logs');
-      localStorage.removeItem('pwm-daily-tracking');
-      localStorage.removeItem('pwm-tanks');
+      // Only clear localStorage if ALL migrations succeeded
+      if (profileOk && logsOk && trackingOk) {
+        localStorage.removeItem('pwm-profile');
+        localStorage.removeItem('pwm-logs');
+        localStorage.removeItem('pwm-daily-tracking');
+        localStorage.removeItem('pwm-tanks');
+      }
 
       // Reload from Supabase
       await loadFromSupabase();
     } catch (error) {
       console.error('Migration error:', error);
+      throw error; // Re-throw so landing page can show error to user
     }
   };
 
@@ -483,25 +532,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Optimistic update
     setLogs(prev => [newLog, ...prev]);
 
-    // Auto-update current weight
-    const target = calculateTarget();
-    setProfile(prev => ({
-      ...prev,
-      currentWeight: log.weight,
-      status: log.weight <= target + 1 ? 'on-track' : 'borderline'
-    }));
+    // Only update currentWeight if this log is the most recent by date
+    const mostRecentLog = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const isNewest = !mostRecentLog || new Date(log.date).getTime() >= new Date(mostRecentLog.date).getTime();
+    if (isNewest) {
+      const target = calculateTarget();
+      setProfile(prev => ({
+        ...prev,
+        currentWeight: log.weight,
+        status: log.weight <= target + STATUS_THRESHOLDS.ON_TRACK_BUFFER ? 'on-track' : 'borderline'
+      }));
+    }
 
     if (user) {
       try {
         // Only insert valid log types (all weight log types)
         const validTypes = Object.values(LOG_TYPES);
         if (validTypes.includes(log.type)) {
-          const { data, error } = await supabase.from('weight_logs').insert({
+          const insertData: any = {
             user_id: user.id,
             weight: log.weight,
             date: log.date.toISOString(),
             type: log.type,
-          }).select().single();
+          };
+          if (log.duration !== undefined) insertData.duration = log.duration;
+          if (log.sleepHours !== undefined) insertData.sleep_hours = log.sleepHours;
+          const { data, error } = await supabase.from('weight_logs').insert(insertData).select().single();
 
           if (error) {
             // Rollback on error
@@ -518,13 +574,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // Update profile weight in Supabase
-        const { error: profileError } = await supabase.from('profiles').update({
-          current_weight: log.weight,
-        }).eq('user_id', user.id);
+        // Only update profile weight in Supabase if this is the newest log
+        if (isNewest) {
+          const { error: profileError } = await supabase.from('profiles').update({
+            current_weight: log.weight,
+          }).eq('user_id', user.id);
 
-        if (profileError) {
-          console.error('Error updating profile weight:', profileError);
+          if (profileError) {
+            console.error('Error updating profile weight:', profileError);
+          }
         }
       } catch (error) {
         // Rollback on exception
@@ -545,13 +603,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       log.id === id ? { ...log, ...updates } : log
     ));
 
+    // Only update currentWeight/status if editing the most recent log
     if (updates.weight !== undefined) {
-      const target = calculateTarget();
-      setProfile(prev => ({
-        ...prev,
-        currentWeight: updates.weight!,
-        status: updates.weight! <= target + 1 ? 'on-track' : 'borderline'
-      }));
+      const mostRecentLog = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      if (mostRecentLog && mostRecentLog.id === id) {
+        const target = calculateTarget();
+        setProfile(prev => ({
+          ...prev,
+          currentWeight: updates.weight!,
+          status: updates.weight! <= target + STATUS_THRESHOLDS.ON_TRACK_BUFFER ? 'on-track' : 'borderline'
+        }));
+      }
     }
 
     if (user) {
@@ -560,6 +622,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (updates.weight !== undefined) updateData.weight = updates.weight;
         if (updates.date !== undefined) updateData.date = updates.date.toISOString();
         if (updates.type !== undefined) updateData.type = updates.type;
+        if (updates.duration !== undefined) updateData.duration = updates.duration;
+        if (updates.sleepHours !== undefined) updateData.sleep_hours = updates.sleepHours;
 
         const { error } = await supabase.from('weight_logs').update(updateData).eq('id', id);
 
@@ -572,13 +636,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // Only sync currentWeight to DB if editing the most recent log
         if (updates.weight !== undefined) {
-          const { error: profileError } = await supabase.from('profiles').update({
-            current_weight: updates.weight,
-          }).eq('user_id', user.id);
+          const mostRecentLog = [...previousLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+          if (mostRecentLog && mostRecentLog.id === id) {
+            const { error: profileError } = await supabase.from('profiles').update({
+              current_weight: updates.weight,
+            }).eq('user_id', user.id);
 
-          if (profileError) {
-            console.error('Error updating profile weight:', profileError);
+            if (profileError) {
+              console.error('Error updating profile weight:', profileError);
+            }
           }
         }
       } catch (error) {
@@ -633,9 +701,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Capture previous state for rollback
     const previousTracking = dailyTracking;
 
+    // Compute merged values BEFORE setState to avoid stale read
+    const existing = getDailyTracking(date);
+    const merged = {
+      waterConsumed: updates.waterConsumed ?? existing.waterConsumed,
+      carbsConsumed: updates.carbsConsumed ?? existing.carbsConsumed,
+      proteinConsumed: updates.proteinConsumed ?? existing.proteinConsumed,
+    };
+
     setDailyTracking(prev => {
-      const existing = prev.find(d => d.date === date);
-      if (existing) {
+      const found = prev.find(d => d.date === date);
+      if (found) {
         return prev.map(d => d.date === date ? { ...d, ...updates } : d);
       }
       return [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, ...updates }];
@@ -643,13 +719,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       try {
-        const current = getDailyTracking(date);
         const { error } = await supabase.from('daily_tracking').upsert({
           user_id: user.id,
           date: date,
-          carbs_consumed: updates.carbsConsumed ?? current.carbsConsumed,
-          protein_consumed: updates.proteinConsumed ?? current.proteinConsumed,
-          water_consumed: updates.waterConsumed ?? current.waterConsumed,
+          carbs_consumed: merged.carbsConsumed,
+          protein_consumed: merged.proteinConsumed,
+          water_consumed: merged.waterConsumed,
         }, { onConflict: 'user_id,date' });
 
         if (error) {
@@ -810,14 +885,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getRehydrationPlan = (lostWeight: number) => {
-    const fluidMin = Math.round(lostWeight * 24);
-    const fluidMax = Math.round(lostWeight * 28);
-    const sodiumMin = Math.round(lostWeight * 1);
-    const sodiumMax = Math.round(lostWeight * 2);
+    // Research-based: 16-24 oz fluid per lb lost, 500-700 mg sodium per lb lost
+    const fluidMin = Math.round(lostWeight * 16);
+    const fluidMax = Math.round(lostWeight * 24);
+    const sodiumMin = Math.round(lostWeight * 500);
+    const sodiumMax = Math.round(lostWeight * 700);
 
     return {
       fluidRange: `${fluidMin}-${fluidMax} oz`,
-      sodiumRange: `${sodiumMin}-${sodiumMax}g`,
+      sodiumRange: `${sodiumMin}-${sodiumMax}mg`,
       glycogen: "40-50g Dextrose/Rice Cakes"
     };
   };
@@ -928,10 +1004,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Hydration target for any daysUntil value (used by getWeeklyPlan for consistency)
   const getHydrationForDaysUntil = (daysUntil: number): { amount: string; targetOz: number; type: string } => {
-    // Use the athlete's current weight (or walk-around estimate) for oz/lb scaling
-    const athleteWeight = logs.length > 0
-      ? logs[logs.length - 1].weight
-      : Math.round(profile.targetWeightClass * 1.07);
+    // Use the most recent MORNING weight for oz/lb scaling (most stable daily body mass reference).
+    // Falls back to most recent log of any type, then walk-around estimate.
+    const morningLogs = logs.filter(l => l.type === 'morning');
+    const mostRecentMorning = morningLogs.length > 0
+      ? [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+      : null;
+    const athleteWeight = mostRecentMorning
+      ? mostRecentMorning.weight
+      : logs.length > 0
+        ? [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].weight
+        : Math.round(profile.targetWeightClass * 1.07);
 
     const targetOz = getWaterTargetOz(daysUntil, athleteWeight);
     const amount = getWaterTargetGallons(daysUntil, athleteWeight);
@@ -951,6 +1034,70 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const w = profile.currentWeight || profile.targetWeightClass;
     const protocol = profile.protocol;
     const daysUntilWeighIn = getDaysUntilWeighIn();
+
+    // Weight-awareness: check how far over target the athlete currently is
+    // This modifies the targets returned below when significantly overweight on cut/prep days
+    const getWeightAdjustedResult = (result: { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string }) => {
+      // Only apply weight adjustments on days 1-3 (cut & prep days)
+      if (daysUntilWeighIn < 1 || daysUntilWeighIn > 3) return result;
+
+      // Get latest weight from today's logs
+      const today = startOfDay(profile.simulatedDate || new Date());
+      const todayStr = format(today, 'yyyy-MM-dd');
+      const todayLogs = logs
+        .filter(l => format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const latestWeight = todayLogs.length > 0 ? todayLogs[0].weight : 0;
+      if (latestWeight === 0) return result;
+
+      const overTarget = latestWeight - profile.targetWeightClass;
+      const pctOver = (overTarget / profile.targetWeightClass) * 100;
+
+      // Also factor in days remaining — 1 day out is more critical than 3 days out
+      const dayMultiplier = daysUntilWeighIn === 1 ? 1.5 : daysUntilWeighIn === 2 ? 1.2 : 1.0;
+      const effectivePctOver = pctOver * dayMultiplier;
+
+      // 10%+ effective (e.g., 8%+ on day 1, or 12%+ on day 3) — DO NOT EAT
+      if (effectivePctOver >= 10) {
+        return {
+          carbs: { min: 0, max: 0 },
+          protein: { min: 0, max: 0 },
+          ratio: result.ratio,
+          weightWarning: `${overTarget.toFixed(1)} lbs over with ${daysUntilWeighIn} day${daysUntilWeighIn > 1 ? 's' : ''} left. Do not eat — any food adds weight. Focus entirely on extra workouts and water cut.`,
+        };
+      }
+      // 7-10% effective — near-zero, survival only
+      if (effectivePctOver >= 7) {
+        return {
+          carbs: { min: 0, max: Math.round(result.carbs.max * 0.15) },
+          protein: { min: 0, max: Math.round(result.protein.max * 0.2) },
+          ratio: result.ratio,
+          weightWarning: `${overTarget.toFixed(1)} lbs over — eat only if you feel faint. Every gram counts. Extra workouts are the priority.`,
+        };
+      }
+      // 5-7% effective — heavily restrict
+      if (effectivePctOver >= 5) {
+        return {
+          carbs: { min: Math.round(result.carbs.min * 0.3), max: Math.round(result.carbs.max * 0.4) },
+          protein: { min: Math.round(result.protein.min * 0.5), max: Math.round(result.protein.max * 0.5) },
+          ratio: result.ratio,
+          weightWarning: `${overTarget.toFixed(1)} lbs over — minimize intake. Focus on extra workouts and water cut.`,
+        };
+      }
+      // 3-5% effective — moderate reduction
+      if (effectivePctOver >= 3) {
+        return {
+          carbs: { min: Math.round(result.carbs.min * 0.6), max: Math.round(result.carbs.max * 0.7) },
+          protein: { min: Math.round(result.protein.min * 0.8), max: Math.round(result.protein.max * 0.8) },
+          ratio: result.ratio,
+          weightWarning: `${overTarget.toFixed(1)} lbs over target — reduce intake and add extra workouts.`,
+        };
+      }
+      return result;
+    };
+
+    // Get base targets from protocol, then apply weight adjustment
+    const getBaseTargets = (): { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string } => {
 
     // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
     // Extended 0 protein period, maximum FGF21 activation
@@ -1142,6 +1289,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       protein: { min: 75, max: 100 },
       ratio: "Balanced"
     };
+    }; // end getBaseTargets
+
+    return getWeightAdjustedResult(getBaseTargets());
   };
 
   const getFoodLists = () => {
@@ -1341,8 +1491,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const foods = getFoodLists();
 
     // Default lists
-    let carbs = foods.balanced;
-    let protein = foods.protein;
+    let carbs: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string; timing?: string }> = foods.balanced;
+    let protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }> = foods.protein;
     let avoid = foods.avoid;
     let carbsLabel = "Balanced Carbs";
     let proteinLabel = "Standard Protein";
@@ -1814,6 +1964,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return differenceInDays(weighIn, targetDate);
   };
 
+  // Shared: apply weight-based macro override to today's entry in any weekly plan
+  const applyWeightAdjustmentToToday = (plan: DayPlan[]): DayPlan[] => {
+    const todayEntry = plan.find(d => d.isToday);
+    if (!todayEntry) return plan;
+
+    const daysUntil = getDaysUntilWeighIn();
+    // Only adjust on cut/prep days (1-3 days out)
+    if (daysUntil < 1 || daysUntil > 3) return plan;
+
+    // Get latest weight
+    const today = startOfDay(profile.simulatedDate || new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const todayLogs = logs
+      .filter(l => format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const latestWeight = todayLogs.length > 0 ? todayLogs[0].weight : 0;
+    if (latestWeight === 0) return plan;
+
+    if (!profile.targetWeightClass || profile.targetWeightClass <= 0) return plan;
+    const overTarget = latestWeight - profile.targetWeightClass;
+    const pctOver = (overTarget / profile.targetWeightClass) * 100;
+    const dayMultiplier = daysUntil === 1 ? 1.5 : daysUntil === 2 ? 1.2 : 1.0;
+    const effectivePctOver = pctOver * dayMultiplier;
+
+    if (effectivePctOver < 3) return plan;
+
+    return plan.map(d => {
+      if (!d.isToday) return d;
+      if (effectivePctOver >= 10) {
+        return { ...d, carbs: { min: 0, max: 0 }, protein: { min: 0, max: 0 }, weightWarning: `OVERWEIGHT: ${overTarget.toFixed(1)} lbs over with ${daysUntil} day${daysUntil > 1 ? 's' : ''} left. Do not eat.` };
+      }
+      if (effectivePctOver >= 7) {
+        return { ...d, carbs: { min: 0, max: Math.round(d.carbs.max * 0.15) }, protein: { min: 0, max: Math.round(d.protein.max * 0.2) }, weightWarning: `${overTarget.toFixed(1)} lbs over — eat only if you feel faint.` };
+      }
+      if (effectivePctOver >= 5) {
+        return { ...d, carbs: { min: Math.round(d.carbs.min * 0.3), max: Math.round(d.carbs.max * 0.4) }, protein: { min: Math.round(d.protein.min * 0.5), max: Math.round(d.protein.max * 0.5) }, weightWarning: `${overTarget.toFixed(1)} lbs over — minimize intake.` };
+      }
+      return { ...d, carbs: { min: Math.round(d.carbs.min * 0.6), max: Math.round(d.carbs.max * 0.7) }, protein: { min: Math.round(d.protein.min * 0.8), max: Math.round(d.protein.max * 0.8) }, weightWarning: `${overTarget.toFixed(1)} lbs over — reduce intake.` };
+    });
+  };
+
   const getWeeklyPlan = (): DayPlan[] => {
     const w = profile.targetWeightClass;
     const today = startOfDay(profile.simulatedDate || new Date());
@@ -1907,7 +2098,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           isTomorrow: currentDayOfWeek === prevDayNum
         };
       });
-      return buildDays;
+      return applyWeightAdjustmentToToday(buildDays);
     }
 
     // Protocol 3 (Hold Weight) - Minimal cutting, maintain walk-around weight
@@ -1984,7 +2175,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           isTomorrow: currentDayOfWeek === prevDayNum
         };
       });
-      return holdDays;
+      return applyWeightAdjustmentToToday(holdDays);
     }
 
     // Protocols 1 & 2 (Body Comp & Make Weight) - Full cutting protocol
@@ -2080,7 +2271,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       };
     });
 
-    return days;
+    // Apply weight-based adjustments to today's entry (same logic as getMacroTargets weight adjustment)
+    return applyWeightAdjustmentToToday(days);
   };
 
   const getTomorrowPlan = (): DayPlan | null => {
@@ -2104,37 +2296,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getDriftMetrics = () => {
-    // Logs are sorted newest first, so logs[i] is more recent than logs[i+1]
-    // Overnight drift = previous post-practice - this morning (weight LOST overnight)
-    // Session loss = pre-practice - post-practice (weight LOST during practice)
+    // Sort logs newest-first by date
+    const sorted = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     let overnightSum = 0;
     let overnightCount = 0;
     let sessionSum = 0;
     let sessionCount = 0;
 
-    for (let i = 0; i < logs.length - 1; i++) {
-        const current = logs[i];    // More recent
-        const next = logs[i+1];     // Older
+    // For each morning log, find the most recent preceding post-practice (overnight drift)
+    // For each post-practice log, find the most recent preceding pre-practice (session loss)
+    const morningLogs = sorted.filter(l => l.type === 'morning');
+    const postPracticeLogs = sorted.filter(l => l.type === 'post-practice');
+    const prePracticeLogs = sorted.filter(l => l.type === 'pre-practice');
 
-        // Overnight drift: morning (current) vs previous day's post-practice (next)
-        // Drift = post-practice - morning = next.weight - current.weight (positive = weight lost)
-        if (current.type === 'morning' && next.type === 'post-practice') {
-            const diffHours = (current.date.getTime() - next.date.getTime()) / (1000 * 60 * 60);
-            if (diffHours > 6 && diffHours < 16) {
-                overnightSum += (next.weight - current.weight);
-                overnightCount++;
-            }
-        }
+    // Overnight drift: morning weight vs previous day's post-practice
+    for (const morning of morningLogs) {
+      const morningTime = new Date(morning.date).getTime();
+      // Find the closest post-practice BEFORE this morning (6-16 hours prior)
+      const match = postPracticeLogs.find(pp => {
+        const ppTime = new Date(pp.date).getTime();
+        const diffHours = (morningTime - ppTime) / (1000 * 60 * 60);
+        return diffHours > 6 && diffHours < 16;
+      });
+      if (match) {
+        overnightSum += (match.weight - morning.weight);
+        overnightCount++;
+      }
+    }
 
-        // Session loss: post-practice (current) vs pre-practice (next)
-        // Loss = pre-practice - post-practice = next.weight - current.weight (positive = weight lost)
-        if (current.type === 'post-practice' && next.type === 'pre-practice') {
-             const diffHours = (current.date.getTime() - next.date.getTime()) / (1000 * 60 * 60);
-             if (diffHours < 4) {
-                 sessionSum += (next.weight - current.weight);
-                 sessionCount++;
-             }
-        }
+    // Session loss: pre-practice vs post-practice (same session, within 4 hours)
+    const usedPostIds = new Set<string>();
+    for (const pre of prePracticeLogs) {
+      const preTime = new Date(pre.date).getTime();
+      // Find the closest post-practice AFTER this pre-practice (within 4 hours)
+      const match = postPracticeLogs.find(pp => {
+        if (usedPostIds.has(pp.id)) return false;
+        const ppTime = new Date(pp.date).getTime();
+        const diffHours = (ppTime - preTime) / (1000 * 60 * 60);
+        return diffHours > 0 && diffHours < 4;
+      });
+      if (match) {
+        usedPostIds.add(match.id);
+        sessionSum += (pre.weight - match.weight);
+        sessionCount++;
+      }
     }
 
     return {
@@ -2144,7 +2350,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Calculate extra workout statistics from logged extra-before/extra-after pairs
-  const getExtraWorkoutStats = (): { avgLoss: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number } => {
+  const getExtraWorkoutStats = (): { avgLoss: number | null; avgSweatRateOzPerHr: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number } => {
     const today = startOfDay(profile.simulatedDate || new Date());
     const todayStr = format(today, 'yyyy-MM-dd');
 
@@ -2155,6 +2361,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     const workoutLosses: number[] = [];
+    const sweatRates: number[] = [];
     let todayWorkouts = 0;
     let todayLoss = 0;
     const usedAfterIds = new Set<string>();
@@ -2187,6 +2394,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (loss > 0) { // Only count if weight was lost
           workoutLosses.push(loss);
 
+          // Calculate sweat rate (lbs/hr) if duration is available
+          if (bestAfter.duration && bestAfter.duration > 0) {
+            const ozPerHr = loss / (bestAfter.duration / 60);
+            sweatRates.push(ozPerHr);
+          }
+
           // Check if this workout is from today
           if (beforeDay === todayStr) {
             todayWorkouts++;
@@ -2199,6 +2412,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return {
       avgLoss: workoutLosses.length > 0
         ? workoutLosses.reduce((a, b) => a + b, 0) / workoutLosses.length
+        : null,
+      avgSweatRateOzPerHr: sweatRates.length > 0
+        ? sweatRates.reduce((a, b) => a + b, 0) / sweatRates.length
         : null,
       totalWorkouts: workoutLosses.length,
       todayWorkouts,
@@ -2279,44 +2495,63 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const extraStats = getExtraWorkoutStats();
         const daysRemaining = descentData.daysRemaining;
 
-        // Default workout loss estimate if no data (conservative 1.5 lbs per 30-45 min session)
-        const avgWorkoutLoss = extraStats.avgLoss ?? 1.5;
+        // Workout loss estimate priority:
+        // 1. Actual extra workout average (if they've logged extra workouts)
+        // 2. Practice sweat rate × 0.75 hr (45 min estimated extra session)
+        // 3. Average practice loss (from regular practice data)
+        // 4. No estimate — tell them to log a workout
+        const practiceSweatRate = descentData.avgSweatRateOzPerHr; // in lbs/hr now
+        const avgWorkoutLoss = extraStats.avgLoss
+          ?? (practiceSweatRate !== null ? practiceSweatRate * 0.75 : null)
+          ?? descentData.avgPracticeLoss
+          ?? null;
 
         // Calculate how many extra workouts needed
-        const workoutsNeeded = Math.ceil(projectedOver / avgWorkoutLoss);
+        const workoutsNeeded = avgWorkoutLoss !== null && avgWorkoutLoss > 0
+          ? Math.ceil(projectedOver / avgWorkoutLoss)
+          : null;
 
         // Base recommendation object with common fields
         const baseRec = {
-          totalWorkoutsNeeded: workoutsNeeded,
+          totalWorkoutsNeeded: workoutsNeeded ?? 0,
           todayWorkoutsDone: extraStats.todayWorkouts,
           todayLoss: extraStats.todayLoss,
           avgExtraWorkoutLoss: extraStats.avgLoss
         };
 
-        // Build estimate disclaimer
-        const usingEstimate = extraStats.avgLoss === null;
-        const estimateNote = usingEstimate
-          ? ' (est. 1.5 lb/workout - log one to personalize)'
+        // Build data source note
+        const hasNoData = avgWorkoutLoss === null;
+        const dataSource = extraStats.avgLoss !== null
+          ? ` Based on your avg ${extraStats.avgLoss.toFixed(1)} lb loss per workout.`
+          : practiceSweatRate !== null
+          ? ` Based on ${practiceSweatRate.toFixed(2)} lbs/hr sweat rate.`
+          : descentData.avgPracticeLoss !== null
+          ? ` Based on avg ${Math.abs(descentData.avgPracticeLoss).toFixed(1)} lb practice loss.`
           : '';
+        const estimateNote = hasNoData
+          ? ' Log a workout to get personalized estimates.'
+          : dataSource;
 
         // Determine urgency and message based on how much over and days remaining
+        const workoutStr = workoutsNeeded !== null
+          ? `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed.${estimateNote}`
+          : `${projectedOver.toFixed(1)} lbs over.${estimateNote}`;
+
         if (projectedOver > 4) {
           // 4+ lbs over - critical
           if (daysRemaining < 3) {
-            // Less than 3 days with 4+ lbs to lose - DANGER
             recommendation = {
               ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded,
+              extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `DANGER: ${projectedOver.toFixed(1)} lbs over with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left. Consider moving up a weight class.`,
               urgency: 'critical',
               switchProtocol: true
             };
           } else {
-            // 3+ days with 4+ lbs - switch protocol + extra workouts
             recommendation = {
               ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded,
-              message: `${workoutsNeeded}+ extra workouts needed before weigh-in${estimateNote}. Switch to Body Comp protocol.`,
+              extraWorkoutsNeeded: workoutsNeeded ?? 0,
+              message: `${workoutStr} Switch to Body Comp protocol.`,
               urgency: 'critical',
               switchProtocol: true
             };
@@ -2326,33 +2561,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (daysRemaining < 3) {
             recommendation = {
               ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded,
-              message: `${workoutsNeeded} extra workouts needed before weigh-in${estimateNote}. Consider switching protocols.`,
+              extraWorkoutsNeeded: workoutsNeeded ?? 0,
+              message: `${workoutStr} Consider switching protocols.`,
               urgency: 'high',
               switchProtocol: true
             };
           } else {
             recommendation = {
               ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded,
-              message: `${workoutsNeeded} extra workouts needed before weigh-in${estimateNote} OR switch protocol.`,
+              extraWorkoutsNeeded: workoutsNeeded ?? 0,
+              message: `${workoutStr} OR switch protocol.`,
               urgency: 'high',
               switchProtocol: false
             };
           }
         } else {
-          // 1-2 lbs over - moderate
+          // 0.5-2 lbs over - moderate
           recommendation = {
             ...baseRec,
-            extraWorkoutsNeeded: workoutsNeeded,
-            message: `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed before weigh-in${estimateNote}.`,
+            extraWorkoutsNeeded: workoutsNeeded ?? 0,
+            message: workoutStr,
             urgency: 'moderate',
             switchProtocol: false
           };
         }
 
         // Adjust message if they have logged extra workouts today
-        if (extraStats.todayWorkouts > 0) {
+        if (extraStats.todayWorkouts > 0 && workoutsNeeded !== null) {
           const remainingWorkouts = Math.max(0, workoutsNeeded - extraStats.todayWorkouts);
           if (remainingWorkouts === 0) {
             recommendation.message = `Today's workout${extraStats.todayWorkouts > 1 ? 's' : ''} helped (-${extraStats.todayLoss.toFixed(1)} lbs). Still ${projectedOver.toFixed(1)} lbs over - keep cutting.`;
@@ -2365,16 +2600,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Build contextMessage — a human-readable one-liner for the command bar
-    const projStr = descentData.projectedSaturday !== null && descentData.daysRemaining > 0
-      ? ` → proj ${descentData.projectedSaturday.toFixed(1)}`
-      : '';
+    const overClass = currentWeight - profile.targetWeightClass;
     const buildContextMessage = (): string => {
-      if (waterLoading) {
-        if (diff <= 0) return `${currentWeight.toFixed(1)} lbs — on target${projStr}`;
-        return `${currentWeight.toFixed(1)} lbs — +${diff.toFixed(1)} above${projStr}`;
-      }
-      if (diff <= 0) return `${currentWeight.toFixed(1)} lbs — on target${projStr}`;
-      return `${currentWeight.toFixed(1)} lbs — ${diff.toFixed(1)} above${projStr}`;
+      if (overClass > 0) return `${currentWeight.toFixed(1)} lbs · ${overClass.toFixed(1)} over ${profile.targetWeightClass}`;
+      return `${currentWeight.toFixed(1)} lbs · on weight`;
     };
     const contextMessage = buildContextMessage();
 
@@ -2429,14 +2658,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const daysUntilWeighIn = getDaysUntilWeighIn();
     const statusData = getStatus();
 
-    // Build projection/recommendation subtext — keep it short
+    // Build projection/recommendation subtext — uses recommendation.message which
+    // already contains workout count + data source (sweat rate, practice loss, or "log to personalize")
     const buildSubtext = (): string | undefined => {
       if (statusData.projectionWarning && statusData.recommendation) {
-        const rec = statusData.recommendation;
-        if (rec.extraWorkoutsNeeded > 0) {
-          return `${statusData.projectionWarning}. ${rec.extraWorkoutsNeeded} extra workout${rec.extraWorkoutsNeeded > 1 ? 's' : ''} needed.`;
-        }
-        return statusData.projectionWarning;
+        return `${statusData.projectionWarning}. ${statusData.recommendation.message}`;
       }
       if (statusData.projectionWarning) {
         return statusData.projectionWarning;
@@ -2476,7 +2702,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { priority: "ZERO FIBER - check every bite. Water weight dropping.", subtext: buildSubtext(), urgency: 'high', icon: 'alert', actionType: 'check-food' };
     }
     if (daysUntilWeighIn === 3) {
-      return { priority: "Peak water day - hit your full gallon target", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
+      return { priority: "Peak water day - hit your full water target", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     if (daysUntilWeighIn === 4) {
       return { priority: "Continue loading - fructose heavy, peak water intake tomorrow", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
@@ -2532,9 +2758,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const startWeight = morningWeights.length > 0 ? morningWeights[0].weight : null;
-    // For morning-to-morning tracking, use latest morning weight
     const latestMorningWeight = morningWeights.length > 0 ? morningWeights[morningWeights.length - 1].weight : null;
-    const totalLost = startWeight && latestMorningWeight ? startWeight - latestMorningWeight : null;
 
     // For projections, use the most recent weigh-in of ANY type (morning, check-in, post-practice, etc.)
     // This gives real-time projection updates whenever they step on the scale
@@ -2548,6 +2772,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const mostRecentWeighIn = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
     const currentWeight = mostRecentWeighIn;
 
+    // Total lost: start weight to current (most recent weigh-in of any type)
+    const totalLost = startWeight && currentWeight ? startWeight - currentWeight : null;
+
     // Net daily average (morning-to-morning, includes food/water intake)
     let dailyAvgLoss: number | null = null;
     if (morningWeights.length >= 2 && startWeight && latestMorningWeight) {
@@ -2559,48 +2786,101 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Calculate gross loss capacity from drift and practice metrics
     // This shows how much weight you CAN lose when you stop eating/drinking
+    // Use ALL logs — EMA (alpha=0.4) naturally fades old data so recent points dominate.
+    // No hard cutoff: preserves useful baseline early in a cycle when few new data points exist.
     const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
 
-    // Overnight drift (weight lost while sleeping)
-    const overnightDrifts: number[] = [];
+    // === Phase-aware overnight drift with EMA recency weighting ===
+    // Separate loading-day drifts (Mon-Wed, 3+ days out) from cut-day drifts (Thu-Fri, 1-2 days out)
+    // because athletes lose significantly less overnight as they get closer to weight class.
+    // EMA (alpha=0.4) gives ~40% weight to most recent, ~24% to next, ~14% to next, etc.
+
+    const loadingDrifts: number[] = []; // 3+ days out (Mon-Wed nights)
+    const cutDrifts: number[] = [];     // 1-2 days out (Thu-Fri nights)
+    const allDrifts: number[] = [];     // all drifts for overall average
+    const driftRates: number[] = [];    // lbs/hr drift rates (when sleep hours available)
+
     for (let i = 0; i < sortedLogs.length - 1; i++) {
-      const current = sortedLogs[i];
-      const prev = sortedLogs[i + 1];
+      const current = sortedLogs[i]; // morning log
+      const prev = sortedLogs[i + 1]; // previous night's log
       if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
         const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
         if (hoursDiff > 4 && hoursDiff < 16) {
-          overnightDrifts.push(prev.weight - current.weight);
+          const drift = prev.weight - current.weight;
+          allDrifts.push(drift);
+
+          // Calculate drift rate (lbs/hr)
+          // Use explicit sleepHours if available, otherwise estimate from log timestamps
+          if (drift > 0) {
+            const sleepHrs = current.sleepHours && current.sleepHours > 0
+              ? current.sleepHours
+              : hoursDiff; // fallback: time between bed/post-practice log and morning log
+            if (sleepHrs > 0) {
+              const ozPerHr = drift / sleepHrs;
+              driftRates.push(ozPerHr);
+            }
+          }
+
+          // Classify by phase: which day was the "night" (prev log) on?
+          const prevDate = startOfDay(new Date(prev.date));
+          const daysOut = differenceInDays(startOfDay(profile.weighInDate), prevDate);
+          if (daysOut >= 3) {
+            loadingDrifts.push(drift);
+          } else if (daysOut >= 1) {
+            cutDrifts.push(drift);
+          }
         }
       }
     }
 
-    // Practice losses (sweat rate)
+    // Practice losses (sweat rate) with EMA
     const practiceLosses: number[] = [];
+    const practiceSweatRates: number[] = [];
     for (let i = 0; i < sortedLogs.length - 1; i++) {
       const post = sortedLogs[i];
       const pre = sortedLogs[i + 1];
       if (post.type === 'post-practice' && pre.type === 'pre-practice') {
         const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
         if (hoursDiff < 6) {
-          practiceLosses.push(pre.weight - post.weight);
+          const loss = pre.weight - post.weight;
+          practiceLosses.push(loss);
+          // Calculate sweat rate (lbs/hr): use explicit duration if available, otherwise estimate from timestamps
+          // Minimum 15 min (0.25 hr) for timestamp fallback to avoid division by near-zero
+          if (loss > 0) {
+            const practiceHrs = post.duration && post.duration > 0
+              ? post.duration / 60
+              : (hoursDiff >= 0.25 ? hoursDiff : null); // fallback with minimum threshold
+            if (practiceHrs !== null && practiceHrs > 0) {
+              const ozPerHr = loss / practiceHrs;
+              // Sanity check: reject rates above 6 lbs/hr (physiologically impossible)
+              if (ozPerHr <= 6) {
+                practiceSweatRates.push(ozPerHr);
+              }
+            }
+          }
         }
       }
     }
 
-    const avgOvernightDrift = overnightDrifts.length > 0
-      ? overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length
-      : null;
-    const avgPracticeLoss = practiceLosses.length > 0
-      ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
-      : null;
+    // EMA-weighted averages (recency-biased)
+    const avgOvernightDrift = computeEMA(allDrifts);
+    const avgLoadingDrift = computeEMA(loadingDrifts);
+    const avgCutDrift = computeEMA(cutDrifts);
+    const avgPracticeLoss = computeEMA(practiceLosses);
+    const avgSweatRateOzPerHr = computeEMA(practiceSweatRates);
+    const avgDriftRateOzPerHr = computeEMA(driftRates);
 
     // Gross daily loss capacity = overnight drift + practice loss
-    // This is how much you CAN lose in a day when you minimize intake
+    // Now phase-aware: loading days use loading drift, cut days use cut drift
     // Use absolute values since these represent weight LOST (always positive capacity)
     let grossDailyLoss: number | null = null;
     if (avgOvernightDrift !== null) {
       grossDailyLoss = Math.abs(avgOvernightDrift) + Math.abs(avgPracticeLoss || 0);
     }
+    // Phase-specific gross capacity for more accurate projections
+    const loadingDrift = avgLoadingDrift !== null ? Math.abs(avgLoadingDrift) : (avgOvernightDrift !== null ? Math.abs(avgOvernightDrift) : 0);
+    const cutDrift = avgCutDrift !== null ? Math.abs(avgCutDrift) : (avgOvernightDrift !== null ? Math.abs(avgOvernightDrift) * 0.6 : 0);
+    const practice = avgPracticeLoss !== null ? Math.abs(avgPracticeLoss) : 0;
 
     // Hybrid projection: uses different strategies for loading vs cut days.
     //
@@ -2617,12 +2897,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (daysRemaining > 0) {
       const hasDriftData = avgOvernightDrift !== null && Math.abs(avgOvernightDrift!) > 0;
-      const hasPracticeData = avgPracticeLoss !== null && Math.abs(avgPracticeLoss!) > 0;
       const hasNetData = dailyAvgLoss !== null && dailyAvgLoss > 0;
       const hasGrossData = grossDailyLoss !== null && grossDailyLoss > 0;
-      const drift = hasDriftData ? Math.abs(avgOvernightDrift!) : 0;
-      const practice = hasPracticeData ? Math.abs(avgPracticeLoss!) : 0;
       const isLoadingToday = daysRemaining >= 3;
+
+      // Phase-aware drift: use the right drift for today's phase
+      const todayDrift = isLoadingToday ? loadingDrift : cutDrift;
 
       if (hasDriftData || hasNetData) {
         let projected: number;
@@ -2643,37 +2923,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
           if (lastLogType) {
             if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
-              todayRemainingLoss = practice + drift;
+              todayRemainingLoss = practice + todayDrift;
             } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-              todayRemainingLoss = drift;
+              todayRemainingLoss = todayDrift;
             } else if (lastLogType === 'extra-after') {
-              // Extra workouts are ADDITIONAL to normal practice+drift.
-              // Practice hasn't happened yet, so still count practice + drift as remaining.
-              todayRemainingLoss = practice + drift;
+              todayRemainingLoss = practice + todayDrift;
             } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
-              // Check if practice has actually happened by looking for a post-practice log
               const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-              todayRemainingLoss = hasPracticeLog ? drift : (practice + drift);
+              todayRemainingLoss = hasPracticeLog ? todayDrift : (practice + todayDrift);
             }
           } else {
-            // No logs today on a cut day — full gross capacity
-            todayRemainingLoss = practice + drift;
+            todayRemainingLoss = practice + todayDrift;
           }
           projected -= todayRemainingLoss;
         } else {
-          // No weight data at all
           projected = latestMorningWeight || 0;
         }
 
-        // Step 2: Future full days (tomorrow through weigh-in day)
+        // Step 2: Future full days — use phase-specific drift for each day
         for (let d = daysRemaining - 1; d > 0; d--) {
           if (d >= 3) {
             // Future loading day: net morning-to-morning loss
             const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
             projected -= loadingLoss;
           } else {
-            // Future cut day: gross capacity (drift + practice, no eating back)
-            if (hasGrossData) {
+            // Future cut day: use cut-specific drift + practice (no eating back)
+            const cutDayGross = cutDrift + practice;
+            if (cutDayGross > 0) {
+              projected -= cutDayGross;
+            } else if (hasGrossData) {
               projected -= grossDailyLoss!;
             } else if (hasNetData) {
               projected -= dailyAvgLoss! * 2.5;
@@ -2713,9 +2991,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       totalLost,
       dailyAvgLoss, // Net (morning-to-morning)
       grossDailyLoss, // Gross capacity (drift + practice)
-      avgOvernightDrift,
-      avgPracticeLoss,
-      projectedSaturday, // Based on gross capacity
+      avgOvernightDrift, // EMA-weighted overall drift
+      avgDriftRateOzPerHr, // EMA-weighted drift rate (oz/hr while sleeping)
+      avgLoadingDrift,   // EMA-weighted loading-day drift (Mon-Wed)
+      avgCutDrift,       // EMA-weighted cut-day drift (Thu-Fri)
+      avgPracticeLoss,   // EMA-weighted practice loss
+      avgSweatRateOzPerHr, // EMA-weighted sweat rate
+      projectedSaturday, // Phase-aware projection
       pace,
       morningWeights
     };
@@ -2735,6 +3017,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Calculate overnight drift (morning weight - previous night's weight)
     const overnightDrifts: number[] = [];
+    const historyDriftRates: number[] = [];
     for (let i = 0; i < sortedLogs.length - 1; i++) {
       const current = sortedLogs[i];
       const prev = sortedLogs[i + 1];
@@ -2742,13 +3025,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
         const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
         if (hoursDiff > 4 && hoursDiff < 16) {
-          overnightDrifts.push(prev.weight - current.weight);
+          const drift = prev.weight - current.weight;
+          overnightDrifts.push(drift);
+          if (drift > 0) {
+            const sleepHrs = current.sleepHours && current.sleepHours > 0
+              ? current.sleepHours
+              : hoursDiff;
+            if (sleepHrs > 0) {
+              const ozPerHr = drift / sleepHrs;
+              historyDriftRates.push(ozPerHr);
+            }
+          }
         }
       }
     }
 
-    // Calculate practice weight loss (pre - post)
+    // Calculate practice weight loss (pre - post) and sweat rate
     const practiceLosses: number[] = [];
+    const historySweatRates: number[] = [];
     for (let i = 0; i < sortedLogs.length - 1; i++) {
       const post = sortedLogs[i];
       const pre = sortedLogs[i + 1];
@@ -2756,7 +3050,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (post.type === 'post-practice' && pre.type === 'pre-practice') {
         const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
         if (hoursDiff < 6) {
-          practiceLosses.push(pre.weight - post.weight);
+          const loss = pre.weight - post.weight;
+          practiceLosses.push(loss);
+          if (loss > 0) {
+            const practiceHrs = post.duration && post.duration > 0
+              ? post.duration / 60
+              : (hoursDiff >= 0.25 ? hoursDiff : null);
+            if (practiceHrs !== null && practiceHrs > 0) {
+              const ozPerHr = loss / practiceHrs;
+              if (ozPerHr <= 6) {
+                historySweatRates.push(ozPerHr);
+              }
+            }
+          }
         }
       }
     }
@@ -2812,13 +3118,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (netDailyLoss <= 0) netDailyLoss = null;
     }
 
-    // Calculate gross capacity components
-    const avgOvernightLoss = overnightDrifts.length > 0
-      ? overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length
-      : null;
-    const avgPracticeLossVal = practiceLosses.length > 0
-      ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
-      : null;
+    // Calculate gross capacity components (EMA-weighted)
+    const avgOvernightLoss = computeEMA(overnightDrifts);
+    const avgPracticeLossVal = computeEMA(practiceLosses);
     const grossCapacity = avgOvernightLoss !== null
       ? Math.abs(avgOvernightLoss) + Math.abs(avgPracticeLossVal || 0)
       : null;
@@ -2898,12 +3200,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     return {
-      avgOvernightDrift: overnightDrifts.length > 0
-        ? overnightDrifts.reduce((a, b) => a + b, 0) / overnightDrifts.length
-        : null,
-      avgPracticeLoss: practiceLosses.length > 0
-        ? practiceLosses.reduce((a, b) => a + b, 0) / practiceLosses.length
-        : null,
+      avgOvernightDrift: computeEMA(overnightDrifts),
+      avgDriftRateOzPerHr: computeEMA(historyDriftRates),
+      avgPracticeLoss: computeEMA(practiceLosses),
+      avgSweatRateOzPerHr: computeEMA(historySweatRates),
       avgFridayCut: finalCuts.length > 0
         ? finalCuts.reduce((a, b) => a + b, 0) / finalCuts.length
         : null,

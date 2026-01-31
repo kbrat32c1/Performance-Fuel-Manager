@@ -194,22 +194,30 @@ export const SODIUM_MG_BY_DAY = {
  * Compute the water target in fluid ounces for a given day and body weight.
  * Returns the raw oz value for use in hydration tracking.
  */
+// Max water loading cap (oz) — ~2.5 gal. Prevents unsafe volumes for heavyweights.
+export const MAX_WATER_LOADING_OZ = 320;
+
 export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
   if (daysUntil === 0) return 0; // Weigh-in day — rehydrate after
   const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
-  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 3.5;
-  return Math.round(ozPerLb * weightLbs);
+  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
+  const raw = Math.round(ozPerLb * weightLbs);
+  // Cap loading days (ozPerLb > 0.5) to prevent unsafe volumes for heavyweights
+  return ozPerLb > 0.5 ? Math.min(raw, MAX_WATER_LOADING_OZ) : raw;
 }
 
 /**
  * Get formatted water target string (e.g. "1.50 gal", "Sips only", "Rehydrate").
+ * Used for weekly plan and explanatory text where gallon-scale numbers make sense.
  */
 export function getWaterTargetGallons(daysUntil: number, weightLbs: number): string {
   if (daysUntil === 0) return 'Rehydrate';
   const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
-  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 3.5;
+  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
   if (ozPerLb <= 0.1) return 'Sips only';
-  const totalOz = ozPerLb * weightLbs;
+  let totalOz = ozPerLb * weightLbs;
+  // Cap loading days for heavyweights
+  if (ozPerLb > 0.5) totalOz = Math.min(totalOz, MAX_WATER_LOADING_OZ);
   const gallons = totalOz / 128;
   // Round to nearest 0.25
   const rounded = Math.round(gallons * 4) / 4;

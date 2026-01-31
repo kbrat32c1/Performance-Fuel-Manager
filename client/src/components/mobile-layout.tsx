@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useStore } from "@/lib/store";
 import { QuickLogFAB } from "@/components/quick-log-fab";
+import { CompetitionBanner, useCompetitionActive } from "@/components/competition-banner";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -13,6 +14,14 @@ interface MobileLayoutProps {
 export function MobileLayout({ children, className, showNav = true }: MobileLayoutProps) {
   const [location, setLocation] = useLocation();
   const { profile, getDaysUntilWeighIn } = useStore();
+  const mainRef = useRef<HTMLElement>(null);
+  const compState = useCompetitionActive();
+
+  // Scroll to top on route change
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
+  }, [location]);
 
   // Determine if Recovery tab should be highlighted/shown prominently
   const daysUntilWeighIn = getDaysUntilWeighIn();
@@ -25,14 +34,17 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
         {/* Safe Area Top Padding */}
         <div className="h-safe-top w-full" />
 
+        {/* Competition Banner — sticky at top when timer is active */}
+        {showNav && <CompetitionBanner />}
+
         {/* Main Content */}
-        <main className="flex-1 w-full p-4 pb-24 animate-in fade-in duration-500">
+        <main ref={mainRef} className="flex-1 w-full p-4 pb-32 animate-in fade-in duration-500">
           {children}
         </main>
 
         {/* Bottom Nav */}
         {showNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-t border-border flex justify-around items-center h-16 pb-safe-bottom max-w-md mx-auto">
+          <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-center min-h-[64px] pb-safe-bottom max-w-md mx-auto">
             <NavItem
               icon="LayoutDashboard"
               label="Today"
@@ -57,6 +69,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
               active={location === '/recovery'}
               onClick={() => setLocation('/recovery')}
               highlighted={isRecoveryRelevant}
+              badge={compState.active}
             />
           </nav>
         )}
@@ -75,9 +88,10 @@ interface NavItemProps {
   onClick: () => void;
   primary?: boolean;
   highlighted?: boolean;
+  badge?: boolean;
 }
 
-function NavItem({ icon, label, active, onClick, primary, highlighted }: NavItemProps) {
+function NavItem({ icon, label, active, onClick, primary, highlighted, badge }: NavItemProps) {
   const Icon = { LayoutDashboard, Activity, Calendar, Settings, History }[icon as string] || Settings;
 
   return (
@@ -93,11 +107,18 @@ function NavItem({ icon, label, active, onClick, primary, highlighted }: NavItem
     >
       <div className={cn(
         // Larger touch target for the icon area
-        "p-2.5 rounded-full transition-all",
+        "relative p-2.5 rounded-full transition-all",
         primary ? "bg-primary text-black shadow-[0_0_20px_rgba(132,204,22,0.4)] scale-125" : "",
         highlighted && !active && "bg-cyan-500/10"
       )}>
         <Icon size={primary ? 24 : 22} strokeWidth={primary ? 2.5 : 2} />
+        {/* Pulsing competition badge */}
+        {badge && (
+          <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+          </span>
+        )}
       </div>
       {!primary && <span className="text-[10px] font-medium uppercase tracking-wider">{label}</span>}
     </button>

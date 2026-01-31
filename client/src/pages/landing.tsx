@@ -72,11 +72,14 @@ export default function Landing() {
     if (!authLoading && !storeLoading && user) {
       if (profile.hasCompletedOnboarding) {
         setLocation('/dashboard');
+      } else if (hasLocalStorageData() && !showMigration) {
+        // Auto-show migration dialog if localStorage data exists
+        setShowMigration(true);
       } else if (!hasLocalStorageData() && !showMigration) {
         setLocation('/onboarding');
       }
     }
-  }, [user, authLoading, storeLoading, profile.hasCompletedOnboarding, showMigration, hasLocalStorageData, setLocation]);
+  }, [user, authLoading, storeLoading, profile.hasCompletedOnboarding, showMigration]);
 
   // If logged in and has completed onboarding, go to dashboard
   // If logged in but not onboarded, go to onboarding
@@ -171,7 +174,7 @@ export default function Landing() {
 
   // If logged in but hasn't completed onboarding - show migration dialog if needed
   if (user) {
-    if (showMigration || hasLocalStorageData()) {
+    if (showMigration) {
       return (
         <MigrationDialog
           onMigrate={handleMigrate}

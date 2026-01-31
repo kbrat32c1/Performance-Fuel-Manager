@@ -3,6 +3,11 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "rewrites": [
+    { "source": "/api/foods/search", "destination": "/api/foods/search" },
+    { "source": "/api/foods/off-search", "destination": "/api/foods/off-search" },
+    { "source": "/api/foods/off-barcode", "destination": "/api/foods/off-barcode" },
+    { "source": "/api/ai/coach", "destination": "/api/ai/coach" },
+    { "source": "/api/share/:token", "destination": "/api/share/[token]" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }

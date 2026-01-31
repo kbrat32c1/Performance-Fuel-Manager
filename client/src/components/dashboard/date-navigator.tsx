@@ -58,7 +58,7 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
         onClick={handlePreviousDay}
       >
         <ChevronLeft className="w-5 h-5" />
@@ -69,36 +69,36 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
         <PopoverTrigger asChild>
           <button
             className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors",
+              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors min-w-0",
               "hover:bg-muted/50 active:bg-muted",
               !viewingToday && "bg-yellow-500/20 border border-yellow-500/30"
             )}
           >
             <Calendar className={cn(
-              "w-4 h-4",
+              "w-4 h-4 shrink-0",
               viewingToday ? "text-muted-foreground" : "text-yellow-500"
             )} />
-            <div className="text-left">
+            <div className="text-left min-w-0">
               <span className={cn(
-                "text-xs font-mono uppercase tracking-widest block",
+                "text-xs font-mono uppercase tracking-wide block truncate",
                 viewingToday ? "text-muted-foreground" : "text-yellow-500"
               )}>
-                {viewingToday ? format(currentDate, 'EEEE, MMMM d') : format(currentDate, 'EEE, MMM d')}
+                {viewingToday ? format(currentDate, 'EEE, MMM d') : format(currentDate, 'EEE, MMM d')}
               </span>
               {!viewingToday && (
                 <span className="text-[10px] text-yellow-500 font-bold uppercase">
-                  Historical View
+                  Historical
                 </span>
               )}
             </div>
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 bg-card border-muted" align="center">
-          <div className="p-2 border-b border-muted">
+        <PopoverContent className="w-auto p-0 bg-card border border-border rounded-xl shadow-xl" align="center" sideOffset={8}>
+          <div className="p-3 border-b border-border/50">
             <Button
               variant="outline"
               size="sm"
-              className="w-full text-xs"
+              className="w-full text-xs font-bold uppercase tracking-wide h-8 rounded-lg"
               onClick={handleTodayClick}
             >
               Back to Today
@@ -110,7 +110,7 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
             onSelect={handleCalendarSelect}
             disabled={(date) => date > today}
             initialFocus
-            className="rounded-md"
+            className="rounded-b-xl"
           />
         </PopoverContent>
       </Popover>
@@ -120,7 +120,7 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
         variant="ghost"
         size="icon"
         className={cn(
-          "h-8 w-8",
+          "h-8 w-8 shrink-0",
           viewingToday
             ? "text-muted-foreground/30 cursor-not-allowed"
             : "text-muted-foreground hover:text-foreground"

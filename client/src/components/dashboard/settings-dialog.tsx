@@ -5,12 +5,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2 } from "lucide-react";
 import { format, differenceInDays, startOfDay, parseISO } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import { toast } from "@/hooks/use-toast";
+import {
+  getNotificationPrefs,
+  saveNotificationPrefs,
+  getPermissionState,
+  requestPermission as requestNotifPermission,
+  getTimeOptions,
+  type NotificationPreferences,
+} from "@/lib/notifications";
 
 interface SettingsDialogProps {
   profile: any;
@@ -29,6 +39,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   // Local state for pending changes
   const [pendingChanges, setPendingChanges] = useState<any>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
 
   // Reset pending changes when dialog opens
   useEffect(() => {
@@ -36,6 +47,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
       setPendingChanges({});
       setHasChanges(false);
       setShowWeightClassConfirm(false);
+      setActiveTab('profile');
     }
   }, [open]);
 
@@ -118,15 +130,25 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
           <Settings className="w-5 h-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[90%] max-w-md rounded-xl bg-card border-muted max-h-[75vh] overflow-y-auto flex flex-col !top-[10%] !translate-y-0">
+      <DialogContent
+        className="w-[90%] max-w-md rounded-xl bg-card border-muted max-h-[75vh] overflow-y-auto flex flex-col !top-[10%] !translate-y-0"
+        onPointerDownOutside={(e) => {
+          // Prevent dialog from closing when clicking Select dropdown (rendered in portal)
+          const target = e.target as HTMLElement;
+          if (target?.closest?.('[role="listbox"], [role="option"], [data-radix-select-viewport]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="font-heading uppercase italic text-xl">Settings</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="profile" className="w-full mt-2 flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2 flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="dates">Dates</TabsTrigger>
+            <TabsTrigger value="alerts">Alerts</TabsTrigger>
             <TabsTrigger value="theme">Theme</TabsTrigger>
             <TabsTrigger value="data">Data</TabsTrigger>
           </TabsList>
@@ -203,7 +225,15 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   onValueChange={(v) => handleChange({ weighInTime: v })}
                 >
                   <SelectTrigger className="pl-10 font-mono h-12">
-                    <SelectValue />
+                    <SelectValue placeholder="Select time">
+                      {(() => {
+                        const val = getValue('weighInTime') || '07:00';
+                        const [h, m] = val.split(':').map(Number);
+                        const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                        const ampm = h < 12 ? 'AM' : 'PM';
+                        return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
+                      })()}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-h-[200px]">
                     {Array.from({ length: 48 }, (_, i) => {
@@ -307,11 +337,15 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             </div>
           </TabsContent>
 
+          <TabsContent value="alerts" className="space-y-4 py-4 min-h-[340px]">
+            <AlertsTab />
+          </TabsContent>
+
           <TabsContent value="theme" className="space-y-4 py-4 min-h-[340px]">
             <div className="space-y-3">
               <Label>Appearance</Label>
               <p className="text-xs text-muted-foreground">
-                Choose how the app looks. System will follow your device settings.
+                Choose how the app looks. Changes apply instantly. System follows your device settings.
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -370,6 +404,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </Button>
               </div>
             )}
+
+            {user && <ShareWithCoachSection userId={user.id} />}
 
             <div className="space-y-3">
               <h4 className="font-bold text-sm">Reset All Data</h4>
@@ -457,26 +493,282 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
           </div>
         )}
 
-        {/* Save/Cancel Footer */}
-        <DialogFooter className="flex gap-2 pt-4 border-t border-muted mt-4">
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            className="flex-1 h-12"
-          >
-            <X className="w-4 h-4 mr-2" />
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            className="flex-1 h-12"
-            disabled={!hasChanges}
-          >
-            <Check className="w-4 h-4 mr-2" />
-            Save Changes
-          </Button>
-        </DialogFooter>
+        {/* Save/Cancel Footer — only show on tabs with pending changes */}
+        {(activeTab === 'profile' || activeTab === 'dates') && (
+          <DialogFooter className="flex gap-2 pt-4 border-t border-muted mt-4">
+            <Button
+              variant="outline"
+              onClick={handleCancel}
+              className="flex-1 h-12"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              className="flex-1 h-12"
+              disabled={!hasChanges}
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Alerts Tab ──────────────────────────────────────────────────────
+function AlertsTab() {
+  const [prefs, setPrefs] = useState<NotificationPreferences>(getNotificationPrefs());
+  const [permission, setPermission] = useState(getPermissionState());
+  const timeOptions = getTimeOptions();
+
+  const update = (changes: Partial<NotificationPreferences>) => {
+    const next = { ...prefs, ...changes };
+    setPrefs(next);
+    saveNotificationPrefs(next);
+  };
+
+  const handleEnable = async () => {
+    if (permission === 'default' || permission === 'unsupported') {
+      const result = await requestNotifPermission();
+      setPermission(result === 'unsupported' ? 'unsupported' : result);
+      if (result === 'granted') {
+        update({ enabled: true });
+      }
+    } else if (permission === 'granted') {
+      update({ enabled: !prefs.enabled });
+    }
+  };
+
+  const isSupported = permission !== 'unsupported';
+  const isDenied = permission === 'denied';
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label className="flex items-center gap-2">
+          {prefs.enabled ? <Bell className="w-4 h-4 text-primary" /> : <BellOff className="w-4 h-4 text-muted-foreground" />}
+          Weigh-in Reminders
+        </Label>
+        <p className="text-xs text-muted-foreground">
+          Get notified when it's time to log your weight. Reminders only fire when the app is open.
+        </p>
+      </div>
+
+      {!isSupported && (
+        <p className="text-xs text-orange-500">
+          Notifications are not supported in this browser.
+        </p>
+      )}
+
+      {isDenied && (
+        <p className="text-xs text-orange-500">
+          Notifications are blocked. Enable them in your browser settings to use reminders.
+        </p>
+      )}
+
+      <Button
+        variant={prefs.enabled ? "default" : "outline"}
+        onClick={handleEnable}
+        disabled={isDenied || !isSupported}
+        className="w-full h-10"
+      >
+        {prefs.enabled ? "Reminders On" : "Enable Reminders"}
+      </Button>
+
+      {prefs.enabled && permission === 'granted' && (
+        <div className="space-y-3 pt-2 border-t border-muted">
+          {/* Morning */}
+          <ReminderRow
+            label="Morning"
+            icon={<Sun className="w-4 h-4 text-yellow-500" />}
+            enabled={prefs.morningReminder}
+            time={prefs.morningTime}
+            onToggle={(v) => update({ morningReminder: v })}
+            onTimeChange={(v) => update({ morningTime: v })}
+            timeOptions={timeOptions}
+          />
+
+          {/* Pre-Practice */}
+          <ReminderRow
+            label="Pre-Practice"
+            icon={<Clock className="w-4 h-4 text-blue-500" />}
+            enabled={prefs.prePracticeReminder}
+            time={prefs.prePracticeTime}
+            onToggle={(v) => update({ prePracticeReminder: v })}
+            onTimeChange={(v) => update({ prePracticeTime: v })}
+            timeOptions={timeOptions}
+          />
+
+          {/* Before Bed */}
+          <ReminderRow
+            label="Before Bed"
+            icon={<Moon className="w-4 h-4 text-purple-500" />}
+            enabled={prefs.beforeBedReminder}
+            time={prefs.beforeBedTime}
+            onToggle={(v) => update({ beforeBedReminder: v })}
+            onTimeChange={(v) => update({ beforeBedTime: v })}
+            timeOptions={timeOptions}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeOptions }: {
+  label: string;
+  icon: React.ReactNode;
+  enabled: boolean;
+  time: string;
+  onToggle: (v: boolean) => void;
+  onTimeChange: (v: string) => void;
+  timeOptions: { value: string; label: string }[];
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => onToggle(!enabled)}
+        className={cn(
+          "flex items-center gap-2 flex-1 text-left py-2 px-3 rounded-lg transition-colors",
+          enabled ? "bg-primary/10" : "bg-muted/30 opacity-50"
+        )}
+      >
+        {icon}
+        <span className="text-sm font-medium">{label}</span>
+      </button>
+      {enabled && (
+        <Select value={time} onValueChange={onTimeChange}>
+          <SelectTrigger className="w-[110px] h-9 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" className="max-h-[200px] z-[100]">
+            {timeOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
+// ── Share with Coach ────────────────────────────────────────────────
+function ShareWithCoachSection({ userId }: { userId: string }) {
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  // Load current share token on mount
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('share_token')
+        .eq('user_id', userId)
+        .single();
+      setShareToken(data?.share_token || null);
+      setLoading(false);
+    })();
+  }, [userId]);
+
+  const shareUrl = shareToken ? `${window.location.origin}/coach/${shareToken}` : null;
+
+  const enableSharing = async () => {
+    const token = crypto.randomUUID();
+    const { error } = await supabase
+      .from('profiles')
+      .update({ share_token: token })
+      .eq('user_id', userId);
+    if (!error) {
+      setShareToken(token);
+      toast({ title: "Sharing enabled", description: "Copy the link to share with your coach" });
+    } else {
+      toast({ title: "Failed to enable sharing", description: "Please try again", variant: "destructive" });
+    }
+  };
+
+  const disableSharing = async () => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ share_token: null })
+      .eq('user_id', userId);
+    if (!error) {
+      setShareToken(null);
+      toast({ title: "Sharing disabled", description: "Your coach link is no longer active" });
+    } else {
+      toast({ title: "Failed to disable sharing", description: "Please try again", variant: "destructive" });
+    }
+  };
+
+  const regenerateLink = async () => {
+    const token = crypto.randomUUID();
+    const { error } = await supabase
+      .from('profiles')
+      .update({ share_token: token })
+      .eq('user_id', userId);
+    if (!error) {
+      setShareToken(token);
+      toast({ title: "New link generated", description: "Previous link is now invalid" });
+    } else {
+      toast({ title: "Failed to generate new link", description: "Please try again", variant: "destructive" });
+    }
+  };
+
+  const copyLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: "Link copied!" });
+    } catch {
+      toast({ title: "Copy failed", description: "Try selecting and copying the link manually" });
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div className="space-y-3 pb-4 border-b border-muted">
+      <div className="flex items-center gap-2">
+        <Share2 className="w-4 h-4 text-primary" />
+        <h4 className="font-bold text-sm">Share with Coach</h4>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Generate a link your coach can use to view your weight data in real-time. No account needed.
+      </p>
+
+      {!shareToken ? (
+        <Button variant="outline" size="sm" onClick={enableSharing} className="w-full h-10">
+          <Link2 className="w-4 h-4 mr-2" />
+          Enable Coach Sharing
+        </Button>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <div className="flex-1 bg-muted/30 border border-muted rounded-md px-3 py-2 text-xs font-mono truncate">
+              {shareUrl}
+            </div>
+            <Button variant="outline" size="sm" onClick={copyLink} className="h-auto px-3">
+              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={regenerateLink} className="flex-1 h-8 text-xs">
+              <RefreshCw className="w-3 h-3 mr-1" />
+              New Link
+            </Button>
+            <Button variant="ghost" size="sm" onClick={disableSharing} className="flex-1 h-8 text-xs text-destructive hover:text-destructive">
+              <X className="w-3 h-3 mr-1" />
+              Disable
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { format, differenceInHours } from "date-fns";
 
-export function RecoveryTakeover() {
+export function RecoveryTakeover({ onDismiss }: { onDismiss?: () => void }) {
   const { profile, calculateTarget, updateProfile, addLog, logs } = useStore();
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [currentWeight, setCurrentWeight] = useState('');
@@ -43,7 +43,7 @@ export function RecoveryTakeover() {
       addLog({
         weight,
         date: new Date(),
-        type: 'morning'
+        type: 'check-in'
       });
       setLastLoggedWeight(weight);
       setCurrentWeight('');
@@ -56,9 +56,12 @@ export function RecoveryTakeover() {
     );
   };
 
-  const exitMode = async () => {
-    await updateProfile({ simulatedDate: null });
-    window.location.reload();
+  const exitMode = () => {
+    if (onDismiss) {
+      onDismiss();
+    } else {
+      window.location.reload();
+    }
   };
 
   // Friday pre-weigh-in checklist
@@ -83,6 +86,17 @@ export function RecoveryTakeover() {
           {format(now, 'EEEE, MMMM d')}
         </p>
       </header>
+
+      {onDismiss && (
+        <div className="max-w-md mx-auto w-full mb-2">
+          <button
+            onClick={onDismiss}
+            className="w-full px-3 py-2 rounded-lg border border-muted text-muted-foreground text-xs font-medium hover:bg-muted/30 transition-colors"
+          >
+            View Dashboard Instead
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 space-y-4 max-w-md mx-auto w-full">
         {/* Countdown & Weight Status */}

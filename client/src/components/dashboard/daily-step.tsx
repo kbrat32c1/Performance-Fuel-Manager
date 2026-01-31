@@ -7,6 +7,11 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { LucideIcon } from "lucide-react";
 
+function getCurrentTimeStr(): string {
+  const now = new Date();
+  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+}
+
 interface DailyStepProps {
   step: number;
   title: string;
@@ -14,8 +19,8 @@ interface DailyStepProps {
   icon: LucideIcon;
   logs: any[];
   logType: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed';
-  addLog: (log: { weight: number; date: Date; type: string }) => void;
-  updateLog: (id: string, updates: { weight: number }) => void;
+  addLog: (log: { weight: number; date: Date; type: string; duration?: number; sleepHours?: number }) => void;
+  updateLog: (id: string, updates: { weight?: number; date?: Date; duration?: number; sleepHours?: number }) => void;
   targetWeight: number;
   simulatedDate?: Date | null;
 }
@@ -33,8 +38,14 @@ export function DailyStep({
   simulatedDate
 }: DailyStepProps) {
   const [weight, setWeight] = useState('');
+  const [logTime, setLogTime] = useState(getCurrentTimeStr());
+  const [duration, setDuration] = useState('');
+  const [sleepHours, setSleepHours] = useState('');
   const [isLogging, setIsLogging] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  const needsDuration = logType === 'post-practice';
+  const needsSleep = logType === 'morning';
 
   // Check if already logged today (use simulated date if available)
   const today = simulatedDate || new Date();
@@ -50,41 +61,68 @@ export function DailyStep({
 
   const handleSubmit = () => {
     if (weight) {
-      // Use simulated date if available, with appropriate time for log type
       const logDate = new Date(today);
-      if (logType === 'morning') logDate.setHours(7, 0, 0, 0);
-      else if (logType === 'pre-practice') logDate.setHours(15, 0, 0, 0);
-      else if (logType === 'post-practice') logDate.setHours(17, 0, 0, 0);
-      else if (logType === 'before-bed') logDate.setHours(22, 0, 0, 0);
+      const [h, m] = logTime.split(':').map(Number);
+      logDate.setHours(h, m, 0, 0);
 
-      addLog({
+      const logData: any = {
         weight: parseFloat(weight),
         date: logDate,
         type: logType,
-      });
+      };
+      if (needsDuration && duration) logData.duration = parseInt(duration, 10);
+      if (needsSleep && sleepHours) logData.sleepHours = parseFloat(sleepHours);
+
+      addLog(logData);
       setWeight('');
+      setLogTime(getCurrentTimeStr());
+      setDuration('');
+      setSleepHours('');
       setIsLogging(false);
     }
   };
 
   const handleEdit = () => {
     setWeight(todayLog.weight.toString());
+    const d = new Date(todayLog.date);
+    setLogTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+    setDuration(todayLog.duration ? todayLog.duration.toString() : '');
+    setSleepHours(todayLog.sleepHours ? todayLog.sleepHours.toString() : '');
     setIsEditing(true);
   };
 
   const handleUpdate = () => {
     if (weight && todayLog) {
-      updateLog(todayLog.id, { weight: parseFloat(weight) });
+      const updates: any = { weight: parseFloat(weight) };
+      if (logTime) {
+        const [h, m] = logTime.split(':').map(Number);
+        const newDate = new Date(todayLog.date);
+        newDate.setHours(h, m, 0, 0);
+        updates.date = newDate;
+      }
+      if (needsDuration && duration) updates.duration = parseInt(duration, 10);
+      if (needsSleep && sleepHours) updates.sleepHours = parseFloat(sleepHours);
+      updateLog(todayLog.id, updates);
       setWeight('');
+      setLogTime(getCurrentTimeStr());
+      setDuration('');
+      setSleepHours('');
       setIsEditing(false);
     }
   };
 
   const handleCancel = () => {
     setWeight('');
+    setLogTime(getCurrentTimeStr());
+    setDuration('');
+    setSleepHours('');
     setIsLogging(false);
     setIsEditing(false);
   };
+
+  const isSaveDisabled = !weight ||
+    (needsDuration && (!duration || parseInt(duration, 10) <= 0)) ||
+    (needsSleep && (!sleepHours || parseFloat(sleepHours) <= 0));
 
   return (
     <Card className={cn(
@@ -115,6 +153,12 @@ export function DailyStep({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono font-bold text-lg text-primary">{todayLog.weight} lbs</span>
                 <span className="text-xs text-muted-foreground">at {format(new Date(todayLog.date), 'h:mm a')}</span>
+                {needsDuration && todayLog.duration && (
+                  <span className="text-[10px] text-orange-500 font-bold">{todayLog.duration}min</span>
+                )}
+                {needsSleep && todayLog.sleepHours && (
+                  <span className="text-[10px] text-purple-500 font-bold">{todayLog.sleepHours}hr sleep</span>
+                )}
                 {targetWeight && (
                   <span className={cn(
                     "text-[10px] font-bold px-1.5 py-0.5 rounded",
@@ -136,28 +180,80 @@ export function DailyStep({
                 </button>
               </div>
             ) : (isLogging || isEditing) ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  placeholder="Weight"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="w-24 h-10 font-mono"
-                  autoFocus
-                  aria-label={`Enter ${title} weight in pounds`}
-                />
-                <span className="text-sm text-muted-foreground" aria-hidden="true">lbs</span>
-                <Button
-                  size="sm"
-                  onClick={isEditing ? handleUpdate : handleSubmit}
-                  className="h-10"
-                  aria-label={isEditing ? `Update ${title} weight` : `Save ${title} weight`}
-                >
-                  {isEditing ? 'Update' : 'Save'}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={handleCancel} className="h-10">
-                  Cancel
-                </Button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Weight"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="w-24 h-10 font-mono"
+                    autoFocus
+                    aria-label={`Enter ${title} weight in pounds`}
+                  />
+                  <span className="text-sm text-muted-foreground" aria-hidden="true">lbs</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="time"
+                      value={logTime}
+                      onChange={(e) => setLogTime(e.target.value)}
+                      className="h-8 text-xs font-mono bg-background border border-border rounded px-1.5"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLogTime(getCurrentTimeStr())}
+                      className="text-[9px] text-primary font-bold px-1.5 py-1 rounded border border-primary/30 hover:bg-primary/10"
+                    >
+                      Now
+                    </button>
+                  </div>
+                </div>
+
+                {needsDuration && (
+                  <div className="flex items-center gap-2 p-2 rounded border border-orange-500/40 bg-orange-500/5">
+                    <span className="text-[10px] text-orange-500 font-bold whitespace-nowrap">Duration *</span>
+                    <Input
+                      type="number"
+                      placeholder="min"
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                      className="w-20 h-8 text-xs font-mono border-orange-500/30"
+                    />
+                    <span className="text-[10px] text-muted-foreground">min</span>
+                    <span className="text-[9px] text-orange-500/70 ml-auto">for loss/hr</span>
+                  </div>
+                )}
+
+                {needsSleep && (
+                  <div className="flex items-center gap-2 p-2 rounded border border-purple-500/40 bg-purple-500/5">
+                    <span className="text-[10px] text-purple-500 font-bold whitespace-nowrap">Sleep *</span>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      placeholder="hrs"
+                      value={sleepHours}
+                      onChange={(e) => setSleepHours(e.target.value)}
+                      className="w-20 h-8 text-xs font-mono border-purple-500/30"
+                    />
+                    <span className="text-[10px] text-muted-foreground">hrs</span>
+                    <span className="text-[9px] text-purple-500/70 ml-auto">for drift/hr</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={isEditing ? handleUpdate : handleSubmit}
+                    className="h-10"
+                    disabled={isSaveDisabled}
+                    aria-label={isEditing ? `Update ${title} weight` : `Save ${title} weight`}
+                  >
+                    {isEditing ? 'Update' : 'Save'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleCancel} className="h-10">
+                    Cancel
+                  </Button>
+                </div>
               </div>
             ) : (
               <Button

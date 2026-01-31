@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
-export function CompetitionDayTakeover() {
+export function CompetitionDayTakeover({ onDismiss }: { onDismiss?: () => void }) {
   const { profile, getRehydrationPlan, getFoodLists, addLog, updateProfile } = useStore();
   const [weighInComplete, setWeighInComplete] = useState(false);
   const [weighInWeight, setWeighInWeight] = useState('');
@@ -88,7 +88,7 @@ export function CompetitionDayTakeover() {
       addLog({
         weight,
         date: new Date(),
-        type: 'morning'
+        type: 'check-in'
       });
       setWeighInComplete(true);
     }
@@ -107,9 +107,12 @@ export function CompetitionDayTakeover() {
     );
   };
 
-  const exitCompetitionMode = async () => {
-    await updateProfile({ simulatedDate: null });
-    window.location.reload();
+  const exitCompetitionMode = () => {
+    if (onDismiss) {
+      onDismiss();
+    } else {
+      window.location.reload();
+    }
   };
 
   // Pre weigh-in view
@@ -175,6 +178,16 @@ export function CompetitionDayTakeover() {
               </div>
             </CardContent>
           </Card>
+
+          {onDismiss && (
+            <Button
+              variant="ghost"
+              className="w-full text-muted-foreground"
+              onClick={onDismiss}
+            >
+              View Dashboard Instead
+            </Button>
+          )}
         </div>
       </div>
     );

@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays, differenceInDays, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
 import { getPhaseForDaysUntil } from "@/lib/constants";
+import { TrendChart } from "@/components/dashboard";
 
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
@@ -24,6 +25,7 @@ export default function History() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editWeight, setEditWeight] = useState('');
+  const [editTime, setEditTime] = useState('');
   const [editingExtraId, setEditingExtraId] = useState<string | null>(null);
   const [editExtraBefore, setEditExtraBefore] = useState('');
   const [editExtraAfter, setEditExtraAfter] = useState('');
@@ -31,6 +33,11 @@ export default function History() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [newLogType, setNewLogType] = useState('');
   const [newLogWeight, setNewLogWeight] = useState('');
+  const [newLogTime, setNewLogTime] = useState('');
+  const [newLogDuration, setNewLogDuration] = useState('');
+  const [newLogSleep, setNewLogSleep] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+  const [editSleep, setEditSleep] = useState('');
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
 
@@ -212,17 +219,31 @@ export default function History() {
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
-  // Get logs for a specific date
+  // Build date-indexed map for O(1) lookups instead of O(n) per calendar cell
+  const logsByDateKey = useMemo(() => {
+    const map: Record<string, typeof logs> = {};
+    for (const log of logs) {
+      const key = format(new Date(log.date), 'yyyy-MM-dd');
+      if (!map[key]) map[key] = [];
+      map[key].push(log);
+    }
+    // Sort each day's logs by time
+    for (const key in map) {
+      map[key].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }
+    return map;
+  }, [logs]);
+
+  // Get logs for a specific date — O(1) lookup
   const getLogsForDate = (date: Date) => {
-    return logs.filter(log => {
-      const logDate = new Date(log.date);
-      return isSameDay(logDate, date);
-    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const key = format(date, 'yyyy-MM-dd');
+    return logsByDateKey[key] || [];
   };
 
-  // Check if a date has any logs
+  // Check if a date has any logs — O(1) lookup
   const hasLogs = (date: Date) => {
-    return logs.some(log => isSameDay(new Date(log.date), date));
+    const key = format(date, 'yyyy-MM-dd');
+    return !!logsByDateKey[key];
   };
 
   // Get weight range for a date
@@ -341,6 +362,10 @@ export default function History() {
   const startEdit = (log: any) => {
     setEditingId(log.id);
     setEditWeight(log.weight.toString());
+    const d = new Date(log.date);
+    setEditTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+    setEditDuration(log.duration ? log.duration.toString() : '');
+    setEditSleep(log.sleepHours ? log.sleepHours.toString() : '');
   };
 
   const saveEdit = () => {
@@ -348,9 +373,24 @@ export default function History() {
       const weight = parseFloat(editWeight);
       if (!validateWeight(weight)) return;
 
-      updateLog(editingId, { weight });
+      const updates: any = { weight };
+      if (editTime) {
+        const existingLog = logs.find(l => l.id === editingId);
+        if (existingLog) {
+          const [h, m] = editTime.split(':').map(Number);
+          const newDate = new Date(existingLog.date);
+          newDate.setHours(h, m, 0, 0);
+          updates.date = newDate;
+        }
+      }
+      if (editDuration) updates.duration = parseInt(editDuration, 10);
+      if (editSleep) updates.sleepHours = parseFloat(editSleep);
+      updateLog(editingId, updates);
       setEditingId(null);
       setEditWeight('');
+      setEditTime('');
+      setEditDuration('');
+      setEditSleep('');
 
       // Blur to close keyboard on mobile
       if (document.activeElement instanceof HTMLElement) {
@@ -362,6 +402,9 @@ export default function History() {
   const cancelEdit = () => {
     setEditingId(null);
     setEditWeight('');
+    setEditTime('');
+    setEditDuration('');
+    setEditSleep('');
   };
 
   // Extra workout edit handlers
@@ -417,16 +460,23 @@ export default function History() {
         if (!validateWeight(weight)) return;
 
         const logDate = new Date(selectedDate);
-        // Set appropriate time based on log type
-        if (newLogType === 'morning') logDate.setHours(7, 0, 0, 0);
-        else if (newLogType === 'pre-practice') logDate.setHours(15, 0, 0, 0);
-        else if (newLogType === 'post-practice') logDate.setHours(17, 0, 0, 0);
-        else if (newLogType === 'before-bed') logDate.setHours(22, 0, 0, 0);
+        if (newLogTime) {
+          const [h, m] = newLogTime.split(':').map(Number);
+          logDate.setHours(h, m, 0, 0);
+        } else {
+          // Fallback defaults if no time set
+          if (newLogType === 'morning') logDate.setHours(7, 0, 0, 0);
+          else if (newLogType === 'pre-practice') logDate.setHours(15, 0, 0, 0);
+          else if (newLogType === 'post-practice') logDate.setHours(17, 0, 0, 0);
+          else if (newLogType === 'before-bed') logDate.setHours(22, 0, 0, 0);
+        }
 
         addLog({
           weight,
           date: logDate,
-          type: newLogType as any
+          type: newLogType as any,
+          ...(newLogType === 'post-practice' && newLogDuration ? { duration: parseInt(newLogDuration, 10) } : {}),
+          ...(newLogType === 'morning' && newLogSleep ? { sleepHours: parseFloat(newLogSleep) } : {}),
         });
 
         // Blur to close keyboard on mobile
@@ -444,6 +494,9 @@ export default function History() {
     setIsAddingLog(false);
     setNewLogType('');
     setNewLogWeight('');
+    setNewLogTime('');
+    setNewLogDuration('');
+    setNewLogSleep('');
   };
 
   return (
@@ -583,7 +636,7 @@ export default function History() {
                 <span className="text-[10px] text-muted-foreground block">Lost</span>
                 <span className={cn(
                   "font-mono font-bold text-sm",
-                  descentData.totalLost > 0 ? "text-green-500" : "text-red-500"
+                  descentData.totalLost >= 0 ? "text-green-500" : "text-red-500"
                 )}>
                   {descentData.totalLost > 0 ? `-${descentData.totalLost.toFixed(1)}` : `+${Math.abs(descentData.totalLost).toFixed(1)}`}
                 </span>
@@ -604,12 +657,22 @@ export default function History() {
                   <span className={cn("font-mono font-bold text-xs", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
                     {descentData.avgOvernightDrift !== null ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}` : '-'} lbs
                   </span>
+                  {descentData.avgDriftRateOzPerHr !== null && (
+                    <span className="block text-[9px] font-mono text-cyan-400">
+                      {descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Practice</span>
                   <span className={cn("font-mono font-bold text-xs", descentData.avgPracticeLoss !== null ? "text-orange-500" : "")}>
                     {descentData.avgPracticeLoss !== null ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}` : '-'} lbs
                   </span>
+                  {descentData.avgSweatRateOzPerHr !== null && (
+                    <span className="block text-[9px] font-mono text-orange-400">
+                      {descentData.avgSweatRateOzPerHr.toFixed(2)} lbs/hr
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Projected</span>
@@ -630,8 +693,11 @@ export default function History() {
         </Card>
       )}
 
+      {/* Weight Trend Chart */}
+      <TrendChart />
+
       {/* Month Navigation */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 mt-4">
         <Button
           variant="ghost"
           size="icon"
@@ -743,8 +809,8 @@ export default function History() {
                   <Plus className="w-4 h-4" />
                   Add Log
                 </div>
-                <div className="flex items-center gap-2">
-                  <Select value={newLogType} onValueChange={setNewLogType}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Select value={newLogType} onValueChange={(v) => { setNewLogType(v); setNewLogDuration(''); setNewLogSleep(''); }}>
                     <SelectTrigger className="w-[130px] h-9">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
@@ -756,6 +822,12 @@ export default function History() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <input
+                    type="time"
+                    value={newLogTime}
+                    onChange={(e) => setNewLogTime(e.target.value)}
+                    className="h-9 text-xs font-mono bg-background border border-border rounded px-1.5 w-[90px]"
+                  />
                   <Input
                     type="number"
                     step="0.1"
@@ -766,8 +838,26 @@ export default function History() {
                   />
                   <span className="text-sm text-muted-foreground">lbs</span>
                 </div>
+                {newLogType === 'post-practice' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-orange-500 font-bold">Duration *</span>
+                    <Input type="number" value={newLogDuration} onChange={(e) => setNewLogDuration(e.target.value)} placeholder="min" className="w-16 h-8 text-xs font-mono" />
+                    <span className="text-[10px] text-muted-foreground">min</span>
+                  </div>
+                )}
+                {newLogType === 'morning' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-purple-500 font-bold">Sleep *</span>
+                    <Input type="number" step="0.5" value={newLogSleep} onChange={(e) => setNewLogSleep(e.target.value)} placeholder="hrs" className="w-16 h-8 text-xs font-mono" />
+                    <span className="text-[10px] text-muted-foreground">hrs</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAddLog} disabled={!newLogType || !newLogWeight} className="h-8">
+                  <Button size="sm" onClick={handleAddLog} disabled={
+                    !newLogType || !newLogWeight ||
+                    (newLogType === 'post-practice' && (!newLogDuration || parseInt(newLogDuration, 10) <= 0)) ||
+                    (newLogType === 'morning' && (!newLogSleep || parseFloat(newLogSleep) <= 0))
+                  } className="h-8">
                     <Check className="w-3 h-3 mr-1" /> Save
                   </Button>
                   <Button size="sm" variant="ghost" onClick={cancelAddLog} className="h-8">
@@ -938,24 +1028,63 @@ export default function History() {
                       )
                     ) : editingId === log.id ? (
                       // Edit mode for regular logs
-                      <div className="flex items-center gap-2">
-                        {getLogTypeIcon(log.type)}
-                        <span className="text-sm font-bold">{getLogTypeLabel(log.type)}</span>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={editWeight}
-                          onChange={(e) => setEditWeight(e.target.value)}
-                          className="w-20 h-8 font-mono ml-auto"
-                          autoFocus
-                        />
-                        <span className="text-sm text-muted-foreground">lbs</span>
-                        <Button size="icon" variant="ghost" onClick={saveEdit} className="h-8 w-8">
-                          <Check className="w-4 h-4 text-green-500" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={cancelEdit} className="h-8 w-8">
-                          <X className="w-4 h-4" />
-                        </Button>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            {getLogTypeIcon(log.type)}
+                            <span className="text-sm font-bold">{getLogTypeLabel(log.type)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 ml-auto">
+                            <input
+                              type="time"
+                              value={editTime}
+                              onChange={(e) => setEditTime(e.target.value)}
+                              className="h-8 text-xs font-mono bg-background border border-border rounded px-1.5 w-[90px]"
+                            />
+                            <Input
+                              type="number"
+                              step="0.1"
+                              value={editWeight}
+                              onChange={(e) => setEditWeight(e.target.value)}
+                              className="w-20 h-8 font-mono"
+                              autoFocus
+                            />
+                            <span className="text-sm text-muted-foreground">lbs</span>
+                            <Button size="icon" variant="ghost" onClick={saveEdit} className="h-8 w-8">
+                              <Check className="w-4 h-4 text-green-500" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={cancelEdit} className="h-8 w-8">
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {(log.type === 'post-practice') && (
+                          <div className="flex items-center gap-2 pl-6">
+                            <span className="text-[10px] text-orange-500 font-bold">Duration:</span>
+                            <Input
+                              type="number"
+                              value={editDuration}
+                              onChange={(e) => setEditDuration(e.target.value)}
+                              placeholder="min"
+                              className="w-16 h-7 text-xs font-mono"
+                            />
+                            <span className="text-[10px] text-muted-foreground">min</span>
+                          </div>
+                        )}
+                        {log.type === 'morning' && (
+                          <div className="flex items-center gap-2 pl-6">
+                            <span className="text-[10px] text-purple-500 font-bold">Sleep:</span>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              value={editSleep}
+                              onChange={(e) => setEditSleep(e.target.value)}
+                              placeholder="hrs"
+                              className="w-16 h-7 text-xs font-mono"
+                            />
+                            <span className="text-[10px] text-muted-foreground">hrs</span>
+                          </div>
+                        )}
                       </div>
                     ) : deletingId === log.id ? (
                       // Delete confirmation mode for regular logs

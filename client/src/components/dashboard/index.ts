@@ -1,4 +1,5 @@
 export { DailyStep } from './daily-step';
+export { FuelCard } from './fuel-card';
 export { HydrationTracker } from './hydration-tracker';
 export { MacroTracker } from './macro-tracker';
 export { SettingsDialog } from './settings-dialog';
@@ -8,3 +9,4 @@ export { WhyExplanation } from './why-explanation';
 export { WeighInCountdown } from './weighin-countdown';
 export { TrendChart } from './trend-chart';
 export { DateNavigator } from './date-navigator';
+export { NextCyclePrompt } from './next-cycle-prompt';
