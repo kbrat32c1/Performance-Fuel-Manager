@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Scale, Sun, Moon, CheckCircle2, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock } from 'lucide-react';
+import { Scale, Sun, Moon, CheckCircle2, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,6 +52,116 @@ function getTypeInfo(type: LogTypeOption) {
   return LOG_TYPE_OPTIONS.find(o => o.value === type) || LOG_TYPE_OPTIONS[0];
 }
 
+/* ── Scrollable Time Wheel Picker ── */
+function TimeScrollColumn({ items, selected, onSelect }: { items: string[]; selected: string; onSelect: (v: string) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const itemH = 36;
+  const isScrollingRef = useRef(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Scroll to selected on mount and when selected changes externally
+  useEffect(() => {
+    const idx = items.indexOf(selected);
+    if (idx >= 0 && containerRef.current && !isScrollingRef.current) {
+      containerRef.current.scrollTop = idx * itemH;
+    }
+  }, [selected, items]);
+
+  const handleScroll = useCallback(() => {
+    isScrollingRef.current = true;
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (!containerRef.current) return;
+      const idx = Math.round(containerRef.current.scrollTop / itemH);
+      const clamped = Math.max(0, Math.min(idx, items.length - 1));
+      containerRef.current.scrollTo({ top: clamped * itemH, behavior: 'smooth' });
+      onSelect(items[clamped]);
+      setTimeout(() => { isScrollingRef.current = false; }, 100);
+    }, 80);
+  }, [items, onSelect]);
+
+  return (
+    <div className="relative h-[108px] w-16 overflow-hidden">
+      {/* Fade overlays */}
+      <div className="absolute top-0 left-0 right-0 h-[36px] bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-[36px] bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
+      {/* Selection highlight */}
+      <div className="absolute top-[36px] left-0 right-0 h-[36px] border-y border-primary/30 bg-primary/5 z-0 pointer-events-none rounded-sm" />
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto scrollbar-hide snap-y snap-mandatory"
+        style={{ scrollSnapType: 'y mandatory', paddingTop: itemH, paddingBottom: itemH }}
+      >
+        {items.map((item) => (
+          <div
+            key={item}
+            className={cn(
+              "h-[36px] flex items-center justify-center snap-center cursor-pointer transition-all select-none",
+              item === selected
+                ? "text-foreground font-bold text-lg"
+                : "text-muted-foreground/50 text-sm"
+            )}
+            onClick={() => {
+              const idx = items.indexOf(item);
+              containerRef.current?.scrollTo({ top: idx * itemH, behavior: 'smooth' });
+              onSelect(item);
+            }}
+          >
+            <span className="font-mono">{item}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+const AMPM = ['AM', 'PM'];
+
+function TimeScrollPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  // value is 24h "HH:mm"
+  const [h24, m] = value.split(':').map(Number);
+  const isPM = h24 >= 12;
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+
+  const selectedHour = String(h12).padStart(2, '0');
+  const selectedMin = String(m).padStart(2, '0');
+  const selectedAmPm = isPM ? 'PM' : 'AM';
+
+  const update = useCallback((hour12: string, min: string, ampm: string) => {
+    let h = parseInt(hour12, 10);
+    if (ampm === 'AM') {
+      if (h === 12) h = 0;
+    } else {
+      if (h !== 12) h += 12;
+    }
+    onChange(`${String(h).padStart(2, '0')}:${min}`);
+  }, [onChange]);
+
+  return (
+    <div className="flex items-center justify-center gap-0 bg-card border border-muted rounded-lg py-1 px-2">
+      <TimeScrollColumn
+        items={HOURS_12}
+        selected={selectedHour}
+        onSelect={(h) => update(h, selectedMin, selectedAmPm)}
+      />
+      <span className="text-xl font-bold text-muted-foreground mx-0.5">:</span>
+      <TimeScrollColumn
+        items={MINUTES}
+        selected={selectedMin}
+        onSelect={(min) => update(selectedHour, min, selectedAmPm)}
+      />
+      <TimeScrollColumn
+        items={AMPM}
+        selected={selectedAmPm}
+        onSelect={(ap) => update(selectedHour, selectedMin, ap)}
+      />
+    </div>
+  );
+}
+
 export function QuickLogFAB() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<LogTypeOption>(getDefaultType());
@@ -65,10 +175,19 @@ export function QuickLogFAB() {
   const [logTime, setLogTime] = useState(getCurrentTimeStr());
   const [directMode, setDirectMode] = useState(false);
   const [showTypeGrid, setShowTypeGrid] = useState(false);
+  // Edit mode state
+  const [editLogId, setEditLogId] = useState<string | null>(null);
+  const [editExtraIds, setEditExtraIds] = useState<{ beforeId: string; afterId: string | null } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmWildcard, setConfirmWildcard] = useState(false);
+  // Original weight for comparison in edit mode
+  const [originalWeight, setOriginalWeight] = useState<number | null>(null);
+  const [originalBeforeWeight, setOriginalBeforeWeight] = useState<number | null>(null);
+  const [originalAfterWeight, setOriginalAfterWeight] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const beforeRef = useRef<HTMLInputElement>(null);
 
-  const { profile, logs, addLog, calculateTarget } = useStore();
+  const { profile, logs, addLog, updateLog, deleteLog, calculateTarget } = useStore();
 
   const today = profile?.simulatedDate ? new Date(profile.simulatedDate) : new Date();
   const isHistorical = !!profile?.simulatedDate;
@@ -92,40 +211,98 @@ export function QuickLogFAB() {
     return sorted[0].weight.toString();
   }, [logs]);
 
+  const isEditMode = !!editLogId || !!editExtraIds;
+
+  const resetForm = useCallback(() => {
+    setWeight('');
+    setBeforeWeight('');
+    setAfterWeight('');
+    setDuration('');
+    setCustomDuration(false);
+    setSleepHours('');
+    setConfirmWildcard(false);
+    setCustomSleep(false);
+    setLogTime(getCurrentTimeStr());
+    setEditLogId(null);
+    setEditExtraIds(null);
+    setConfirmDelete(false);
+    setOriginalWeight(null);
+    setOriginalBeforeWeight(null);
+    setOriginalAfterWeight(null);
+  }, []);
+
   const handleOpenFull = useCallback(() => {
+    resetForm();
     setSelectedType(getDefaultType(loggedTypes));
     setWeight(suggestedWeight);
     setBeforeWeight(suggestedWeight);
-    setAfterWeight('');
-    setDuration('');
-    setCustomDuration(false);
-    setSleepHours('');
-    setCustomSleep(false);
-    setLogTime(getCurrentTimeStr());
     setDirectMode(false);
     setShowTypeGrid(true);
     setIsOpen(true);
-  }, [loggedTypes, suggestedWeight]);
+  }, [loggedTypes, suggestedWeight, resetForm]);
 
   const handleOpenDirect = useCallback((type: LogTypeOption) => {
+    resetForm();
     setSelectedType(type);
     setWeight(suggestedWeight);
     setBeforeWeight(suggestedWeight);
-    setAfterWeight('');
-    setDuration('');
-    setCustomDuration(false);
-    setSleepHours('');
-    setCustomSleep(false);
-    setLogTime(getCurrentTimeStr());
     setDirectMode(true);
     setShowTypeGrid(false);
     setIsOpen(true);
-  }, [suggestedWeight]);
+  }, [suggestedWeight, resetForm]);
+
+  const handleOpenEdit = useCallback((logId: string, type: LogTypeOption, logWeight: number, logDate: Date, logDuration?: number, logSleepHours?: number) => {
+    resetForm();
+    setEditLogId(logId);
+    setSelectedType(type);
+    setWeight(logWeight.toString());
+    setOriginalWeight(logWeight); // Store original for comparison
+    const d = new Date(logDate);
+    setLogTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+    if (logDuration) {
+      setDuration(logDuration.toString());
+      if (!DURATION_PRESETS.includes(logDuration as any)) setCustomDuration(true);
+    }
+    if (logSleepHours) {
+      setSleepHours(logSleepHours.toString());
+      if (!SLEEP_PRESETS.includes(logSleepHours as any)) setCustomSleep(true);
+    }
+    setDirectMode(true);
+    setShowTypeGrid(false);
+    setIsOpen(true);
+  }, [resetForm]);
+
+  const handleOpenEditExtra = useCallback((beforeLog: any, afterLog: any | null) => {
+    resetForm();
+    setSelectedType('extra-workout');
+    setBeforeWeight(beforeLog.weight.toString());
+    setOriginalBeforeWeight(beforeLog.weight); // Store original for comparison
+    setAfterWeight(afterLog ? afterLog.weight.toString() : '');
+    setOriginalAfterWeight(afterLog ? afterLog.weight : null); // Store original for comparison
+    setEditExtraIds({ beforeId: beforeLog.id, afterId: afterLog?.id || null });
+    const d = new Date(beforeLog.date);
+    setLogTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
+    if (afterLog?.duration) {
+      setDuration(afterLog.duration.toString());
+      if (!DURATION_PRESETS.includes(afterLog.duration as any)) setCustomDuration(true);
+    }
+    setDirectMode(true);
+    setShowTypeGrid(false);
+    setIsOpen(true);
+  }, [resetForm]);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail?.type) {
+      if (detail?.editExtraWorkout) {
+        // Edit extra workout: pre-fill before/after
+        const { before, after } = detail.editExtraWorkout;
+        handleOpenEditExtra(before, after);
+      } else if (detail?.editLog) {
+        // Edit mode: pre-fill from existing log
+        const log = detail.editLog;
+        handleOpenEdit(log.id, log.type as LogTypeOption, log.weight, new Date(log.date), log.duration, log.sleepHours);
+      } else if (detail?.type) {
         handleOpenDirect(detail.type as LogTypeOption);
       } else {
         handleOpenFull();
@@ -133,7 +310,7 @@ export function QuickLogFAB() {
     };
     window.addEventListener('open-quick-log', handler);
     return () => window.removeEventListener('open-quick-log', handler);
-  }, [handleOpenDirect, handleOpenFull]);
+  }, [handleOpenDirect, handleOpenFull, handleOpenEdit, handleOpenEditExtra]);
 
   const handleTypeSelect = useCallback((type: LogTypeOption) => {
     setSelectedType(type);
@@ -173,11 +350,17 @@ export function QuickLogFAB() {
       const [extraH, extraM] = logTime.split(':').map(Number);
       baseDate.setHours(extraH, extraM, 0, 0);
 
+      // If editing, delete old logs first
+      if (editExtraIds) {
+        deleteLog(editExtraIds.beforeId);
+        if (editExtraIds.afterId) deleteLog(editExtraIds.afterId);
+      }
+
       addLog({ weight: parsedBefore, date: baseDate, type: 'extra-before' });
       addLog({ weight: parsedAfter, date: new Date(baseDate.getTime() + 1000), type: 'extra-after', duration: parsedDuration });
 
       const loss = parsedBefore - parsedAfter;
-      toast({ title: `Extra workout logged`, description: `${loss > 0 ? '-' : '+'}${Math.abs(loss).toFixed(1)} lbs` });
+      toast({ title: editExtraIds ? 'Extra workout updated' : 'Extra workout logged', description: `${loss > 0 ? '-' : '+'}${Math.abs(loss).toFixed(1)} lbs` });
     } else {
       if (!weight) {
         toast({ title: "Enter a weight", description: "Weight field cannot be empty" });
@@ -195,6 +378,18 @@ export function QuickLogFAB() {
         flashError();
         return;
       }
+      // Wildcard weight warning: confirm if 10+ lbs different from most recent log
+      if (!confirmWildcard && !isEditMode && logs.length > 0) {
+        const recentWeight = parseFloat(suggestedWeight);
+        if (!isNaN(recentWeight) && Math.abs(parsedWeight - recentWeight) >= 10) {
+          setConfirmWildcard(true);
+          toast({
+            title: `${Math.abs(parsedWeight - recentWeight).toFixed(1)} lbs ${parsedWeight > recentWeight ? 'higher' : 'lower'} than last log`,
+            description: "Tap Save again to confirm, or fix the weight",
+          });
+          return;
+        }
+      }
       if (needsDuration && (!duration || parseInt(duration, 10) <= 0)) {
         toast({ title: "Enter workout duration", description: "Needed to calculate loss per hour" });
         flashError();
@@ -210,25 +405,46 @@ export function QuickLogFAB() {
       const [logH, logM] = logTime.split(':').map(Number);
       logDate.setHours(logH, logM, 0, 0);
 
-      addLog({
-        weight: parsedWeight,
-        date: logDate,
-        type: selectedType,
-        ...(selectedType === 'post-practice' && parsedDuration ? { duration: parsedDuration } : {}),
-        ...(selectedType === 'morning' && parsedSleepHours ? { sleepHours: parsedSleepHours } : {}),
-      });
-
-      toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: `${typeLabel} weigh-in saved` });
+      if (isEditMode && editLogId) {
+        // Update existing log
+        const updates: any = { weight: parsedWeight, date: logDate };
+        if (selectedType === 'post-practice' && parsedDuration) updates.duration = parsedDuration;
+        if (selectedType === 'morning' && parsedSleepHours) updates.sleepHours = parsedSleepHours;
+        updateLog(editLogId, updates);
+        toast({ title: `Updated to ${parsedWeight.toFixed(1)} lbs`, description: `${typeLabel} weigh-in updated` });
+      } else {
+        // Add new log
+        addLog({
+          weight: parsedWeight,
+          date: logDate,
+          type: selectedType,
+          ...(selectedType === 'post-practice' && parsedDuration ? { duration: parsedDuration } : {}),
+          ...(selectedType === 'morning' && parsedSleepHours ? { sleepHours: parsedSleepHours } : {}),
+        });
+        toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: `${typeLabel} weigh-in saved` });
+      }
     }
 
-    setWeight('');
-    setBeforeWeight('');
-    setAfterWeight('');
-    setDuration('');
-    setCustomDuration(false);
-    setSleepHours('');
-    setCustomSleep(false);
-    setLogTime(getCurrentTimeStr());
+    resetForm();
+    setIsOpen(false);
+  };
+
+  const handleDelete = () => {
+    if (!editLogId && !editExtraIds) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    if (editExtraIds) {
+      deleteLog(editExtraIds.beforeId);
+      if (editExtraIds.afterId) deleteLog(editExtraIds.afterId);
+      toast({ title: "Deleted", description: "Extra workout removed" });
+    } else if (editLogId) {
+      const typeLabel = LOG_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || selectedType;
+      deleteLog(editLogId);
+      toast({ title: "Deleted", description: `${typeLabel} weigh-in removed` });
+    }
+    resetForm();
     setIsOpen(false);
   };
 
@@ -239,14 +455,12 @@ export function QuickLogFAB() {
 
   const typeInfo = getTypeInfo(selectedType);
 
-  if (isHistorical) return null;
-
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button — always visible (works for today and historical dates) */}
       <button
         onClick={handleOpenFull}
-        className="fixed bottom-[7.5rem] right-5 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(132,204,22,0.4)] flex items-center justify-center active:scale-90 transition-transform"
+        className="fixed bottom-[7.5rem] right-5 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(232,80,30,0.4)] flex items-center justify-center active:scale-90 transition-transform"
         aria-label="Log Weight"
       >
         <Scale className="w-5 h-5" />
@@ -258,24 +472,24 @@ export function QuickLogFAB() {
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/80 animate-in fade-in duration-200"
-            onClick={() => setIsOpen(false)}
+            onClick={() => { setIsOpen(false); resetForm(); }}
           />
 
           {/* Panel — fixed to bottom, doesn't shift with keyboard */}
-          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300">
+          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
             {/* Drag handle visual */}
-            <div className="flex justify-center pt-3 pb-1">
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
               <div className="w-12 h-1.5 rounded-full bg-muted" />
             </div>
 
-            <div className="px-5 pb-6 pt-1">
+            <div className="px-5 pb-6 pt-1 overflow-y-auto flex-1">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 {directMode && !showTypeGrid ? (
                   <div className="flex items-center gap-2.5">
                     <span className={typeInfo.color}>{typeInfo.icon}</span>
                     <span className={cn("text-xl font-bold", typeInfo.color)}>
-                      {typeInfo.label}
+                      {isEditMode ? `Edit ${typeInfo.label}` : typeInfo.label}
                     </span>
                   </div>
                 ) : (
@@ -285,25 +499,25 @@ export function QuickLogFAB() {
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  {directMode && !showTypeGrid && (
+                  {directMode && !showTypeGrid && !isEditMode && (
                     <button
                       onClick={() => setShowTypeGrid(true)}
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg border border-muted"
+                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-2 min-h-[40px] rounded-lg border border-muted active:scale-95 transition-transform"
                     >
-                      Change <ChevronDown className="w-3 h-3" />
+                      Change <ChevronDown className="w-4 h-4" />
                     </button>
                   )}
                   <button
-                    onClick={() => setIsOpen(false)}
-                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground"
+                    onClick={() => { setIsOpen(false); resetForm(); }}
+                    className="p-2.5 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted text-muted-foreground active:scale-95 transition-transform flex items-center justify-center"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              {/* Type Selector Grid */}
-              {showTypeGrid && (
+              {/* Type Selector Grid — hidden in edit mode */}
+              {showTypeGrid && !isEditMode && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {LOG_TYPE_OPTIONS.map((opt) => {
                     const isSelected = selectedType === opt.value;
@@ -344,6 +558,15 @@ export function QuickLogFAB() {
               {/* Weight Input */}
               {selectedType === 'extra-workout' ? (
                 <div className="space-y-3">
+                  {/* Original values banner for extra workout edit mode */}
+                  {isEditMode && editExtraIds && (originalBeforeWeight !== null || originalAfterWeight !== null) && (
+                    <div className="bg-muted/30 border border-muted rounded-lg px-3 py-2 text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original</p>
+                      <p className="text-sm font-mono text-muted-foreground">
+                        {originalBeforeWeight?.toFixed(1)} → {originalAfterWeight?.toFixed(1)} lbs
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Before</Label>
@@ -394,58 +617,79 @@ export function QuickLogFAB() {
                 </div>
               ) : (
                 <div className="space-y-2">
+                  {/* Original value banner for edit mode */}
+                  {isEditMode && originalWeight !== null && (
+                    <div className="bg-muted/30 border border-muted rounded-lg px-3 py-2 text-center">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original</p>
+                      <p className="text-sm font-mono text-muted-foreground">{originalWeight.toFixed(1)} lbs</p>
+                    </div>
+                  )}
                   <Input
                     ref={inputRef}
                     type="number"
                     inputMode="decimal"
                     step="0.1"
                     value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
+                    onChange={(e) => { setWeight(e.target.value); setConfirmWildcard(false); }}
                     placeholder="Enter weight"
                     className={cn("font-mono text-center text-3xl h-16 text-foreground transition-colors", inputError && "border-destructive ring-1 ring-destructive/50")}
                   />
-                  {/* Always reserve space — prevents layout jump */}
-                  <p className={cn(
-                    "text-center text-sm font-mono h-5",
-                    diff !== null && !isNaN(diff)
-                      ? (diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-destructive")
-                      : "text-transparent"
-                  )}>
-                    {diff !== null && !isNaN(diff)
-                      ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)} lbs vs target (${targetWeight} lbs)`
-                      : '\u00A0'
-                    }
-                  </p>
+                  {/* Show change from original in edit mode, or diff from target in new log mode */}
+                  {isEditMode && originalWeight !== null ? (
+                    <p className={cn(
+                      "text-center text-sm font-mono h-5",
+                      weight && !isNaN(parseFloat(weight))
+                        ? (() => {
+                            const change = parseFloat(weight) - originalWeight;
+                            return change === 0 ? "text-muted-foreground" : change < 0 ? "text-green-500" : "text-yellow-500";
+                          })()
+                        : "text-transparent"
+                    )}>
+                      {weight && !isNaN(parseFloat(weight))
+                        ? (() => {
+                            const change = parseFloat(weight) - originalWeight;
+                            if (change === 0) return "No change";
+                            return `Change: ${change > 0 ? '+' : ''}${change.toFixed(1)} lbs`;
+                          })()
+                        : '\u00A0'
+                      }
+                    </p>
+                  ) : (
+                    <p className={cn(
+                      "text-center text-sm font-mono h-5",
+                      diff !== null && !isNaN(diff)
+                        ? (diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-destructive")
+                        : "text-transparent"
+                    )}>
+                      {diff !== null && !isNaN(diff)
+                        ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)} lbs vs target (${targetWeight} lbs)`
+                        : '\u00A0'
+                      }
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* Time Picker — always shown */}
+              {/* Time Picker — scrollable wheels */}
               <div className="mt-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-muted-foreground" />
                     <Label className="text-xs text-muted-foreground">Time</Label>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setLogTime(getCurrentTimeStr())}
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg text-xs font-medium border transition-all",
-                        logTime === getCurrentTimeStr()
-                          ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
-                          : "border-border text-muted-foreground active:scale-95"
-                      )}
-                    >
-                      Now
-                    </button>
-                    <input
-                      type="time"
-                      value={logTime}
-                      onChange={(e) => setLogTime(e.target.value)}
-                      className="bg-background border border-border rounded-lg px-2.5 py-1 text-xs font-mono text-foreground h-8 w-[100px]"
-                    />
-                  </div>
+                  <button
+                    onClick={() => setLogTime(getCurrentTimeStr())}
+                    className={cn(
+                      "px-4 py-2 min-h-[40px] rounded-lg text-sm font-medium border transition-all",
+                      logTime === getCurrentTimeStr()
+                        ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
+                        : "border-border text-muted-foreground active:scale-95"
+                    )}
+                  >
+                    Now
+                  </button>
                 </div>
+                <TimeScrollPicker value={logTime} onChange={setLogTime} />
               </div>
 
               {/* Duration Picker — shown for extra-workout and post-practice */}
@@ -456,13 +700,13 @@ export function QuickLogFAB() {
                     <Label className="text-xs font-bold text-orange-500">Workout Duration *</Label>
                   </div>
                   <p className="text-[10px] text-muted-foreground mb-2">Required — used to calculate your sweat rate (lbs/hr)</p>
-                  <div className="flex gap-1.5 flex-wrap">
+                  <div className="flex gap-2 flex-wrap">
                     {DURATION_PRESETS.map((mins) => (
                       <button
                         key={mins}
                         onClick={() => { setDuration(mins.toString()); setCustomDuration(false); }}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                          "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
                           duration === mins.toString() && !customDuration
                             ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
                             : "border-border text-muted-foreground active:scale-95"
@@ -474,7 +718,7 @@ export function QuickLogFAB() {
                     <button
                       onClick={() => { setCustomDuration(true); setDuration(''); }}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                        "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
                         customDuration
                           ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
                           : "border-border text-muted-foreground active:scale-95"
@@ -507,13 +751,13 @@ export function QuickLogFAB() {
                     <Label className="text-xs font-bold text-purple-500">Hours of Sleep *</Label>
                   </div>
                   <p className="text-[10px] text-muted-foreground mb-2">Required — used to track overnight drift per hour</p>
-                  <div className="flex gap-1.5 flex-wrap">
+                  <div className="flex gap-2 flex-wrap">
                     {SLEEP_PRESETS.map((hrs) => (
                       <button
                         key={hrs}
                         onClick={() => { setSleepHours(hrs.toString()); setCustomSleep(false); }}
                         className={cn(
-                          "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                          "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
                           sleepHours === hrs.toString() && !customSleep
                             ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
                             : "border-border text-muted-foreground active:scale-95"
@@ -525,7 +769,7 @@ export function QuickLogFAB() {
                     <button
                       onClick={() => { setCustomSleep(true); setSleepHours(''); }}
                       className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                        "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
                         customSleep
                           ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
                           : "border-border text-muted-foreground active:scale-95"
@@ -551,19 +795,35 @@ export function QuickLogFAB() {
                 </div>
               )}
 
-              {/* Save Button — large touch target */}
-              <Button
-                onClick={handleSubmit}
-                className="w-full mt-4 h-13 text-lg font-bold rounded-xl"
-                style={{ minHeight: '52px' }}
-                disabled={
-                  selectedType === 'extra-workout'
-                    ? !beforeWeight || !afterWeight || !duration || parseInt(duration, 10) <= 0
-                    : !weight || (needsDuration && (!duration || parseInt(duration, 10) <= 0)) || (needsSleep && (!sleepHours || parseFloat(sleepHours) <= 0))
-                }
-              >
-                Save
-              </Button>
+              {/* Action Buttons */}
+              <div className="flex gap-2 mt-4">
+                {isEditMode && (
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    className="h-13 px-4 rounded-xl"
+                    style={{ minHeight: '52px' }}
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    {confirmDelete && <span className="ml-1 text-sm">Confirm?</span>}
+                  </Button>
+                )}
+                <Button
+                  onClick={handleSubmit}
+                  className={cn(
+                    "flex-1 h-13 text-lg font-bold rounded-xl",
+                    confirmWildcard && "bg-yellow-500 hover:bg-yellow-600 text-black"
+                  )}
+                  style={{ minHeight: '52px' }}
+                  disabled={
+                    selectedType === 'extra-workout'
+                      ? !beforeWeight || !afterWeight || !duration || parseInt(duration, 10) <= 0
+                      : !weight || (needsDuration && (!duration || parseInt(duration, 10) <= 0)) || (needsSleep && (!sleepHours || parseFloat(sleepHours) <= 0))
+                  }
+                >
+                  {confirmWildcard ? 'Confirm Save?' : isEditMode ? 'Update' : 'Save'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -128,18 +128,18 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                     </span>
                     {!readOnly && (
                       <>
-                        <button onClick={handleEdit} className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
-                          <Pencil className="w-3 h-3" />
+                        <button onClick={handleEdit} className="p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center">
+                          <Pencil className="w-4 h-4" />
                         </button>
                         {tracking.waterConsumed > 0 && (
                           confirmingReset ? (
                               <div className="flex items-center gap-1">
-                                <button onClick={handleReset} className="text-[9px] font-bold text-destructive px-1">Yes</button>
-                                <button onClick={() => setConfirmingReset(false)} className="text-[9px] font-bold text-muted-foreground px-1">No</button>
+                                <button onClick={handleReset} className="text-xs font-bold text-destructive px-3 py-2 min-h-[44px] active:scale-95 transition-transform">Yes</button>
+                                <button onClick={() => setConfirmingReset(false)} className="text-xs font-bold text-muted-foreground px-3 py-2 min-h-[44px] active:scale-95 transition-transform">No</button>
                               </div>
                             ) : (
-                              <button onClick={() => setConfirmingReset(true)} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive">
-                                <Trash2 className="w-3 h-3" />
+                              <button onClick={() => setConfirmingReset(true)} className="p-2 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center">
+                                <Trash2 className="w-4 h-4" />
                               </button>
                             )
                         )}
@@ -184,14 +184,14 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               <Droplets className="w-3.5 h-3.5 text-cyan-500" />
               {isEditing ? (
                 <div className="flex items-center gap-1">
-                  <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-6 w-14 text-center text-[11px] font-mono" autoFocus />
+                  <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 w-16 text-center text-xs font-mono" autoFocus />
                   <span className="text-[10px] text-muted-foreground">oz</span>
-                  <button onClick={handleSaveEdit} className="text-[10px] text-green-500 font-bold">Save</button>
-                  <button onClick={() => setIsEditing(false)} className="text-[10px] text-muted-foreground">✕</button>
+                  <button onClick={handleSaveEdit} className="text-xs text-green-500 font-bold px-2 py-1 min-h-[36px] active:scale-95 transition-transform">Save</button>
+                  <button onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-2 py-1 min-h-[36px] active:scale-95 transition-transform">✕</button>
                 </div>
               ) : (
-                <button onClick={handleEdit} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
-                  <Pencil className="w-3 h-3" />
+                <button onClick={handleEdit} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 min-h-[36px] active:scale-95 transition-transform">
+                  <Pencil className="w-3.5 h-3.5" />
                   <span className="font-mono">{tracking.waterConsumed}/{hydration.targetOz}oz</span>
                 </button>
               )}
@@ -199,13 +199,13 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
             {tracking.waterConsumed > 0 && (
               confirmingReset ? (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] text-destructive">Reset?</span>
-                  <button onClick={handleReset} className="text-[9px] font-bold text-destructive">Yes</button>
-                  <button onClick={() => setConfirmingReset(false)} className="text-[9px] font-bold text-muted-foreground">No</button>
+                  <span className="text-xs text-destructive">Reset?</span>
+                  <button onClick={handleReset} className="text-xs font-bold text-destructive px-2 py-1.5 min-h-[36px] active:scale-95 transition-transform">Yes</button>
+                  <button onClick={() => setConfirmingReset(false)} className="text-xs font-bold text-muted-foreground px-2 py-1.5 min-h-[36px] active:scale-95 transition-transform">No</button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmingReset(true)} className="text-[9px] text-muted-foreground hover:text-destructive flex items-center gap-0.5">
-                  <Trash2 className="w-2.5 h-2.5" />
+                <button onClick={() => setConfirmingReset(true)} className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1 px-2 py-1.5 min-h-[36px] active:scale-95 transition-transform">
+                  <Trash2 className="w-3.5 h-3.5" />
                   Reset
                 </button>
               )
@@ -218,28 +218,28 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
 
         {/* Quick Add Buttons — only when standalone (not embedded, parent handles these) */}
         {!readOnly && !embedded && (
-          <div className="flex gap-1.5 items-center flex-wrap">
+          <div className="flex gap-2 items-center flex-wrap">
             {quickAddAmounts.map(oz => (
               <button
                 key={oz}
                 onClick={() => handleAddWater(oz)}
-                className="h-7 px-2.5 text-[11px] font-medium rounded-md border border-muted bg-muted/30 hover:bg-muted/60 active:bg-muted transition-colors"
+                className="min-h-[44px] px-4 text-sm font-semibold rounded-lg border border-muted bg-muted/30 hover:bg-muted/60 active:bg-muted active:scale-95 transition-all"
               >
                 +{oz}oz
               </button>
             ))}
-            <div className="flex gap-1 ml-auto">
+            <div className="flex gap-1.5 ml-auto">
               <Input
                 type="number"
                 placeholder="oz"
                 value={addAmount}
                 onChange={(e) => setAddAmount(e.target.value)}
-                className="h-7 w-14 text-[11px] font-mono"
+                className="h-10 w-16 text-xs font-mono"
               />
               <button
                 onClick={handleCustomAdd}
                 disabled={!addAmount}
-                className="h-7 px-2 text-[11px] font-medium rounded-md border border-muted bg-muted/30 hover:bg-muted/60 disabled:opacity-40"
+                className="min-h-[40px] px-3 text-xs font-medium rounded-lg border border-muted bg-muted/30 hover:bg-muted/60 disabled:opacity-40 active:scale-95 transition-all"
               >
                 Add
               </button>

@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Flame,
   Zap,
   Trophy,
@@ -12,7 +14,9 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDown,
-  Minus
+  Minus,
+  Beaker,
+  Salad
 } from "lucide-react";
 import type { Protocol } from "@/lib/store";
 
@@ -23,8 +27,58 @@ interface ProtocolWizardProps {
   onBack?: () => void;
 }
 
+// Science explanations for each protocol
+const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: string[] }> = {
+  '1': {
+    summary: 'Uses fructose-dominant fueling to activate FGF21 (a fat-burning hormone) while sparing muscle glycogen.',
+    points: [
+      'Fructose is processed by the liver, not muscles — so your muscles stay fueled for practice',
+      'Zero-protein windows trigger FGF21, which accelerates fat oxidation',
+      'Water loading + sodium manipulation drops 3-5 lbs of water weight safely in the final days',
+      'Run for 2-4 weeks max, then transition to Make Weight or Hold Weight',
+    ],
+  },
+  '2': {
+    summary: 'Weekly cut protocol using water loading science to drop weight predictably each week.',
+    points: [
+      '3-day water load (Mon-Wed) suppresses ADH hormone, increasing urine output',
+      'Sharp water restriction (Thu-Fri) exploits the delayed ADH response — your body keeps flushing water',
+      'Sodium loading + restriction amplifies the water drop',
+      'Structured macro phasing keeps energy high for practice while cutting weight',
+    ],
+  },
+  '3': {
+    summary: 'Maintenance protocol for wrestlers already at walk-around weight.',
+    points: [
+      'Balanced macros (40C/35P/25F) keep energy and recovery optimal',
+      'No food restrictions — eat normal, train hard',
+      'Water and sodium targets keep you competition-ready without active cutting',
+      'Switch to Make Weight when you need to cut for a specific meet',
+    ],
+  },
+  '4': {
+    summary: 'Off-season muscle gain protocol with higher carbs and protein.',
+    points: [
+      'Higher calorie targets to support muscle growth',
+      'Protein targets at 1.0-1.2 g/lb to maximize muscle protein synthesis',
+      'No water manipulation — hydrate normally',
+      'Track weight to ensure gains stay controlled and within your target class range',
+    ],
+  },
+  '5': {
+    summary: 'Simple as Pie for Achievable Results — count portions (slices), not calories.',
+    points: [
+      'Palm-sized protein = 1 slice (~110 cal). Fist-sized carb = 1 slice (~120 cal). Fist of veggies/fruit = 1 slice (~50 cal)',
+      'Your daily targets are calculated from BMR × activity level — no calorie counting needed',
+      'Focus on whole, clean foods — no competition cycling or sugar manipulation',
+      'Great for everyday eating, off-season, or when 6+ days from competition',
+    ],
+  },
+};
+
 export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, onBack }: ProtocolWizardProps) {
   const [selectedProtocol, setSelectedProtocol] = useState<Protocol | null>(null);
+  const [showScience, setShowScience] = useState<Protocol | false>(false);
 
   // Calculate weight metrics based on your document
   const walkAroundWeight = targetWeightClass * 1.07; // Walk-around = Competition × 1.06-1.07
@@ -129,60 +183,118 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
         </div>
       </Card>
 
-      {/* Recommendation */}
+      {/* Protocol Cards — recommended first, then the rest */}
       <div className="space-y-3">
-        <p className="text-sm font-medium">Recommended for you:</p>
+        {/* Order: recommended first */}
+        {[recommendation.protocol, ...(['1', '2', '3', '4', '5'] as Protocol[]).filter(p => p !== recommendation.protocol)].map(protocol => {
+          const isRecommended = protocol === recommendation.protocol;
+          const isSelected = selectedProtocol === protocol;
+          const config = {
+            '1': { label: 'Body Comp Phase', desc: 'Aggressive fat loss via fructose-only fueling', icon: Flame, color: 'text-destructive' },
+            '2': { label: 'Make Weight Phase', desc: 'Weekly cut with water loading science', icon: Zap, color: 'text-primary' },
+            '3': { label: 'Hold Weight Phase', desc: 'Stay at walk-around, train hard', icon: Trophy, color: 'text-primary' },
+            '4': { label: 'Build Phase', desc: 'Off-season muscle gain', icon: Dumbbell, color: 'text-primary' },
+            '5': { label: 'SPAR Nutrition', desc: 'Clean eating — count portions, not calories', icon: Salad, color: 'text-green-500' },
+          }[protocol]!;
+          const Icon = config.icon;
 
-        <Card className={cn(
-          "p-4 border-2 transition-all cursor-pointer",
-          selectedProtocol === recommendation.protocol
-            ? "border-primary bg-primary/5"
-            : "border-muted hover:border-muted-foreground/50"
-        )}
-        onClick={() => setSelectedProtocol(recommendation.protocol)}
-        >
-          <div className="flex items-start gap-3">
-            <div className="mt-1">
-              {recommendation.protocol === '1' && <Flame className="w-6 h-6 text-destructive" />}
-              {recommendation.protocol === '2' && <Zap className="w-6 h-6 text-primary" />}
-              {recommendation.protocol === '3' && <Trophy className="w-6 h-6 text-primary" />}
-              {recommendation.protocol === '4' && <Dumbbell className="w-6 h-6 text-primary" />}
-            </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-lg">
-                {recommendation.protocol === '1' && "Body Comp Phase"}
-                {recommendation.protocol === '2' && "Make Weight Phase"}
-                {recommendation.protocol === '3' && "Hold Weight Phase"}
-                {recommendation.protocol === '4' && "Build Phase"}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">{recommendation.reason}</p>
-              {recommendation.warning && (
-                <p className="text-xs text-yellow-500 mt-2 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  {recommendation.warning}
-                </p>
-              )}
-            </div>
-            {selectedProtocol === recommendation.protocol && (
-              <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Other Options */}
-      <div className="space-y-3">
-        <p className="text-sm font-medium text-muted-foreground">Or choose another:</p>
-        <div className="grid grid-cols-2 gap-2">
-          {(['1', '2', '3', '4'] as Protocol[]).filter(p => p !== recommendation.protocol).map(protocol => (
-            <ProtocolOption
+          return (
+            <Card
               key={protocol}
-              protocol={protocol}
-              selected={selectedProtocol === protocol}
+              className={cn(
+                "p-4 border-2 transition-all cursor-pointer",
+                isSelected
+                  ? "border-primary bg-primary/5"
+                  : "border-muted hover:border-muted-foreground/50"
+              )}
               onClick={() => setSelectedProtocol(protocol)}
-            />
-          ))}
-        </div>
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-1">
+                  <Icon className={cn("w-6 h-6", config.color)} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg">{config.label}</h3>
+                    {isRecommended && (
+                      <span className="text-[9px] font-bold uppercase tracking-wider bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                        Recommended
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Always show description */}
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {isRecommended ? recommendation.reason : config.desc}
+                  </p>
+
+                  {isRecommended && recommendation.warning && (
+                    <p className="text-xs text-yellow-500 mt-2 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      {recommendation.warning}
+                    </p>
+                  )}
+
+                  {/* Science toggle — shown when this card is selected */}
+                  {isSelected && (
+                    <>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setShowScience(showScience === protocol ? false : protocol); }}
+                        className="flex items-center gap-1 mt-3 text-[11px] text-primary font-bold uppercase tracking-wide"
+                      >
+                        <Beaker className="w-3 h-3" />
+                        How it works
+                        {showScience === protocol ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                      </button>
+
+                      {showScience === protocol && (
+                        <div className="mt-2 p-3 rounded-lg bg-muted/30 border border-muted space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <p className="text-xs text-muted-foreground">{PROTOCOL_SCIENCE[protocol].summary}</p>
+
+                          {/* Visual SPAR portion guide */}
+                          {protocol === '5' && (
+                            <div className="grid grid-cols-3 gap-2 py-2">
+                              <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                                <div className="text-2xl mb-1">🤚</div>
+                                <p className="text-[10px] font-bold text-orange-500 uppercase">Protein</p>
+                                <p className="text-[9px] text-muted-foreground">Palm-sized</p>
+                                <p className="text-[9px] text-orange-400 mt-0.5">~110 cal</p>
+                              </div>
+                              <div className="text-center p-2 rounded-lg bg-primary/10 border border-primary/30">
+                                <div className="text-2xl mb-1">✊</div>
+                                <p className="text-[10px] font-bold text-primary uppercase">Carbs</p>
+                                <p className="text-[9px] text-muted-foreground">Fist-sized</p>
+                                <p className="text-[9px] text-primary mt-0.5">~120 cal</p>
+                              </div>
+                              <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/30">
+                                <div className="text-2xl mb-1">✊</div>
+                                <p className="text-[10px] font-bold text-green-500 uppercase">Veggies</p>
+                                <p className="text-[9px] text-muted-foreground">Fist-sized</p>
+                                <p className="text-[9px] text-green-400 mt-0.5">~50 cal</p>
+                              </div>
+                            </div>
+                          )}
+
+                          <ul className="space-y-1.5">
+                            {PROTOCOL_SCIENCE[protocol].points.map((point, i) => (
+                              <li key={i} className="text-[11px] text-muted-foreground flex gap-2">
+                                <span className="text-primary shrink-0 mt-0.5">•</span>
+                                <span>{point}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+                {isSelected && (
+                  <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
+                )}
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Actions */}
@@ -195,7 +307,7 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
         <Button
           onClick={handleComplete}
           disabled={!selectedProtocol}
-          className="flex-1 h-14 text-lg font-bold uppercase tracking-wider bg-primary text-black hover:bg-primary/90"
+          className="flex-1 h-14 text-lg font-bold uppercase tracking-wider bg-primary text-white hover:bg-primary/90"
         >
           Continue <ChevronRight className="ml-2 w-5 h-5" />
         </Button>
@@ -204,38 +316,3 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
   );
 }
 
-function ProtocolOption({ protocol, selected, onClick }: {
-  protocol: Protocol;
-  selected: boolean;
-  onClick: () => void;
-}) {
-  const config = {
-    '1': { label: 'Body Comp', desc: 'Burn fat fast', icon: Flame, destructive: true },
-    '2': { label: 'Make Weight', desc: 'Weekly cut', icon: Zap, destructive: false },
-    '3': { label: 'Hold Weight', desc: 'Maintain', icon: Trophy, destructive: false },
-    '4': { label: 'Build', desc: 'Gain muscle', icon: Dumbbell, destructive: false },
-  }[protocol];
-
-  const Icon = config.icon;
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex items-center gap-2 p-3 rounded-lg border transition-all text-left",
-        selected
-          ? "border-primary bg-primary/10 ring-1 ring-primary"
-          : config.destructive
-            ? "border-destructive/30 hover:border-destructive/60 bg-muted/10"
-            : "border-muted hover:border-muted-foreground/50 bg-muted/10"
-      )}
-    >
-      <Icon className={cn("w-4 h-4 shrink-0", config.destructive ? "text-destructive" : "text-primary")} />
-      <div>
-        <span className="text-sm font-bold block">{config.label}</span>
-        <span className="text-[10px] text-muted-foreground">{config.desc}</span>
-      </div>
-      {selected && <CheckCircle2 className="w-4 h-4 text-primary ml-auto" />}
-    </button>
-  );
-}

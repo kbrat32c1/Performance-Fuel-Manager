@@ -15,13 +15,16 @@ import {
   getWaterTargetGallons,
   STATUS_THRESHOLDS,
 } from './constants';
+import { SUGAR_FOODS } from './food-data';
+import { calculateSliceTargets, type ActivityLevel, type WeeklyGoal, type Gender } from './spar-calculator';
 
 // Types
-export type Protocol = '1' | '2' | '3' | '4';
+export type Protocol = '1' | '2' | '3' | '4' | '5';
 // 1: Sugar Fast / Body Comp Phase (Extreme fat loss)
 // 2: Fat Loss Focus / Make Weight Phase (In-Season weekly cut)
 // 3: Maintain / Hold Weight Phase (At walk-around weight)
 // 4: Hypertrophy / Build Phase (Off-season muscle gain)
+// 5: SPAR Nutrition (Clean eating — slice-based portion counting)
 
 export type Status = 'on-track' | 'borderline' | 'risk';
 
@@ -37,8 +40,10 @@ export interface FuelTanks {
 
 export interface AthleteProfile {
   name: string;
+  lastName: string;
   currentWeight: number;
   targetWeightClass: number;
+  targetWeight?: number; // Custom target weight for SPAR users (optional, defaults to targetWeightClass)
   weighInDate: Date;
   weighInTime: string; // "HH:MM" format, e.g. "07:00"
   matchDate: Date;
@@ -47,6 +52,13 @@ export interface AthleteProfile {
   status: Status;
   simulatedDate: Date | null;
   hasCompletedOnboarding?: boolean;
+  // SPAR Nutrition profile fields
+  heightInches?: number;
+  age?: number;
+  gender?: 'male' | 'female';
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
+  weeklyGoal?: 'cut' | 'maintain' | 'build';
+  nutritionPreference: 'spar' | 'sugar'; // slices or grams
 }
 
 export interface WeightLog {
@@ -66,11 +78,35 @@ export interface WaterLog {
   amount: number; // in oz
 }
 
+// Unified food log entry — works for both SPAR and Sugar modes
+export interface FoodLogEntry {
+  id: string;
+  name: string;
+  timestamp: string; // ISO string
+  mode: 'spar' | 'sugar';
+  // SPAR mode fields
+  sliceType?: 'protein' | 'carb' | 'veg';
+  sliceCount?: number;         // usually 1, but could be 0.5 or 2
+  // Sugar mode fields
+  macroType?: 'carbs' | 'protein';
+  amount?: number;             // grams
+  category?: string;           // fructose, glucose, zerofiber, protein, custom, meals
+  liquidOz?: number;           // for juices/liquids that also count as water
+  gramAmount?: number;         // gram equivalent per slice for cross-sync undo
+}
+
 export interface DailyTracking {
   date: string; // YYYY-MM-DD format
   waterConsumed: number; // oz
   carbsConsumed: number; // grams
   proteinConsumed: number; // grams
+  noPractice?: boolean; // rest day — hides PRE/POST slots
+  // SPAR slice tracking
+  proteinSlices: number;
+  carbSlices: number;
+  vegSlices: number;
+  nutritionMode?: 'spar' | 'sugar'; // which mode was active when food was logged
+  foodLog?: FoodLogEntry[];          // persisted food log
 }
 
 export interface DayPlan {
@@ -116,6 +152,8 @@ interface StoreContextType {
   getHydrationTarget: () => { amount: string; type: string; note: string; targetOz: number };
   getMacroTargets: () => { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string; note?: string; weightWarning?: string };
   getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
+  getNutritionMode: () => 'spar' | 'sugar';
+  getSliceTargets: () => { protein: number; carb: number; veg: number; totalCalories: number };
   getCheckpoints: () => {
     walkAround: string;
     wedTarget: string;
@@ -177,7 +215,7 @@ interface StoreContextType {
     protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }>;
     avoid: Array<{ name: string; reason: string }>;
     tournament: Array<{ name: string; ratio: string; serving: string; carbs: number; timing?: string; note?: string }>;
-    supplements: Array<{ name: string; serving: string; note: string }>;
+    supplements: Array<{ name: string; serving: string; note?: string }>;
     fuelTanks: Array<{ name: string; loseRate: string; replenishRate: string; performanceCost: string; declinePoint: string }>;
   };
   getTodaysFoods: () => {
@@ -223,6 +261,7 @@ function computeEMA(values: number[]): number | null {
 
 const defaultProfile: AthleteProfile = {
   name: 'Athlete',
+  lastName: '',
   currentWeight: 0,
   targetWeightClass: 157,
   weighInDate: addDays(new Date(), 5), // 5 days out
@@ -233,6 +272,7 @@ const defaultProfile: AthleteProfile = {
   status: 'on-track',
   simulatedDate: null,
   hasCompletedOnboarding: false,
+  nutritionPreference: 'spar', // Default to slices
 };
 
 const defaultTanks: FuelTanks = {
@@ -291,8 +331,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return new Date(year, month - 1, day, 12, 0, 0); // noon to avoid DST issues
         };
 
+        // If last_name is empty but name has a space, split it (one-time migration)
+        let loadedName = profileData.name || 'Athlete';
+        let loadedLastName = profileData.last_name || '';
+        if (!loadedLastName && loadedName.includes(' ')) {
+          const parts = loadedName.trim().split(/\s+/);
+          loadedName = parts[0];
+          loadedLastName = parts.slice(1).join(' ');
+          // Persist the split back to Supabase
+          supabase.from('profiles').update({ name: loadedName, last_name: loadedLastName }).eq('user_id', user.id);
+        }
+
         setProfile({
-          name: profileData.name || 'Athlete',
+          name: loadedName,
+          lastName: loadedLastName,
           currentWeight: profileData.current_weight || 0,
           targetWeightClass: profileData.target_weight_class || 157,
           weighInDate: parseLocalDate(profileData.weigh_in_date),
@@ -303,6 +355,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           status: 'on-track',
           simulatedDate: profileData.simulated_date ? parseLocalDate(profileData.simulated_date) : null,
           hasCompletedOnboarding: profileData.has_completed_onboarding || false,
+          // SPAR fields
+          heightInches: profileData.height_inches || undefined,
+          age: profileData.age || undefined,
+          gender: profileData.gender as 'male' | 'female' | undefined,
+          activityLevel: profileData.activity_level as AthleteProfile['activityLevel'],
+          weeklyGoal: profileData.weekly_goal as AthleteProfile['weeklyGoal'],
+          nutritionPreference: (profileData.nutrition_preference === 'sugar' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
         });
       } else {
         // No profile found - user needs to complete onboarding
@@ -319,14 +378,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .order('date', { ascending: false });
 
       if (logsData && !logsError) {
-        setLogs(logsData.map(log => ({
-          id: log.id,
-          weight: log.weight,
-          date: new Date(log.date),
-          type: log.type as WeightLog['type'],
-          ...(log.duration !== undefined && log.duration !== null && { duration: log.duration }),
-          ...(log.sleep_hours !== undefined && log.sleep_hours !== null && { sleepHours: log.sleep_hours }),
-        })));
+        setLogs(logsData.map(log => {
+          // Handle both full ISO timestamps and date-only strings from Supabase
+          // Date-only strings like "2024-01-15" get parsed as UTC midnight by new Date(),
+          // which shifts back a day in negative UTC offsets. Detect and fix this.
+          let logDate: Date;
+          if (typeof log.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(log.date)) {
+            const [year, month, day] = log.date.split('-').map(Number);
+            logDate = new Date(year, month - 1, day, 12, 0, 0); // noon local to avoid TZ shift
+          } else {
+            logDate = new Date(log.date);
+          }
+          return {
+            id: log.id,
+            weight: log.weight,
+            date: logDate,
+            type: log.type as WeightLog['type'],
+            ...(log.duration !== undefined && log.duration !== null && { duration: log.duration }),
+            ...(log.sleep_hours !== undefined && log.sleep_hours !== null && { sleepHours: log.sleep_hours }),
+          };
+        }));
       }
 
       // Load daily tracking
@@ -336,11 +407,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id);
 
       if (trackingData && !trackingError) {
-        setDailyTracking(trackingData.map(t => ({
+        setDailyTracking(trackingData.map((t: any) => ({
           date: t.date,
           waterConsumed: t.water_consumed || 0,
           carbsConsumed: t.carbs_consumed || 0,
           proteinConsumed: t.protein_consumed || 0,
+          noPractice: t.no_practice ?? false,
+          proteinSlices: t.protein_slices || 0,
+          carbSlices: t.carb_slices || 0,
+          vegSlices: t.veg_slices || 0,
+          nutritionMode: t.nutrition_mode || undefined,
+          foodLog: t.food_log || [],
         })));
       }
     } catch (error) {
@@ -485,9 +562,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               : new Date(newProfile.simulatedDate).toISOString().split('T')[0])
           : null;
 
-        await supabase.from('profiles').upsert({
+        const profilePayload: Record<string, any> = {
           user_id: user.id,
           name: newProfile.name,
+          last_name: newProfile.lastName || '',
           current_weight: newProfile.currentWeight,
           target_weight_class: newProfile.targetWeightClass,
           weigh_in_date: weighInDateStr,
@@ -495,7 +573,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           protocol: parseInt(newProfile.protocol),
           has_completed_onboarding: newProfile.hasCompletedOnboarding || false,
           simulated_date: simulatedDateStr,
-        }, { onConflict: 'user_id' });
+          // SPAR fields
+          height_inches: newProfile.heightInches || null,
+          age: newProfile.age || null,
+          gender: newProfile.gender || null,
+          activity_level: newProfile.activityLevel || null,
+          weekly_goal: newProfile.weeklyGoal || null,
+          nutrition_preference: newProfile.nutritionPreference || 'spar',
+        };
+
+        const { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+
+        // If the nutrition_preference column doesn't exist yet, retry without it
+        if (upsertError && upsertError.message?.includes('nutrition_preference')) {
+          const { nutrition_preference, ...payloadWithout } = profilePayload;
+          await supabase.from('profiles').upsert(payloadWithout, { onConflict: 'user_id' });
+        }
       } catch (error) {
         console.error('Error saving profile:', error);
       }
@@ -557,6 +650,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           };
           if (log.duration !== undefined) insertData.duration = log.duration;
           if (log.sleepHours !== undefined) insertData.sleep_hours = log.sleepHours;
+
           const { data, error } = await supabase.from('weight_logs').insert(insertData).select().single();
 
           if (error) {
@@ -691,10 +785,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ...existing,
         waterConsumed: existing.waterConsumed ?? 0,
         carbsConsumed: existing.carbsConsumed ?? 0,
-        proteinConsumed: existing.proteinConsumed ?? 0
+        proteinConsumed: existing.proteinConsumed ?? 0,
+        noPractice: existing.noPractice ?? false,
+        proteinSlices: existing.proteinSlices ?? 0,
+        carbSlices: existing.carbSlices ?? 0,
+        vegSlices: existing.vegSlices ?? 0,
+        nutritionMode: existing.nutritionMode,
+        foodLog: existing.foodLog ?? [],
       };
     }
-    return { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0 };
+    return { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, noPractice: false, proteinSlices: 0, carbSlices: 0, vegSlices: 0, foodLog: [] };
   };
 
   const updateDailyTracking = async (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => {
@@ -707,6 +807,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       waterConsumed: updates.waterConsumed ?? existing.waterConsumed,
       carbsConsumed: updates.carbsConsumed ?? existing.carbsConsumed,
       proteinConsumed: updates.proteinConsumed ?? existing.proteinConsumed,
+      noPractice: updates.noPractice ?? existing.noPractice,
+      proteinSlices: updates.proteinSlices ?? existing.proteinSlices,
+      carbSlices: updates.carbSlices ?? existing.carbSlices,
+      vegSlices: updates.vegSlices ?? existing.vegSlices,
+      nutritionMode: updates.nutritionMode ?? existing.nutritionMode,
+      foodLog: updates.foodLog ?? existing.foodLog,
     };
 
     setDailyTracking(prev => {
@@ -714,24 +820,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (found) {
         return prev.map(d => d.date === date ? { ...d, ...updates } : d);
       }
-      return [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, ...updates }];
+      return [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, ...updates }];
     });
 
     if (user) {
       try {
-        const { error } = await supabase.from('daily_tracking').upsert({
+        // Try full upsert with all columns (including SPAR fields)
+        const fullPayload: Record<string, any> = {
           user_id: user.id,
           date: date,
           carbs_consumed: merged.carbsConsumed,
           protein_consumed: merged.proteinConsumed,
           water_consumed: merged.waterConsumed,
-        }, { onConflict: 'user_id,date' });
+          no_practice: merged.noPractice ?? false,
+          protein_slices: merged.proteinSlices ?? 0,
+          carb_slices: merged.carbSlices ?? 0,
+          veg_slices: merged.vegSlices ?? 0,
+          nutrition_mode: merged.nutritionMode ?? null,
+          food_log: merged.foodLog ?? [],
+        };
+
+        const { error } = await supabase.from('daily_tracking').upsert(fullPayload, { onConflict: 'user_id,date' });
 
         if (error) {
-          // Rollback on error
-          setDailyTracking(previousTracking);
-          console.error('Error updating daily tracking:', error);
-          toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
+          // If the error mentions missing columns, fall back to core fields only
+          if (error.message?.includes('column') || error.code === '42703') {
+            console.warn('SPAR columns not in DB yet, falling back to core fields:', error.message);
+            const { error: fallbackError } = await supabase.from('daily_tracking').upsert({
+              user_id: user.id,
+              date: date,
+              carbs_consumed: merged.carbsConsumed,
+              protein_consumed: merged.proteinConsumed,
+              water_consumed: merged.waterConsumed,
+              no_practice: merged.noPractice ?? false,
+            }, { onConflict: 'user_id,date' });
+
+            if (fallbackError) {
+              setDailyTracking(previousTracking);
+              console.error('Error updating daily tracking (fallback):', fallbackError);
+              toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
+            }
+          } else {
+            setDailyTracking(previousTracking);
+            console.error('Error updating daily tracking:', error);
+            toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
+          }
         }
       } catch (error) {
         // Rollback on exception
@@ -769,7 +902,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    localStorage.clear();
+    // Remove only PWM keys instead of clearing all localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('pwm-')) localStorage.removeItem(key);
+    });
   };
 
   // Clear only weight logs (not full reset)
@@ -806,9 +942,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return w;
     }
 
-    // Protocol 3 (Hold Weight) - maintain near walk-around, minimal cut
-    // Uses slightly different multipliers than full cutting protocols
-    if (protocol === '3') {
+    // Protocol 3 (Hold Weight) & Protocol 5 (SPAR) - maintain near walk-around, no water loading
+    // SPAR is clean eating / portion counting, not aggressive cutting
+    if (protocol === '3' || protocol === '5') {
       if (daysUntil < 0) return Math.round(w * 1.05); // Recovery
       if (daysUntil === 0) return w; // Competition
       if (daysUntil === 1) return Math.round(w * 1.03); // Day before
@@ -1028,6 +1164,53 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     else if (daysUntil < 0) type = "Recovery";
 
     return { amount, targetOz, type };
+  };
+
+  // ─── Nutrition Mode ───
+  const getNutritionMode = (): 'spar' | 'sugar' => {
+    return profile.nutritionPreference === 'sugar' ? 'sugar' : 'spar';
+  };
+
+  // ─── SPAR Slice Targets ───
+  // Protocol 5: BMR → TDEE → balanced slice split
+  // Protocols 1-4: Derive slices from their gram-based macro targets
+  const getSliceTargets = (): { protein: number; carb: number; veg: number; totalCalories: number } => {
+    const protocol = profile.protocol;
+
+    // Protocols 1-4: Convert gram targets into slices
+    // This uses the existing getMacroTargets() which already knows the protocol + day
+    if (protocol !== '5') {
+      const macroTargets = getMacroTargets();
+      // Protein: grams → slices (1 palm ≈ 25g protein ≈ 110 cal)
+      const proteinSlices = macroTargets.protein.max > 0
+        ? Math.max(1, Math.round(macroTargets.protein.max / 25))
+        : 0;
+      // Carbs: grams → slices (1 fist carb ≈ 30g carbs ≈ 120 cal)
+      const carbSlices = macroTargets.carbs.max > 0
+        ? Math.max(1, Math.round(macroTargets.carbs.max / 30))
+        : 0;
+      // Veg: when protein is allowed, suggest 2-3 veg servings; when restricted, 0
+      const vegSlices = macroTargets.protein.max === 0 ? 0 : Math.max(2, Math.round(carbSlices * 0.4));
+      // Estimate total calories
+      const totalCal = (proteinSlices * 110) + (carbSlices * 120) + (vegSlices * 50);
+      return { protein: proteinSlices, carb: carbSlices, veg: vegSlices, totalCalories: totalCal };
+    }
+
+    // Protocol 5: Use dedicated SPAR calculator (includes 1200 cal floor + slice minimums)
+    const weight = profile.currentWeight || profile.targetWeightClass;
+    const heightInches = profile.heightInches || 66; // default 5'6"
+    const age = profile.age || 16;
+    const gender = (profile.gender || 'male') as Gender;
+    const activityLevel = (profile.activityLevel || 'active') as ActivityLevel;
+    const weeklyGoal = (profile.weeklyGoal || 'maintain') as WeeklyGoal;
+
+    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, weeklyGoal);
+    return {
+      protein: sparResult.protein,
+      carb: sparResult.carb,
+      veg: sparResult.veg,
+      totalCalories: sparResult.totalCalories,
+    };
   };
 
   const getMacroTargets = () => {
@@ -1295,191 +1478,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getFoodLists = () => {
+    // Food data is now sourced from food-data.ts (single source of truth)
     return {
-      highFructose: [
-        { name: "Agave syrup", ratio: "90:10", serving: "1 Tbsp", carbs: 16, note: "Highest fructose" },
-        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, oz: 8, note: "Fast absorption, no pulp" },
-        { name: "Pear juice", ratio: "65:35", serving: "8 oz", carbs: 26, oz: 8, note: "High fructose" },
-        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, oz: 8, note: "Balanced" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, oz: 8, note: "Vitamin C" },
-        { name: "Apples", ratio: "65:35", serving: "1 medium", carbs: 25, note: "Portable" },
-        { name: "Pears", ratio: "65:35", serving: "1 medium", carbs: 27, note: "High fructose" },
-        { name: "Grapes", ratio: "48:52", serving: "1 cup", carbs: 27, note: "Convenient" },
-        { name: "Mango", ratio: "50:50", serving: "1 cup", carbs: 25, note: "Tropical" },
-        { name: "Watermelon", ratio: "48:52", serving: "2 cups", carbs: 22, note: "Hydrating" },
-        { name: "Bananas", ratio: "50:50", serving: "1 medium", carbs: 27, note: "Energy dense" },
-        { name: "Blueberries", ratio: "45:55", serving: "1 cup", carbs: 21, note: "Antioxidants" },
-        { name: "Dried fruit", ratio: "55:45", serving: "1/4 cup", carbs: 30, note: "Concentrated fructose" },
-        { name: "Maple syrup", ratio: "50:50", serving: "1 Tbsp", carbs: 13, note: "Natural sweetener" },
-        { name: "Honey", ratio: "50:50", serving: "1 Tbsp", carbs: 17, note: "All phases" },
-        { name: "Sugar", ratio: "50:50", serving: "1 Tbsp", carbs: 12, note: "Simple" },
-        { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Zero fiber" },
-        { name: "Coconut water", ratio: "40:60", serving: "8 oz", carbs: 9, oz: 8, note: "Potassium + electrolytes" },
-      ],
-      highGlucose: [
-        { name: "White rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Primary Thu-Fri" },
-        { name: "Instant rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Very fast" },
-        { name: "Potatoes (peeled)", ratio: "0:100", serving: "1 medium", carbs: 37, note: "Remove skin" },
-        { name: "Sweet potatoes (peeled)", ratio: "0:100", serving: "1 medium", carbs: 27, note: "Remove skin" },
-        { name: "Rice cakes", ratio: "0:100", serving: "2 cakes", carbs: 14, note: "Zero fiber" },
-        { name: "Cream of rice", ratio: "0:100", serving: "1 cup cooked", carbs: 28, note: "Hot cereal" },
-        { name: "Rice Krispies", ratio: "0:100", serving: "1 cup", carbs: 26, note: "With honey/juice" },
-        { name: "White bread (<1g fiber)", ratio: "0:100", serving: "2 slices", carbs: 26, note: "Check label" },
-        { name: "Sourdough", ratio: "0:100", serving: "2 slices", carbs: 30, note: "Easy digestion" },
-        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, oz: 8, note: "Zero fiber" },
-        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, oz: 8, note: "Zero fiber" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, oz: 8, note: "Zero fiber" },
-        { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Portable" },
-      ],
-      balanced: [
-        { name: "White rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Staple" },
-        { name: "Honey", ratio: "50:50", serving: "2 Tbsp", carbs: 34, note: "Natural balance" },
-        { name: "Ripe banana", ratio: "50:50", serving: "1 medium", carbs: 27, note: "Pre-practice" },
-        { name: "Rice cakes", ratio: "0:100", serving: "2 cakes", carbs: 14, note: "Easy digestion" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, note: "Vitamin C" },
-        { name: "Mango", ratio: "50:50", serving: "1 cup", carbs: 25, note: "Tropical" },
-        { name: "Grapes", ratio: "48:52", serving: "1 cup", carbs: 27, note: "Convenient" },
-        { name: "Watermelon", ratio: "48:52", serving: "2 cups", carbs: 22, note: "Hydrating" },
-        { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Quick energy" },
-        { name: "Sugar", ratio: "50:50", serving: "1 Tbsp", carbs: 12, note: "Simple" },
-        { name: "Blueberries", ratio: "45:55", serving: "1 cup", carbs: 21, note: "Antioxidants" },
-        { name: "Coconut water", ratio: "40:60", serving: "8 oz", carbs: 9, note: "Potassium" },
-      ],
-      zeroFiber: [
-        { name: "White rice", ratio: "0:100", serving: "1 cup", carbs: 45, note: "Primary carb" },
-        { name: "Instant rice", ratio: "0:100", serving: "1 cup", carbs: 45, note: "Very fast" },
-        { name: "Potatoes (peeled)", ratio: "0:100", serving: "1 medium", carbs: 37, note: "Remove skin" },
-        { name: "Sweet potatoes (peeled)", ratio: "0:100", serving: "1 medium", carbs: 27, note: "Remove skin" },
-        { name: "Rice cakes", ratio: "0:100", serving: "2 cakes", carbs: 14, note: "Zero fiber" },
-        { name: "Cream of rice", ratio: "0:100", serving: "1 cup", carbs: 28, note: "Hot cereal" },
-        { name: "Rice Krispies", ratio: "0:100", serving: "1 cup", carbs: 26, note: "With honey/juice" },
-        { name: "White bread (<1g fiber)", ratio: "0:100", serving: "2 slices", carbs: 26, note: "Check label" },
-        { name: "Sourdough", ratio: "0:100", serving: "2 slices", carbs: 30, note: "Easy digestion" },
-        { name: "Apple juice", ratio: "70:30", serving: "8 oz", carbs: 28, oz: 8, note: "Zero fiber" },
-        { name: "Grape juice", ratio: "55:45", serving: "8 oz", carbs: 36, oz: 8, note: "Zero fiber" },
-        { name: "Orange juice", ratio: "50:50", serving: "8 oz", carbs: 26, oz: 8, note: "Zero fiber" },
-        { name: "Gummy bears", ratio: "55:45", serving: "17 bears", carbs: 22, note: "Portable" },
-        { name: "Honey", ratio: "50:50", serving: "2 Tbsp", carbs: 34, note: "Pure sugar" },
-        { name: "Dextrose powder", ratio: "0:100", serving: "40g", carbs: 40, note: "No fiber" },
-      ],
-      protein: [
-        { name: "Collagen + 5g leucine", serving: "25-30g", protein: 25, note: "Mon-Fri: Primary, preserves muscle", timing: "Mon-Fri" },
-        { name: "Egg whites", serving: "4 whites", protein: 14, note: "Wed-Fri: Low fat, easy digestion", timing: "Wed-Fri" },
-        { name: "White fish", serving: "4 oz", protein: 24, note: "Thu-Fri: Ultra lean", timing: "Thu-Fri" },
-        { name: "Shrimp", serving: "4 oz", protein: 24, note: "Thu-Fri: Zero fat", timing: "Thu-Fri" },
-        { name: "Scallops", serving: "4 oz", protein: 20, note: "Thu-Fri: Zero fat", timing: "Thu-Fri" },
-        { name: "Lean seafood", serving: "4 oz", protein: 22, note: "Thu-Fri: Performance phase", timing: "Thu-Fri" },
-        { name: "NO protein", serving: "—", protein: 0, note: "Competition day: Until wrestling is over", timing: "Competition" },
-        { name: "Whey isolate", serving: "1 scoop", protein: 25, note: "Post-competition: Fast recovery", timing: "Post-comp" },
-        { name: "Chicken breast", serving: "4 oz", protein: 26, note: "Post-competition: Lean protein", timing: "Post-comp" },
-        { name: "Beef/Bison", serving: "4 oz", protein: 26, note: "Post-competition: Iron + creatine", timing: "Post-comp" },
-        { name: "Whole eggs", serving: "3 large", protein: 18, note: "Post-comp & Sunday: Full recovery", timing: "Post-comp/Sun" },
-        { name: "Greek yogurt", serving: "1 cup", protein: 17, note: "Sunday: Recovery", timing: "Sunday" },
-        { name: "Casein", serving: "1 scoop", protein: 24, note: "Sunday PM: Overnight recovery", timing: "Sunday PM" },
-        { name: "Dairy", serving: "varies", protein: 8, note: "Sunday: All allowed", timing: "Sunday" },
-        { name: "Plant proteins", serving: "varies", protein: 15, note: "Sunday: Higher fat", timing: "Sunday" },
-      ],
-      avoid: [
-        { name: "Whey protein (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Casein protein (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Chicken/Poultry (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Turkey (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Beef (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Pork (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Eggs (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Dairy (Mon-Wed)", reason: "Blocks fat burning" },
-        { name: "Vegetables (Thu-Fri)", reason: "Fiber adds gut weight" },
-        { name: "Fruits (Thu-Fri)", reason: "Fiber adds gut weight" },
-        { name: "Whole grains (Thu-Fri)", reason: "Fiber adds gut weight" },
-        { name: "Brown rice (Thu-Fri)", reason: "Fiber adds gut weight" },
-        { name: "Oatmeal (Thu-Fri)", reason: "Fiber adds gut weight" },
-        { name: "Beans/legumes (Thu-Fri)", reason: "High fiber + gas" },
-        { name: "Nuts (Thu-Fri)", reason: "Fiber + fat" },
-        { name: "Seeds (Thu-Fri)", reason: "Fiber + fat" },
-        { name: "Fatty meats", reason: "Slow digestion" },
-        { name: "Fried foods", reason: "Slow digestion, bloating" },
-        { name: "Dairy (during cut)", reason: "Can cause bloating" },
-        { name: "Carbonated drinks", reason: "Gas and bloating" },
-        { name: "High-fat foods", reason: "Slow glycogen restoration" },
-        { name: "Alcohol", reason: "Dehydrates, empty calories" },
-        { name: "Spicy foods (Thu-Fri)", reason: "Can cause GI issues" },
-        { name: "Large meals (Thu-Fri)", reason: "Gut weight" },
-      ],
-      recovery: [
-        { name: "Whole eggs", ratio: "N/A", serving: "3-4 eggs", carbs: 2, note: "Full recovery protein + fats" },
-        { name: "Chicken breast", ratio: "N/A", serving: "6-8 oz", carbs: 0, note: "Lean protein rebuild" },
-        { name: "Beef/Steak", ratio: "N/A", serving: "6-8 oz", carbs: 0, note: "Iron + creatine repletion" },
-        { name: "Greek yogurt", ratio: "N/A", serving: "1-2 cups", carbs: 8, note: "Protein + probiotics" },
-        { name: "Whey protein", ratio: "N/A", serving: "1-2 scoops", carbs: 3, note: "Fast absorbing protein" },
-        { name: "White rice", ratio: "0:100", serving: "2-3 cups", carbs: 90, note: "Glycogen refill" },
-        { name: "Potatoes", ratio: "0:100", serving: "2 medium", carbs: 74, note: "Potassium + carbs" },
-        { name: "Pasta", ratio: "0:100", serving: "2 cups cooked", carbs: 86, note: "Glycogen loading" },
-        { name: "Bread", ratio: "0:100", serving: "4 slices", carbs: 52, note: "Easy carbs" },
-        { name: "Fruit (all types)", ratio: "varies", serving: "2-3 servings", carbs: 45, note: "Vitamins + fiber OK today" },
-        { name: "Vegetables", ratio: "N/A", serving: "unlimited", carbs: 10, note: "Fiber OK - gut reset" },
-        { name: "Oatmeal", ratio: "0:100", serving: "1 cup dry", carbs: 54, note: "Slow carbs for recovery" },
-        { name: "Casein shake", ratio: "N/A", serving: "1 scoop", carbs: 3, note: "Before bed - overnight recovery" },
-      ],
-      tournament: [
-        { name: "Electrolyte drink", ratio: "45:55", serving: "16-20 oz", carbs: 21, timing: "0-5 min post" },
-        { name: "Dextrose drink", ratio: "0:100", serving: "20-30g", carbs: 25, timing: "0-5 min post" },
-        { name: "Rice cakes + honey", ratio: "25:75", serving: "2-3 cakes", carbs: 30, timing: "10-15 min" },
-        { name: "Energy gel", ratio: "30:70", serving: "1 packet", carbs: 22, timing: "10-15 min" },
-        { name: "Gummy bears", ratio: "55:45", serving: "handful", carbs: 22, timing: "10-15 min" },
-        { name: "Apple juice", ratio: "70:30", serving: "8-12 oz", carbs: 28, timing: "20-30 min" },
-        { name: "Grape juice", ratio: "55:45", serving: "8-12 oz", carbs: 36, timing: "20-30 min" },
-        { name: "Sports drink", ratio: "45:55", serving: "16 oz", carbs: 21, timing: "20-30 min" },
-        { name: "Small white rice", ratio: "0:100", serving: "1/2 cup", carbs: 22, timing: "40-50 min" },
-        { name: "Ripe banana", ratio: "50:50", serving: "1 medium", carbs: 27, timing: "40-50 min" },
-        { name: "White bread + honey", ratio: "25:75", serving: "1 slice", carbs: 20, timing: "40-50 min" },
-        { name: "Electrolyte sipping", ratio: "45:55", serving: "16-24 oz/hr", carbs: 21, timing: "Continuous" },
-      ],
-      supplements: [
-        { name: "Leucine", serving: "5g with collagen", note: "Add to collagen for muscle preservation" },
-        { name: "TUDCA", serving: "250mg AM/PM", note: "Liver support during high fructose" },
-        { name: "Choline", serving: "500mg AM/PM", note: "Fat metabolism support" },
-        { name: "Electrolyte powder", serving: "1-2 scoops", note: "Add to all water" },
-        { name: "Sodium (salt)", serving: "1-2g per liter", note: "Critical for hydration" },
-        { name: "Magnesium", serving: "400mg", note: "Prevents cramping" },
-        { name: "Potassium", serving: "from food", note: "Bananas, potatoes" },
-      ],
-      fuelTanks: [
-        {
-          name: "Water",
-          loseRate: "Hours (2-8 lbs in practice)",
-          replenishRate: "1-3 hours with fluids + sodium + carbs",
-          performanceCost: "High",
-          declinePoint: ">3% dehydration = early decline; 5%+ = clear drop; 6%+ = major decline"
-        },
-        {
-          name: "Glycogen",
-          loseRate: "1-2 days (30-60% after hard practice, 2-3 lbs)",
-          replenishRate: "4-6 hours to 70-80%; 20-24 hours for full",
-          performanceCost: "High",
-          declinePoint: "20-30% depletion = flatness; 40-50% = speed/pop drop; 60-70% = severe fatigue"
-        },
-        {
-          name: "Gut Content",
-          loseRate: "12-24 hours (low-fiber/liquid meals drop 1-3 lbs)",
-          replenishRate: "12-24 hours",
-          performanceCost: "None",
-          declinePoint: "No performance decline unless paired with dehydration or low carbs"
-        },
-        {
-          name: "Fat",
-          loseRate: "Weeks (0.5-2 lbs/week)",
-          replenishRate: "Weeks",
-          performanceCost: "None",
-          declinePoint: "No performance decline — fat loss improves power-to-weight ratio"
-        },
-        {
-          name: "Muscle",
-          loseRate: "Weeks (only with chronic restriction/dehydration)",
-          replenishRate: "Weeks-months",
-          performanceCost: "Critical",
-          declinePoint: "Any muscle loss = immediate strength/power decline"
-        },
-      ],
+      highFructose: SUGAR_FOODS.highFructose,
+      highGlucose: SUGAR_FOODS.highGlucose,
+      balanced: SUGAR_FOODS.balanced,
+      zeroFiber: SUGAR_FOODS.zeroFiber,
+      protein: SUGAR_FOODS.protein,
+      avoid: SUGAR_FOODS.avoid,
+      recovery: SUGAR_FOODS.recovery,
+      tournament: SUGAR_FOODS.tournament,
+      supplements: SUGAR_FOODS.supplements,
+      fuelTanks: SUGAR_FOODS.fuelTanks,
     };
   };
 
@@ -1948,19 +1958,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { title, actions, warning };
   };
 
-  // Helper to get days until weigh-in for a specific calendar day in the current comp week
-  // The week runs Mon-Sun, so we calculate relative to the Monday of the weigh-in week
+  // Helper to get days until weigh-in for a specific day of the CURRENT week
+  // Uses today's actual calendar week (Mon-Sun), not the weigh-in week
   const getDaysUntilForDay = (dayNum: number): number => {
     // dayNum: 0=Sun, 1=Mon, 2=Tue, etc.
-    const weighIn = startOfDay(profile.weighInDate);
-    const weighInDow = getDay(weighIn); // 0=Sun, 6=Sat
-    // Find Monday of the weigh-in week
-    const daysBackToMonday = weighInDow === 0 ? 6 : weighInDow - 1;
-    const weekMonday = startOfDay(addDays(weighIn, -daysBackToMonday));
-    // Target day relative to Monday of weigh-in week
-    // dayNum 1=Mon -> offset 0, 2=Tue -> 1, ... 0=Sun -> 6
+    const today = startOfDay(profile.simulatedDate || new Date());
+    const todayDow = getDay(today); // 0=Sun, 6=Sat
+    // Find Monday of the current week
+    const daysBackToMonday = todayDow === 0 ? 6 : todayDow - 1;
+    const currentWeekMonday = startOfDay(addDays(today, -daysBackToMonday));
+    // Target day relative to Monday of current week
     const dayOffset = dayNum === 0 ? 6 : dayNum - 1;
-    const targetDate = startOfDay(addDays(weekMonday, dayOffset));
+    const targetDate = startOfDay(addDays(currentWeekMonday, dayOffset));
+    const weighIn = startOfDay(profile.weighInDate);
     return differenceInDays(weighIn, targetDate);
   };
 
@@ -2017,14 +2027,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const galToOz = (gal: number) => Math.round(gal * 128);
 
-    // Helper to get the actual calendar date for a given day-of-week in the comp week
+    // Build array of dates from today through weigh-in + 1 recovery day
+    const weighIn = startOfDay(profile.weighInDate);
+    const daysUntilWeighInLocal = differenceInDays(weighIn, today);
+    // Show at least 7 days, but extend to weigh-in + 1 if further out
+    const totalDays = Math.max(7, daysUntilWeighInLocal + 2); // +1 for competition, +1 for recovery
+    const dateRange: Date[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      dateRange.push(startOfDay(addDays(today, i)));
+    }
+
+    // Helper to get the actual calendar date for a given day-of-week in the CURRENT week
     const getDateForDay = (dayNum: number): Date => {
-      const weighIn = startOfDay(profile.weighInDate);
-      const weighInDow = getDay(weighIn);
-      const daysBackToMonday = weighInDow === 0 ? 6 : weighInDow - 1;
-      const weekMonday = startOfDay(addDays(weighIn, -daysBackToMonday));
+      const todayDow = getDay(today); // 0=Sun, 6=Sat
+      const daysBackToMonday = todayDow === 0 ? 6 : todayDow - 1;
+      const currentWeekMonday = startOfDay(addDays(today, -daysBackToMonday));
       const dayOffset = dayNum === 0 ? 6 : dayNum - 1;
-      return startOfDay(addDays(weekMonday, dayOffset));
+      return startOfDay(addDays(currentWeekMonday, dayOffset));
     };
 
     // Helper to get phase name based on days until weigh-in
@@ -2046,11 +2065,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Uses days-until-weigh-in for competition/recovery timing
     if (protocol === '4') {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun order
 
-      const buildDays: DayPlan[] = dayOrder.map(dayNum => {
-        const daysUntil = getDaysUntilForDay(dayNum);
-        const prevDayNum = dayNum === 0 ? 6 : dayNum - 1;
+      const buildDays: DayPlan[] = dateRange.map((date, i) => {
+        const dayNum = getDay(date);
+        const daysUntil = differenceInDays(weighIn, date);
 
         // Determine phase based on days until weigh-in
         let phase = 'Train';
@@ -2088,14 +2106,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           day: dayNames[dayNum],
           dayNum,
-          date: getDateForDay(dayNum),
+          date,
           phase,
           weightTarget: w, // Morning target (primary data point)
           water,
           carbs,
           protein,
-          isToday: currentDayOfWeek === dayNum,
-          isTomorrow: currentDayOfWeek === prevDayNum
+          isToday: i === 0,
+          isTomorrow: i === 1
         };
       });
       return applyWeightAdjustmentToToday(buildDays);
@@ -2105,11 +2123,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Uses days-until-weigh-in for competition timing
     if (protocol === '3') {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun order
 
-      const holdDays: DayPlan[] = dayOrder.map(dayNum => {
-        const daysUntil = getDaysUntilForDay(dayNum);
-        const prevDayNum = dayNum === 0 ? 6 : dayNum - 1;
+      const holdDays: DayPlan[] = dateRange.map((date, i) => {
+        const dayNum = getDay(date);
+        const daysUntil = differenceInDays(weighIn, date);
 
         // Protocol 3 uses slightly different multipliers - less aggressive cut
         // 3+ days out: 1.05 (5% over), 2 days: 1.04, 1 day: 1.03, competition: weight class
@@ -2165,14 +2182,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           day: dayNames[dayNum],
           dayNum,
-          date: getDateForDay(dayNum),
+          date,
           phase,
           weightTarget,
           water,
           carbs,
           protein,
-          isToday: currentDayOfWeek === dayNum,
-          isTomorrow: currentDayOfWeek === prevDayNum
+          isToday: i === 0,
+          isTomorrow: i === 1
         };
       });
       return applyWeightAdjustmentToToday(holdDays);
@@ -2190,11 +2207,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 6+ days out: Maintenance/build phase
 
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun order
 
-    const days: DayPlan[] = dayOrder.map(dayNum => {
-      const daysUntil = getDaysUntilForDay(dayNum);
-      const prevDayNum = dayNum === 0 ? 6 : dayNum - 1;
+    const days: DayPlan[] = dateRange.map((date, i) => {
+      const dayNum = getDay(date);
+      const daysUntil = differenceInDays(weighIn, date);
       const isWaterLoading = isWaterLoadingForDays(daysUntil);
 
       // Use centralized weight calculation
@@ -2258,14 +2274,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return {
         day: dayNames[dayNum],
         dayNum,
-        date: getDateForDay(dayNum),
+        date,
         phase,
         weightTarget,
         water,
         carbs,
         protein,
-        isToday: currentDayOfWeek === dayNum,
-        isTomorrow: currentDayOfWeek === prevDayNum,
+        isToday: i === 0,
+        isTomorrow: i === 1,
         waterLoadingNote,
         isCriticalCheckpoint
       };
@@ -2489,7 +2505,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Any projection over target weight class is a warning - you need to hit exactly target on weigh-in day
       // Allow small tolerance (0.5 lbs) for measurement variance
       if (projectedOver > 0.5) {
-        projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in`;
+        const isLoadingPhase = descentData.daysRemaining >= 3;
+        projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in` +
+          (isLoadingPhase ? ' (based on morning weight — practice dips recover during loading)' : '');
 
         // Calculate recommendation based on how much over and days remaining
         const extraStats = getExtraWorkoutStats();
@@ -2519,23 +2537,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           avgExtraWorkoutLoss: extraStats.avgLoss
         };
 
-        // Build data source note
+        // Build data source note — prefer lbs/hr sweat rate for clarity
         const hasNoData = avgWorkoutLoss === null;
-        const dataSource = extraStats.avgLoss !== null
-          ? ` Based on your avg ${extraStats.avgLoss.toFixed(1)} lb loss per workout.`
-          : practiceSweatRate !== null
-          ? ` Based on ${practiceSweatRate.toFixed(2)} lbs/hr sweat rate.`
+        const dataSource = practiceSweatRate !== null
+          ? ` Your sweat rate: ${practiceSweatRate.toFixed(1)} lbs/hr.`
+          : extraStats.avgLoss !== null
+          ? ` Avg ${extraStats.avgLoss.toFixed(1)} lb loss per extra session.`
           : descentData.avgPracticeLoss !== null
-          ? ` Based on avg ${Math.abs(descentData.avgPracticeLoss).toFixed(1)} lb practice loss.`
+          ? ` Avg ${Math.abs(descentData.avgPracticeLoss).toFixed(1)} lb loss per practice.`
           : '';
         const estimateNote = hasNoData
           ? ' Log a workout to get personalized estimates.'
-          : dataSource;
+          : `${dataSource}${isLoadingPhase ? ' Estimate updates as you log.' : ''}`;
 
         // Determine urgency and message based on how much over and days remaining
         const workoutStr = workoutsNeeded !== null
-          ? `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed.${estimateNote}`
+          ? `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed before weigh-in.${estimateNote}`
           : `${projectedOver.toFixed(1)} lbs over.${estimateNote}`;
+
+        // Protocol-aware switch advice
+        const isAlreadyBodyComp = profile.protocol === '1';
+        const protocolAdvice = isAlreadyBodyComp
+          ? 'Maximize extra workouts and water cut.'
+          : 'Switch to Body Comp protocol.';
+        const protocolAdviceHigh = isAlreadyBodyComp
+          ? 'Increase workout intensity.'
+          : 'Consider switching protocols.';
 
         if (projectedOver > 4) {
           // 4+ lbs over - critical
@@ -2545,15 +2572,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `DANGER: ${projectedOver.toFixed(1)} lbs over with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left. Consider moving up a weight class.`,
               urgency: 'critical',
-              switchProtocol: true
+              switchProtocol: !isAlreadyBodyComp
             };
           } else {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} Switch to Body Comp protocol.`,
+              message: `${workoutStr} ${protocolAdvice}`,
               urgency: 'critical',
-              switchProtocol: true
+              switchProtocol: !isAlreadyBodyComp
             };
           }
         } else if (projectedOver > 2) {
@@ -2562,15 +2589,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} Consider switching protocols.`,
+              message: `${workoutStr} ${protocolAdviceHigh}`,
               urgency: 'high',
-              switchProtocol: true
+              switchProtocol: !isAlreadyBodyComp
             };
           } else {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} OR switch protocol.`,
+              message: `${workoutStr} ${isAlreadyBodyComp ? 'Stay the course.' : 'OR switch protocol.'}`,
               urgency: 'high',
               switchProtocol: false
             };
@@ -2673,6 +2700,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return undefined;
     };
 
+    // Protocol 5 (SPAR — Simple as Pie for Achievable Results)
+    if (protocol === '5') {
+      const sliceTargets = getSliceTargets();
+      const todayStr = format(startOfDay(profile.simulatedDate || new Date()), 'yyyy-MM-dd');
+      const tracking = getDailyTracking(todayStr);
+      const pLogged = tracking.proteinSlices || 0;
+      const cLogged = tracking.carbSlices || 0;
+      const vLogged = tracking.vegSlices || 0;
+      const totalLogged = pLogged + cLogged + vLogged;
+      const totalTarget = sliceTargets.protein + sliceTargets.carb + sliceTargets.veg;
+
+      if (daysUntilWeighIn === 0) {
+        return { priority: "COMPETE — rehydrate smart, fuel between matches", subtext: buildSubtext(), urgency: 'high', icon: 'trophy' };
+      }
+      if (daysUntilWeighIn < 0) {
+        return { priority: "RECOVERY — eat clean, hit your slices, rebuild", subtext: buildSubtext(), urgency: 'normal', icon: 'heart' };
+      }
+      if (totalLogged === 0) {
+        return { priority: `Hit your ${totalTarget} slices today — ${sliceTargets.protein}P / ${sliceTargets.carb}C / ${sliceTargets.veg}V`, subtext: 'No slices logged yet. Tap Fuel to start tracking.', urgency: 'normal', icon: 'apple', actionType: 'check-food' };
+      }
+      if (totalLogged >= totalTarget) {
+        return { priority: "All slices hit! Train hard, stay hydrated.", subtext: `${pLogged}P / ${cLogged}C / ${vLogged}V — target reached`, urgency: 'normal', icon: 'check' };
+      }
+      const remaining = totalTarget - totalLogged;
+      return { priority: `${remaining} slices left — ${Math.max(0, sliceTargets.protein - pLogged)}P / ${Math.max(0, sliceTargets.carb - cLogged)}C / ${Math.max(0, sliceTargets.veg - vLogged)}V`, subtext: buildSubtext(), urgency: 'normal', icon: 'apple', actionType: 'check-food' };
+    }
+
     // Protocol 4 (Build Phase) - different priorities
     if (protocol === '4') {
       if (daysUntilWeighIn < 0) {
@@ -2710,7 +2764,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (daysUntilWeighIn === 5) {
       return { priority: "Fill the tank - high fructose carbs, max hydration starts", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
-    // 6+ days out - pre-loading phase
+    // 6+ days out - protocol-specific training guidance
+    if (protocol === '1') {
+      return { priority: `${daysUntilWeighIn} days out — fructose-only fueling, zero protein windows`, subtext: buildSubtext(), urgency: 'normal', icon: 'flame' };
+    }
+    if (protocol === '2') {
+      return { priority: `${daysUntilWeighIn} days out — follow macro targets, water loading starts at 5 days`, subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
+    }
+    if (protocol === '3') {
+      return { priority: `${daysUntilWeighIn} days out — train hard, eat balanced`, subtext: buildSubtext(), urgency: 'normal', icon: 'check' };
+    }
     return { priority: `${daysUntilWeighIn} days out — train hard, eat normally`, subtext: buildSubtext(), urgency: 'normal', icon: 'check' };
   };
 
@@ -2936,32 +2999,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             todayRemainingLoss = practice + todayDrift;
           }
           projected -= todayRemainingLoss;
+        } else if (latestMorningWeight) {
+          projected = latestMorningWeight;
         } else {
-          projected = latestMorningWeight || 0;
+          // No weight data at all — can't project
+          projected = 0;
         }
 
-        // Step 2: Future full days — use phase-specific drift for each day
-        for (let d = daysRemaining - 1; d > 0; d--) {
-          if (d >= 3) {
-            // Future loading day: net morning-to-morning loss
-            const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
-            projected -= loadingLoss;
-          } else {
-            // Future cut day: use cut-specific drift + practice (no eating back)
-            const cutDayGross = cutDrift + practice;
-            if (cutDayGross > 0) {
-              projected -= cutDayGross;
-            } else if (hasGrossData) {
-              projected -= grossDailyLoss!;
-            } else if (hasNetData) {
-              projected -= dailyAvgLoss! * 2.5;
+        // Only calculate future days and set projection if we have a real starting weight
+        if (projected > 0) {
+          // Step 2: Future full days — use phase-specific drift for each day
+          for (let d = daysRemaining - 1; d > 0; d--) {
+            if (d >= 3) {
+              // Future loading day: net morning-to-morning loss
+              const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
+              projected -= loadingLoss;
+            } else {
+              // Future cut day: use cut-specific drift + practice (no eating back)
+              const cutDayGross = cutDrift + practice;
+              if (cutDayGross > 0) {
+                projected -= cutDayGross;
+              } else if (hasGrossData) {
+                projected -= grossDailyLoss!;
+              } else if (hasNetData) {
+                projected -= dailyAvgLoss! * 2.5;
+              }
             }
           }
-        }
 
-        projectedSaturday = projected;
+          projectedSaturday = projected;
+        }
       } else if (latestMorningWeight) {
-        // No trend data yet - show latest morning weight
+        // No trend data yet - use latest morning weight as baseline
         projectedSaturday = latestMorningWeight;
       } else if (currentWeight) {
         projectedSaturday = currentWeight;
@@ -3178,25 +3247,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           todayRemainingLoss = practice + drift;
         }
         projected -= todayRemainingLoss;
+      } else if (latestMorningWeight) {
+        projected = latestMorningWeight;
       } else {
-        projected = latestMorningWeight || 0;
+        projected = 0;
       }
 
-      // Step 2: Future full days
-      for (let d = daysUntilWeighIn - 1; d > 0; d--) {
-        if (d >= 3) {
-          const loadingLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
-          projected -= loadingLoss;
-        } else {
-          if (hasGrossData) {
-            projected -= grossCapacity!;
-          } else if (hasNetData) {
-            projected -= netDailyLoss! * 2.5;
+      // Only calculate future days if we have a real starting weight
+      if (projected > 0) {
+        // Step 2: Future full days
+        for (let d = daysUntilWeighIn - 1; d > 0; d--) {
+          if (d >= 3) {
+            const loadingLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
+            projected -= loadingLoss;
+          } else {
+            if (hasGrossData) {
+              projected -= grossCapacity!;
+            } else if (hasNetData) {
+              projected -= netDailyLoss! * 2.5;
+            }
           }
         }
       }
 
-      projectedSaturday = projected;
+      if (projected > 0) {
+        projectedSaturday = projected;
+      }
     }
 
     return {
@@ -3249,6 +3325,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getHydrationTarget,
       getMacroTargets,
       getFuelingGuide,
+      getNutritionMode,
+      getSliceTargets,
       getRehydrationPlan,
       getCheckpoints,
       getWeeklyPlan,
