@@ -984,7 +984,11 @@ function TodayTimeline({
   // Auto-detect: if PRE or POST already logged, can't be no-practice
   const hasPracticeLog = !!todayLogs.prePractice || !!todayLogs.postPractice;
 
-  const coreSlots = [
+  // SPAR users only see AM + BED (no practice tracking needed)
+  const coreSlots = isSparProtocol ? [
+    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
+    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500', dimmed: false },
+  ] : [
     { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
     { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500', dimmed: noPractice && !hasPracticeLog },
     { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500', dimmed: noPractice && !hasPracticeLog },
@@ -1010,11 +1014,13 @@ function TodayTimeline({
     ? morningWeight - latestWeight
     : null;
 
-  // Completion count for daily weigh-ins — adjusts for no-practice days
-  const activeSlots = (noPractice && !hasPracticeLog) ? 2 : 4;
-  const completedCount = (noPractice && !hasPracticeLog)
+  // Completion count for daily weigh-ins — adjusts for SPAR and no-practice days
+  const activeSlots = isSparProtocol ? 2 : (noPractice && !hasPracticeLog) ? 2 : 4;
+  const completedCount = isSparProtocol
     ? [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length
-    : [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length;
+    : (noPractice && !hasPracticeLog)
+      ? [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length
+      : [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length;
   const isComplete = completedCount === activeSlots;
 
   return (
@@ -1133,7 +1139,7 @@ function TodayTimeline({
 
       {/* Core weigh-in slots */}
       <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
-        <div className={cn("grid gap-1", noPractice && !hasPracticeLog ? "grid-cols-2" : "grid-cols-4")}>
+        <div className={cn("grid gap-1", isSparProtocol || (noPractice && !hasPracticeLog) ? "grid-cols-2" : "grid-cols-4")}>
           {coreSlots.filter(slot => !(slot.dimmed)).map((slot) => {
             const isMostRecent = mostRecentLog && slot.log && mostRecentLog.id === slot.log.id;
             const hasWeight = !!slot.log;
@@ -1191,8 +1197,8 @@ function TodayTimeline({
             );
           })}
         </div>
-        {/* No Practice toggle — available on today and past days */}
-        {!hasPracticeLog && (
+        {/* No Practice toggle — available on today and past days (not for SPAR) */}
+        {!isSparProtocol && !hasPracticeLog && (
           <button
             onClick={toggleNoPractice}
             className={cn(
