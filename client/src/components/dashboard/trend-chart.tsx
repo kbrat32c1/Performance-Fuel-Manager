@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart } from 'recharts';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Area, AreaChart, ReferenceLine, ReferenceDot } from 'recharts';
 import { useStore } from '@/lib/store';
-import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, eachDayOfInterval, subWeeks, startOfMonth, endOfMonth, eachWeekOfInterval, differenceInDays, startOfDay } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Activity, TrendingDown, TrendingUp } from 'lucide-react';
+import { Activity, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { calculateTargetWeight, getPhaseForDaysUntil } from '@/lib/constants';
 
 type ViewMode = 'week' | 'month' | '4week';
 
@@ -30,6 +31,7 @@ export function TrendChart() {
     const start = startOfWeek(today, { weekStartsOn: 1 }); // Monday
     const end = endOfWeek(today, { weekStartsOn: 1 }); // Sunday
     const days = eachDayOfInterval({ start, end });
+    const weighInDate = profile.weighInDate ? startOfDay(new Date(profile.weighInDate)) : null;
 
     return days.map(day => {
       const dateStr = format(day, 'yyyy-MM-dd');
@@ -41,11 +43,20 @@ export function TrendChart() {
       const anyLog = logs.find(l => format(new Date(l.date), 'yyyy-MM-dd') === dateStr);
       const log = morningLog || anyLog;
 
+      // Calculate days until weigh-in for this day to get projected target
+      const daysUntil = weighInDate ? differenceInDays(weighInDate, startOfDay(day)) : 7;
+      const projectedTarget = calculateTargetWeight(profile.targetWeightClass, daysUntil, profile.protocol);
+      const phase = getPhaseForDaysUntil(daysUntil);
+
       return {
         date: format(day, 'EEE'),
+        shortDate: format(day, 'M/d'),
         fullDate: dateStr,
         weight: log ? log.weight : null,
         target: profile.targetWeightClass,
+        projected: projectedTarget.withWaterLoad || projectedTarget.base,
+        phase,
+        daysUntil,
         isToday: format(day, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
       };
     });
@@ -155,14 +166,48 @@ export function TrendChart() {
                 <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
               </linearGradient>
+              <linearGradient id="projectedGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--chart-5))" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="hsl(var(--chart-5))" stopOpacity={0} />
+              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.4} />
             <XAxis
               dataKey="date"
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-              dy={10}
+              tick={({ x, y, payload }) => {
+                const item = data.find(d => d.date === payload.value);
+                return (
+                  <g transform={`translate(${x},${y})`}>
+                    <text
+                      x={0}
+                      y={0}
+                      dy={12}
+                      textAnchor="middle"
+                      fill={item?.isToday ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
+                      fontSize={10}
+                      fontWeight={item?.isToday ? 600 : 400}
+                    >
+                      {payload.value}
+                    </text>
+                    {viewMode === 'week' && item?.shortDate && (
+                      <text
+                        x={0}
+                        y={0}
+                        dy={22}
+                        textAnchor="middle"
+                        fill="hsl(var(--muted-foreground))"
+                        fontSize={8}
+                        opacity={0.7}
+                      >
+                        {item.shortDate}
+                      </text>
+                    )}
+                  </g>
+                );
+              }}
+              height={viewMode === 'week' ? 35 : 25}
             />
             <YAxis
               domain={[minWeight, maxWeight]}
@@ -178,19 +223,45 @@ export function TrendChart() {
                 fontSize: '12px'
               }}
               itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-              formatter={(value: number) => [`${value} lbs`, '']}
-              labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '0.25rem' }}
+              formatter={(value: number, name: string) => {
+                if (name === 'projected') return [`${value} lbs`, 'Target'];
+                if (name === 'weight') return [`${value} lbs`, 'Actual'];
+                return [`${value} lbs`, ''];
+              }}
+              labelFormatter={(label) => {
+                const item = data.find(d => d.date === label);
+                if (item?.phase && viewMode === 'week') {
+                  return `${label} ${item.shortDate || ''} • ${item.phase}`;
+                }
+                return label;
+              }}
+              labelStyle={{ color: 'hsl(var(--muted-foreground))', marginBottom: '0.25rem', fontWeight: 600 }}
             />
-            {/* Target Reference Line */}
+            {/* Projected Daily Target Line (only for week view) */}
+            {viewMode === 'week' && (
+              <Line
+                type="monotone"
+                dataKey="projected"
+                stroke="hsl(var(--chart-5))"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={{ r: 2, fill: 'hsl(var(--chart-5))', strokeWidth: 0 }}
+                opacity={0.7}
+                activeDot={false}
+                name="projected"
+              />
+            )}
+            {/* Competition Weight Reference Line */}
             <Line
               type="monotone"
               dataKey="target"
               stroke="hsl(var(--muted-foreground))"
               strokeWidth={1}
-              strokeDasharray="4 4"
+              strokeDasharray="2 2"
               dot={false}
-              opacity={0.5}
+              opacity={0.3}
               activeDot={false}
+              name="target"
             />
             {/* Actual Weight Area */}
             <Area
@@ -202,10 +273,29 @@ export function TrendChart() {
               dot={{ r: 3, fill: 'hsl(var(--background))', strokeWidth: 2 }}
               activeDot={{ r: 5, fill: 'hsl(var(--primary))' }}
               connectNulls
+              name="weight"
             />
           </AreaChart>
         </ResponsiveContainer>
       </CardContent>
+
+      {/* Legend (only for week view with projected line) */}
+      {viewMode === 'week' && (
+        <div className="px-4 py-2 flex items-center justify-center gap-4 text-[10px] border-t border-muted/30">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-primary rounded" />
+            <span className="text-muted-foreground">Actual</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-green-500 rounded" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 2px, currentColor 2px, currentColor 4px)' }} />
+            <span className="text-muted-foreground">Daily Target</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-muted-foreground/30 rounded" />
+            <span className="text-muted-foreground">{profile.targetWeightClass} lbs</span>
+          </div>
+        </div>
+      )}
 
       {/* Stats Row */}
       {validWeights.length >= 2 && (

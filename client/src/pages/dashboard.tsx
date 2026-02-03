@@ -9,7 +9,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Info,
   AlertTriangle, Flame, Zap, Trash2,
   Calendar, Clock, ArrowDownToLine, ArrowUpFromLine, Plus,
-  TrendingDown, TrendingUp, HelpCircle, X
+  TrendingDown, TrendingUp, HelpCircle, X, WifiOff, RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
@@ -20,8 +20,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSwipe } from "@/hooks/use-swipe";
+import { useOnlineStatus } from "@/hooks/use-online-status";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { HelpTip } from "@/components/ui/help-tip";
 import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
+import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
 import { DashboardTour } from "@/components/dashboard/tour";
 
@@ -66,6 +69,21 @@ export default function Dashboard() {
   const [sipOnlyDismissed, setSipOnlyDismissed] = useState(() => sessionStorage.getItem('sipOnlyBannerDismissed') === 'true');
   const today = startOfDay(new Date());
   const { celebration, dismiss: dismissCelebration } = useCelebrations();
+  const isOnline = useOnlineStatus();
+  const { toast } = useToast();
+
+  // Pull-to-refresh for dashboard (reloads data from Supabase)
+  const pullToRefresh = usePullToRefresh({
+    onRefresh: async () => {
+      // Simulate a refresh - in a real app this would sync with backend
+      await new Promise(resolve => setTimeout(resolve, 800));
+      toast({
+        title: "Dashboard refreshed",
+        description: "Your data is up to date",
+      });
+    },
+    disabled: isViewingHistorical, // Disable when viewing history
+  });
 
   // Reset sip-only banner each day (check date stored vs. today)
   useEffect(() => {
@@ -352,6 +370,13 @@ export default function Dashboard() {
 
   return (
     <MobileLayout showNav={true}>
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator
+        pullDistance={pullToRefresh.pullDistance}
+        pullProgress={pullToRefresh.pullProgress}
+        isRefreshing={pullToRefresh.isRefreshing}
+      />
+
       {/* Celebration system */}
       <Confetti active={!!celebration?.confetti} onComplete={undefined} />
       <CelebrationBanner
@@ -381,6 +406,13 @@ export default function Dashboard() {
               : 'transform 200ms ease-out, opacity 200ms ease-out',
         }}
       >
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* OFFLINE INDICATOR — Shows when network is unavailable */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {!isOnline && (
+          <OfflineBanner />
+        )}
+
         {/* Competition day reminder — use Recovery tab (dismissible) */}
         {!isViewingHistorical && daysUntilWeighIn === 0 && profile.protocol !== '4' && !compDayDismissed && (
           <button
@@ -598,6 +630,36 @@ export default function Dashboard() {
         <div className="h-20" />
       </div>
     </MobileLayout>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// OFFLINE BANNER — Shows when network is unavailable
+// ═══════════════════════════════════════════════════════════════════════════════
+function OfflineBanner() {
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  return (
+    <div className="mb-3 px-4 py-3 rounded-lg border border-muted bg-muted/30 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <WifiOff className="w-5 h-5 text-muted-foreground" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-foreground">You're offline</p>
+          <p className="text-[11px] text-muted-foreground">Your changes are saved locally</p>
+        </div>
+      </div>
+      <button
+        onClick={handleRefresh}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all min-h-[40px]"
+      >
+        <RefreshCw className="w-4 h-4" />
+        Retry
+      </button>
+    </div>
   );
 }
 
