@@ -312,28 +312,30 @@ export default function Dashboard() {
       }
     }
 
-    // 3. Pace ahead/behind
-    if (descentData.pace === 'ahead') {
-      items.push({
-        emoji: '🏃',
-        text: 'Ahead of pace to make weight',
-        color: 'text-green-500',
-      });
-    } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0) {
-      items.push({
-        emoji: '⚠️',
-        text: 'Behind pace — extra effort needed',
-        color: 'text-yellow-500',
-      });
-    }
+    // 3. Pace ahead/behind — only for competition protocols
+    if (!isSparProtocol) {
+      if (descentData.pace === 'ahead') {
+        items.push({
+          emoji: '🏃',
+          text: 'Ahead of pace to make weight',
+          color: 'text-green-500',
+        });
+      } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0) {
+        items.push({
+          emoji: '⚠️',
+          text: 'Behind pace — extra effort needed',
+          color: 'text-yellow-500',
+        });
+      }
 
-    // 4. Projected to make weight
-    if (descentData.projectedSaturday !== null && descentData.projectedSaturday <= profile.targetWeightClass && daysUntilWeighIn > 1) {
-      items.push({
-        emoji: '✅',
-        text: `On track for ${descentData.projectedSaturday.toFixed(1)} lbs at weigh-in`,
-        color: 'text-green-500',
-      });
+      // 4. Projected to make weight
+      if (descentData.projectedSaturday !== null && descentData.projectedSaturday <= profile.targetWeightClass && daysUntilWeighIn > 1) {
+        items.push({
+          emoji: '✅',
+          text: `On track for ${descentData.projectedSaturday.toFixed(1)} lbs at weigh-in`,
+          color: 'text-green-500',
+        });
+      }
     }
 
     // 5. Overnight drift insight — "You lose ~X lbs per night"
@@ -377,7 +379,7 @@ export default function Dashboard() {
     }
 
     return items;
-  }, [todayLogs, yesterdayMorning, descentData, historyInsights, profile.targetWeightClass, daysUntilWeighIn, streak]);
+  }, [todayLogs, yesterdayMorning, descentData, historyInsights, profile.targetWeightClass, daysUntilWeighIn, streak, isSparProtocol]);
 
   return (
     <MobileLayout showNav={true}>
@@ -587,6 +589,7 @@ export default function Dashboard() {
         streak={streak}
         descentData={descentData}
         isSparProtocol={isSparProtocol}
+        trackPracticeWeighIns={profile.trackPracticeWeighIns}
       />
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -914,6 +917,7 @@ function TodayTimeline({
   streak = 0,
   descentData,
   isSparProtocol = false,
+  trackPracticeWeighIns = false,
 }: {
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
   logs: any[];
@@ -928,6 +932,7 @@ function TodayTimeline({
   streak?: number;
   descentData: { projectedSaturday: number | null; [key: string]: any };
   isSparProtocol?: boolean;
+  trackPracticeWeighIns?: boolean;
 }) {
 
   const { toast } = useToast();
@@ -984,14 +989,16 @@ function TodayTimeline({
   // Auto-detect: if PRE or POST already logged, can't be no-practice
   const hasPracticeLog = !!todayLogs.prePractice || !!todayLogs.postPractice;
 
-  // SPAR users only see AM + BED (no practice tracking needed)
-  const coreSlots = isSparProtocol ? [
-    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
-    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500', dimmed: false },
-  ] : [
+  // SPAR users only see AM + BED by default, but can opt-in to practice tracking
+  // Competition users always see all 4 slots
+  const showPracticeSlots = !isSparProtocol || trackPracticeWeighIns;
+  const coreSlots = showPracticeSlots ? [
     { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
     { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500', dimmed: noPractice && !hasPracticeLog },
     { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500', dimmed: noPractice && !hasPracticeLog },
+    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500', dimmed: false },
+  ] : [
+    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
     { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500', dimmed: false },
   ];
 
@@ -1015,7 +1022,7 @@ function TodayTimeline({
     : null;
 
   // Completion count for daily weigh-ins — adjusts for SPAR and no-practice days
-  const activeSlots = isSparProtocol ? 2 : (noPractice && !hasPracticeLog) ? 2 : 4;
+  const activeSlots = !showPracticeSlots ? 2 : (noPractice && !hasPracticeLog) ? 2 : 4;
   const completedCount = isSparProtocol
     ? [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length
     : (noPractice && !hasPracticeLog)
@@ -1139,7 +1146,7 @@ function TodayTimeline({
 
       {/* Core weigh-in slots */}
       <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
-        <div className={cn("grid gap-1", isSparProtocol || (noPractice && !hasPracticeLog) ? "grid-cols-2" : "grid-cols-4")}>
+        <div className={cn("grid gap-1", !showPracticeSlots || (noPractice && !hasPracticeLog) ? "grid-cols-2" : "grid-cols-4")}>
           {coreSlots.filter(slot => !(slot.dimmed)).map((slot) => {
             const isMostRecent = mostRecentLog && slot.log && mostRecentLog.id === slot.log.id;
             const hasWeight = !!slot.log;
@@ -1181,7 +1188,8 @@ function TodayTimeline({
                     )}>
                       {slot.log.weight.toFixed(1)}
                     </span>
-                    {diff !== null && (
+                    {/* SPAR users don't see target comparison - just the weight */}
+                    {!isSparProtocol && diff !== null && (
                       <span className={cn(
                         "text-[10px] font-mono",
                         diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-red-400"

@@ -192,6 +192,7 @@ export function QuickLogFAB() {
   const today = profile?.simulatedDate ? new Date(profile.simulatedDate) : new Date();
   const isHistorical = !!profile?.simulatedDate;
   const targetWeight = calculateTarget();
+  const isSparProtocol = profile?.protocol === '5';
 
   const loggedTypes = useMemo(() => {
     const todayLogs = logs.filter(log => {
@@ -657,13 +658,19 @@ export function QuickLogFAB() {
                   ) : (
                     <p className={cn(
                       "text-center text-sm font-mono h-5",
-                      diff !== null && !isNaN(diff)
-                        ? (diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-destructive")
-                        : "text-transparent"
+                      // SPAR users don't have a weight class target - just show weight logged
+                      isSparProtocol
+                        ? "text-muted-foreground"
+                        : diff !== null && !isNaN(diff)
+                          ? (diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-destructive")
+                          : "text-transparent"
                     )}>
-                      {diff !== null && !isNaN(diff)
-                        ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)} lbs vs target (${targetWeight} lbs)`
-                        : '\u00A0'
+                      {isSparProtocol
+                        ? (currentWeight ? `${currentWeight.toFixed(1)} lbs logged` : '\u00A0')
+                        : (diff !== null && !isNaN(diff)
+                            ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)} lbs vs target (${targetWeight} lbs)`
+                            : '\u00A0'
+                          )
                       }
                     </p>
                   )}

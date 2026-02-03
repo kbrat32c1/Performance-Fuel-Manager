@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp } from "lucide-react";
+import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
@@ -72,6 +72,8 @@ export default function Onboarding() {
   const [customTargetWeight, setCustomTargetWeight] = useState(profile.targetWeight?.toString() || '');
   const [showValidation, setShowValidation] = useState(false);
   const [showProtocolScience, setShowProtocolScience] = useState<Protocol | false>(false);
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [tempWeight, setTempWeight] = useState(profile.currentWeight.toString());
 
   const updateName = (first: string, last: string) => {
     setFirstName(first);
@@ -127,7 +129,7 @@ export default function Onboarding() {
     };
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 1 && !isStep1Valid) {
       setShowValidation(true);
       return;
@@ -137,16 +139,34 @@ export default function Onboarding() {
       setShowValidation(false);
       setStep(step + 1);
     } else {
-      // Complete onboarding
+      // Complete onboarding - ensure protocol is explicitly saved
       sessionStorage.removeItem('rerunWizard');
       sessionStorage.removeItem('switchingProtocol');
-      updateProfile({ simulatedDate: null, hasCompletedOnboarding: true });
+
+      // Build the final profile update with the correct protocol
+      const finalUpdate: any = {
+        simulatedDate: null,
+        hasCompletedOnboarding: true,
+        // Explicitly set protocol based on user goal
+        protocol: userGoal === 'spar' ? '5' : profile.protocol,
+      };
+
+      // For SPAR, clear competition-specific fields that might cause confusion
+      if (userGoal === 'spar') {
+        finalUpdate.protocol = '5';
+      }
+
+      // Await profile save to ensure it persists to Supabase before navigating
+      await updateProfile(finalUpdate);
       setLocation('/dashboard');
     }
   };
 
   const handleBack = () => {
-    if (step > 1) setStep(step - 1);
+    // When switching protocols, don't go back to step 1 (name/weight)
+    const minStep = switchingProtocol ? 2 : 1;
+    if (step > minStep) setStep(step - 1);
+    else if (switchingProtocol) handleCancel(); // Cancel if trying to go back from step 2 when switching
   };
 
   return (
@@ -154,7 +174,7 @@ export default function Onboarding() {
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-2 mb-6">
-          {step > 1 ? (
+          {step > (switchingProtocol ? 2 : 1) ? (
             <Button variant="ghost" size="icon" onClick={handleBack} className="-ml-2 h-10 w-10 text-muted-foreground">
               <ChevronRight className="w-6 h-6 rotate-180" />
             </Button>
@@ -177,7 +197,7 @@ export default function Onboarding() {
         <div className="flex-1 overflow-y-auto">
           {/* ═══ Step 1: The Basics ═══ */}
           {step === 1 && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">The Basics</h1>
                 <p className="text-muted-foreground">Let's get started with your profile.</p>
@@ -244,11 +264,60 @@ export default function Onboarding() {
 
           {/* ═══ Step 2: Goal Selection ═══ */}
           {step === 2 && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Your Goal</h1>
                 <p className="text-muted-foreground">What are you trying to achieve?</p>
               </div>
+
+              {/* Show current profile when switching protocols — allow editing weight */}
+              {switchingProtocol && (
+                <Card className="p-3 bg-muted/30 border-muted">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Current Weight</span>
+                    {editingWeight ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          className="w-24 h-8 font-mono text-right bg-background"
+                          value={tempWeight}
+                          onChange={(e) => setTempWeight(e.target.value)}
+                          autoFocus
+                        />
+                        <span className="text-muted-foreground text-xs">lbs</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            const newWeight = parseFloat(tempWeight);
+                            if (!isNaN(newWeight) && newWeight > 0) {
+                              updateProfile({ currentWeight: newWeight });
+                            }
+                            setEditingWeight(false);
+                          }}
+                        >
+                          <Check className="w-4 h-4 text-green-500" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setTempWeight(profile.currentWeight.toString());
+                          setEditingWeight(true);
+                        }}
+                        className="flex items-center gap-1.5 font-mono font-bold hover:text-primary transition-colors"
+                      >
+                        {profile.currentWeight} lbs
+                        <Pencil className="w-3 h-3 text-muted-foreground" />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {editingWeight ? "Enter your current weight" : "Tap to edit if your weight has changed."}
+                  </p>
+                </Card>
+              )}
 
               <div className="space-y-3">
                 {/* Competition Goal */}
@@ -308,7 +377,7 @@ export default function Onboarding() {
 
           {/* ═══ Step 3 (Competition): Weight Class + Protocol ═══ */}
           {step === 3 && userGoal === 'competition' && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Your Protocol</h1>
                 <p className="text-muted-foreground">Select your weight class and protocol.</p>
@@ -424,7 +493,7 @@ export default function Onboarding() {
 
           {/* ═══ Step 3 (SPAR): Nutrition Profile ═══ */}
           {step === 3 && userGoal === 'spar' && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Your Profile</h1>
                 <p className="text-muted-foreground">We'll calculate your daily portion targets.</p>
@@ -600,7 +669,7 @@ export default function Onboarding() {
 
           {/* ═══ Step 4 (Competition): Timeline ═══ */}
           {step === 4 && userGoal === 'competition' && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Timeline</h1>
                 <p className="text-muted-foreground">When's your next weigh-in?</p>
@@ -649,7 +718,7 @@ export default function Onboarding() {
 
           {/* ═══ Step 4 (SPAR): Final Summary ═══ */}
           {step === 4 && userGoal === 'spar' && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">You're Set!</h1>
                 <p className="text-muted-foreground">Here's your SPAR plan summary.</p>
@@ -703,7 +772,7 @@ export default function Onboarding() {
 
           {/* ═══ Step 5 (Competition): Final Summary ═══ */}
           {step === 5 && userGoal === 'competition' && (
-            <div className="space-y-6 animate-in slide-in-from-right-8 fade-in duration-300">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Ready!</h1>
                 <p className="text-muted-foreground">Your protocol is set up.</p>

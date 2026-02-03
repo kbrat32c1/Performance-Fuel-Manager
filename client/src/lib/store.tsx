@@ -59,6 +59,7 @@ export interface AthleteProfile {
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
   weeklyGoal?: 'cut' | 'maintain' | 'build';
   nutritionPreference: 'spar' | 'sugar'; // slices or grams
+  trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
 }
 
 export interface WeightLog {
@@ -362,6 +363,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           activityLevel: profileData.activity_level as AthleteProfile['activityLevel'],
           weeklyGoal: profileData.weekly_goal as AthleteProfile['weeklyGoal'],
           nutritionPreference: (profileData.nutrition_preference === 'sugar' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
+          trackPracticeWeighIns: profileData.track_practice_weigh_ins || false,
         });
       } else {
         // No profile found - user needs to complete onboarding
@@ -589,6 +591,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const optionalFields: Record<string, any> = {
           nutrition_preference: newProfile.nutritionPreference || 'spar',
           target_weight: newProfile.targetWeight || null,
+          track_practice_weigh_ins: newProfile.trackPracticeWeighIns || false,
         };
 
         // Try with all fields first

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -37,6 +37,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [, navigate] = useLocation();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showWeightClassConfirm, setShowWeightClassConfirm] = useState(false);
+  const [showProtocolSwitchConfirm, setShowProtocolSwitchConfirm] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
   // Local state for pending changes
@@ -242,13 +243,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <Select
                   value={getValue('protocol')}
                   onValueChange={(v) => {
-                    // If switching protocols, redirect to onboarding wizard
+                    // If switching protocols, show confirmation first
                     if (v !== profile.protocol) {
-                      setOpen(false);
-                      sessionStorage.setItem('rerunWizard', 'true');
-                      sessionStorage.setItem('switchingProtocol', v);
-                      setTimeout(() => navigate('/onboarding'), 100);
-                      return;
+                      setShowProtocolSwitchConfirm(v);
                     }
                   }}
                 >
@@ -269,9 +266,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   {getValue('protocol') === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight'}
                   {getValue('protocol') === PROTOCOLS.BUILD && 'Off-season muscle gain'}
                   {getValue('protocol') === PROTOCOLS.SPAR && 'Clean eating — count slices'}
-                </p>
-                <p className="text-[9px] text-muted-foreground/70 italic">
-                  Changing protocol will open the setup wizard.
                 </p>
               </div>
 
@@ -336,6 +330,31 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         </p>
                       </div>
                     )}
+                  </div>
+
+                  {/* Practice Weigh-ins Toggle */}
+                  <div className="mt-3 pt-3 border-t border-muted/50">
+                    <button
+                      onClick={() => handleChange({ trackPracticeWeighIns: !getValue('trackPracticeWeighIns') })}
+                      className="flex items-center justify-between w-full py-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Scale className="w-4 h-4 text-blue-500" />
+                        <div className="text-left">
+                          <span className="text-xs font-bold block">Track Practice Weigh-ins</span>
+                          <span className="text-[10px] text-muted-foreground">Log PRE/POST weights to track sweat loss</span>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "w-10 h-5 rounded-full transition-colors relative",
+                        getValue('trackPracticeWeighIns') ? "bg-primary" : "bg-muted"
+                      )}>
+                        <div className={cn(
+                          "absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                          getValue('trackPracticeWeighIns') ? "translate-x-5" : "translate-x-0.5"
+                        )} />
+                      </div>
+                    </button>
                   </div>
                 </div>
               )}
@@ -635,6 +654,44 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   variant="ghost"
                 >
                   Go Back
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Protocol Switch Confirmation */}
+        {showProtocolSwitchConfirm && (
+          <div className="absolute inset-0 bg-background/95 flex items-center justify-center p-4 rounded-xl z-50">
+            <div className="space-y-4 w-full max-w-sm">
+              <div className="space-y-2 text-center">
+                <h4 className="font-bold text-base">Switch Protocol?</h4>
+                <p className="text-xs text-muted-foreground">
+                  Switching to <span className="font-bold text-foreground">{PROTOCOL_NAMES[showProtocolSwitchConfirm as keyof typeof PROTOCOL_NAMES]}</span> will open the setup wizard to configure your new protocol.
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  Your current weight ({profile.currentWeight} lbs) and name will be kept.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => {
+                    setOpen(false);
+                    sessionStorage.setItem('rerunWizard', 'true');
+                    sessionStorage.setItem('switchingProtocol', showProtocolSwitchConfirm);
+                    setShowProtocolSwitchConfirm(null);
+                    setTimeout(() => navigate('/onboarding'), 100);
+                  }}
+                  className="w-full h-10"
+                >
+                  Continue to Setup
+                </Button>
+                <Button
+                  onClick={() => setShowProtocolSwitchConfirm(null)}
+                  className="w-full h-10"
+                  variant="ghost"
+                >
+                  Cancel
                 </Button>
               </div>
             </div>
