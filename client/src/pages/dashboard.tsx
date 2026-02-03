@@ -9,7 +9,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Info,
   AlertTriangle, Flame, Zap, Trash2,
   Calendar, Clock, ArrowDownToLine, ArrowUpFromLine, Plus,
-  TrendingDown, TrendingUp, HelpCircle
+  TrendingDown, TrendingUp, HelpCircle, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
@@ -63,8 +63,21 @@ export default function Dashboard() {
   const daysUntilWeighIn = getDaysUntilWeighIn();
   const isViewingHistorical = !!profile.simulatedDate;
   const [compDayDismissed, setCompDayDismissed] = useState(() => sessionStorage.getItem('compDayBannerDismissed') === 'true');
+  const [sipOnlyDismissed, setSipOnlyDismissed] = useState(() => sessionStorage.getItem('sipOnlyBannerDismissed') === 'true');
   const today = startOfDay(new Date());
   const { celebration, dismiss: dismissCelebration } = useCelebrations();
+
+  // Reset sip-only banner each day (check date stored vs. today)
+  useEffect(() => {
+    const storedDate = sessionStorage.getItem('sipOnlyBannerDate');
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    if (storedDate !== todayStr) {
+      // New day — reset the dismissal and store today's date
+      sessionStorage.removeItem('sipOnlyBannerDismissed');
+      sessionStorage.setItem('sipOnlyBannerDate', todayStr);
+      setSipOnlyDismissed(false);
+    }
+  }, []);
 
   // Handle date navigation
   const handleDateChange = useCallback((date: Date | null) => {
@@ -389,6 +402,17 @@ export default function Dashboard() {
             Set your next weigh-in date in Settings ⚙️
           </div>
         )}
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* SIP-ONLY WARNING BANNER — Critical alert 1 day before  */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {!isViewingHistorical && daysUntilWeighIn === 1 && profile.protocol !== '5' && !sipOnlyDismissed && (
+          <SipOnlyBanner onDismiss={() => {
+            setSipOnlyDismissed(true);
+            sessionStorage.setItem('sipOnlyBannerDismissed', 'true');
+          }} />
+        )}
+
         {/* Header */}
         <header className="flex justify-between items-start mb-3">
           <div className="flex-1">
@@ -574,6 +598,122 @@ export default function Dashboard() {
         <div className="h-20" />
       </div>
     </MobileLayout>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SIP-ONLY WARNING BANNER — Prominent alert when in water restriction phase
+// ═══════════════════════════════════════════════════════════════════════════════
+function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mb-3 rounded-xl border-2 border-orange-500/50 bg-gradient-to-br from-orange-500/15 via-orange-500/10 to-rose-500/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+      {/* Header — always visible */}
+      <div className="px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            {/* Animated droplet icon */}
+            <div className="relative shrink-0 mt-0.5">
+              <Droplets className="w-6 h-6 text-orange-500" />
+              <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-orange-500 uppercase tracking-wide flex items-center gap-2">
+                Sip Only Mode
+                <span className="text-[9px] font-bold bg-orange-500/30 text-orange-400 px-1.5 py-0.5 rounded animate-pulse">
+                  ACTIVE
+                </span>
+              </h3>
+              <p className="text-sm text-foreground/80 mt-0.5 leading-snug">
+                No gulping — small sips only to wet your mouth.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onDismiss}
+            className="p-2 -mr-1 -mt-1 rounded-lg hover:bg-orange-500/20 text-orange-400/60 hover:text-orange-500 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="Dismiss"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Quick rules — always visible */}
+        <div className="flex flex-wrap gap-2 mt-3">
+          <span className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-500 text-[11px] font-bold px-2.5 py-1 rounded-full">
+            <AlertTriangle className="w-3 h-3" /> Max 8oz at a time
+          </span>
+          <span className="inline-flex items-center gap-1.5 bg-rose-500/20 text-rose-400 text-[11px] font-bold px-2.5 py-1 rounded-full">
+            <X className="w-3 h-3" /> No full glasses
+          </span>
+          <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-500 text-[11px] font-bold px-2.5 py-1 rounded-full">
+            ✓ Ice chips OK
+          </span>
+        </div>
+
+        {/* Expand toggle */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-1 mt-3 text-[11px] text-muted-foreground hover:text-foreground uppercase tracking-wide font-bold transition-colors"
+        >
+          {expanded ? 'Hide details' : 'Why sip only?'}
+          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
+        </button>
+      </div>
+
+      {/* Expanded explanation */}
+      {expanded && (
+        <div className="px-4 pb-4 pt-2 border-t border-orange-500/20 bg-orange-500/5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="space-y-3">
+            <div className="flex items-start gap-2">
+              <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[10px]">💧</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground/90">Your kidneys are still flushing</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                  After 3 days of loading, your body is in full diuresis mode. Drinking normally would add weight back.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <div className="w-5 h-5 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[10px]">⚡</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground/90">Small sips won't stop the process</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                  Tiny amounts keep you functional while your body continues eliminating water naturally.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <div className="w-5 h-5 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[10px]">⚠️</span>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground/90">Gulping triggers water retention</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                  Large drinks signal your body to slow down urine production — the opposite of what you need.
+                </p>
+              </div>
+            </div>
+
+            {/* Total allowed */}
+            <div className="bg-muted/30 border border-muted rounded-lg p-2.5 mt-2">
+              <p className="text-[11px] text-muted-foreground">
+                <span className="font-bold text-foreground">Total allowed today:</span> ~{' '}
+                <span className="font-mono font-bold text-orange-500">12-16 oz</span> spread throughout the day.
+                Track every sip in the hydration card below.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
