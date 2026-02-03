@@ -23,7 +23,7 @@ export function WeeklyTimeline({ currentDay }: { currentDay: number }) {
               key={day.id} 
               className={cn(
                 "flex-1 flex flex-col items-center p-2 rounded-lg border transition-all",
-                isActive ? "bg-primary text-black border-primary scale-105 shadow-lg z-10" : 
+                isActive ? "bg-primary text-white border-primary scale-105 shadow-lg z-10" : 
                 isPast ? "bg-muted/20 border-muted text-muted-foreground" : 
                 "bg-card border-muted text-foreground"
               )}

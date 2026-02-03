@@ -5,13 +5,14 @@ import { Scale, TrendingDown, Droplets, Timer, Activity, RefreshCw, Sun, ArrowDo
 import { format, differenceInDays, startOfDay, addDays, getDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
-import { getWaterTargetOz } from "@/lib/constants";
+import { getWaterTargetOz, getWeightMultiplier, getPhaseForDaysUntil } from "@/lib/constants";
 
 const PROTOCOL_LABELS: Record<string, string> = {
   '1': 'Body Comp',
   '2': 'Make Weight',
   '3': 'Hold Weight',
   '4': 'Build',
+  '5': 'SPAR Nutrition',
 };
 
 const PHASE_COLORS: Record<string, string> = {
@@ -23,28 +24,9 @@ const PHASE_COLORS: Record<string, string> = {
   'Recover': 'bg-green-500',
 };
 
-// Simplified weight multiplier for target calculation
-function getWeightMultiplier(daysUntil: number): number {
-  if (daysUntil <= 0) return 1.0;
-  if (daysUntil === 1) return 1.025;
-  if (daysUntil === 2) return 1.035;
-  if (daysUntil === 3) return 1.045;
-  if (daysUntil === 4) return 1.05;
-  if (daysUntil === 5) return 1.06;
-  return 1.07;
-}
-
-function getPhaseForDaysUntil(daysUntil: number): string {
-  if (daysUntil < 0) return 'Recover';
-  if (daysUntil === 0) return 'Compete';
-  if (daysUntil === 1) return 'Cut';
-  if (daysUntil === 2) return 'Prep';
-  if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
-  return 'Train';
-}
-
 interface SharedProfile {
   name: string;
+  last_name?: string;
   current_weight: number;
   target_weight_class: number;
   weigh_in_date: string;
@@ -268,11 +250,21 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
     return latestMorning.weight - (dailyLoss * daysLeft);
   }, [sortedLogs, avgDriftLoss, avgPracticeLoss, daysUntilWeighIn]);
 
-  // Status
-  const status = overTarget <= 1.5 ? 'on-track' : overTarget <= 3 ? 'borderline' : 'risk';
+  // Status — widen thresholds during loading phase (athletes are intentionally heavy)
+  const isLoadingPhase = daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5;
+  const onTrackThreshold = isLoadingPhase ? 4 : 1.5;
+  const borderlineThreshold = isLoadingPhase ? 6 : 3;
+  const status = overTarget <= onTrackThreshold ? 'on-track' : overTarget <= borderlineThreshold ? 'borderline' : 'risk';
   const statusLabel = status === 'on-track' ? 'ON TRACK' : status === 'borderline' ? 'BORDERLINE' : 'AT RISK';
   const statusColor = status === 'on-track' ? 'text-green-500' : status === 'borderline' ? 'text-yellow-500' : 'text-red-500';
   const statusBg = status === 'on-track' ? 'bg-green-500/15' : status === 'borderline' ? 'bg-yellow-500/15' : 'bg-red-500/15';
+
+  // Dynamic cut day names based on actual weigh-in day (2 days and 1 day before)
+  const cutDayNames = useMemo(() => {
+    const day2Before = addDays(weighInDate, -2);
+    const day1Before = addDays(weighInDate, -1);
+    return `${format(day2Before, 'EEE')}–${format(day1Before, 'EEE')}`;
+  }, [weighInDate]);
 
   // Week overview - get Monday of competition week
   const weekDays = useMemo(() => {
@@ -321,7 +313,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="font-heading uppercase italic text-xl">{profile.name || 'Athlete'}</h1>
+            <h1 className="font-heading uppercase italic text-xl">{profile.name || 'Athlete'}{profile.last_name ? ` ${profile.last_name}` : ''}</h1>
             <p className="text-xs text-muted-foreground">
               {profile.target_weight_class} lbs  ·  {PROTOCOL_LABELS[String(profile.protocol)] || 'Unknown'}
             </p>
@@ -330,6 +322,9 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
             <span className={cn("text-xs font-bold uppercase px-2 py-1 rounded", statusBg, statusColor)}>
               {statusLabel}
             </span>
+            {isLoadingPhase && overTarget > 1.5 && (
+              <p className="text-[9px] text-muted-foreground mt-0.5">Loading phase — big drop comes {cutDayNames}</p>
+            )}
             <div className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded", PHASE_COLORS[currentPhase] || 'bg-gray-500', 'text-white')}>
               {currentPhase} Phase
             </div>
@@ -604,7 +599,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
             Refresh · Updated {format(lastRefresh, 'h:mm a')}
           </button>
           <p className="text-[10px] text-muted-foreground/50">
-            Powered by Performance Weight Management
+            Powered by SPAR Nutrition
           </p>
         </div>
       </div>

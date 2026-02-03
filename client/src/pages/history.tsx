@@ -3,10 +3,10 @@ import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays, differenceInDays, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy, Apple } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
@@ -16,28 +16,20 @@ import { TrendChart } from "@/components/dashboard";
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn } = useStore();
+  const { logs, profile, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
   const macroTargets = getMacroTargets();
+  const nutritionMode = getNutritionMode();
+  const isSparMode = nutritionMode === 'spar';
+  const sliceTargets = isSparMode ? getSliceTargets() : null;
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editWeight, setEditWeight] = useState('');
-  const [editTime, setEditTime] = useState('');
   const [editingExtraId, setEditingExtraId] = useState<string | null>(null);
   const [editExtraBefore, setEditExtraBefore] = useState('');
   const [editExtraAfter, setEditExtraAfter] = useState('');
-  const [isAddingLog, setIsAddingLog] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [newLogType, setNewLogType] = useState('');
-  const [newLogWeight, setNewLogWeight] = useState('');
-  const [newLogTime, setNewLogTime] = useState('');
-  const [newLogDuration, setNewLogDuration] = useState('');
-  const [newLogSleep, setNewLogSleep] = useState('');
-  const [editDuration, setEditDuration] = useState('');
-  const [editSleep, setEditSleep] = useState('');
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
 
@@ -179,18 +171,56 @@ export default function History() {
           return;
         }
 
-        // Import weight logs
-        if (backup.weightLogs && Array.isArray(backup.weightLogs)) {
-          for (const log of backup.weightLogs) {
-            addLog({
-              date: new Date(log.date),
-              weight: log.weight,
-              type: log.type,
-            });
+        // Restore profile settings if present
+        if (backup.profile) {
+          const profileUpdates: Record<string, any> = {};
+          if (backup.profile.targetWeightClass) profileUpdates.targetWeightClass = backup.profile.targetWeightClass;
+          if (backup.profile.currentWeight) profileUpdates.currentWeight = backup.profile.currentWeight;
+          if (backup.profile.protocol) profileUpdates.protocol = String(backup.profile.protocol);
+          if (Object.keys(profileUpdates).length > 0) {
+            updateProfile(profileUpdates);
           }
         }
 
-        toast({ title: "Import Complete!", description: `Imported ${backup.weightLogs?.length || 0} weight logs` });
+        // Import weight logs with deduplication
+        let imported = 0;
+        let skipped = 0;
+        if (backup.weightLogs && Array.isArray(backup.weightLogs)) {
+          for (const log of backup.weightLogs) {
+            const logDate = new Date(log.date);
+            const logDateStr = format(startOfDay(logDate), 'yyyy-MM-dd');
+            // Skip if a log with the same date and type already exists
+            const exists = logs.some(existing =>
+              format(startOfDay(existing.date), 'yyyy-MM-dd') === logDateStr && existing.type === log.type
+            );
+            if (exists) {
+              skipped++;
+            } else {
+              addLog({ date: logDate, weight: log.weight, type: log.type });
+              imported++;
+            }
+          }
+        }
+
+        // Restore daily tracking if present
+        let trackingRestored = 0;
+        if (backup.dailyTracking && typeof backup.dailyTracking === 'object') {
+          for (const [dateKey, data] of Object.entries(backup.dailyTracking)) {
+            if (data && typeof data === 'object') {
+              updateDailyTracking(dateKey, data as Record<string, any>);
+              trackingRestored++;
+            }
+          }
+        }
+
+        const parts: string[] = [];
+        if (imported > 0 || skipped > 0) {
+          const skipMsg = skipped > 0 ? ` (${skipped} dupes skipped)` : '';
+          parts.push(`${imported} logs${skipMsg}`);
+        }
+        if (backup.profile) parts.push('profile settings');
+        if (trackingRestored > 0) parts.push(`${trackingRestored} days tracking`);
+        toast({ title: "Import Complete!", description: parts.length > 0 ? `Restored: ${parts.join(', ')}` : 'No data found in backup' });
       } catch {
         toast({ title: "Error", description: "Could not read backup file", variant: "destructive" });
       }
@@ -360,51 +390,7 @@ export default function History() {
 
   // Edit handlers
   const startEdit = (log: any) => {
-    setEditingId(log.id);
-    setEditWeight(log.weight.toString());
-    const d = new Date(log.date);
-    setEditTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-    setEditDuration(log.duration ? log.duration.toString() : '');
-    setEditSleep(log.sleepHours ? log.sleepHours.toString() : '');
-  };
-
-  const saveEdit = () => {
-    if (editingId && editWeight) {
-      const weight = parseFloat(editWeight);
-      if (!validateWeight(weight)) return;
-
-      const updates: any = { weight };
-      if (editTime) {
-        const existingLog = logs.find(l => l.id === editingId);
-        if (existingLog) {
-          const [h, m] = editTime.split(':').map(Number);
-          const newDate = new Date(existingLog.date);
-          newDate.setHours(h, m, 0, 0);
-          updates.date = newDate;
-        }
-      }
-      if (editDuration) updates.duration = parseInt(editDuration, 10);
-      if (editSleep) updates.sleepHours = parseFloat(editSleep);
-      updateLog(editingId, updates);
-      setEditingId(null);
-      setEditWeight('');
-      setEditTime('');
-      setEditDuration('');
-      setEditSleep('');
-
-      // Blur to close keyboard on mobile
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditWeight('');
-    setEditTime('');
-    setEditDuration('');
-    setEditSleep('');
+    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { editLog: log } }));
   };
 
   // Extra workout edit handlers
@@ -452,51 +438,8 @@ export default function History() {
     return allTypes.filter(type => !loggedTypes.includes(type));
   };
 
-  // Add log handler
   const handleAddLog = () => {
-    if (selectedDate && newLogType && newLogWeight) {
-      const weight = parseFloat(newLogWeight);
-      if (!isNaN(weight) && weight > 0) {
-        if (!validateWeight(weight)) return;
-
-        const logDate = new Date(selectedDate);
-        if (newLogTime) {
-          const [h, m] = newLogTime.split(':').map(Number);
-          logDate.setHours(h, m, 0, 0);
-        } else {
-          // Fallback defaults if no time set
-          if (newLogType === 'morning') logDate.setHours(7, 0, 0, 0);
-          else if (newLogType === 'pre-practice') logDate.setHours(15, 0, 0, 0);
-          else if (newLogType === 'post-practice') logDate.setHours(17, 0, 0, 0);
-          else if (newLogType === 'before-bed') logDate.setHours(22, 0, 0, 0);
-        }
-
-        addLog({
-          weight,
-          date: logDate,
-          type: newLogType as any,
-          ...(newLogType === 'post-practice' && newLogDuration ? { duration: parseInt(newLogDuration, 10) } : {}),
-          ...(newLogType === 'morning' && newLogSleep ? { sleepHours: parseFloat(newLogSleep) } : {}),
-        });
-
-        // Blur to close keyboard on mobile
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-      }
-    }
-    setIsAddingLog(false);
-    setNewLogType('');
-    setNewLogWeight('');
-  };
-
-  const cancelAddLog = () => {
-    setIsAddingLog(false);
-    setNewLogType('');
-    setNewLogWeight('');
-    setNewLogTime('');
-    setNewLogDuration('');
-    setNewLogSleep('');
+    window.dispatchEvent(new CustomEvent('open-quick-log'));
   };
 
   return (
@@ -576,7 +519,7 @@ export default function History() {
           variant={activeTab === 'weight' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setActiveTab('weight')}
-          className={cn("flex-1 px-2", activeTab === 'weight' && "bg-primary text-black")}
+          className={cn("flex-1 px-2", activeTab === 'weight' && "bg-primary text-white")}
         >
           <Scale className="w-4 h-4 mr-1" />
           Weight
@@ -594,10 +537,10 @@ export default function History() {
           variant={activeTab === 'macros' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setActiveTab('macros')}
-          className={cn("flex-1 px-2", activeTab === 'macros' && "bg-orange-500 text-black hover:bg-orange-600")}
+          className={cn("flex-1 px-2", activeTab === 'macros' && (isSparMode ? "bg-primary text-white hover:bg-primary/90" : "bg-orange-500 text-black hover:bg-orange-600"))}
         >
           <Utensils className="w-4 h-4 mr-1" />
-          Macros
+          {isSparMode ? 'Slices' : 'Macros'}
         </Button>
       </div>
 
@@ -750,8 +693,6 @@ export default function History() {
                   key={i}
                   onClick={() => {
                     setSelectedDate(day);
-                    setIsAddingLog(false);
-                    setEditingId(null);
                   }}
                   className={cn(
                     "aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all relative",
@@ -788,85 +729,7 @@ export default function History() {
             <h3 className="font-bold text-sm uppercase text-muted-foreground">
               {format(selectedDate, 'EEEE, MMMM d')}
             </h3>
-            {getMissingLogTypes(selectedDate).length > 0 && !isAddingLog && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsAddingLog(true)}
-                className="h-7 text-xs"
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add Log
-              </Button>
-            )}
           </div>
-
-          {/* Add New Log Form */}
-          {isAddingLog && (
-            <Card className="border-primary/50 bg-primary/5">
-              <CardContent className="p-3 space-y-3">
-                <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                  <Plus className="w-4 h-4" />
-                  Add Log
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Select value={newLogType} onValueChange={(v) => { setNewLogType(v); setNewLogDuration(''); setNewLogSleep(''); }}>
-                    <SelectTrigger className="w-[130px] h-9">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getMissingLogTypes(selectedDate).map(type => (
-                        <SelectItem key={type} value={type}>
-                          {getLogTypeLabel(type)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <input
-                    type="time"
-                    value={newLogTime}
-                    onChange={(e) => setNewLogTime(e.target.value)}
-                    className="h-9 text-xs font-mono bg-background border border-border rounded px-1.5 w-[90px]"
-                  />
-                  <Input
-                    type="number"
-                    step="0.1"
-                    placeholder="Weight"
-                    value={newLogWeight}
-                    onChange={(e) => setNewLogWeight(e.target.value)}
-                    className="w-20 h-9 font-mono"
-                  />
-                  <span className="text-sm text-muted-foreground">lbs</span>
-                </div>
-                {newLogType === 'post-practice' && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-orange-500 font-bold">Duration *</span>
-                    <Input type="number" value={newLogDuration} onChange={(e) => setNewLogDuration(e.target.value)} placeholder="min" className="w-16 h-8 text-xs font-mono" />
-                    <span className="text-[10px] text-muted-foreground">min</span>
-                  </div>
-                )}
-                {newLogType === 'morning' && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-purple-500 font-bold">Sleep *</span>
-                    <Input type="number" step="0.5" value={newLogSleep} onChange={(e) => setNewLogSleep(e.target.value)} placeholder="hrs" className="w-16 h-8 text-xs font-mono" />
-                    <span className="text-[10px] text-muted-foreground">hrs</span>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAddLog} disabled={
-                    !newLogType || !newLogWeight ||
-                    (newLogType === 'post-practice' && (!newLogDuration || parseInt(newLogDuration, 10) <= 0)) ||
-                    (newLogType === 'morning' && (!newLogSleep || parseFloat(newLogSleep) <= 0))
-                  } className="h-8">
-                    <Check className="w-3 h-3 mr-1" /> Save
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={cancelAddLog} className="h-8">
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Day Summary */}
           {selectedDateLogs.length > 0 && (() => {
@@ -908,11 +771,11 @@ export default function History() {
           })()}
 
           {/* Individual Logs */}
-          {groupedSelectedDateLogs.length === 0 && !isAddingLog ? (
+          {groupedSelectedDateLogs.length === 0 ? (
             <Card className="border-dashed border-muted">
               <CardContent className="p-4 text-center">
                 <p className="text-muted-foreground text-sm mb-2">No logs for this day</p>
-                <Button size="sm" variant="outline" onClick={() => setIsAddingLog(true)}>
+                <Button size="sm" variant="outline" onClick={handleAddLog}>
                   <Plus className="w-3 h-3 mr-1" /> Add First Log
                 </Button>
               </CardContent>
@@ -1015,103 +878,9 @@ export default function History() {
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setDeletingId(log.id)}
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
                           </div>
                         </div>
                       )
-                    ) : editingId === log.id ? (
-                      // Edit mode for regular logs
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            {getLogTypeIcon(log.type)}
-                            <span className="text-sm font-bold">{getLogTypeLabel(log.type)}</span>
-                          </div>
-                          <div className="flex items-center gap-2 ml-auto">
-                            <input
-                              type="time"
-                              value={editTime}
-                              onChange={(e) => setEditTime(e.target.value)}
-                              className="h-8 text-xs font-mono bg-background border border-border rounded px-1.5 w-[90px]"
-                            />
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={editWeight}
-                              onChange={(e) => setEditWeight(e.target.value)}
-                              className="w-20 h-8 font-mono"
-                              autoFocus
-                            />
-                            <span className="text-sm text-muted-foreground">lbs</span>
-                            <Button size="icon" variant="ghost" onClick={saveEdit} className="h-8 w-8">
-                              <Check className="w-4 h-4 text-green-500" />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={cancelEdit} className="h-8 w-8">
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        {(log.type === 'post-practice') && (
-                          <div className="flex items-center gap-2 pl-6">
-                            <span className="text-[10px] text-orange-500 font-bold">Duration:</span>
-                            <Input
-                              type="number"
-                              value={editDuration}
-                              onChange={(e) => setEditDuration(e.target.value)}
-                              placeholder="min"
-                              className="w-16 h-7 text-xs font-mono"
-                            />
-                            <span className="text-[10px] text-muted-foreground">min</span>
-                          </div>
-                        )}
-                        {log.type === 'morning' && (
-                          <div className="flex items-center gap-2 pl-6">
-                            <span className="text-[10px] text-purple-500 font-bold">Sleep:</span>
-                            <Input
-                              type="number"
-                              step="0.5"
-                              value={editSleep}
-                              onChange={(e) => setEditSleep(e.target.value)}
-                              placeholder="hrs"
-                              className="w-16 h-7 text-xs font-mono"
-                            />
-                            <span className="text-[10px] text-muted-foreground">hrs</span>
-                          </div>
-                        )}
-                      </div>
-                    ) : deletingId === log.id ? (
-                      // Delete confirmation mode for regular logs
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {getLogTypeIcon(log.type)}
-                          <span className="text-sm font-bold text-destructive">Delete this log?</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => confirmDelete(log.id)}
-                            className="h-7 text-xs"
-                          >
-                            <Check className="w-3 h-3 mr-1" /> Delete
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setDeletingId(null)}
-                            className="h-7 text-xs"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
                     ) : (
                       // View mode
                       <div className="flex items-center justify-between">
@@ -1133,14 +902,6 @@ export default function History() {
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           >
                             <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setDeletingId(log.id)}
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -1170,9 +931,11 @@ export default function History() {
         <HydrationHistory dailyTracking={dailyTracking} targetOz={hydrationTarget.targetOz} />
       )}
 
-      {/* Macros Tab Content */}
+      {/* Macros / Slices Tab Content */}
       {activeTab === 'macros' && (
-        <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} />
+        isSparMode && sliceTargets
+          ? <SliceHistory dailyTracking={dailyTracking} sliceTargets={sliceTargets} />
+          : <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} />
       )}
 
       {/* Bottom Spacing */}
@@ -1661,6 +1424,243 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
             <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No macro data yet</p>
             <p className="text-xs mt-1">Start tracking on the dashboard</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Slice History Component (SPAR mode)
+interface SliceHistoryProps {
+  dailyTracking: Array<{ date: string; proteinSlices?: number; carbSlices?: number; vegSlices?: number }>;
+  sliceTargets: { protein: number; carb: number; veg: number; totalCalories: number };
+}
+
+function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
+  const today = new Date();
+  const totalTarget = sliceTargets.protein + sliceTargets.carb + sliceTargets.veg;
+
+  // Get last 14 days of data
+  const last14Days = Array.from({ length: 14 }, (_, i) => {
+    const date = subDays(today, 13 - i);
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const tracking = dailyTracking.find(t => t.date === dateStr);
+    const p = tracking?.proteinSlices || 0;
+    const c = tracking?.carbSlices || 0;
+    const v = tracking?.vegSlices || 0;
+    return {
+      date,
+      dateStr,
+      protein: p,
+      carb: c,
+      veg: v,
+      total: p + c + v,
+      dayLabel: format(date, 'EEE'),
+      dayNum: format(date, 'd'),
+      isToday: isSameDay(date, today)
+    };
+  });
+
+  const daysWithData = last14Days.filter(d => d.total > 0);
+  const daysHitTarget = daysWithData.filter(d => d.total >= totalTarget).length;
+
+  const avgProtein = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.protein, 0) / daysWithData.length : 0;
+  const avgCarb = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.carb, 0) / daysWithData.length : 0;
+  const avgVeg = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.veg, 0) / daysWithData.length : 0;
+
+  const last7Days = last14Days.slice(-7);
+  const weeklyProtein = last7Days.reduce((s, d) => s + d.protein, 0);
+  const weeklyCarb = last7Days.reduce((s, d) => s + d.carb, 0);
+  const weeklyVeg = last7Days.reduce((s, d) => s + d.veg, 0);
+  const weeklyTotal = weeklyProtein + weeklyCarb + weeklyVeg;
+
+  const maxSlices = Math.max(...last14Days.map(d => d.total), totalTarget);
+
+  return (
+    <div className="space-y-4">
+      {/* Weekly Summary */}
+      <Card className="border-green-500/30 bg-green-500/5">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Apple className="w-4 h-4 text-green-500" />
+            <span className="text-xs font-bold uppercase text-muted-foreground">This Week — SPAR Slices</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Total</span>
+              <span className="font-mono font-bold text-lg text-green-500">{weeklyTotal}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-orange-400 block">Protein</span>
+              <span className="font-mono font-bold text-lg text-orange-400">{weeklyProtein}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-amber-400 block">Carb</span>
+              <span className="font-mono font-bold text-lg text-amber-400">{weeklyCarb}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-green-400 block">Veg</span>
+              <span className="font-mono font-bold text-lg text-green-400">{weeklyVeg}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 14-Day Averages */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase text-muted-foreground">14-Day Averages</span>
+            <span className={cn(
+              "text-xs font-bold px-2 py-0.5 rounded",
+              daysHitTarget >= 10 ? "bg-green-500/20 text-green-500" :
+              daysHitTarget >= 7 ? "bg-green-500/20 text-green-400" :
+              daysHitTarget >= 4 ? "bg-yellow-500/20 text-yellow-500" :
+              "bg-red-500/20 text-red-500"
+            )}>
+              {daysHitTarget}/{daysWithData.length || 14} days on target
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Avg Protein</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                avgProtein >= sliceTargets.protein ? "text-green-500" : "text-orange-400"
+              )}>
+                {avgProtein.toFixed(1)}
+              </span>
+              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.protein}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Avg Carb</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                avgCarb >= sliceTargets.carb ? "text-green-500" : "text-amber-400"
+              )}>
+                {avgCarb.toFixed(1)}
+              </span>
+              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.carb}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground block">Avg Veg</span>
+              <span className={cn(
+                "font-mono font-bold text-xl",
+                avgVeg >= sliceTargets.veg ? "text-green-500" : "text-green-400"
+              )}>
+                {avgVeg.toFixed(1)}
+              </span>
+              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.veg}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stacked Bar Chart */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold uppercase text-muted-foreground">Daily Slices (Last 14 Days)</span>
+            <span className="text-[10px] text-green-500 font-mono">Target: {totalTarget}</span>
+          </div>
+
+          <div className="flex items-end gap-1 h-28 mb-2">
+            {last14Days.map((day, i) => {
+              const targetHeightPct = maxSlices > 0 ? (totalTarget / maxSlices) * 100 : 0;
+              const pPct = maxSlices > 0 ? (day.protein / maxSlices) * 100 : 0;
+              const cPct = maxSlices > 0 ? (day.carb / maxSlices) * 100 : 0;
+              const vPct = maxSlices > 0 ? (day.veg / maxSlices) * 100 : 0;
+
+              return (
+                <div key={i} className="flex-1 flex flex-col items-center relative h-full">
+                  {i === 0 && (
+                    <div
+                      className="absolute w-[calc(1400%+13*4px)] left-0 border-t-2 border-dashed border-green-500/40 z-10"
+                      style={{ bottom: `${targetHeightPct}%` }}
+                    />
+                  )}
+                  <div className="flex-1 w-full flex flex-col justify-end">
+                    {day.total > 0 ? (
+                      <>
+                        <div className="w-full bg-green-500/70 rounded-t" style={{ height: `${Math.max(vPct, 2)}%` }} />
+                        <div className="w-full bg-amber-400/70" style={{ height: `${Math.max(cPct, 2)}%` }} />
+                        <div className={cn("w-full rounded-b", day.isToday ? "bg-orange-500" : "bg-orange-400/70")} style={{ height: `${Math.max(pPct, 2)}%` }} />
+                      </>
+                    ) : (
+                      <div className="w-full bg-muted/30 rounded" style={{ height: '2%' }} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-1">
+            {last14Days.map((day, i) => (
+              <div key={i} className="flex-1 text-center">
+                <span className={cn("text-[8px]", day.isToday ? "text-green-500 font-bold" : "text-muted-foreground")}>
+                  {day.dayNum}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-orange-400/70" />
+              <span className="text-[10px] text-muted-foreground">Protein</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-amber-400/70" />
+              <span className="text-[10px] text-muted-foreground">Carb</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-green-500/70" />
+              <span className="text-[10px] text-muted-foreground">Veg</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Daily Details */}
+      <Card className="border-muted">
+        <CardContent className="p-4">
+          <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Details</span>
+          <div className="space-y-2">
+            {[...last14Days].reverse().map((day, i) => {
+              const hitTarget = day.total >= totalTarget;
+              return (
+                <div key={i} className={cn(
+                  "flex items-center justify-between py-2 border-b border-muted last:border-0",
+                  day.isToday && "bg-green-500/5 -mx-2 px-2 rounded"
+                )}>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    day.isToday ? "text-green-500" : "text-foreground"
+                  )}>
+                    {day.isToday ? 'Today' : format(day.date, 'EEE, MMM d')}
+                  </span>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="font-mono text-orange-400">{day.protein > 0 ? `${day.protein}P` : '—'}</span>
+                    <span className="font-mono text-amber-400">{day.carb > 0 ? `${day.carb}C` : '—'}</span>
+                    <span className="font-mono text-green-400">{day.veg > 0 ? `${day.veg}V` : '—'}</span>
+                    {hitTarget && <Check className="w-4 h-4 text-green-500" />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {daysWithData.length === 0 && (
+        <Card className="border-dashed border-muted">
+          <CardContent className="p-6 text-center text-muted-foreground">
+            <Apple className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No slice data yet</p>
+            <p className="text-xs mt-1">Start tracking slices on the dashboard</p>
           </CardContent>
         </Card>
       )}

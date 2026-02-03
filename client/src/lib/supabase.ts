@@ -22,6 +22,13 @@ export interface DbProfile {
   has_completed_onboarding: boolean;
   simulated_date: string | null;
   share_token: string | null;
+  // SPAR Nutrition fields
+  height_inches: number | null;
+  age: number | null;
+  gender: string | null;
+  activity_level: string | null;
+  weekly_goal: string | null;
+  nutrition_preference: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -42,6 +49,13 @@ export interface DbDailyTracking {
   carbs_consumed: number;
   protein_consumed: number;
   water_consumed: number;
+  no_practice: boolean;
+  // SPAR slice tracking
+  protein_slices: number;
+  carb_slices: number;
+  veg_slices: number;
+  nutrition_mode: string | null; // 'spar' | 'sugar'
+  food_log: any; // JSON array of FoodLogEntry
   created_at: string;
   updated_at: string;
 }

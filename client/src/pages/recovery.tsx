@@ -777,7 +777,7 @@ export default function Recovery() {
 
             <Button
               onClick={startCompDay}
-              className="w-full h-14 text-base font-bold uppercase bg-primary text-black rounded-xl shadow-lg shadow-primary/20"
+              className="w-full h-14 text-base font-bold uppercase bg-primary text-white rounded-xl shadow-lg shadow-primary/20"
             >
               <Play className="w-5 h-5 mr-2" /> Start Competition Day
             </Button>
@@ -931,7 +931,7 @@ export default function Recovery() {
         {/* ─ Phase Transition Banner ─ */}
         {phaseTransitionBanner && (
           <div className="animate-in slide-in-from-top fade-in duration-300 relative">
-            <div className="bg-primary text-black font-bold text-center py-3 px-4 pr-10 rounded-xl text-sm uppercase tracking-wide shadow-[0_0_20px_rgba(132,204,22,0.3)]">
+            <div className="bg-primary text-white font-bold text-center py-3 px-4 pr-10 rounded-xl text-sm uppercase tracking-wide shadow-[0_0_20px_rgba(232,80,30,0.3)]">
               {phaseTransitionBanner}
             </div>
             <button

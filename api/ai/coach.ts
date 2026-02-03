@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const { question, context } = req.body;
+    const { question, context, history } = req.body;
 
     if (!question || typeof question !== "string" || question.trim().length < 3) {
       return res.status(400).json({ error: "Question is required" });
@@ -39,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       '2': 'Fat Loss Focus / Make Weight (standard weekly cut)',
       '3': 'Maintain / Hold Weight',
       '4': 'Hypertrophy / Build Phase',
+      '5': 'SPAR Nutrition (portion-based balanced eating)',
     };
     if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || ctx.protocol}`);
     if (ctx.phase) contextLines.push(`Current phase: ${ctx.phase}`);
@@ -55,9 +56,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    if (ctx.todaysWeighIns?.length > 0) {
+      const weighIns = ctx.todaysWeighIns.map((w: any) => `${w.type} ${w.weight} lbs (${w.time})`).join(', ');
+      contextLines.push(`Today's weigh-ins: ${weighIns}`);
+    }
+    if (ctx.todayTargetWeight) contextLines.push(`Today's target weight: ${ctx.todayTargetWeight} lbs`);
+    if (ctx.avgOvernightDrift) contextLines.push(`Avg overnight drift: -${ctx.avgOvernightDrift} lbs`);
+    if (ctx.avgPracticeLoss) contextLines.push(`Avg practice loss: -${ctx.avgPracticeLoss} lbs`);
+
     if (ctx.dailyTracking) {
       contextLines.push(`Today's intake — Water: ${ctx.dailyTracking.waterConsumed || 0}oz, Carbs: ${ctx.dailyTracking.carbsConsumed || 0}g, Protein: ${ctx.dailyTracking.proteinConsumed || 0}g`);
     }
+    if (ctx.hydrationTarget) {
+      contextLines.push(`Hydration target: ${ctx.hydrationTarget.targetOz || '?'}oz (${ctx.hydrationTarget.label || ''})`);
+    }
+    if (ctx.dailyPriority) contextLines.push(`Today's focus: ${ctx.dailyPriority}`);
 
     if (ctx.recoveryMode) {
       contextLines.push(`Recovery mode: ${ctx.recoveryMode === 'weigh-in' ? 'Post weigh-in' : `Between matches (#${ctx.matchNumber || '?'})`}`);
@@ -69,18 +82,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (ctx.currentPage) contextLines.push(`Viewing: ${ctx.currentPage} page`);
 
-    const systemPrompt = `You are the Performance Weight Management (PWM) AI Coach for competitive wrestlers. You follow ONE specific protocol — the PWM system described below. All your advice MUST come from this protocol. Do NOT give generic nutrition advice. If unsure, say so rather than guessing.
+    const systemPrompt = `You are the SPAR Nutrition AI Coach for competitive wrestlers. You follow ONE specific protocol — the SPAR system described below. All your advice MUST come from this protocol. Do NOT give generic nutrition advice. If unsure, say so rather than guessing.
 
 ═══ ATHLETE CONTEXT ═══
 ${contextLines.length > 0 ? contextLines.join('\n') : 'No context provided'}
 
-═══ PWM PROTOCOL: COMPLETE METHODOLOGY ═══
+═══ SPAR PROTOCOL: COMPLETE METHODOLOGY ═══
 
-THE 4 PROTOCOLS:
+THE 5 PROTOCOLS:
 • Protocol 1 – Body Comp / Emergency Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used when athlete is significantly over weight class (>7%).
 • Protocol 2 – Make Weight / Fat Loss Focus (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol.
 • Protocol 3 – Maintain / Hold Weight: Athlete is near weight class. Moderate protein throughout. Less aggressive carb/protein manipulation.
 • Protocol 4 – Hypertrophy / Build Phase: Off-season muscle building. High protein (125-150g), high carbs (350-600g). Glucose emphasis.
+• Protocol 5 – SPAR Nutrition (Simple as Pie for Achievable Results): Portion-based balanced eating using "slices" — palm-sized protein (~110 cal), fist-sized carbs (~120 cal), fist-sized veggies (~50 cal). Uses BMR → TDEE → calorie split (35% protein, 40% carb, 25% veg). No aggressive water/food cutting. Focus on sustainable body composition through portion control. Targets calculated from height, weight, age, activity level, and weekly goal (cut/maintain/build).
 
 ═══ WEEKLY NUTRITION PHASES (days until weigh-in) ═══
 
@@ -209,13 +223,13 @@ The body has 5 "fuel tanks" that lose weight differently:
 ═══ COACHING RULES ═══
 - Keep answers under 200 words — athletes need quick, actionable advice
 - Be direct and specific with quantities: "eat 30g carbs from rice cakes" not "eat some carbs"
-- ALWAYS reference the specific PWM protocol rules above. Say "per protocol" or "the PWM plan says..."
+- ALWAYS reference the specific PWM protocol rules above. Say "per protocol" or "the SPAR plan says..."
 - Consider the athlete's current phase and exact days-until-weigh-in when giving advice
 - For nutrition: recommend SPECIFIC foods from the lists above with exact amounts
 - For recovery: focus on what to do RIGHT NOW based on timing and phase
 - Use bullet points or numbered lists for multi-step advice
 - If the athlete is behind on their cut, acknowledge it and give practical catch-up advice from within the protocol
-- If asked about dangerous practices (extreme dehydration, diuretics, etc.), firmly redirect to safe alternatives within the PWM system
+- If asked about dangerous practices (extreme dehydration, diuretics, etc.), firmly redirect to safe alternatives within the SPAR system
 - Never contradict the protocol. If something isn't covered, say "the protocol doesn't specifically address that — here's what I'd suggest based on the principles"
 - Reference the "why" explanations when athletes ask why they should do something`;
 
@@ -230,7 +244,11 @@ The body has 5 "fuel tanks" that lose weight differently:
         model: "claude-sonnet-4-20250514",
         max_tokens: 600,
         system: systemPrompt,
-        messages: [{ role: "user", content: question.trim() }],
+        messages: [
+          // Include conversation history for multi-turn context
+          ...(Array.isArray(history) ? history.slice(-6) : []),
+          { role: "user", content: question.trim() },
+        ],
       }),
     });
 

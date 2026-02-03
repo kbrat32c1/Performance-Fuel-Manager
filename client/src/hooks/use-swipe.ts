@@ -5,11 +5,30 @@ interface SwipeHandlers {
   onSwipeRight?: () => void;
   onSwipeUp?: () => void;
   onSwipeDown?: () => void;
+  onDrag?: (offsetX: number) => void;
+  onCancel?: () => void;
 }
 
 interface SwipeConfig {
-  threshold?: number; // Minimum distance for a swipe (default: 50px)
-  preventScroll?: boolean; // Prevent vertical scroll during horizontal swipe
+  threshold?: number;
+  preventScroll?: boolean;
+}
+
+// Check if the touch started inside a horizontally scrollable container
+function isInsideHorizontalScroller(target: EventTarget | null): boolean {
+  let el = target as HTMLElement | null;
+  while (el) {
+    const style = window.getComputedStyle(el);
+    const overflowX = style.overflowX;
+    if ((overflowX === 'auto' || overflowX === 'scroll') && el.scrollWidth > el.clientWidth) {
+      return true;
+    }
+    if (el.dataset.swipeIgnore !== undefined) {
+      return true;
+    }
+    el = el.parentElement;
+  }
+  return false;
 }
 
 export function useSwipe(handlers: SwipeHandlers, config: SwipeConfig = {}) {
@@ -19,34 +38,59 @@ export function useSwipe(handlers: SwipeHandlers, config: SwipeConfig = {}) {
   const touchStartY = useRef<number>(0);
   const touchEndX = useRef<number>(0);
   const touchEndY = useRef<number>(0);
+  const ignoreSwipe = useRef<boolean>(false);
+  const isHorizontal = useRef<boolean | null>(null);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
+    touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+    ignoreSwipe.current = isInsideHorizontalScroller(e.target);
+    isHorizontal.current = null;
   }, []);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     touchEndX.current = e.touches[0].clientX;
     touchEndY.current = e.touches[0].clientY;
 
-    // Prevent vertical scroll during horizontal swipe if configured
-    if (preventScroll) {
-      const deltaX = Math.abs(touchEndX.current - touchStartX.current);
-      const deltaY = Math.abs(touchEndY.current - touchStartY.current);
-      if (deltaX > deltaY && deltaX > 10) {
-        e.preventDefault();
-      }
-    }
-  }, [preventScroll]);
+    if (ignoreSwipe.current) return;
 
-  const onTouchEnd = useCallback(() => {
     const deltaX = touchEndX.current - touchStartX.current;
     const deltaY = touchEndY.current - touchStartY.current;
     const absX = Math.abs(deltaX);
     const absY = Math.abs(deltaY);
 
-    // Only trigger if horizontal movement is greater than vertical
-    // and exceeds threshold
+    // Lock direction after 10px of movement
+    if (isHorizontal.current === null && (absX > 10 || absY > 10)) {
+      isHorizontal.current = absX > absY;
+    }
+
+    // Report drag offset for visual feedback (capped for feel)
+    if (isHorizontal.current && handlers.onDrag) {
+      const capped = Math.sign(deltaX) * Math.min(Math.abs(deltaX) * 0.4, 80);
+      handlers.onDrag(capped);
+    }
+
+    // Prevent vertical scroll during horizontal swipe
+    if (isHorizontal.current && (preventScroll || absX > 10)) {
+      e.preventDefault();
+    }
+  }, [preventScroll, handlers]);
+
+  const onTouchEnd = useCallback(() => {
+    if (ignoreSwipe.current) {
+      ignoreSwipe.current = false;
+      isHorizontal.current = null;
+      handlers.onCancel?.();
+      return;
+    }
+
+    const deltaX = touchEndX.current - touchStartX.current;
+    const deltaY = touchEndY.current - touchStartY.current;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
     if (absX > absY && absX > threshold) {
       if (deltaX > 0) {
         handlers.onSwipeRight?.();
@@ -59,13 +103,16 @@ export function useSwipe(handlers: SwipeHandlers, config: SwipeConfig = {}) {
       } else {
         handlers.onSwipeUp?.();
       }
+    } else {
+      // Didn't meet threshold — cancel
+      handlers.onCancel?.();
     }
 
-    // Reset
     touchStartX.current = 0;
     touchStartY.current = 0;
     touchEndX.current = 0;
     touchEndY.current = 0;
+    isHorizontal.current = null;
   }, [handlers, threshold]);
 
   return {

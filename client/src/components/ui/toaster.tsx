@@ -13,10 +13,16 @@ export function Toaster() {
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {toasts.map(function ({ id, title, description, action, variant, ...props }) {
         return (
-          <Toast key={id} {...props}>
-            <div className="grid gap-1">
+          <Toast key={id} variant={variant} {...props}>
+            {/* Left accent bar */}
+            <div className={
+              variant === "destructive"
+                ? "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-destructive"
+                : "absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-primary"
+            } />
+            <div className="grid gap-0.5 pl-2">
               {title && <ToastTitle>{title}</ToastTitle>}
               {description && (
                 <ToastDescription>{description}</ToastDescription>

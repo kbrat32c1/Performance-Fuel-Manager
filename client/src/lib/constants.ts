@@ -1,5 +1,5 @@
 /**
- * PWM Constants
+ * SPAR Nutrition Constants
  * Centralized configuration for weight management calculations and protocols
  */
 
@@ -13,6 +13,7 @@ export const PROTOCOLS = {
   MAKE_WEIGHT: '2',
   HOLD_WEIGHT: '3',
   BUILD: '4',
+  SPAR: '5',
 } as const;
 
 export type Protocol = typeof PROTOCOLS[keyof typeof PROTOCOLS];
@@ -23,6 +24,7 @@ export const PROTOCOL_NAMES: Record<Protocol, string> = {
   [PROTOCOLS.MAKE_WEIGHT]: 'Make Weight Phase',
   [PROTOCOLS.HOLD_WEIGHT]: 'Hold Weight Phase',
   [PROTOCOLS.BUILD]: 'Build Phase',
+  [PROTOCOLS.SPAR]: 'SPAR Nutrition',
 };
 
 // Protocol short names for compact displays
@@ -31,6 +33,44 @@ export const PROTOCOL_SHORT_NAMES: Record<Protocol, string> = {
   [PROTOCOLS.MAKE_WEIGHT]: 'Make Weight',
   [PROTOCOLS.HOLD_WEIGHT]: 'Hold Weight',
   [PROTOCOLS.BUILD]: 'Build',
+  [PROTOCOLS.SPAR]: 'SPAR',
+};
+
+// Nutrition mode type — slices (spar) or grams (sugar)
+export type NutritionMode = 'spar' | 'sugar';
+
+// Activity levels for SPAR calculator
+export const ACTIVITY_LEVELS = {
+  SEDENTARY: 'sedentary',
+  LIGHT: 'light',
+  MODERATE: 'moderate',
+  ACTIVE: 'active',
+  VERY_ACTIVE: 'very-active',
+} as const;
+
+export type ActivityLevel = typeof ACTIVITY_LEVELS[keyof typeof ACTIVITY_LEVELS];
+
+export const ACTIVITY_LEVEL_LABELS: Record<ActivityLevel, string> = {
+  [ACTIVITY_LEVELS.SEDENTARY]: 'Sedentary (little/no exercise)',
+  [ACTIVITY_LEVELS.LIGHT]: 'Light (1-3 days/week)',
+  [ACTIVITY_LEVELS.MODERATE]: 'Moderate (3-5 days/week)',
+  [ACTIVITY_LEVELS.ACTIVE]: 'Active (6-7 days/week)',
+  [ACTIVITY_LEVELS.VERY_ACTIVE]: 'Very Active (2x/day training)',
+};
+
+// Weekly goal options for SPAR
+export const WEEKLY_GOALS = {
+  CUT: 'cut',
+  MAINTAIN: 'maintain',
+  BUILD: 'build',
+} as const;
+
+export type WeeklyGoal = typeof WEEKLY_GOALS[keyof typeof WEEKLY_GOALS];
+
+export const WEEKLY_GOAL_LABELS: Record<WeeklyGoal, string> = {
+  [WEEKLY_GOALS.CUT]: 'Cut (lose ~1 lb/week)',
+  [WEEKLY_GOALS.MAINTAIN]: 'Maintain weight',
+  [WEEKLY_GOALS.BUILD]: 'Build (lean gain)',
 };
 
 // Weight multipliers for target calculations
@@ -101,6 +141,7 @@ export const MACRO_RATIOS: Record<Protocol, string> = {
   [PROTOCOLS.MAKE_WEIGHT]: '35/40/25',
   [PROTOCOLS.HOLD_WEIGHT]: '40/35/25',
   [PROTOCOLS.BUILD]: '45/30/25',
+  [PROTOCOLS.SPAR]: '35/40/25',
 };
 
 // Protein targets (grams per lb of body weight)

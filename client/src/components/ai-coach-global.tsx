@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { useLocation } from "wouter";
+import { format } from "date-fns";
 
 interface Message {
   role: "user" | "assistant" | "error";
@@ -82,7 +83,7 @@ export function AiCoachGlobal() {
   const [location] = useLocation();
 
   const store = useStore();
-  const { profile, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus } = store;
+  const { profile, logs, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus, getDriftMetrics, getDailyTracking, getDailyPriority, getHydrationTarget, calculateTarget, getNutritionMode, getSliceTargets } = store;
 
   const daysUntil = getDaysUntilWeighIn();
   const recoveryMode = localStorage.getItem('pwm-comp-mode') || 'idle';
@@ -128,6 +129,19 @@ export function AiCoachGlobal() {
       status: getStatus().status,
     };
 
+    // Nutrition mode awareness
+    try {
+      const nutritionMode = getNutritionMode();
+      ctx.nutritionMode = nutritionMode;
+      if (nutritionMode === 'spar') {
+        const sliceTargets = getSliceTargets();
+        ctx.sliceTargets = sliceTargets;
+        ctx.nutritionInfo = `SPAR mode: ${sliceTargets.protein}P/${sliceTargets.carb}C/${sliceTargets.veg}V slices (~${sliceTargets.totalCalories} cal)`;
+      } else {
+        ctx.nutritionInfo = 'Sugar System mode: gram-based competition fueling';
+      }
+    } catch {}
+
     try { ctx.macroTargets = getMacroTargets(); } catch {}
     try {
       const foods = getTodaysFoods();
@@ -136,6 +150,68 @@ export function AiCoachGlobal() {
         proteinLabel: foods.proteinLabel,
         avoid: foods.avoid?.slice(0, 5),
       };
+    } catch {}
+
+    // Today's actual weight logs
+    try {
+      const today = new Date();
+      const todayLogs = logs.filter(l => {
+        const ld = new Date(l.date);
+        return ld.getFullYear() === today.getFullYear() &&
+          ld.getMonth() === today.getMonth() &&
+          ld.getDate() === today.getDate();
+      });
+      if (todayLogs.length > 0) {
+        ctx.todaysWeighIns = todayLogs.map(l => ({
+          type: l.type,
+          weight: l.weight,
+          time: new Date(l.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        }));
+        // Most recent weight is more accurate than profile.currentWeight
+        const sorted = [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        ctx.currentWeight = sorted[0].weight;
+        ctx.weightToLose = Math.max(0, sorted[0].weight - profile.targetWeightClass).toFixed(1);
+      }
+    } catch {}
+
+    // Today's target weight
+    try { ctx.todayTargetWeight = calculateTarget(); } catch {}
+
+    // Drift & practice metrics
+    try {
+      const drift = getDriftMetrics();
+      if (drift.overnight !== null) ctx.avgOvernightDrift = drift.overnight.toFixed(1);
+      if (drift.session !== null) ctx.avgPracticeLoss = drift.session.toFixed(1);
+    } catch {}
+
+    // Daily tracking (water, carbs, protein consumed)
+    try {
+      const dateKey = format(new Date(), 'yyyy-MM-dd');
+      const tracking = getDailyTracking(dateKey);
+      if (tracking) {
+        ctx.dailyTracking = {
+          waterConsumed: tracking.waterConsumed || 0,
+          carbsConsumed: tracking.carbsConsumed || 0,
+          proteinConsumed: tracking.proteinConsumed || 0,
+          // SPAR slice tracking
+          proteinSlices: tracking.proteinSlices || 0,
+          carbSlices: tracking.carbSlices || 0,
+          vegSlices: tracking.vegSlices || 0,
+          nutritionMode: tracking.nutritionMode || null,
+        };
+      }
+    } catch {}
+
+    // Hydration target
+    try {
+      const hydration = getHydrationTarget();
+      if (hydration) ctx.hydrationTarget = hydration;
+    } catch {}
+
+    // Daily priority (coaching message)
+    try {
+      const priority = getDailyPriority();
+      if (priority) ctx.dailyPriority = priority.priority;
     } catch {}
 
     // Recovery context
@@ -160,12 +236,19 @@ export function AiCoachGlobal() {
     setLoading(true);
 
     try {
+      // Build conversation history for multi-turn context (last 6 messages)
+      const history = messages
+        .filter(m => m.role !== 'error')
+        .slice(-6)
+        .map(m => ({ role: m.role, content: m.content }));
+
       const res = await fetch("/api/ai/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: text.trim(),
           context: buildContext(),
+          history,
         }),
       });
 
@@ -196,12 +279,13 @@ export function AiCoachGlobal() {
 
   return (
     <>
-      {/* Floating button — PWM Coach */}
+      {/* Floating button — SPAR Coach */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
+          data-tour="ai-coach"
           className="fixed bottom-[7.5rem] left-5 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 shadow-lg shadow-purple-500/30 flex items-center justify-center active:scale-90 transition-all group hover:shadow-xl hover:shadow-purple-500/40"
-          aria-label="Open PWM Coach"
+          aria-label="Open SPAR Coach"
         >
           <Sparkles className="w-6 h-6 text-white drop-shadow-sm" />
         </button>
@@ -217,7 +301,7 @@ export function AiCoachGlobal() {
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
               <div>
-                <h2 className="text-xs font-bold">PWM Coach</h2>
+                <h2 className="text-xs font-bold">SPAR Coach</h2>
                 <p className="text-[9px] text-muted-foreground leading-tight">
                   {daysUntil === 0 ? "COMP DAY" : daysUntil > 0 ? `${daysUntil}d out · ${profile.currentWeight}→${profile.targetWeightClass}lbs` : "Weight cutting expert"}
                 </p>
@@ -237,7 +321,7 @@ export function AiCoachGlobal() {
             {aiAvailable === false && (
               <div className="bg-muted/20 rounded-lg p-3 text-center space-y-1.5 mt-4">
                 <Bot className="w-6 h-6 text-muted-foreground mx-auto" />
-                <p className="text-xs font-medium">PWM Coach Not Configured</p>
+                <p className="text-xs font-medium">SPAR Coach Not Configured</p>
                 <p className="text-[10px] text-muted-foreground">
                   Add <code className="bg-muted px-1 py-0.5 rounded text-[9px]">ANTHROPIC_API_KEY</code> to env vars.
                 </p>
@@ -280,7 +364,7 @@ export function AiCoachGlobal() {
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-1 mb-1">
                     <BrainCircuit className="w-2.5 h-2.5 text-primary" />
-                    <span className="text-[8px] uppercase font-bold text-primary tracking-wider">PWM Coach</span>
+                    <span className="text-[8px] uppercase font-bold text-primary tracking-wider">SPAR Coach</span>
                   </div>
                 )}
                 <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>

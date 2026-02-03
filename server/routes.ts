@@ -1,10 +1,16 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log } from "./index";
 
 const USDA_API_KEY = process.env.USDA_API_KEY || "DEMO_KEY";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+
+// Server-side Supabase client (uses service role key if available, falls back to anon)
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 export async function registerRoutes(
   httpServer: Server,
@@ -235,6 +241,7 @@ export async function registerRoutes(
         '2': 'Fat Loss Focus / Make Weight (standard weekly cut)',
         '3': 'Maintain / Hold Weight',
         '4': 'Hypertrophy / Build Phase',
+        '5': 'SPAR Nutrition (portion-based balanced eating)',
       };
       if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || ctx.protocol}`);
       if (ctx.phase) contextLines.push(`Current phase: ${ctx.phase}`);
@@ -318,6 +325,77 @@ COACHING RULES:
     } catch (err: any) {
       log(`AI coach error: ${err.message}`);
       return res.status(500).json({ error: "AI coaching failed" });
+    }
+  });
+
+  // ─── Coach Share Endpoint ─────────────────────────────────────────────────
+  app.get("/api/share/:token", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.params;
+      if (!token || token.length < 10) {
+        return res.status(400).json({ error: "Invalid token" });
+      }
+
+      if (!supabase) {
+        return res.status(503).json({ error: "Database not configured" });
+      }
+
+      // Look up athlete profile by share_token
+      const { data: profile, error: profileErr } = await supabase
+        .from("profiles")
+        .select("user_id, name, last_name, current_weight, target_weight_class, weigh_in_date, weigh_in_time, protocol")
+        .eq("share_token", token)
+        .single();
+
+      if (profileErr || !profile) {
+        return res.status(404).json({ error: "Athlete not found or sharing has been disabled." });
+      }
+
+      // Fetch weight logs for this athlete (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: logs } = await supabase
+        .from("weight_logs")
+        .select("weight, date, type, duration, sleep_hours")
+        .eq("user_id", profile.user_id)
+        .gte("date", thirtyDaysAgo.toISOString())
+        .order("date", { ascending: false });
+
+      // Fetch today's daily tracking
+      const todayStr = new Date().toISOString().split("T")[0];
+      const { data: trackingRows } = await supabase
+        .from("daily_tracking")
+        .select("date, water_consumed, carbs_consumed, protein_consumed, no_practice")
+        .eq("user_id", profile.user_id)
+        .eq("date", todayStr)
+        .limit(1);
+
+      const dailyTracking = trackingRows && trackingRows.length > 0
+        ? {
+            date: trackingRows[0].date,
+            waterConsumed: trackingRows[0].water_consumed || 0,
+            carbsConsumed: trackingRows[0].carbs_consumed || 0,
+            proteinConsumed: trackingRows[0].protein_consumed || 0,
+          }
+        : null;
+
+      return res.json({
+        profile: {
+          name: profile.name,
+          last_name: profile.last_name,
+          current_weight: profile.current_weight,
+          target_weight_class: profile.target_weight_class,
+          weigh_in_date: profile.weigh_in_date,
+          weigh_in_time: profile.weigh_in_time,
+          protocol: profile.protocol,
+        },
+        logs: logs || [],
+        dailyTracking,
+      });
+    } catch (err: any) {
+      log(`Share endpoint error: ${err.message}`);
+      return res.status(500).json({ error: "Failed to load athlete data" });
     }
   });
 

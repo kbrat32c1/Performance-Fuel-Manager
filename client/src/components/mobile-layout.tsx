@@ -108,7 +108,7 @@ function NavItem({ icon, label, active, onClick, primary, highlighted, badge }: 
       <div className={cn(
         // Larger touch target for the icon area
         "relative p-2.5 rounded-full transition-all",
-        primary ? "bg-primary text-black shadow-[0_0_20px_rgba(132,204,22,0.4)] scale-125" : "",
+        primary ? "bg-primary text-white shadow-[0_0_20px_rgba(232,80,30,0.4)] scale-125" : "",
         highlighted && !active && "bg-cyan-500/10"
       )}>
         <Icon size={primary ? 24 : 22} strokeWidth={primary ? 2.5 : 2} />

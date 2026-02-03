@@ -35,7 +35,7 @@ function MigrationDialog({
           <Button
             onClick={onMigrate}
             disabled={isSubmitting}
-            className="w-full h-12 bg-primary text-black font-bold"
+            className="w-full h-12 bg-primary text-white font-bold"
           >
             {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Yes, Import My Data'}
           </Button>
@@ -54,8 +54,13 @@ function MigrationDialog({
 
 export default function Landing() {
   const [, setLocation] = useLocation();
-  const { hasLocalStorageData, migrateLocalStorageToSupabase, isLoading: storeLoading, profile } = useStore();
+  const { hasLocalStorageData, migrateLocalStorageToSupabase, isLoading: storeLoading, profile, logs } = useStore();
   const { user, loading: authLoading, signIn, signUp, signInWithGoogle, resetPassword } = useAuth();
+
+  // Treat onboarding as complete if user has real data (matches ProtectedRoute logic)
+  // Exclude defaults (name='Athlete', targetWeightClass=157) so partial profiles don't skip onboarding
+  const hasRealData = !!(profile.name && profile.name !== 'Athlete' && profile.targetWeightClass && logs.length > 0);
+  const effectivelyOnboarded = profile.hasCompletedOnboarding || hasRealData;
   const { toast } = useToast();
 
   const [authMode, setAuthMode] = useState<AuthMode>('landing');
@@ -70,7 +75,7 @@ export default function Landing() {
   // Handle redirects in useEffect to avoid render-time side effects
   useEffect(() => {
     if (!authLoading && !storeLoading && user) {
-      if (profile.hasCompletedOnboarding) {
+      if (effectivelyOnboarded) {
         setLocation('/dashboard');
       } else if (hasLocalStorageData() && !showMigration) {
         // Auto-show migration dialog if localStorage data exists
@@ -79,7 +84,7 @@ export default function Landing() {
         setLocation('/onboarding');
       }
     }
-  }, [user, authLoading, storeLoading, profile.hasCompletedOnboarding, showMigration]);
+  }, [user, authLoading, storeLoading, effectivelyOnboarded, showMigration]);
 
   // If logged in and has completed onboarding, go to dashboard
   // If logged in but not onboarded, go to onboarding
@@ -105,8 +110,10 @@ export default function Landing() {
   };
 
   const handleSkipMigration = () => {
-    // Clear localStorage and start fresh
-    localStorage.clear();
+    // Clear only PWM localStorage keys and start fresh
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('pwm-')) localStorage.removeItem(key);
+    });
     setLocation('/onboarding');
   };
 
@@ -164,7 +171,7 @@ export default function Landing() {
   }
 
   // Show loading during redirect (user is logged in and onboarded)
-  if (user && profile.hasCompletedOnboarding) {
+  if (user && effectivelyOnboarded) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -199,9 +206,10 @@ export default function Landing() {
       <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden">
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
           <div className="w-full max-w-sm space-y-6">
-            <div className="text-center space-y-2">
-              <h1 className="text-4xl font-heading font-black italic">PWM</h1>
-              <h2 className="text-xl font-bold">
+            <div className="text-center space-y-3">
+              <img src="/spar-logo.png" alt="SPAR" className="w-14 h-14 mx-auto rounded-xl bg-white p-1.5" />
+              <h1 className="text-2xl font-heading font-black tracking-wide">SPAR NUTRITION</h1>
+              <h2 className="text-lg font-medium text-muted-foreground">
                 {authMode === 'login' && 'Welcome Back'}
                 {authMode === 'signup' && 'Create Account'}
                 {authMode === 'forgot' && 'Reset Password'}
@@ -266,7 +274,7 @@ export default function Landing() {
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full h-12 bg-primary text-black font-bold"
+                  className="w-full h-12 bg-primary text-white font-bold"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -338,8 +346,8 @@ export default function Landing() {
       <div
         className="absolute inset-0 z-0 opacity-10 pointer-events-none"
         style={{
-          backgroundImage: `radial-gradient(circle at 25% 25%, hsl(84 100% 50% / 0.1) 0%, transparent 50%),
-                           radial-gradient(circle at 75% 75%, hsl(190 90% 50% / 0.1) 0%, transparent 50%)`,
+          backgroundImage: `radial-gradient(circle at 25% 25%, hsl(16 85% 55% / 0.1) 0%, transparent 50%),
+                           radial-gradient(circle at 75% 75%, hsl(225 100% 60% / 0.1) 0%, transparent 50%)`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -347,16 +355,14 @@ export default function Landing() {
 
       {/* Content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 text-center space-y-8 animate-in fade-in duration-1000">
-        <div className="space-y-2">
-          <div className="inline-block px-3 py-1 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-bold tracking-widest uppercase mb-4">
-            Performance Weight Management
-          </div>
-          <h1 className="text-7xl font-heading font-black italic tracking-tighter leading-none">
-            PWM
+        <div className="space-y-4">
+          <img src="/spar-logo.png" alt="SPAR Life" className="w-20 h-20 mx-auto rounded-2xl bg-white p-2 shadow-lg shadow-primary/20" />
+          <h1 className="text-4xl font-heading font-black tracking-wider leading-none">
+            SPAR <span className="text-primary">NUTRITION</span>
           </h1>
-          <p className="text-xl text-muted-foreground font-medium max-w-xs mx-auto">
-            Weight is an entry requirement. <br />
-            <span className="text-foreground">Performance is the goal.</span>
+          <p className="text-lg text-muted-foreground font-medium max-w-xs mx-auto leading-relaxed">
+            Fuel right. Make weight. <br />
+            <span className="text-foreground font-bold">Perform.</span>
           </p>
         </div>
 
@@ -380,7 +386,7 @@ export default function Landing() {
           </div>
           <Button
             onClick={() => setAuthMode('signup')}
-            className="w-full h-12 font-bold uppercase tracking-wider bg-primary text-black hover:bg-primary/90"
+            className="w-full h-12 font-bold uppercase tracking-wider bg-primary text-white hover:bg-primary/90"
           >
             Sign Up with Email
           </Button>
@@ -394,9 +400,9 @@ export default function Landing() {
         </div>
       </div>
 
-      <div className="relative z-10 p-6 text-center">
-        <p className="text-[10px] text-muted-foreground/50 uppercase tracking-widest">
-          Version 1.0.0 • Prototype
+      <div className="relative z-10 p-4 text-center">
+        <p className="text-[10px] text-muted-foreground/40 uppercase tracking-widest">
+          SPAR Life
         </p>
       </div>
     </div>

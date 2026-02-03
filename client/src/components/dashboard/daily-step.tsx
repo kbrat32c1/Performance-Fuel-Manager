@@ -1,16 +1,9 @@
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { CheckCircle2, Scale, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { LucideIcon } from "lucide-react";
-
-function getCurrentTimeStr(): string {
-  const now = new Date();
-  return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-}
 
 interface DailyStepProps {
   step: number;
@@ -32,21 +25,9 @@ export function DailyStep({
   icon: Icon,
   logs,
   logType,
-  addLog,
-  updateLog,
   targetWeight,
   simulatedDate
 }: DailyStepProps) {
-  const [weight, setWeight] = useState('');
-  const [logTime, setLogTime] = useState(getCurrentTimeStr());
-  const [duration, setDuration] = useState('');
-  const [sleepHours, setSleepHours] = useState('');
-  const [isLogging, setIsLogging] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-
-  const needsDuration = logType === 'post-practice';
-  const needsSleep = logType === 'morning';
-
   // Check if already logged today (use simulated date if available)
   const today = simulatedDate || new Date();
   const todayLog = logs.find(log => {
@@ -59,70 +40,15 @@ export function DailyStep({
 
   const isComplete = !!todayLog;
 
-  const handleSubmit = () => {
-    if (weight) {
-      const logDate = new Date(today);
-      const [h, m] = logTime.split(':').map(Number);
-      logDate.setHours(h, m, 0, 0);
-
-      const logData: any = {
-        weight: parseFloat(weight),
-        date: logDate,
-        type: logType,
-      };
-      if (needsDuration && duration) logData.duration = parseInt(duration, 10);
-      if (needsSleep && sleepHours) logData.sleepHours = parseFloat(sleepHours);
-
-      addLog(logData);
-      setWeight('');
-      setLogTime(getCurrentTimeStr());
-      setDuration('');
-      setSleepHours('');
-      setIsLogging(false);
-    }
+  const handleLog = () => {
+    // Open FAB for new entry of this type
+    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: logType } }));
   };
 
   const handleEdit = () => {
-    setWeight(todayLog.weight.toString());
-    const d = new Date(todayLog.date);
-    setLogTime(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`);
-    setDuration(todayLog.duration ? todayLog.duration.toString() : '');
-    setSleepHours(todayLog.sleepHours ? todayLog.sleepHours.toString() : '');
-    setIsEditing(true);
+    // Open FAB in edit mode with existing log data
+    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { editLog: todayLog } }));
   };
-
-  const handleUpdate = () => {
-    if (weight && todayLog) {
-      const updates: any = { weight: parseFloat(weight) };
-      if (logTime) {
-        const [h, m] = logTime.split(':').map(Number);
-        const newDate = new Date(todayLog.date);
-        newDate.setHours(h, m, 0, 0);
-        updates.date = newDate;
-      }
-      if (needsDuration && duration) updates.duration = parseInt(duration, 10);
-      if (needsSleep && sleepHours) updates.sleepHours = parseFloat(sleepHours);
-      updateLog(todayLog.id, updates);
-      setWeight('');
-      setLogTime(getCurrentTimeStr());
-      setDuration('');
-      setSleepHours('');
-      setIsEditing(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setWeight('');
-    setLogTime(getCurrentTimeStr());
-    setDuration('');
-    setSleepHours('');
-    setIsLogging(false);
-    setIsEditing(false);
-  };
-
-  const isSaveDisabled = !weight ||
-    (needsDuration && (!duration || parseInt(duration, 10) <= 0)) ||
-    (needsSleep && (!sleepHours || parseFloat(sleepHours) <= 0));
 
   return (
     <Card className={cn(
@@ -149,14 +75,14 @@ export function DailyStep({
             </div>
             <p className="text-xs text-muted-foreground mb-2">{description}</p>
 
-            {isComplete && !isEditing ? (
+            {isComplete ? (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono font-bold text-lg text-primary">{todayLog.weight} lbs</span>
                 <span className="text-xs text-muted-foreground">at {format(new Date(todayLog.date), 'h:mm a')}</span>
-                {needsDuration && todayLog.duration && (
+                {logType === 'post-practice' && todayLog.duration && (
                   <span className="text-[10px] text-orange-500 font-bold">{todayLog.duration}min</span>
                 )}
-                {needsSleep && todayLog.sleepHours && (
+                {logType === 'morning' && todayLog.sleepHours && (
                   <span className="text-[10px] text-purple-500 font-bold">{todayLog.sleepHours}hr sleep</span>
                 )}
                 {targetWeight && (
@@ -179,87 +105,11 @@ export function DailyStep({
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ) : (isLogging || isEditing) ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Weight"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    className="w-24 h-10 font-mono"
-                    autoFocus
-                    aria-label={`Enter ${title} weight in pounds`}
-                  />
-                  <span className="text-sm text-muted-foreground" aria-hidden="true">lbs</span>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="time"
-                      value={logTime}
-                      onChange={(e) => setLogTime(e.target.value)}
-                      className="h-8 text-xs font-mono bg-background border border-border rounded px-1.5"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setLogTime(getCurrentTimeStr())}
-                      className="text-[9px] text-primary font-bold px-1.5 py-1 rounded border border-primary/30 hover:bg-primary/10"
-                    >
-                      Now
-                    </button>
-                  </div>
-                </div>
-
-                {needsDuration && (
-                  <div className="flex items-center gap-2 p-2 rounded border border-orange-500/40 bg-orange-500/5">
-                    <span className="text-[10px] text-orange-500 font-bold whitespace-nowrap">Duration *</span>
-                    <Input
-                      type="number"
-                      placeholder="min"
-                      value={duration}
-                      onChange={(e) => setDuration(e.target.value)}
-                      className="w-20 h-8 text-xs font-mono border-orange-500/30"
-                    />
-                    <span className="text-[10px] text-muted-foreground">min</span>
-                    <span className="text-[9px] text-orange-500/70 ml-auto">for loss/hr</span>
-                  </div>
-                )}
-
-                {needsSleep && (
-                  <div className="flex items-center gap-2 p-2 rounded border border-purple-500/40 bg-purple-500/5">
-                    <span className="text-[10px] text-purple-500 font-bold whitespace-nowrap">Sleep *</span>
-                    <Input
-                      type="number"
-                      step="0.5"
-                      placeholder="hrs"
-                      value={sleepHours}
-                      onChange={(e) => setSleepHours(e.target.value)}
-                      className="w-20 h-8 text-xs font-mono border-purple-500/30"
-                    />
-                    <span className="text-[10px] text-muted-foreground">hrs</span>
-                    <span className="text-[9px] text-purple-500/70 ml-auto">for drift/hr</span>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={isEditing ? handleUpdate : handleSubmit}
-                    className="h-10"
-                    disabled={isSaveDisabled}
-                    aria-label={isEditing ? `Update ${title} weight` : `Save ${title} weight`}
-                  >
-                    {isEditing ? 'Update' : 'Save'}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleCancel} className="h-10">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
             ) : (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsLogging(true)}
+                onClick={handleLog}
                 className="h-10 min-w-[120px]"
               >
                 <Scale className="w-3 h-3 mr-1" />
@@ -267,7 +117,7 @@ export function DailyStep({
               </Button>
             )}
 
-            {!isComplete && !isLogging && (
+            {!isComplete && (
               <div className="mt-2 space-y-1">
                 {targetWeight && (
                   <p className="text-[10px] text-muted-foreground">

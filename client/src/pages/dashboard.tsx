@@ -160,6 +160,9 @@ export default function Dashboard() {
   const hydration = getHydrationTarget();
   const targetWeight = calculateTarget();
 
+  // Is this a SPAR protocol user? (No competition, no weight class)
+  const isSparProtocol = profile.protocol === '5';
+
   // Get protocol display name
   const getProtocolName = () => {
     switch (profile.protocol) {
@@ -167,13 +170,21 @@ export default function Dashboard() {
       case '2': return 'Make Weight Phase';
       case '3': return 'Hold Weight Phase';
       case '4': return 'Build Phase';
-      case '5': return 'SPAR Phase';
+      case '5': return 'SPAR Nutrition';
       default: return 'Unknown';
     }
   };
 
   // Get phase display info - driven by days-until-weigh-in, not day-of-week
   const getPhaseInfo = () => {
+    // SPAR users have a simple display - based on their weekly goal
+    if (isSparProtocol) {
+      const goalLabel = profile.weeklyGoal === 'cut' ? 'Cutting'
+        : profile.weeklyGoal === 'build' ? 'Building'
+        : 'Maintaining';
+      return { label: goalLabel, color: 'text-green-500' };
+    }
+
     if (daysUntilWeighIn < 0) {
       return { label: 'Recovery', color: 'text-cyan-500' };
     }
@@ -413,8 +424,8 @@ export default function Dashboard() {
           <OfflineBanner />
         )}
 
-        {/* Competition day reminder — use Recovery tab (dismissible) */}
-        {!isViewingHistorical && daysUntilWeighIn === 0 && profile.protocol !== '4' && !compDayDismissed && (
+        {/* Competition day reminder — use Recovery tab (dismissible) - not for SPAR */}
+        {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn === 0 && profile.protocol !== '4' && !compDayDismissed && (
           <button
             onClick={() => {
               setCompDayDismissed(true);
@@ -427,8 +438,8 @@ export default function Dashboard() {
             It's weigh-in day — tap here for your Recovery protocol
           </button>
         )}
-        {/* Day after weigh-in reminder — set next date */}
-        {!isViewingHistorical && daysUntilWeighIn < 0 && (
+        {/* Day after weigh-in reminder — set next date - not for SPAR */}
+        {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn < 0 && (
           <div className="w-full mb-2 px-3 py-2.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-500 text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2">
             <Calendar className="w-3.5 h-3.5" />
             Set your next weigh-in date in Settings ⚙️
@@ -457,8 +468,8 @@ export default function Dashboard() {
             <h1 className="text-2xl font-heading font-bold uppercase italic">
               {isViewingHistorical ? "Day Review" : (
                 profile.name
-                  ? `${profile.name}'s Cut`
-                  : "The Cut"
+                  ? isSparProtocol ? `${profile.name}'s Nutrition` : `${profile.name}'s Cut`
+                  : isSparProtocol ? "My Nutrition" : "The Cut"
               )}
             </h1>
             <div className="flex items-center gap-2 mt-1">
@@ -496,9 +507,9 @@ export default function Dashboard() {
         )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* FOCUS CARD — persistent coaching card at top             */}
+      {/* FOCUS CARD — persistent coaching card at top (competition only) */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {!isViewingHistorical && daysUntilWeighIn >= 0 && (
+      {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
         <FocusCard
           dailyPriority={dailyPriority}
           statusInfo={statusInfo}
@@ -510,8 +521,8 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Next Cycle Prompt — shows when weigh-in has passed */}
-      {!isViewingHistorical && (
+      {/* Next Cycle Prompt — shows when weigh-in has passed (competition only) */}
+      {!isViewingHistorical && !isSparProtocol && (
         <NextCyclePrompt
           profile={profile}
           updateProfile={updateProfile}
@@ -575,6 +586,7 @@ export default function Dashboard() {
         statusInfo={statusInfo}
         streak={streak}
         descentData={descentData}
+        isSparProtocol={isSparProtocol}
       />
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -609,9 +621,11 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* WEEK OVERVIEW (with drift/practice/projected stats)   */}
+      {/* WEEK OVERVIEW (with drift/practice/projected stats) - competition only */}
       {/* ═══════════════════════════════════════════════════════ */}
-      <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} descentData={descentData} timeUntilWeighIn={daysUntilWeighIn >= 0 ? getTimeUntilWeighIn() : null} daysUntilWeighIn={daysUntilWeighIn} />
+      {!isSparProtocol && (
+        <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} descentData={descentData} timeUntilWeighIn={daysUntilWeighIn >= 0 ? getTimeUntilWeighIn() : null} daysUntilWeighIn={daysUntilWeighIn} />
+      )}
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* FUEL SECTION - Food & Hydration collapsed into one card */}
@@ -899,6 +913,7 @@ function TodayTimeline({
   statusInfo,
   streak = 0,
   descentData,
+  isSparProtocol = false,
 }: {
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
   logs: any[];
@@ -912,6 +927,7 @@ function TodayTimeline({
   statusInfo: { status: string; label: string; contextMessage: string; recommendation?: any };
   streak?: number;
   descentData: { projectedSaturday: number | null; [key: string]: any };
+  isSparProtocol?: boolean;
 }) {
 
   const { toast } = useToast();
@@ -1014,10 +1030,15 @@ function TodayTimeline({
             ) : (
               <span className="text-sm font-mono text-muted-foreground">— lbs</span>
             )}
-            <span className="text-[11px] text-muted-foreground">·</span>
-            <span className="text-[11px] text-muted-foreground uppercase font-bold">
-              Class: <span className="text-foreground font-mono">{weightClass}</span>
-            </span>
+            {/* Only show weight class for competition users */}
+            {!isSparProtocol && (
+              <>
+                <span className="text-[11px] text-muted-foreground">·</span>
+                <span className="text-[11px] text-muted-foreground uppercase font-bold">
+                  Class: <span className="text-foreground font-mono">{weightClass}</span>
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {/* Completion indicator */}
@@ -1062,7 +1083,8 @@ function TodayTimeline({
               {streak} day streak
             </span>
           )}
-          {latestWeight && weightClass && latestWeight > weightClass && (
+          {/* Over class display - competition only */}
+          {!isSparProtocol && latestWeight && weightClass && latestWeight > weightClass && (
             <span className={cn(
               "text-[11px] font-mono font-bold",
               latestWeight - weightClass > 5 ? "text-destructive" :
@@ -1077,8 +1099,8 @@ function TodayTimeline({
             </span>
             )}
         </div>
-        {/* Positive feedback when at or under target */}
-        {latestWeight && latestWeight <= targetWeight && (
+        {/* Positive feedback when at or under target - competition only */}
+        {!isSparProtocol && latestWeight && latestWeight <= targetWeight && (
           <div className={cn(
             "flex items-center gap-1.5 rounded-md px-2 py-1",
             latestWeight <= weightClass

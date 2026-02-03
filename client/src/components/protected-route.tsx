@@ -11,10 +11,16 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requireOnboarding = true }: ProtectedRouteProps) {
   const { user, loading: authLoading } = useAuth();
-  const { profile, isLoading: storeLoading } = useStore();
+  const { profile, logs, isLoading: storeLoading } = useStore();
   const [location, setLocation] = useLocation();
 
   const isLoading = authLoading || storeLoading;
+
+  // Treat onboarding as complete if user has real data (name + weight class + logs)
+  // This prevents getting stuck in onboarding after a botched wizard re-run
+  // Exclude defaults (name='Athlete') so partial profiles don't skip onboarding
+  const hasRealData = !!(profile.name && profile.name !== 'Athlete' && profile.targetWeightClass && logs.length > 0);
+  const effectivelyOnboarded = profile.hasCompletedOnboarding || hasRealData;
 
   useEffect(() => {
     if (isLoading) return;
@@ -26,14 +32,15 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
     }
 
     // Determine the correct destination and redirect once
-    if (requireOnboarding && !profile.hasCompletedOnboarding) {
+    const isRerunWizard = typeof window !== 'undefined' && sessionStorage.getItem('rerunWizard') === 'true';
+    if (requireOnboarding && !effectivelyOnboarded) {
       if (location !== '/onboarding') {
         setLocation('/onboarding');
       }
-    } else if (location === '/onboarding' && profile.hasCompletedOnboarding) {
+    } else if (location === '/onboarding' && effectivelyOnboarded && !isRerunWizard) {
       setLocation('/dashboard');
     }
-  }, [isLoading, user, profile.hasCompletedOnboarding, location, setLocation, requireOnboarding]);
+  }, [isLoading, user, effectivelyOnboarded, location, setLocation, requireOnboarding]);
 
   // Show loading while checking auth or store
   if (isLoading) {

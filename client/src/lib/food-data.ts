@@ -14,6 +14,7 @@ export interface SparFood {
   protein?: number;   // grams (for protein items)
   carbs?: number;     // grams (for carb items)
   icon: string;
+  oz?: number;        // liquid oz (juices count toward water intake)
 }
 
 export const SPAR_FOODS = {

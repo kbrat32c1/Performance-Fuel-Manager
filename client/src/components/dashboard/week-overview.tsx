@@ -92,7 +92,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
 
                   {/* Today/Tomorrow Badge */}
                   {day.isToday && (
-                    <span className="text-[8px] bg-primary text-black px-1 rounded mt-0.5 font-bold">
+                    <span className="text-[8px] bg-primary text-white px-1 rounded mt-0.5 font-bold">
                       TODAY
                     </span>
                   )}

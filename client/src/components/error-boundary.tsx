@@ -76,7 +76,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
                 </Button>
                 <Button
                   onClick={this.handleGoHome}
-                  className="h-12 bg-primary text-black"
+                  className="h-12 bg-primary text-white"
                 >
                   <Home className="w-4 h-4 mr-2" />
                   Go Home

@@ -155,9 +155,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 px-4 py-2 sticky top-0 bg-card z-10">
+            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparProtocol ? "grid-cols-4" : "grid-cols-5")}>
               <TabsTrigger value="profile" className="text-[11px]">Profile</TabsTrigger>
-              <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>
+              {!isSparProtocol && <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>}
               <TabsTrigger value="alerts" className="text-[11px]">Alerts</TabsTrigger>
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
               <TabsTrigger value="data" className="text-[11px]">Data</TabsTrigger>
@@ -189,8 +189,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </div>
               </div>
 
-              {/* Weight Row */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Weight Row - Target Class only for competition protocols */}
+              {isSparProtocol ? (
                 <div className="space-y-1">
                   <Label className="text-[11px]">Current Weight</Label>
                   <div className="relative">
@@ -204,23 +204,39 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">lbs</span>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-[11px]">Target Class</Label>
-                  <Select
-                    value={getValue('targetWeightClass').toString()}
-                    onValueChange={(v) => handleChange({ targetWeightClass: parseInt(v) })}
-                  >
-                    <SelectTrigger className="h-10 font-mono">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEIGHT_CLASSES.map(w => (
-                        <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Current Weight</Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        value={getValue('currentWeight') || ''}
+                        onChange={(e) => handleChange({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
+                        className="h-10 font-mono pr-10"
+                        placeholder="170"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">lbs</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Target Class</Label>
+                    <Select
+                      value={getValue('targetWeightClass').toString()}
+                      onValueChange={(v) => handleChange({ targetWeightClass: parseInt(v) })}
+                    >
+                      <SelectTrigger className="h-10 font-mono">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WEIGHT_CLASSES.map(w => (
+                          <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Protocol */}
               <div className="space-y-1">
@@ -707,7 +723,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         )}
 
         {/* Sticky Footer - Only for tabs that need save */}
-        {(activeTab === 'profile' || activeTab === 'schedule') && (
+        {(activeTab === 'profile' || (activeTab === 'schedule' && !isSparProtocol)) && (
           <div className="shrink-0 px-4 py-3 pb-safe-bottom border-t border-muted bg-card flex gap-2">
             <Button
               variant="outline"

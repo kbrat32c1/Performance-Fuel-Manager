@@ -50,83 +50,83 @@
   --radius: 0.5rem;
 }
 
-/* Light Mode - Clean, readable */
+/* Light Mode - SPAR Brand */
 :root,
 .light {
   --background: 0 0% 98%;
-  --foreground: 240 10% 3.9%;
+  --foreground: 233 30% 15%;
 
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 3.9%;
+  --card-foreground: 233 30% 15%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 3.9%;
+  --popover-foreground: 233 30% 15%;
 
-  /* System Green - calmer, readable */
-  --primary: 142 71% 35%;
+  /* SPAR Orange - primary action color */
+  --primary: 16 82% 52%;
   --primary-foreground: 0 0% 100%;
 
-  /* Cool Cyan - adjusted for light mode */
-  --secondary: 190 80% 45%;
+  /* SPAR Blue - secondary/hydration */
+  --secondary: 225 100% 57%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
+  --muted: 233 10% 93%;
+  --muted-foreground: 233 10% 46%;
 
-  --accent: 240 4.8% 95.9%;
-  --accent-foreground: 240 5.9% 10%;
+  --accent: 233 10% 93%;
+  --accent-foreground: 233 30% 15%;
 
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 240 5.9% 90%;
-  --input: 240 5.9% 90%;
-  --ring: 142 71% 35%;
+  --border: 233 10% 88%;
+  --input: 233 10% 88%;
+  --ring: 16 82% 52%;
 
-  --chart-1: 142 71% 35%;  /* Green (Performance) */
-  --chart-2: 190 80% 45%; /* Cyan (Water) */
-  --chart-3: 30 90% 50%;  /* Amber (Gut/Warning) */
-  --chart-4: 0 84% 60%;   /* Red (Fat/Danger) */
-  --chart-5: 280 60% 55%; /* Purple (Muscle/Protected) */
+  --chart-1: 16 82% 52%;   /* Orange (SPAR Primary) */
+  --chart-2: 225 100% 57%; /* Blue (Water/Hydration) */
+  --chart-3: 42 100% 50%;  /* Amber (Warning) */
+  --chart-4: 0 84% 60%;    /* Red (Danger) */
+  --chart-5: 142 71% 45%;  /* Green (Success/On-track) */
 }
 
-/* Dark Mode - High Performance feel (default) */
+/* Dark Mode - SPAR Performance (default) */
 .dark {
-  --background: 240 10% 3.9%; /* Zinc 950 */
+  --background: 233 30% 6%; /* Deep navy-black */
   --foreground: 0 0% 98%;
 
-  --card: 240 10% 3.9%;
+  --card: 233 25% 9%;
   --card-foreground: 0 0% 98%;
 
-  --popover: 240 10% 3.9%;
+  --popover: 233 25% 9%;
   --popover-foreground: 0 0% 98%;
 
-  /* System Green - calmer, still readable on dark */
-  --primary: 142 71% 45%;
-  --primary-foreground: 240 5.9% 10%;
+  /* SPAR Orange - primary action color */
+  --primary: 16 85% 55%;
+  --primary-foreground: 0 0% 100%;
 
-  /* Cool Cyan - Hydration/Tech */
-  --secondary: 190 90% 50%;
-  --secondary-foreground: 240 5.9% 10%;
+  /* SPAR Blue - secondary/hydration */
+  --secondary: 225 100% 60%;
+  --secondary-foreground: 0 0% 100%;
 
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
+  --muted: 233 15% 15%;
+  --muted-foreground: 233 10% 60%;
 
-  --accent: 240 3.7% 15.9%;
+  --accent: 233 15% 15%;
   --accent-foreground: 0 0% 98%;
 
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
 
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 142 71% 45%;
+  --border: 233 15% 15%;
+  --input: 233 15% 15%;
+  --ring: 16 85% 55%;
 
-  --chart-1: 142 71% 45%; /* Green (Performance) */
-  --chart-2: 190 90% 50%; /* Cyan (Water) */
-  --chart-3: 30 100% 50%; /* Amber (Gut/Warning) */
-  --chart-4: 0 84% 60%;   /* Red (Fat/Danger) */
-  --chart-5: 280 60% 60%; /* Purple (Muscle/Protected) */
+  --chart-1: 16 85% 55%;   /* Orange (SPAR Primary) */
+  --chart-2: 225 100% 60%; /* Blue (Water/Hydration) */
+  --chart-3: 42 100% 50%;  /* Amber (Warning) */
+  --chart-4: 0 84% 60%;    /* Red (Danger) */
+  --chart-5: 142 71% 45%;  /* Green (Success/On-track) */
 }
 
 @layer base {

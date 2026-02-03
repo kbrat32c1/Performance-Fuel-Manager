@@ -8,7 +8,7 @@ import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWat
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 
 export default function Weekly() {
-  const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn } = useStore();
+  const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn, getWeeklyPlan } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
 
@@ -178,10 +178,10 @@ export default function Weekly() {
       {/* Header */}
       <header className="mb-4">
         <h2 className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">
-          Week of {format(startOfWeek(today, { weekStartsOn: 1 }), 'MMM d')}
+          {daysUntil > 0 ? `${daysUntil} days to weigh-in` : daysUntil === 0 ? 'Competition Day' : 'Recovery'}
         </h2>
         <h1 className="text-2xl font-heading font-bold uppercase italic">
-          Weekly Plan
+          The Plan
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {profile.targetWeightClass} lb class • Water scaled to {athleteWeightLbs} lbs
@@ -197,16 +197,32 @@ export default function Weekly() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                {descentData.pace === 'ahead' && <TrendingDown className={cn("w-5 h-5", phaseStyle.text)} />}
-                {descentData.pace === 'on-track' && <Target className={cn("w-5 h-5", phaseStyle.text)} />}
-                {descentData.pace === 'behind' && <TrendingUp className={cn("w-5 h-5", phaseStyle.text)} />}
-                {!descentData.pace && <Scale className="w-5 h-5 text-muted-foreground" />}
-                <span className="text-sm font-bold uppercase">
-                  {descentData.pace === 'ahead' ? "Ahead of Schedule!" :
-                   descentData.pace === 'on-track' ? "On Track" :
-                   descentData.pace === 'behind' ? "Behind Schedule" :
-                   "Week Progress"}
-                </span>
+                {descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight * 1.03
+                  ? <AlertTriangle className="w-5 h-5 text-red-500" />
+                  : descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight
+                    ? <AlertTriangle className="w-5 h-5 text-orange-500" />
+                    : descentData.pace === 'ahead' ? <TrendingDown className={cn("w-5 h-5", phaseStyle.text)} />
+                    : descentData.pace === 'on-track' ? <Target className={cn("w-5 h-5", phaseStyle.text)} />
+                    : descentData.pace === 'behind' ? <TrendingUp className={cn("w-5 h-5", phaseStyle.text)} />
+                    : <Scale className="w-5 h-5 text-muted-foreground" />}
+                <div>
+                  <span className="text-sm font-bold uppercase block">
+                    {/* Use projection-aware status: if projected Saturday weight misses target, show warning regardless of today's pace */}
+                    {descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight * 1.03
+                      ? "Projected Over"
+                      : descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight
+                        ? "Tight — Check Projections"
+                        : descentData.pace === 'ahead' ? "Ahead of Schedule!"
+                        : descentData.pace === 'on-track' ? "On Track"
+                        : descentData.pace === 'behind' ? "Behind Schedule"
+                        : "Week Progress"}
+                  </span>
+                  {daysUntil >= 3 && descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && (
+                    <span className="text-[9px] text-muted-foreground font-normal normal-case block">
+                      Normal during loading — big drop comes {format(addDays(new Date(), daysUntil - 2), 'EEE')}–{format(addDays(new Date(), daysUntil - 1), 'EEE')}
+                    </span>
+                  )}
+                </div>
               </div>
               <span className={cn(
                 "text-xs font-bold px-2 py-1 rounded",
@@ -289,6 +305,11 @@ export default function Weekly() {
                   )}>
                     {descentData.projectedSaturday !== null ? `${descentData.projectedSaturday.toFixed(1)}` : '—'} lbs
                   </span>
+                  {daysUntil >= 3 && descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && (
+                    <span className="block text-[9px] text-muted-foreground/60">
+                      drops {format(addDays(new Date(), daysUntil - 2), 'EEE')}–{format(addDays(new Date(), daysUntil - 1), 'EEE')}
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -307,19 +328,37 @@ export default function Weekly() {
               return (
                 <div className="text-[9px] text-muted-foreground text-center mt-1">
                   <Dumbbell className="w-3 h-3 inline mr-1 text-orange-500" />
-                  Extra workouts: <span className="text-orange-500 font-mono font-bold">{extraStats.totalWorkouts}</span>
+                  Extra workouts done: <span className="text-orange-500 font-mono font-bold">{extraStats.totalWorkouts}</span>
                   {extraStats.avgLoss && (
                     <span className="ml-1">(avg: -{extraStats.avgLoss.toFixed(1)} lbs each)</span>
+                  )}
+                  {descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && extraStats.avgLoss && extraStats.avgLoss > 0 && (
+                    <span className="ml-1 text-red-400">
+                      • Need ~{Math.max(0, Math.ceil((descentData.projectedSaturday - descentData.targetWeight) / extraStats.avgLoss))} more
+                    </span>
                   )}
                 </div>
               );
             })()}
 
-            {/* Progress Message */}
+            {/* Progress Message — projection-aware */}
             {descentData.totalLost !== null && descentData.currentWeight && (() => {
-              // During water loading days (3-5 days out), show water loading aware message
               const isWaterLoading = isWaterLoadingDay();
               const toGoal = (descentData.currentWeight - descentData.targetWeight).toFixed(1);
+              const projectedOver = descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight;
+              const projectedOverAmt = descentData.projectedSaturday !== null ? (descentData.projectedSaturday - descentData.targetWeight).toFixed(1) : '0';
+
+              // If projection shows over target, override pace message with warning
+              if (projectedOver) {
+                return (
+                  <div className="mt-3 p-2 rounded-lg text-center text-sm bg-orange-500/10 text-orange-500">
+                    {isWaterLoading
+                      ? <>Projected <strong>{projectedOverAmt} lbs over</strong> at weigh-in. Normal during loading — track closely.</>
+                      : <>Projected <strong>{projectedOverAmt} lbs over</strong> at weigh-in. <strong>{toGoal} lbs</strong> left to cut.</>
+                    }
+                  </div>
+                );
+              }
 
               return (
                 <div className={cn(
@@ -386,88 +425,68 @@ export default function Weekly() {
                 </tr>
               </thead>
               <tbody>
-                {days.map((day) => {
-                  const target = weightTargets[day.key as keyof typeof weightTargets];
-                  const morningLog = getLoggedWeight(day.dayNum, 'morning');
-                  // Morning weigh-in is the primary data point for all days
+                {getWeeklyPlan().map((planDay) => {
+                  const dayDate = new Date(planDay.date);
+                  const morningLog = logs.find(log => {
+                    const logDate = new Date(log.date);
+                    return log.type === 'morning' &&
+                      logDate.getFullYear() === dayDate.getFullYear() &&
+                      logDate.getMonth() === dayDate.getMonth() &&
+                      logDate.getDate() === dayDate.getDate();
+                  });
                   const relevantLog = morningLog;
-                  const isToday = currentDayOfWeek === day.dayNum;
-                  const isPast = (day.dayNum < currentDayOfWeek && currentDayOfWeek !== 0) || (day.dayNum !== 0 && currentDayOfWeek === 0);
-                  const dayDaysUntil = dayToDaysUntil[day.key];
+                  const dayDaysUntil = Math.round((new Date(profile.weighInDate).getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
                   const isLoadingDay = dayDaysUntil >= 3 && dayDaysUntil <= 5;
-                  const isCritical = dayDaysUntil === 1;
+                  const isCritical = planDay.isCriticalCheckpoint || dayDaysUntil === 1;
+                  const dateLabel = format(dayDate, 'M/d');
 
                   let status: 'on-track' | 'behind' | 'ahead' | 'none' = 'none';
                   if (relevantLog) {
-                    // target.target already includes water loading for Mon-Wed (uses range.max)
-                    // No need to add waterLoadBonus again
-                    const diff = relevantLog.weight - target.target;
-
-                    // Small tolerance for measurement variance
+                    const diff = relevantLog.weight - planDay.weightTarget;
                     const tolerance = 1.5;
-
-                    if (diff <= -1) status = 'ahead'; // Under target by more than 1 lb
-                    else if (diff <= tolerance) status = 'on-track'; // Within tolerance
-                    else status = 'behind'; // Over tolerance
+                    if (diff <= -1) status = 'ahead';
+                    else if (diff <= tolerance) status = 'on-track';
+                    else status = 'behind';
                   }
 
                   return (
                     <tr
-                      key={day.key}
+                      key={dayDate.toISOString()}
                       className={cn(
                         "border-t border-muted",
-                        isToday && phaseStyle.bgLight,
-                        isCritical && !isToday && "bg-orange-500/5"
+                        planDay.isToday && phaseStyle.bgLight,
+                        isCritical && !planDay.isToday && "bg-orange-500/5"
                       )}
                     >
                       <td className="p-2">
                         <div className="flex items-center gap-2">
                           <span className={cn(
                             "font-bold",
-                            isToday && phaseStyle.text,
-                            isCritical && !isToday && "text-orange-500"
-                          )}>{day.label}</span>
-                          {isToday && <span className={cn("text-[10px] text-black px-1 rounded", phaseStyle.bg)}>TODAY</span>}
-                          {isCritical && !isToday && <span className="text-[10px] bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
+                            planDay.isToday && phaseStyle.text,
+                            isCritical && !planDay.isToday && "text-orange-500"
+                          )}>{planDay.day.slice(0, 3)} <span className="text-[9px] text-muted-foreground font-normal">{dateLabel}</span></span>
+                          {planDay.isToday && <span className={cn("text-[10px] text-black px-1 rounded", phaseStyle.bg)}>TODAY</span>}
+                          {isCritical && !planDay.isToday && <span className="text-[10px] bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{target.label}</span>
-                        {target.note && (
+                        <span className="text-[10px] text-muted-foreground">{planDay.phase}</span>
+                        {planDay.waterLoadingNote && (
                           <div className={cn(
                             "text-[9px]",
                             isLoadingDay ? "text-cyan-500" : isCritical ? "text-orange-500 font-bold" : "text-muted-foreground"
                           )}>
-                            {target.note}
+                            {planDay.waterLoadingNote}
                           </div>
                         )}
                       </td>
                       <td className="p-2 text-center">
-                        {target.withLoading ? (
-                          <div>
-                            <span className="font-mono font-bold text-cyan-500">{target.withLoading}</span>
-                            <div className="text-[9px] text-muted-foreground line-through">{target.range}</div>
-                          </div>
-                        ) : (
-                          <span className={cn(
-                            "font-mono font-bold",
-                            isCritical && "text-orange-500"
-                          )}>{target.range}</span>
-                        )}
+                        <span className={cn(
+                          "font-mono font-bold",
+                          isCritical && "text-orange-500"
+                        )}>{planDay.weightTarget}</span>
                       </td>
                       <td className="p-2 text-center">
                         {relevantLog ? (
-                          <div>
-                            <span className="font-mono font-bold">{relevantLog.weight}</span>
-                            {(() => {
-                              const extraWorkouts = getExtraWorkoutsForDay(day.dayNum);
-                              if (extraWorkouts.count === 0) return null;
-                              return (
-                                <div className="text-[9px] text-orange-500 flex items-center justify-center gap-0.5">
-                                  <Dumbbell className="w-2.5 h-2.5" />
-                                  <span>-{extraWorkouts.totalLoss.toFixed(1)}</span>
-                                </div>
-                              );
-                            })()}
-                          </div>
+                          <span className="font-mono font-bold">{relevantLog.weight}</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
@@ -507,23 +526,24 @@ export default function Weekly() {
                 </tr>
               </thead>
               <tbody>
-                {days.map((day) => {
-                  const waterAmount = getWaterForDay(day.key);
-                  const sodiumInfo = getSodiumForDay(day.key);
-                  const isToday = currentDayOfWeek === day.dayNum;
-                  const daysOut = dayToDaysUntil[day.key] ?? 5;
+                {getWeeklyPlan().map((planDay) => {
+                  const dayDate = new Date(planDay.date);
+                  const daysOut = Math.round((new Date(profile.weighInDate).getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const waterAmount = getWaterTargetGallons(daysOut, athleteWeightLbs);
+                  const sodiumInfo = getSodiumTarget(daysOut);
+                  const dateLabel = format(dayDate, 'M/d');
 
                   return (
                     <tr
-                      key={day.key}
+                      key={dayDate.toISOString()}
                       className={cn(
                         "border-t border-muted",
-                        isToday && phaseStyle.bgLight
+                        planDay.isToday && phaseStyle.bgLight
                       )}
                     >
                       <td className="p-2">
-                        <span className={cn("font-bold", isToday && phaseStyle.text)}>{day.label}</span>
-                        {isToday && <span className={cn("text-[10px] text-black px-1 rounded ml-1", phaseStyle.bg)}>TODAY</span>}
+                        <span className={cn("font-bold", planDay.isToday && phaseStyle.text)}>{planDay.day.slice(0, 3)} <span className="text-[9px] text-muted-foreground font-normal">{dateLabel}</span></span>
+                        {planDay.isToday && <span className={cn("text-[10px] text-black px-1 rounded ml-1", phaseStyle.bg)}>TODAY</span>}
                       </td>
                       <td className="p-2 text-center">
                         <span className={cn(
@@ -591,6 +611,7 @@ export default function Weekly() {
                   { class: 174, walk: '185-187', wed: '182-183', fri: '178-180' },
                   { class: 184, walk: '196-198', wed: '193-194', fri: '189-191' },
                   { class: 197, walk: '209-211', wed: '206-207', fri: '202-203' },
+                  { class: 285, walk: '303-305', wed: '299-300', fri: '293-294' },
                 ].map((row) => {
                   const isUserClass = row.class === profile.targetWeightClass;
                   return (

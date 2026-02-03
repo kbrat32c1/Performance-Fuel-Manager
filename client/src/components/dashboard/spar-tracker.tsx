@@ -12,14 +12,12 @@ import {
   ChevronRight,
   Search,
   X,
-  Minus,
   Trash2,
-  Pencil,
-  Star,
   HelpCircle,
   Flame,
   Wheat,
   Apple,
+  Droplets,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -47,6 +45,12 @@ interface SparTrackerProps {
   embedded?: boolean;
   /** Protocol-based food restrictions */
   restrictions?: ProtocolRestrictions;
+  /** Override food lists (used when Protocols 1-4 display Sugar Diet foods as slices) */
+  foodOverride?: Record<SliceCategory, SparFood[]>;
+  /** Override the header label (e.g., "Fuel (Slices)" instead of "SPAR Nutrition") */
+  headerLabel?: string;
+  /** Gram targets to show alongside slice counts (for Sugar Diet protocols) */
+  gramTargets?: { carbs: { max: number }; protein: { max: number } };
 }
 
 // Category config
@@ -92,126 +96,16 @@ const CATEGORY_CONFIG: Record<SliceCategory, {
     unit: 'fist',
     icon: Apple,
     color: 'text-green-500',
-    bgColor: 'bg-green-500/5',
-    bgHover: 'hover:bg-green-500/15',
-    bgActive: 'active:bg-green-500/25',
-    bgRing: 'bg-green-500/30 ring-2 ring-green-500',
-    progressColor: 'bg-green-500',
+    bgColor: 'bg-primary/5',
+    bgHover: 'hover:bg-primary/15',
+    bgActive: 'active:bg-primary/25',
+    bgRing: 'bg-primary/30 ring-2 ring-primary',
+    progressColor: 'bg-primary',
   },
 };
 
 // Number of items to show before "See all"
 const PREVIEW_COUNT = 6;
-
-// ─── Pie Slice Progress ───
-// Each "slice" is a literal pie wedge — filled = consumed, empty = remaining
-
-function pieSlicePath(cx: number, cy: number, r: number, startAngle: number, endAngle: number): string {
-  const start = {
-    x: cx + r * Math.cos(startAngle),
-    y: cy + r * Math.sin(startAngle),
-  };
-  const end = {
-    x: cx + r * Math.cos(endAngle),
-    y: cy + r * Math.sin(endAngle),
-  };
-  const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
-  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
-}
-
-function SliceProgress({
-  consumed,
-  target,
-  category,
-  size = 100,
-  onTap,
-}: {
-  consumed: number;
-  target: number;
-  category: SliceCategory;
-  size?: number;
-  onTap?: () => void;
-}) {
-  const config = CATEGORY_CONFIG[category];
-  const done = consumed >= target;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 2;
-  const totalSlices = Math.max(target, 1);
-  const gap = 0.03; // small gap between slices in radians
-  const sliceAngle = (2 * Math.PI - totalSlices * gap) / totalSlices;
-  const startOffset = -Math.PI / 2; // start from top
-
-  // Color map for filled slices
-  const fillColor = category === 'protein' ? 'hsl(25, 95%, 53%)' // orange-500
-    : category === 'carb' ? 'hsl(45, 93%, 47%)' // amber-500
-    : 'hsl(142, 71%, 45%)'; // green-500
-  const doneColor = 'hsl(142, 71%, 45%)'; // green-500
-
-  return (
-    <div className="flex flex-col items-center">
-      <button
-        type="button"
-        onClick={onTap}
-        disabled={!onTap}
-        className={cn(
-          "relative transition-transform",
-          onTap && "active:scale-95 cursor-pointer hover:opacity-90"
-        )}
-        style={{ width: size, height: size }}
-        title={onTap ? `Tap to add 1 ${config.shortLabel} slice` : undefined}
-      >
-        <svg width={size} height={size}>
-          {Array.from({ length: totalSlices }, (_, i) => {
-            const angle0 = startOffset + i * (sliceAngle + gap);
-            const angle1 = angle0 + sliceAngle;
-            const isFilled = i < consumed;
-            const isOver = i >= target; // extra slices beyond target
-
-            return (
-              <path
-                key={i}
-                d={pieSlicePath(cx, cy, r, angle0, angle1)}
-                fill={
-                  isOver ? doneColor
-                  : isFilled ? (done ? doneColor : fillColor)
-                  : 'hsl(var(--muted))'
-                }
-                opacity={isFilled ? 1 : 0.15}
-                stroke="hsl(var(--background))"
-                strokeWidth={1.5}
-                className="transition-all duration-300"
-              />
-            );
-          })}
-          {/* Overage slices (consumed > target) */}
-          {consumed > target && Array.from({ length: consumed - target }, (_, i) => {
-            const idx = target + i;
-            const angle0 = startOffset + idx * (sliceAngle + gap);
-            const angle1 = angle0 + sliceAngle;
-            return (
-              <path
-                key={`over-${i}`}
-                d={pieSlicePath(cx, cy, r * 0.7, angle0, angle1)}
-                fill={doneColor}
-                opacity={0.5}
-                stroke="hsl(var(--background))"
-                strokeWidth={1}
-              />
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className={cn("text-lg font-bold font-mono", done ? "text-green-500" : "")}>
-            {consumed}
-          </span>
-        </div>
-      </button>
-      <span className={cn("text-[11px] font-bold mt-1", config.color)}>{config.shortLabel}</span>
-      <span className="text-[10px] text-muted-foreground">/ {target}</span>
-    </div>
-  );
-}
 
 // ─── Food Item Button ───
 
@@ -232,7 +126,7 @@ function SparFoodRow({
     <button
       onClick={onAdd}
       className={cn(
-        "w-full flex items-center justify-between rounded-lg px-2.5 py-2 transition-all text-left",
+        "w-full flex items-center justify-between rounded-lg px-2.5 py-2.5 transition-all text-left",
         isJustAdded ? config.bgRing : `${config.bgColor} ${config.bgHover} ${config.bgActive}`
       )}
     >
@@ -243,6 +137,11 @@ function SparFoodRow({
           <span className="text-sm shrink-0">{food.icon}</span>
         )}
         <span className="text-[11px] font-medium text-foreground truncate">{food.name}</span>
+        {food.oz && (
+          <span className="text-[9px] text-cyan-500 font-bold flex items-center gap-0.5">
+            <Droplets className="w-2.5 h-2.5" />+{food.oz}oz
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2 text-[10px] shrink-0 ml-2">
         <span className="text-muted-foreground">{food.serving}</span>
@@ -275,7 +174,7 @@ function WhyExplanation({ title, children }: { title: string; children: React.Re
 
 // ─── Main SPAR Tracker Component ───
 
-export function SparTracker({ readOnly = false, embedded = false, restrictions }: SparTrackerProps) {
+export function SparTracker({ readOnly = false, embedded = false, restrictions, foodOverride, headerLabel, gramTargets }: SparTrackerProps) {
   const { getDailyTracking, updateDailyTracking, profile, getSliceTargets } = useStore();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
@@ -297,6 +196,10 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [showCustomFood, setShowCustomFood] = useState(false);
   const [showCustomMeal, setShowCustomMeal] = useState(false);
+
+  // Water added toast
+  const [waterToast, setWaterToast] = useState<string | null>(null);
+  const waterToastTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Custom food form
   const [customName, setCustomName] = useState('');
@@ -359,6 +262,29 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
     }
   }, [customMeals]);
 
+  // Recent foods — track last 5 per category for smart sorting
+  const recentFoodsKey = 'pwm-spar-recent-foods';
+  const [recentFoods, setRecentFoods] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(recentFoodsKey);
+      if (saved) { try { return JSON.parse(saved); } catch { return {}; } }
+    }
+    return {};
+  });
+
+  const trackRecentFood = useCallback((foodName: string, category: SliceCategory) => {
+    setRecentFoods(prev => {
+      const key = category;
+      const existing = prev[key] || [];
+      const updated = [foodName, ...existing.filter(n => n !== foodName)].slice(0, 5);
+      const next = { ...prev, [key]: updated };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(recentFoodsKey, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
   // Visual feedback for adding
   const [lastAdded, setLastAdded] = useState<{ foodName: string; category: SliceCategory } | null>(null);
   const lastAddedTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -407,14 +333,35 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
     const sliceKey = category === 'protein' ? 'proteinSlices' : category === 'carb' ? 'carbSlices' : 'vegSlices';
     const currentVal = category === 'protein' ? tracking.proteinSlices : category === 'carb' ? tracking.carbSlices : tracking.vegSlices;
 
-    updateDailyTracking(dateKey, {
+    // Gram equivalent for cross-sync
+    const gramAmount = category === 'protein' ? (food.protein || 25) : category === 'carb' ? (food.carbs || 30) : 0;
+    const gramKey = category === 'protein' ? 'proteinConsumed' : category === 'carb' ? 'carbsConsumed' : null;
+
+    const updates: Record<string, any> = {
       [sliceKey]: currentVal + 1,
       nutritionMode: 'spar',
-    });
+    };
 
+    // Cross-sync: also update gram totals so switching modes stays consistent
+    if (gramKey) {
+      const currentGrams = gramKey === 'proteinConsumed' ? tracking.proteinConsumed : tracking.carbsConsumed;
+      updates[gramKey] = currentGrams + gramAmount;
+    }
+
+    // If this is a liquid food, also add to water intake
+    if (food.oz && food.oz > 0) {
+      updates.waterConsumed = tracking.waterConsumed + food.oz;
+      // Show water toast
+      setWaterToast(`${food.name}: +1 slice +${food.oz}oz water`);
+      if (waterToastTimeout.current) clearTimeout(waterToastTimeout.current);
+      waterToastTimeout.current = setTimeout(() => setWaterToast(null), 2500);
+    }
+
+    updateDailyTracking(dateKey, updates);
     setLastAdded({ foodName: food.name, category });
+    trackRecentFood(food.name, category);
 
-    // Add to history
+    // Add to history (include gram amount for undo cross-sync)
     const entry: FoodLogEntry = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: food.name,
@@ -422,15 +369,23 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
       mode: 'spar',
       sliceType: category,
       sliceCount: 1,
+      liquidOz: food.oz || undefined,
+      gramAmount: gramAmount || undefined,
     };
     setFoodHistory(prev => [...prev, entry]);
-  }, [dateKey, tracking, updateDailyTracking]);
+  }, [dateKey, tracking, updateDailyTracking, trackRecentFood]);
 
   const handleAddMeal = useCallback((meal: SparMeal) => {
-    // Update slice counts
+    // Update slice counts + cross-sync grams
     const updates: Record<string, any> = { nutritionMode: 'spar' };
-    if (meal.totalProtein > 0) updates.proteinSlices = tracking.proteinSlices + meal.totalProtein;
-    if (meal.totalCarb > 0) updates.carbSlices = tracking.carbSlices + meal.totalCarb;
+    if (meal.totalProtein > 0) {
+      updates.proteinSlices = tracking.proteinSlices + meal.totalProtein;
+      updates.proteinConsumed = tracking.proteinConsumed + (meal.totalProtein * 25);
+    }
+    if (meal.totalCarb > 0) {
+      updates.carbSlices = tracking.carbSlices + meal.totalCarb;
+      updates.carbsConsumed = tracking.carbsConsumed + (meal.totalCarb * 30);
+    }
     if (meal.totalVeg > 0) updates.vegSlices = tracking.vegSlices + meal.totalVeg;
 
     updateDailyTracking(dateKey, updates);
@@ -455,6 +410,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
 
     const lastEntry = foodHistory[foodHistory.length - 1];
     const sliceCount = lastEntry.sliceCount || 1;
+    const updates: Record<string, any> = {};
 
     if (lastEntry.sliceType) {
       const sliceKey = lastEntry.sliceType === 'protein' ? 'proteinSlices'
@@ -462,11 +418,23 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
       const current = lastEntry.sliceType === 'protein' ? tracking.proteinSlices
         : lastEntry.sliceType === 'carb' ? tracking.carbSlices : tracking.vegSlices;
 
-      updateDailyTracking(dateKey, {
-        [sliceKey]: Math.max(0, current - sliceCount),
-      });
+      updates[sliceKey] = Math.max(0, current - sliceCount);
+
+      // Cross-sync: also undo gram equivalent
+      const gramAmount = lastEntry.gramAmount || (lastEntry.sliceType === 'protein' ? 25 : lastEntry.sliceType === 'carb' ? 30 : 0);
+      if (gramAmount > 0 && lastEntry.sliceType !== 'veg') {
+        const gramKey = lastEntry.sliceType === 'protein' ? 'proteinConsumed' : 'carbsConsumed';
+        const currentGrams = gramKey === 'proteinConsumed' ? tracking.proteinConsumed : tracking.carbsConsumed;
+        updates[gramKey] = Math.max(0, currentGrams - (gramAmount * sliceCount));
+      }
     }
 
+    // Also undo water if it was a liquid
+    if (lastEntry.liquidOz && lastEntry.liquidOz > 0) {
+      updates.waterConsumed = Math.max(0, tracking.waterConsumed - lastEntry.liquidOz);
+    }
+
+    updateDailyTracking(dateKey, updates);
     setFoodHistory(prev => prev.slice(0, -1));
   }, [foodHistory, tracking, dateKey, updateDailyTracking]);
 
@@ -475,6 +443,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
       proteinSlices: 0,
       carbSlices: 0,
       vegSlices: 0,
+      proteinConsumed: 0,
+      carbsConsumed: 0,
     });
     setFoodHistory([]);
     if (typeof window !== 'undefined') {
@@ -492,7 +462,16 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
     const current = category === 'protein' ? tracking.proteinSlices : category === 'carb' ? tracking.carbSlices : tracking.vegSlices;
     const newVal = Math.max(0, current + delta);
 
-    updateDailyTracking(dateKey, { [sliceKey]: newVal, nutritionMode: 'spar' });
+    const updates: Record<string, any> = { [sliceKey]: newVal, nutritionMode: 'spar' };
+
+    // Cross-sync: also update gram totals
+    if (category === 'protein') {
+      updates.proteinConsumed = Math.max(0, tracking.proteinConsumed + (delta * 25));
+    } else if (category === 'carb') {
+      updates.carbsConsumed = Math.max(0, tracking.carbsConsumed + (delta * 30));
+    }
+
+    updateDailyTracking(dateKey, updates);
 
     if (delta > 0) {
       const entry: FoodLogEntry = {
@@ -541,7 +520,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
     setShowCustomMeal(false);
   };
 
-  // ─── Filtered food lists ───
+  // ─── Filtered food lists with recent foods at top ───
 
   const filterFoods = <T extends { name: string }>(foods: T[]): T[] => {
     if (!searchQuery) return foods;
@@ -550,15 +529,28 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
   };
 
   const activeFoods = useMemo(() => {
-    const builtIn = SPAR_FOODS[activeCategory];
+    const builtIn = foodOverride ? foodOverride[activeCategory] : SPAR_FOODS[activeCategory];
     const custom = customFoods.filter(f => f.category === activeCategory).map(f => ({
       name: f.name,
       serving: f.serving,
       calories: f.calories,
       icon: f.icon,
     } as SparFood));
-    return filterFoods([...builtIn, ...custom]);
-  }, [activeCategory, customFoods, searchQuery]);
+    const allFoods = filterFoods([...builtIn, ...custom]);
+
+    // Sort: recent foods first
+    const recent = recentFoods[activeCategory] || [];
+    if (recent.length === 0 || searchQuery) return allFoods;
+
+    const recentSet = new Set(recent);
+    const recentItems = allFoods.filter(f => recentSet.has(f.name));
+    const otherItems = allFoods.filter(f => !recentSet.has(f.name));
+
+    // Sort recent items by recency order
+    recentItems.sort((a, b) => recent.indexOf(a.name) - recent.indexOf(b.name));
+
+    return [...recentItems, ...otherItems];
+  }, [activeCategory, customFoods, searchQuery, foodOverride, recentFoods]);
 
   const filteredMeals = useMemo(() => {
     if (!searchQuery) return customMeals;
@@ -577,155 +569,162 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
   const allDone = proteinDone && carbDone && vegDone;
   const totalSlices = tracking.proteinSlices + tracking.carbSlices + tracking.vegSlices;
   const totalTarget = targets.protein + targets.carb + targets.veg;
+  const overallProgress = totalTarget > 0 ? Math.min(100, Math.round((totalSlices / totalTarget) * 100)) : 0;
+
+  // Category done map for tab indicators
+  const categoryDone: Record<SliceCategory, boolean> = {
+    protein: proteinDone,
+    carb: carbDone,
+    veg: vegDone,
+  };
 
   // ─── Render ───
 
   const content = (
-    <div className="space-y-4">
-      {/* ── Header + Progress Rings ── */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Salad className={cn("w-4 h-4", allDone ? "text-green-500" : "text-green-500")} />
-            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">SPAR Nutrition</span>
-            {allDone && (
-              <span className="text-[9px] font-bold bg-green-500/15 text-green-500 px-1.5 py-0.5 rounded">ALL DONE</span>
-            )}
-          </div>
-          <span className="text-[10px] text-muted-foreground font-mono">
-            {totalSlices}/{totalTarget} slices
-          </span>
-        </div>
-
-        {/* Protocol restriction warning */}
-        {restrictions?.warning && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-1.5">
-            <p className="text-[10px] font-bold text-red-400">
-              🚫 {restrictions.warning}
-            </p>
-            {restrictions.warningDetail && (
-              <p className="text-[9px] text-red-400/80 mt-0.5">{restrictions.warningDetail}</p>
-            )}
-          </div>
-        )}
-
-        {/* Ratio label from protocol */}
-        {restrictions?.ratioLabel && (
-          <div className="text-[10px] text-muted-foreground text-right font-mono">
-            {restrictions.ratioLabel}
-          </div>
-        )}
-
-        {/* Calorie estimate */}
-        <div className="text-[10px] text-muted-foreground">
-          Target: ~{targets.totalCalories} cal/day • {targets.protein}P / {targets.carb}C / {targets.veg}V slices
-        </div>
-
-        {/* Progress pies — tap to add, hidden when blocked/zero target */}
-        <div className="flex justify-around py-2">
-          {!isCategoryBlocked('protein') && targets.protein > 0 && (
-            <SliceProgress
-              consumed={tracking.proteinSlices}
-              target={targets.protein}
-              category="protein"
-              onTap={readOnly ? undefined : () => handleQuickAdjust('protein', 1)}
-            />
-          )}
-          {!isCategoryBlocked('carb') && targets.carb > 0 && (
-            <SliceProgress
-              consumed={tracking.carbSlices}
-              target={targets.carb}
-              category="carb"
-              onTap={readOnly ? undefined : () => handleQuickAdjust('carb', 1)}
-            />
-          )}
-          {!isCategoryBlocked('veg') && targets.veg > 0 && (
-            <SliceProgress
-              consumed={tracking.vegSlices}
-              target={targets.veg}
-              category="veg"
-              onTap={readOnly ? undefined : () => handleQuickAdjust('veg', 1)}
-            />
+    <div className="space-y-3">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Salad className={cn("w-4 h-4", allDone ? "text-green-500" : "text-primary")} />
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{headerLabel || 'SPAR Nutrition'}</span>
+          {allDone && (
+            <span className="text-[9px] font-bold bg-green-500/15 text-green-500 px-1.5 py-0.5 rounded">ALL DONE ✓</span>
           )}
         </div>
+      </div>
 
-        {/* Quick +/- buttons for each category */}
-        {!readOnly && (
-          <div className="flex gap-2 justify-center">
-            {(['protein', 'carb', 'veg'] as SliceCategory[]).map(cat => {
-              const config = CATEGORY_CONFIG[cat];
-              const current = cat === 'protein' ? tracking.proteinSlices : cat === 'carb' ? tracking.carbSlices : tracking.vegSlices;
-              const blocked = isCategoryBlocked(cat);
+      {/* Protocol restriction warning */}
+      {restrictions?.warning && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-1.5">
+          <p className="text-[10px] font-bold text-red-400">
+            {restrictions.warning}
+          </p>
+          {restrictions.warningDetail && (
+            <p className="text-[9px] text-red-400/80 mt-0.5">{restrictions.warningDetail}</p>
+          )}
+        </div>
+      )}
+
+      {/* Water toast notification */}
+      {waterToast && (
+        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-2.5 py-1.5 flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+          <Droplets className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+          <p className="text-[10px] font-medium text-cyan-500">{waterToast}</p>
+        </div>
+      )}
+
+      {/* ── Compact Progress Strip — tappable quick-add ── */}
+      {!readOnly && (
+        <div className="flex gap-2">
+          {([
+            { cat: 'protein' as SliceCategory, consumed: tracking.proteinSlices, target: targets.protein },
+            { cat: 'carb' as SliceCategory, consumed: tracking.carbSlices, target: targets.carb },
+            { cat: 'veg' as SliceCategory, consumed: tracking.vegSlices, target: targets.veg },
+          ]).map(({ cat, consumed, target }) => {
+            const config = CATEGORY_CONFIG[cat];
+            const blocked = isCategoryBlocked(cat);
+            const done = consumed >= target && target > 0;
+            const isOver = consumed > target;
+            if (blocked) {
               return (
-                <div key={cat} className={cn("flex items-center gap-1", blocked && "opacity-30")}>
-                  <button
-                    onClick={() => handleQuickAdjust(cat, -1)}
-                    disabled={current === 0}
-                    className={cn(
-                      "w-6 h-6 rounded flex items-center justify-center border transition-all",
-                      current === 0
-                        ? "border-muted/30 text-muted-foreground/30"
-                        : `border-muted ${config.bgColor} ${config.bgHover} ${config.color}`
-                    )}
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className={cn("text-[10px] font-bold w-5 text-center", blocked ? "text-muted-foreground line-through" : config.color)}>
-                    {config.shortLabel}
-                  </span>
-                  <button
-                    onClick={() => handleQuickAdjust(cat, 1)}
-                    disabled={blocked}
-                    className={cn(
-                      "w-6 h-6 rounded flex items-center justify-center border transition-all",
-                      blocked
-                        ? "border-muted/30 text-muted-foreground/30 cursor-not-allowed"
-                        : `border-muted ${config.bgColor} ${config.bgHover} ${config.color}`
-                    )}
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
+                <div key={cat} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-muted/10 opacity-30">
+                  <span className="text-[9px] text-muted-foreground line-through">{config.shortLabel}</span>
+                  <span className="text-[9px]">🚫</span>
                 </div>
               );
-            })}
-          </div>
-        )}
-      </div>
+            }
+            if (target === 0) return null;
+            return (
+              <button
+                key={cat}
+                onClick={() => handleQuickAdjust(cat, 1)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border transition-all active:scale-95",
+                  done
+                    ? "bg-green-500/10 border-green-500/30 text-green-500"
+                    : `${config.bgColor} border-muted ${config.bgHover} ${config.bgActive}`
+                )}
+              >
+                <config.icon className={cn("w-3.5 h-3.5", done ? "text-green-500" : config.color)} />
+                <span className={cn(
+                  "text-xs font-mono font-bold",
+                  isOver ? "text-amber-500" : done ? "text-green-500" : "text-foreground"
+                )}>
+                  {consumed}<span className="text-muted-foreground font-normal">/{target}</span>
+                </span>
+                <span className={cn("text-[9px] font-bold", done ? "text-green-500" : config.color)}>
+                  {done ? '✓' : '+1'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Read-only progress strip (no buttons) */}
+      {readOnly && (
+        <div className="flex gap-2">
+          {([
+            { cat: 'protein' as SliceCategory, consumed: tracking.proteinSlices, target: targets.protein },
+            { cat: 'carb' as SliceCategory, consumed: tracking.carbSlices, target: targets.carb },
+            { cat: 'veg' as SliceCategory, consumed: tracking.vegSlices, target: targets.veg },
+          ]).map(({ cat, consumed, target }) => {
+            const config = CATEGORY_CONFIG[cat];
+            const blocked = isCategoryBlocked(cat);
+            const done = consumed >= target && target > 0;
+            const isOver = consumed > target;
+            if (blocked || target === 0) return null;
+            return (
+              <div key={cat} className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg",
+                done ? "bg-green-500/10" : config.bgColor
+              )}>
+                <config.icon className={cn("w-3.5 h-3.5", done ? "text-green-500" : config.color)} />
+                <span className={cn(
+                  "text-xs font-mono font-bold",
+                  isOver ? "text-amber-500" : done ? "text-green-500" : "text-foreground"
+                )}>
+                  {consumed}<span className="text-muted-foreground font-normal">/{target}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── Food Reference / Log Section ── */}
       {!readOnly && (
         <div className="space-y-3">
-          {/* Category tabs */}
+          {/* Category tabs with done indicators */}
           <div className="flex gap-1.5">
             {(['protein', 'carb', 'veg'] as SliceCategory[]).map(cat => {
               const config = CATEGORY_CONFIG[cat];
               const isActive = activeCategory === cat;
               const blocked = isCategoryBlocked(cat);
+              const done = categoryDone[cat];
               return (
                 <button
                   key={cat}
                   onClick={() => { if (!blocked) { setActiveCategory(cat); setShowAllFoods(false); } }}
                   className={cn(
-                    "flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1",
+                    "flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
                     blocked
                       ? "bg-muted/10 text-muted-foreground/30 line-through cursor-not-allowed"
-                      : isActive
-                        ? `${config.bgColor} ${config.color} ring-1 ring-current`
-                        : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                      : done
+                        ? isActive
+                          ? "bg-primary/15 text-primary ring-1 ring-primary"
+                          : "bg-primary/10 text-primary"
+                        : isActive
+                          ? `${config.bgColor} ${config.color} ring-1 ring-current`
+                          : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
                   )}
                 >
+                  {done && !blocked && <Check className="w-3 h-3" />}
                   {config.shortLabel}
                   {blocked && <span className="text-[8px] no-underline">🚫</span>}
                 </button>
               );
             })}
-            {/* My Foods / Meals toggle */}
-            <button
-              onClick={() => setActiveCategory(activeCategory)} // no-op, just for meals
-              className="py-1.5 px-2 rounded-lg text-[11px] font-bold bg-muted/30 text-muted-foreground hover:bg-muted/50 flex items-center gap-1"
-            >
-              <Star className="w-3 h-3" />
-            </button>
           </div>
 
           {/* Search */}
@@ -735,7 +734,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
               placeholder={`Search ${CATEGORY_CONFIG[activeCategory].label.toLowerCase()} foods...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 h-8 text-xs bg-muted/20"
+              className="pl-8 h-9 text-xs bg-muted/20"
             />
             {searchQuery && (
               <button
@@ -746,6 +745,11 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
               </button>
             )}
           </div>
+
+          {/* Recent foods label */}
+          {!searchQuery && (recentFoods[activeCategory] || []).length > 0 && activeFoods.length > 0 && (
+            <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">Recent first</span>
+          )}
 
           {/* Food grid */}
           <div className="space-y-1">
@@ -1006,6 +1010,9 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
                               +{entry.sliceCount || 1} {config?.shortLabel || '?'}
                             </span>
                             <span className="text-muted-foreground truncate">{entry.name}</span>
+                            {entry.liquidOz && (
+                              <span className="text-[9px] font-mono font-bold text-cyan-500 shrink-0">+{entry.liquidOz}oz</span>
+                            )}
                           </div>
                           <span className="text-muted-foreground/60 shrink-0 ml-2">
                             {format(new Date(entry.timestamp), 'h:mm a')}
@@ -1065,6 +1072,16 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions }
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Calorie/target summary — de-emphasized at bottom */}
+          <div className="text-[10px] text-muted-foreground/60 pt-1 border-t border-muted/30">
+            {gramTargets ? (
+              <>Target: {gramTargets.carbs.max}g carbs / {gramTargets.protein.max}g protein → {targets.protein}P / {targets.carb}C / {targets.veg}V slices</>
+            ) : (
+              <>~{targets.totalCalories} cal/day • {targets.protein}P / {targets.carb}C / {targets.veg}V slices</>
+            )}
+            {restrictions?.ratioLabel && <span className="ml-1 font-mono">({restrictions.ratioLabel})</span>}
           </div>
 
           {/* Why SPAR? */}

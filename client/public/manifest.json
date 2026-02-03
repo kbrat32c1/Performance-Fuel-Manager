@@ -1,11 +1,11 @@
 {
-  "name": "PWM - Performance Weight Management",
-  "short_name": "PWM",
-  "description": "Your coach in your pocket. Smart weight management for wrestlers.",
+  "name": "SPAR Nutrition",
+  "short_name": "SPAR",
+  "description": "Fuel right. Make weight. Perform. Smart nutrition for wrestlers.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
-  "theme_color": "#84cc16",
+  "theme_color": "#E8501E",
   "orientation": "portrait",
   "icons": [
     {

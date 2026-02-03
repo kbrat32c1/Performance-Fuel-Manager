@@ -48,7 +48,8 @@ function CircularProgress({
   color,
   size = 60,
   label,
-  consumed
+  consumed,
+  sliceEquivalent,
 }: {
   value: number;
   max: number;
@@ -56,8 +57,10 @@ function CircularProgress({
   size?: number;
   label: string;
   consumed: number;
+  sliceEquivalent?: string;
 }) {
   const progress = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const isOver = max > 0 && value > max;
   const strokeWidth = 6;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -81,7 +84,7 @@ function CircularProgress({
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke={progress >= 100 ? "hsl(var(--chart-2))" : color}
+            stroke={isOver ? "hsl(45, 93%, 47%)" : progress >= 100 ? "hsl(var(--chart-2))" : color}
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
             strokeDashoffset={offset}
@@ -90,9 +93,22 @@ function CircularProgress({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className={cn("text-sm font-bold font-mono", progress >= 100 ? "text-green-500" : "")}>
+          <span className={cn("text-sm font-bold font-mono leading-tight", isOver ? "text-amber-500" : progress >= 100 ? "text-green-500" : "")}>
             {consumed}g
           </span>
+          {isOver && (
+            <span className="text-[7px] text-amber-500/80 font-bold font-mono leading-tight">
+              +{consumed - max} over
+            </span>
+          )}
+          {sliceEquivalent && (
+            <span className={cn(
+              "text-[9px] font-mono leading-none mt-0.5",
+              isOver ? "text-amber-500/60" : "text-muted-foreground/50"
+            )}>
+              {sliceEquivalent}
+            </span>
+          )}
         </div>
       </div>
       <span className="text-[10px] text-muted-foreground mt-1 font-medium">{label}</span>
@@ -341,10 +357,16 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
       }
     });
 
-    // Update totals in one batch
-    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
-    if (meal.totalCarbs > 0) updates.carbsConsumed = tracking.carbsConsumed + meal.totalCarbs;
-    if (meal.totalProtein > 0) updates.proteinConsumed = tracking.proteinConsumed + meal.totalProtein;
+    // Update totals in one batch + cross-sync slices
+    const updates: Record<string, any> = {};
+    if (meal.totalCarbs > 0) {
+      updates.carbsConsumed = tracking.carbsConsumed + meal.totalCarbs;
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(meal.totalCarbs / 30));
+    }
+    if (meal.totalProtein > 0) {
+      updates.proteinConsumed = tracking.proteinConsumed + meal.totalProtein;
+      updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(meal.totalProtein / 25));
+    }
     if (meal.totalWater > 0) updates.waterConsumed = tracking.waterConsumed + meal.totalWater;
     updateDailyTracking(dateKey, updates);
 
@@ -476,10 +498,16 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const protein = Math.round(food.protein * scale);
     const foodName = `${formatUSDAName(food.name)} (${servingG}g)`;
 
-    // Build updates object for both macros at once
-    const updates: { carbsConsumed?: number; proteinConsumed?: number } = {};
-    if (carbs > 0) updates.carbsConsumed = tracking.carbsConsumed + carbs;
-    if (protein > 0) updates.proteinConsumed = tracking.proteinConsumed + protein;
+    // Build updates object for both macros at once + cross-sync slices
+    const updates: Record<string, any> = {};
+    if (carbs > 0) {
+      updates.carbsConsumed = tracking.carbsConsumed + carbs;
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 30));
+    }
+    if (protein > 0) {
+      updates.proteinConsumed = tracking.proteinConsumed + protein;
+      updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(protein / 25));
+    }
 
     if (Object.keys(updates).length > 0) {
       updateDailyTracking(dateKey, updates);
@@ -522,9 +550,15 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const brandLabel = food.brand ? ` (${food.brand})` : '';
     const foodName = `${food.name}${brandLabel} · ${servingG}g`;
 
-    const updates: { carbsConsumed?: number; proteinConsumed?: number } = {};
-    if (carbs > 0) updates.carbsConsumed = tracking.carbsConsumed + carbs;
-    if (protein > 0) updates.proteinConsumed = tracking.proteinConsumed + protein;
+    const updates: Record<string, any> = {};
+    if (carbs > 0) {
+      updates.carbsConsumed = tracking.carbsConsumed + carbs;
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 30));
+    }
+    if (protein > 0) {
+      updates.proteinConsumed = tracking.proteinConsumed + protein;
+      updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(protein / 25));
+    }
 
     if (Object.keys(updates).length > 0) {
       updateDailyTracking(dateKey, updates);
@@ -647,12 +681,16 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
   // Helper to add food with visual feedback and history tracking
   // Also tracks water intake for liquid foods (juice, etc.)
   const handleFoodAdd = (index: number, macroType: 'carbs' | 'protein', amount: number, tabType: string, foodName: string, liquidOz?: number) => {
-    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
+    const updates: Record<string, any> = {};
 
     if (macroType === 'carbs') {
       updates.carbsConsumed = tracking.carbsConsumed + amount;
+      // Cross-sync: also update slice count
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(amount / 30));
     } else {
       updates.proteinConsumed = tracking.proteinConsumed + amount;
+      // Cross-sync: also update slice count
+      updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(amount / 25));
     }
 
     // If this is a liquid food, also add to water intake
@@ -681,13 +719,15 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     if (foodHistory.length === 0) return;
 
     const lastEntry = foodHistory[foodHistory.length - 1];
-    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
+    const updates: Record<string, any> = {};
 
-    // Subtract the amount from tracking
+    // Subtract the amount from tracking + cross-sync slices
     if (lastEntry.macroType === 'carbs') {
       updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - lastEntry.amount);
+      updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(lastEntry.amount / 30)));
     } else {
       updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - lastEntry.amount);
+      updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(lastEntry.amount / 25)));
     }
 
     // Also undo water if it was a liquid
@@ -706,12 +746,14 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const entry = foodHistory.find(e => e.id === entryId);
     if (!entry) return;
 
-    const updates: { carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number } = {};
+    const updates: Record<string, any> = {};
 
     if (entry.macroType === 'carbs') {
       updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - entry.amount);
+      updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(entry.amount / 30)));
     } else {
       updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - entry.amount);
+      updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(entry.amount / 25)));
     }
 
     if (entry.liquidOz && entry.liquidOz > 0) {
@@ -734,7 +776,11 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const parsedProtein = parseInt(addProtein) || 0;
     const newCarbs = tracking.carbsConsumed + parsedCarbs;
     const newProtein = tracking.proteinConsumed + parsedProtein;
-    updateDailyTracking(dateKey, { carbsConsumed: newCarbs, proteinConsumed: newProtein });
+    const updates: Record<string, any> = { carbsConsumed: newCarbs, proteinConsumed: newProtein };
+    // Cross-sync slices
+    if (parsedCarbs > 0) updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(parsedCarbs / 30));
+    if (parsedProtein > 0) updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(parsedProtein / 25));
+    updateDailyTracking(dateKey, updates);
     setAddCarbs('');
     setAddProtein('');
   };
@@ -745,7 +791,8 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
   };
 
   const handleSaveCarbs = () => {
-    updateDailyTracking(dateKey, { carbsConsumed: parseInt(editCarbsValue) || 0 });
+    const newCarbs = parseInt(editCarbsValue) || 0;
+    updateDailyTracking(dateKey, { carbsConsumed: newCarbs, carbSlices: Math.round(newCarbs / 30) });
     setIsEditingCarbs(false);
     setEditCarbsValue('');
   };
@@ -756,7 +803,8 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
   };
 
   const handleSaveProtein = () => {
-    updateDailyTracking(dateKey, { proteinConsumed: parseInt(editProteinValue) || 0 });
+    const newProtein = parseInt(editProteinValue) || 0;
+    updateDailyTracking(dateKey, { proteinConsumed: newProtein, proteinSlices: Math.round(newProtein / 25) });
     setIsEditingProtein(false);
     setEditProteinValue('');
   };
@@ -945,7 +993,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <CircularProgress value={tracking.carbsConsumed} max={macros.carbs.max} color="hsl(var(--primary))" consumed={tracking.carbsConsumed} label="Carbs" size={52} />
+                    <CircularProgress value={tracking.carbsConsumed} max={macros.carbs.max} color="hsl(var(--primary))" consumed={tracking.carbsConsumed} label="Carbs" size={52} sliceEquivalent={macros.carbs.max > 0 ? `~${Math.round(tracking.carbsConsumed / 30)} slc` : undefined} />
                     {!readOnly && (
                       <button onClick={handleEditCarbs} className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
                         <Pencil className="w-3 h-3" />
@@ -965,7 +1013,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <CircularProgress value={tracking.proteinConsumed} max={macros.protein.max} color="hsl(24, 95%, 53%)" consumed={tracking.proteinConsumed} label="Protein" size={52} />
+                    <CircularProgress value={tracking.proteinConsumed} max={macros.protein.max} color="hsl(24, 95%, 53%)" consumed={tracking.proteinConsumed} label="Protein" size={52} sliceEquivalent={macros.protein.max > 0 ? `~${Math.round(tracking.proteinConsumed / 25)} slc` : undefined} />
                     {!readOnly && (
                       <button onClick={handleEditProtein} className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
                         <Pencil className="w-3 h-3" />
@@ -981,7 +1029,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                   {!showFoodRef && (
                     <button
                       onClick={() => setShowFoodRef(true)}
-                      className="h-8 px-3 text-[11px] font-bold rounded-lg bg-primary/90 hover:bg-primary text-black flex items-center gap-1"
+                      className="h-8 px-3 text-[11px] font-bold rounded-lg bg-primary/90 hover:bg-primary text-white flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Log
@@ -1258,7 +1306,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all",
                       filterMode === 'all'
-                        ? "bg-primary text-black"
+                        ? "bg-primary text-white"
                         : "bg-muted/50 text-muted-foreground hover:bg-muted active:bg-muted/80"
                     )}
                   >
