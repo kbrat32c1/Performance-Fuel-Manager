@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, ChevronDown, Utensils } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -43,7 +43,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [pendingChanges, setPendingChanges] = useState<any>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
-  const [showSparFields, setShowSparFields] = useState(false);
 
   // Reset pending changes when dialog opens
   useEffect(() => {
@@ -52,7 +51,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
       setHasChanges(false);
       setShowWeightClassConfirm(false);
       setActiveTab('profile');
-      setShowSparFields(false);
     }
   }, [open]);
 
@@ -244,10 +242,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <Select
                   value={getValue('protocol')}
                   onValueChange={(v) => {
-                    handleChange({ protocol: v as any });
-                    // Auto-expand SPAR fields when switching to SPAR
-                    if (v === PROTOCOLS.SPAR) {
-                      setShowSparFields(true);
+                    // If switching protocols, redirect to onboarding wizard
+                    if (v !== profile.protocol) {
+                      setOpen(false);
+                      sessionStorage.setItem('rerunWizard', 'true');
+                      sessionStorage.setItem('switchingProtocol', v);
+                      setTimeout(() => navigate('/onboarding'), 100);
+                      return;
                     }
                   }}
                 >
@@ -268,6 +269,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   {getValue('protocol') === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight'}
                   {getValue('protocol') === PROTOCOLS.BUILD && 'Off-season muscle gain'}
                   {getValue('protocol') === PROTOCOLS.SPAR && 'Clean eating — count slices'}
+                </p>
+                <p className="text-[9px] text-muted-foreground/70 italic">
+                  Changing protocol will open the setup wizard.
                 </p>
               </div>
 
@@ -302,147 +306,39 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </div>
               </div>
 
-              {/* SPAR Nutrition Profile - Required for slice calculations */}
-              {isSparProtocol && (() => {
-                const sparFieldsMissing = !getValue('heightInches') || !getValue('age');
-                const shouldForceOpen = sparFieldsMissing || showSparFields;
-
-                return (
-                  <div className={cn("pt-2 border-t", sparFieldsMissing ? "border-yellow-500/50" : "border-muted")}>
-                    <button
-                      onClick={() => !sparFieldsMissing && setShowSparFields(!showSparFields)}
-                      className={cn(
-                        "flex items-center justify-between w-full py-2",
-                        sparFieldsMissing && "cursor-default"
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Utensils className={cn("w-4 h-4", sparFieldsMissing ? "text-yellow-500" : "text-primary")} />
-                        <span className="text-xs font-bold">SPAR Nutrition Profile</span>
-                        {sparFieldsMissing && (
-                          <span className="text-[9px] font-bold bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1.5 py-0.5 rounded">
-                            Required
-                          </span>
-                        )}
-                      </div>
-                      {!sparFieldsMissing && (
-                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showSparFields && "rotate-180")} />
-                      )}
-                    </button>
-
-                    {shouldForceOpen && (
-                      <div className="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
-                        <p className={cn("text-[10px]", sparFieldsMissing ? "text-yellow-600 dark:text-yellow-400 font-medium" : "text-muted-foreground")}>
-                          {sparFieldsMissing
-                            ? "Fill in your profile to calculate daily slice targets."
-                            : "Used to calculate your daily slice targets."}
+              {/* SPAR Profile Info - Direct to wizard for changes */}
+              {isSparProtocol && (
+                <div className="pt-2 border-t border-muted">
+                  <div className="flex items-center gap-2 py-2">
+                    <Utensils className="w-4 h-4 text-green-500" />
+                    <span className="text-xs font-bold">SPAR Nutrition Profile</span>
+                  </div>
+                  <div className="space-y-2 text-xs text-muted-foreground">
+                    {profile.heightInches && profile.age ? (
+                      <>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="bg-muted/30 rounded px-2 py-1.5">
+                            <span className="font-mono font-bold text-foreground">{Math.floor(profile.heightInches / 12)}'{profile.heightInches % 12}"</span>
+                          </div>
+                          <div className="bg-muted/30 rounded px-2 py-1.5">
+                            <span className="font-mono font-bold text-foreground">{profile.age} yrs</span>
+                          </div>
+                          <div className="bg-muted/30 rounded px-2 py-1.5">
+                            <span className="font-mono font-bold text-foreground capitalize">{profile.weeklyGoal || 'maintain'}</span>
+                          </div>
+                        </div>
+                        <p className="text-[10px]">Use "Re-run Setup Wizard" below to update your SPAR profile.</p>
+                      </>
+                    ) : (
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2.5">
+                        <p className="text-yellow-600 dark:text-yellow-400 font-medium">
+                          Profile incomplete. Use "Re-run Setup Wizard" below to complete your SPAR setup.
                         </p>
-
-                      {/* Height + Age Row */}
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px]">Height (ft)</Label>
-                          <Input
-                            type="number"
-                            min="4"
-                            max="7"
-                            value={getValue('heightInches') ? Math.floor(getValue('heightInches') / 12) : ''}
-                            onChange={(e) => {
-                              const feet = parseInt(e.target.value) || 0;
-                              const currentInches = (getValue('heightInches') || 0) % 12;
-                              handleChange({ heightInches: feet * 12 + currentInches });
-                            }}
-                            placeholder="5"
-                            className="h-9 text-sm font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px]">Height (in)</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="11"
-                            value={getValue('heightInches') ? getValue('heightInches') % 12 : ''}
-                            onChange={(e) => {
-                              const inches = parseInt(e.target.value) || 0;
-                              const currentFeet = Math.floor((getValue('heightInches') || 0) / 12);
-                              handleChange({ heightInches: currentFeet * 12 + Math.min(inches, 11) });
-                            }}
-                            placeholder="6"
-                            className="h-9 text-sm font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px]">Age</Label>
-                          <Input
-                            type="number"
-                            value={getValue('age') || ''}
-                            onChange={(e) => handleChange({ age: parseInt(e.target.value) || undefined })}
-                            placeholder="16"
-                            className="h-9 text-sm font-mono"
-                          />
-                        </div>
                       </div>
-
-                      {/* Gender + Activity */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px]">Gender</Label>
-                          <Select
-                            value={getValue('gender') || 'male'}
-                            onValueChange={(v) => handleChange({ gender: v })}
-                          >
-                            <SelectTrigger className="h-9 text-sm">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="male">Male</SelectItem>
-                              <SelectItem value="female">Female</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px]">Weekly Goal</Label>
-                          <Select
-                            value={getValue('weeklyGoal') || 'maintain'}
-                            onValueChange={(v) => handleChange({ weeklyGoal: v })}
-                          >
-                            <SelectTrigger className="h-9 text-sm">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="cut">Cut</SelectItem>
-                              <SelectItem value="maintain">Maintain</SelectItem>
-                              <SelectItem value="build">Build</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      {/* Activity Level */}
-                      <div className="space-y-1">
-                        <Label className="text-[10px]">Activity Level</Label>
-                        <Select
-                          value={getValue('activityLevel') || 'active'}
-                          onValueChange={(v) => handleChange({ activityLevel: v })}
-                        >
-                          <SelectTrigger className="h-9 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="sedentary">Sedentary</SelectItem>
-                            <SelectItem value="light">Light (1-3 days/wk)</SelectItem>
-                            <SelectItem value="moderate">Moderate (3-5 days/wk)</SelectItem>
-                            <SelectItem value="active">Active (6-7 days/wk)</SelectItem>
-                            <SelectItem value="very-active">Very Active (2x/day)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              );
-              })()}
+              )}
 
               {/* Re-run Wizard */}
               <div className="pt-2 border-t border-muted">

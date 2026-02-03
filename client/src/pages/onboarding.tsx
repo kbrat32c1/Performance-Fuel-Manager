@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useStore, Protocol } from "@/lib/store";
 import { useLocation } from "wouter";
 import { MobileLayout } from "@/components/mobile-layout";
@@ -24,23 +24,45 @@ import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
 type UserGoal = 'competition' | 'spar' | null;
 
 export default function Onboarding() {
-  const [step, setStep] = useState(1);
   const { profile, updateProfile } = useStore();
   const [, setLocation] = useLocation();
+
+  // Check for protocol switch - start at step 2 (goal selection) to preserve existing name/weight
+  const initialSwitchingProtocol = typeof window !== 'undefined' ? sessionStorage.getItem('switchingProtocol') : null;
+  const [step, setStep] = useState(initialSwitchingProtocol ? 2 : 1);
 
   // Detect if this is a re-run from settings
   const isRerun = typeof window !== 'undefined' && sessionStorage.getItem('rerunWizard') === 'true';
 
+  // Detect if switching protocols from settings
+  const switchingProtocol = typeof window !== 'undefined' ? sessionStorage.getItem('switchingProtocol') : null;
+
+  // Determine initial goal based on switching context or current profile
+  const getInitialGoal = (): UserGoal => {
+    if (switchingProtocol) {
+      return switchingProtocol === '5' ? 'spar' : 'competition';
+    }
+    if (profile.protocol === '5') return 'spar';
+    if (profile.hasCompletedOnboarding) return 'competition';
+    return null;
+  };
+
   // User's primary goal - drives the entire flow
-  const [userGoal, setUserGoal] = useState<UserGoal>(
-    profile.protocol === '5' ? 'spar' : (profile.hasCompletedOnboarding ? 'competition' : null)
-  );
+  const [userGoal, setUserGoal] = useState<UserGoal>(getInitialGoal());
+
+  // Apply protocol immediately when switching from settings
+  useEffect(() => {
+    if (switchingProtocol) {
+      updateProfile({ protocol: switchingProtocol as Protocol });
+    }
+  }, []);
 
   // Dynamic total steps
   const TOTAL_STEPS = userGoal === 'spar' ? 4 : 5;
 
   const handleCancel = () => {
     sessionStorage.removeItem('rerunWizard');
+    sessionStorage.removeItem('switchingProtocol');
     setLocation('/dashboard');
   };
 
@@ -117,6 +139,7 @@ export default function Onboarding() {
     } else {
       // Complete onboarding
       sessionStorage.removeItem('rerunWizard');
+      sessionStorage.removeItem('switchingProtocol');
       updateProfile({ simulatedDate: null, hasCompletedOnboarding: true });
       setLocation('/dashboard');
     }
