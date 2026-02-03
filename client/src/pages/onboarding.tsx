@@ -11,6 +11,7 @@ import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, Use
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
+import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
 
 // Step flow:
 // 1. Basics (name, weight) - no weight class yet
@@ -517,10 +518,11 @@ export default function Onboarding() {
                         isSelected ? `${goal.bg}` : "border-muted hover:border-muted-foreground/50"
                       )}
                       onClick={() => {
-                        updateProfile({ weeklyGoal: goal.value as any });
                         if (goal.value === 'maintain') {
                           setCustomTargetWeight('');
-                          updateProfile({ targetWeight: undefined });
+                          updateProfile({ weeklyGoal: 'maintain', targetWeight: undefined });
+                        } else {
+                          updateProfile({ weeklyGoal: goal.value as any });
                         }
                       }}
                     >
@@ -638,6 +640,59 @@ export default function Onboarding() {
                     </Select>
                   </div>
                 </div>
+              </div>
+
+              {/* Macro Protocol Selection */}
+              <div className="space-y-3 pt-4 border-t border-muted">
+                <Label className="text-xs flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5" />
+                  Macro Protocol
+                </Label>
+                <p className="text-[11px] text-muted-foreground -mt-1">
+                  How should your calories be split? You can change this anytime in settings.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['sports', 'maintenance', 'recomp', 'fatloss'] as SparMacroProtocol[]).map((protocolId) => {
+                    const config = SPAR_MACRO_PROTOCOLS[protocolId];
+                    const isSelected = (profile.sparMacroProtocol || 'maintenance') === protocolId;
+                    const IconComponent = protocolId === 'sports' ? Zap :
+                                          protocolId === 'maintenance' ? Scale :
+                                          protocolId === 'recomp' ? Dumbbell : Flame;
+                    const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
+                                      protocolId === 'maintenance' ? 'text-blue-500' :
+                                      protocolId === 'recomp' ? 'text-green-500' : 'text-orange-500';
+                    const borderColor = protocolId === 'sports' ? 'border-yellow-500/30 bg-yellow-500/10' :
+                                        protocolId === 'maintenance' ? 'border-blue-500/30 bg-blue-500/10' :
+                                        protocolId === 'recomp' ? 'border-green-500/30 bg-green-500/10' : 'border-orange-500/30 bg-orange-500/10';
+                    return (
+                      <Card
+                        key={protocolId}
+                        className={cn(
+                          "p-2.5 border-2 cursor-pointer transition-all",
+                          isSelected ? borderColor : "border-muted hover:border-muted-foreground/50"
+                        )}
+                        onClick={() => updateProfile({ sparMacroProtocol: protocolId })}
+                      >
+                        <div className="flex items-center gap-2">
+                          <IconComponent className={cn("w-4 h-4 shrink-0", iconColor)} />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[11px] font-bold block truncate">{config.shortName}</span>
+                            <span className="text-[9px] text-muted-foreground block truncate">{config.description}</span>
+                          </div>
+                          {isSelected && <CheckCircle className={cn("w-4 h-4 shrink-0", iconColor)} />}
+                        </div>
+                        <div className="flex gap-2 mt-1.5 text-[9px] font-mono">
+                          <span className="text-amber-500">C{config.carbs}%</span>
+                          <span className="text-orange-500">P{config.protein}%</span>
+                          <span className="text-blue-400">F{config.fat}%</span>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {SPAR_MACRO_PROTOCOLS[profile.sparMacroProtocol || 'maintenance']?.whoFor}
+                </p>
               </div>
 
               {/* SPAR visual guide */}

@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
+import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
@@ -300,40 +301,87 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </div>
               </div>
 
-              {/* SPAR Profile Info - Direct to wizard for changes */}
+              {/* SPAR Nutrition Settings */}
               {isSparProtocol && (
-                <div className="pt-2 border-t border-muted">
-                  <div className="flex items-center gap-2 py-2">
+                <div className="pt-2 border-t border-muted space-y-3">
+                  <div className="flex items-center gap-2">
                     <Utensils className="w-4 h-4 text-green-500" />
-                    <span className="text-xs font-bold">SPAR Nutrition Profile</span>
-                  </div>
-                  <div className="space-y-2 text-xs text-muted-foreground">
-                    {profile.heightInches && profile.age ? (
-                      <>
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                          <div className="bg-muted/30 rounded px-2 py-1.5">
-                            <span className="font-mono font-bold text-foreground">{Math.floor(profile.heightInches / 12)}'{profile.heightInches % 12}"</span>
-                          </div>
-                          <div className="bg-muted/30 rounded px-2 py-1.5">
-                            <span className="font-mono font-bold text-foreground">{profile.age} yrs</span>
-                          </div>
-                          <div className="bg-muted/30 rounded px-2 py-1.5">
-                            <span className="font-mono font-bold text-foreground capitalize">{profile.weeklyGoal || 'maintain'}</span>
-                          </div>
-                        </div>
-                        <p className="text-[10px]">Use "Re-run Setup Wizard" below to update your SPAR profile.</p>
-                      </>
-                    ) : (
-                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2.5">
-                        <p className="text-yellow-600 dark:text-yellow-400 font-medium">
-                          Profile incomplete. Use "Re-run Setup Wizard" below to complete your SPAR setup.
-                        </p>
-                      </div>
-                    )}
+                    <span className="text-xs font-bold">SPAR Nutrition Settings</span>
                   </div>
 
+                  {/* Macro Protocol Selector - Easy switching between the 4 protocols */}
+                  <div className="space-y-2">
+                    <Label className="text-[11px] flex items-center gap-1.5">
+                      <Activity className="w-3 h-3" />
+                      Macro Protocol
+                    </Label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(['sports', 'maintenance', 'recomp', 'fatloss'] as SparMacroProtocol[]).map((protocolId) => {
+                        const config = SPAR_MACRO_PROTOCOLS[protocolId];
+                        const isSelected = (getValue('sparMacroProtocol') || 'maintenance') === protocolId;
+                        const IconComponent = protocolId === 'sports' ? Zap :
+                                              protocolId === 'maintenance' ? Scale :
+                                              protocolId === 'recomp' ? Dumbbell : TrendingDown;
+                        const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
+                                          protocolId === 'maintenance' ? 'text-blue-500' :
+                                          protocolId === 'recomp' ? 'text-green-500' : 'text-orange-500';
+                        return (
+                          <button
+                            key={protocolId}
+                            onClick={() => handleChange({ sparMacroProtocol: protocolId })}
+                            className={cn(
+                              "flex flex-col items-start p-2 rounded-lg border-2 transition-all text-left",
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-muted hover:border-muted-foreground/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5 w-full">
+                              <IconComponent className={cn("w-3.5 h-3.5", iconColor)} />
+                              <span className="text-[11px] font-bold truncate">{config.shortName}</span>
+                              {isSelected && <Check className="w-3 h-3 text-primary ml-auto" />}
+                            </div>
+                            <span className="text-[9px] text-muted-foreground mt-0.5">{config.description}</span>
+                            <div className="flex gap-1.5 mt-1 text-[8px] font-mono">
+                              <span className="text-amber-500">C{config.carbs}</span>
+                              <span className="text-orange-500">P{config.protein}</span>
+                              <span className="text-blue-400">F{config.fat}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[9px] text-muted-foreground">
+                      {SPAR_MACRO_PROTOCOLS[(getValue('sparMacroProtocol') || 'maintenance') as SparMacroProtocol]?.whoFor}
+                    </p>
+                  </div>
+
+                  {/* Stats Summary */}
+                  {profile.heightInches && profile.age ? (
+                    <div className="grid grid-cols-3 gap-1.5 text-center">
+                      <div className="bg-muted/30 rounded px-2 py-1">
+                        <span className="text-[9px] text-muted-foreground block">Height</span>
+                        <span className="font-mono font-bold text-[11px] text-foreground">{Math.floor(profile.heightInches / 12)}'{profile.heightInches % 12}"</span>
+                      </div>
+                      <div className="bg-muted/30 rounded px-2 py-1">
+                        <span className="text-[9px] text-muted-foreground block">Age</span>
+                        <span className="font-mono font-bold text-[11px] text-foreground">{profile.age}</span>
+                      </div>
+                      <div className="bg-muted/30 rounded px-2 py-1">
+                        <span className="text-[9px] text-muted-foreground block">Goal</span>
+                        <span className="font-mono font-bold text-[11px] text-foreground capitalize">{profile.weeklyGoal || 'maintain'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2">
+                      <p className="text-[10px] text-yellow-600 dark:text-yellow-400 font-medium">
+                        Complete your profile below to get accurate calorie targets.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Practice Weigh-ins Toggle */}
-                  <div className="mt-3 pt-3 border-t border-muted/50">
+                  <div className="pt-2 border-t border-muted/50">
                     <button
                       onClick={() => handleChange({ trackPracticeWeighIns: !getValue('trackPracticeWeighIns') })}
                       className="flex items-center justify-between w-full py-1"

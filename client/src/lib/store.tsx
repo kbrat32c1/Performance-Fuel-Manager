@@ -16,7 +16,7 @@ import {
   STATUS_THRESHOLDS,
 } from './constants';
 import { SUGAR_FOODS } from './food-data';
-import { calculateSliceTargets, type ActivityLevel, type WeeklyGoal, type Gender } from './spar-calculator';
+import { calculateSliceTargets, type ActivityLevel, type WeeklyGoal, type Gender, type SparMacroProtocol } from './spar-calculator';
 
 // Types
 export type Protocol = '1' | '2' | '3' | '4' | '5';
@@ -58,6 +58,7 @@ export interface AthleteProfile {
   gender?: 'male' | 'female';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
   weeklyGoal?: 'cut' | 'maintain' | 'build';
+  sparMacroProtocol?: 'sports' | 'maintenance' | 'recomp' | 'fatloss'; // SPAR macro split
   nutritionPreference: 'spar' | 'sugar'; // slices or grams
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
 }
@@ -154,7 +155,7 @@ interface StoreContextType {
   getMacroTargets: () => { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string; note?: string; weightWarning?: string };
   getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
   getNutritionMode: () => 'spar' | 'sugar';
-  getSliceTargets: () => { protein: number; carb: number; veg: number; totalCalories: number };
+  getSliceTargets: () => { protein: number; carb: number; veg: number; totalCalories: number; macroProtocol?: SparMacroProtocol };
   getCheckpoints: () => {
     walkAround: string;
     wedTarget: string;
@@ -1218,9 +1219,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ─── SPAR Slice Targets ───
-  // Protocol 5: BMR → TDEE → balanced slice split
+  // Protocol 5: BMR → TDEE → macro-protocol-based slice split
   // Protocols 1-4: Derive slices from their gram-based macro targets
-  const getSliceTargets = (): { protein: number; carb: number; veg: number; totalCalories: number } => {
+  const getSliceTargets = (): { protein: number; carb: number; veg: number; totalCalories: number; macroProtocol?: SparMacroProtocol } => {
     const protocol = profile.protocol;
 
     // Protocols 1-4: Convert gram targets into slices
@@ -1249,13 +1250,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const gender = (profile.gender || 'male') as Gender;
     const activityLevel = (profile.activityLevel || 'active') as ActivityLevel;
     const weeklyGoal = (profile.weeklyGoal || 'maintain') as WeeklyGoal;
+    const macroProtocol = (profile.sparMacroProtocol || 'maintenance') as SparMacroProtocol;
 
-    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, weeklyGoal);
+    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, weeklyGoal, macroProtocol);
     return {
       protein: sparResult.protein,
       carb: sparResult.carb,
       veg: sparResult.veg,
       totalCalories: sparResult.totalCalories,
+      macroProtocol: sparResult.macroProtocol,
     };
   };
 

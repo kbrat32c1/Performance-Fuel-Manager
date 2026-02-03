@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useStore, type FoodLogEntry } from "@/lib/store";
 import { SPAR_FOODS, type SparFood } from "@/lib/food-data";
+import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
 
 // ─── Types ───
 
@@ -190,7 +191,6 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   // UI state — default to first non-blocked category
   const defaultCategory = (['protein', 'carb', 'veg'] as SliceCategory[]).find(c => !blockedCategories.includes(c)) || 'carb';
   const [activeCategory, setActiveCategory] = useState<SliceCategory>(defaultCategory);
-  const [showAllFoods, setShowAllFoods] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -587,6 +587,18 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
         <div className="flex items-center gap-2">
           <Salad className={cn("w-4 h-4", allDone ? "text-green-500" : "text-primary")} />
           <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{headerLabel || 'SPAR Nutrition'}</span>
+          {/* Show macro protocol badge for Protocol 5 users */}
+          {targets.macroProtocol && (
+            <span className={cn(
+              "text-[8px] font-bold px-1.5 py-0.5 rounded",
+              targets.macroProtocol === 'sports' ? "bg-yellow-500/15 text-yellow-500" :
+              targets.macroProtocol === 'maintenance' ? "bg-blue-500/15 text-blue-500" :
+              targets.macroProtocol === 'recomp' ? "bg-green-500/15 text-green-500" :
+              "bg-orange-500/15 text-orange-500"
+            )}>
+              {SPAR_MACRO_PROTOCOLS[targets.macroProtocol as SparMacroProtocol]?.shortName}
+            </span>
+          )}
           {allDone && (
             <span className="text-[9px] font-bold bg-green-500/15 text-green-500 px-1.5 py-0.5 rounded">ALL DONE ✓</span>
           )}
@@ -705,7 +717,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
               return (
                 <button
                   key={cat}
-                  onClick={() => { if (!blocked) { setActiveCategory(cat); setShowAllFoods(false); } }}
+                  onClick={() => { if (!blocked) { setActiveCategory(cat); } }}
                   className={cn(
                     "flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
                     blocked
@@ -751,9 +763,9 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
             <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground/60">Recent first</span>
           )}
 
-          {/* Food grid */}
-          <div className="space-y-1">
-            {(showAllFoods ? activeFoods : activeFoods.slice(0, PREVIEW_COUNT)).map((food, i) => (
+          {/* Food grid — scrollable container */}
+          <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+            {activeFoods.map((food, i) => (
               <SparFoodRow
                 key={food.name + i}
                 food={food}
@@ -767,16 +779,6 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
               <p className="text-xs text-muted-foreground text-center py-4">
                 {searchQuery ? 'No foods match your search' : 'No foods available'}
               </p>
-            )}
-
-            {/* See all / Show less */}
-            {activeFoods.length > PREVIEW_COUNT && (
-              <button
-                onClick={() => setShowAllFoods(!showAllFoods)}
-                className="w-full py-1.5 text-[10px] font-bold uppercase text-primary hover:text-primary/80 transition-colors"
-              >
-                {showAllFoods ? 'Show less' : `See all ${activeFoods.length} foods`}
-              </button>
             )}
           </div>
 
