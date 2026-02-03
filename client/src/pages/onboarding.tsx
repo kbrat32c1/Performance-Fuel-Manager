@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
+import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp, Pencil, Check, Sliders } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
@@ -652,32 +652,44 @@ export default function Onboarding() {
                   How should your calories be split? You can change this anytime in settings.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['sports', 'maintenance', 'recomp', 'fatloss'] as SparMacroProtocol[]).map((protocolId) => {
+                  {(['sports', 'maintenance', 'recomp', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
                     const config = SPAR_MACRO_PROTOCOLS[protocolId];
                     const isSelected = (profile.sparMacroProtocol || 'maintenance') === protocolId;
                     const IconComponent = protocolId === 'sports' ? Zap :
                                           protocolId === 'maintenance' ? Scale :
-                                          protocolId === 'recomp' ? Dumbbell : Flame;
+                                          protocolId === 'recomp' ? Dumbbell :
+                                          protocolId === 'fatloss' ? Flame : Sliders;
                     const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
                                       protocolId === 'maintenance' ? 'text-blue-500' :
-                                      protocolId === 'recomp' ? 'text-green-500' : 'text-orange-500';
+                                      protocolId === 'recomp' ? 'text-green-500' :
+                                      protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
                     const borderColor = protocolId === 'sports' ? 'border-yellow-500/30 bg-yellow-500/10' :
                                         protocolId === 'maintenance' ? 'border-blue-500/30 bg-blue-500/10' :
-                                        protocolId === 'recomp' ? 'border-green-500/30 bg-green-500/10' : 'border-orange-500/30 bg-orange-500/10';
+                                        protocolId === 'recomp' ? 'border-green-500/30 bg-green-500/10' :
+                                        protocolId === 'fatloss' ? 'border-orange-500/30 bg-orange-500/10' : 'border-purple-500/30 bg-purple-500/10';
                     return (
                       <Card
                         key={protocolId}
                         className={cn(
                           "p-2.5 border-2 cursor-pointer transition-all",
-                          isSelected ? borderColor : "border-muted hover:border-muted-foreground/50"
+                          isSelected ? borderColor : "border-muted hover:border-muted-foreground/50",
+                          protocolId === 'custom' && "col-span-2"
                         )}
-                        onClick={() => updateProfile({ sparMacroProtocol: protocolId })}
+                        onClick={() => {
+                          updateProfile({ sparMacroProtocol: protocolId });
+                          // Initialize custom macros with defaults if not set
+                          if (protocolId === 'custom' && !profile.customMacros) {
+                            updateProfile({ customMacros: { carbs: 40, protein: 30, fat: 30 } });
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <IconComponent className={cn("w-4 h-4 shrink-0", iconColor)} />
                           <div className="flex-1 min-w-0">
                             <span className="text-[11px] font-bold block truncate">{config.shortName}</span>
-                            <span className="text-[9px] text-muted-foreground block truncate">{config.description}</span>
+                            <span className="text-[9px] text-muted-foreground block truncate">
+                              {protocolId === 'custom' ? 'Set your own C/P/F in Settings after setup' : config.description}
+                            </span>
                           </div>
                           {isSelected && <CheckCircle className={cn("w-4 h-4 shrink-0", iconColor)} />}
                         </div>

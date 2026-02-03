@@ -17,6 +17,8 @@ import { getPhaseStyleForDaysUntil, PHASE_STYLES, getPhaseStyle } from "@/lib/ph
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
 import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSwipe } from "@/hooks/use-swipe";
@@ -475,9 +477,61 @@ export default function Dashboard() {
               )}
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
-                {phaseInfo.label}
-              </span>
+              {/* For SPAR users, make the phase label clickable to switch protocols */}
+              {isSparProtocol ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className={cn(
+                      "text-xs font-bold uppercase flex items-center gap-1 hover:opacity-80 transition-opacity",
+                      phaseInfo.color
+                    )}>
+                      {phaseInfo.label}
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2" align="start">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground px-2 pb-1">Switch Macro Protocol</p>
+                      {(['sports', 'maintenance', 'recomp', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
+                        const config = SPAR_MACRO_PROTOCOLS[protocolId];
+                        const isSelected = (profile.sparMacroProtocol || 'maintenance') === protocolId;
+                        const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
+                                          protocolId === 'maintenance' ? 'text-blue-500' :
+                                          protocolId === 'recomp' ? 'text-green-500' :
+                                          protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+                        return (
+                          <button
+                            key={protocolId}
+                            onClick={() => {
+                              updateProfile({ sparMacroProtocol: protocolId });
+                              if (protocolId === 'custom' && !profile.customMacros) {
+                                updateProfile({ customMacros: { carbs: 40, protein: 30, fat: 30 } });
+                              }
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-left transition-colors",
+                              isSelected ? "bg-primary/10" : "hover:bg-muted"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={cn("text-[11px] font-bold", iconColor)}>{config.shortName}</span>
+                              <span className="text-[9px] text-muted-foreground">{config.carbs}/{config.protein}/{config.fat}</span>
+                            </div>
+                            {isSelected && <span className="text-[10px] text-primary">✓</span>}
+                          </button>
+                        );
+                      })}
+                      {profile.sparMacroProtocol === 'custom' && (
+                        <p className="text-[9px] text-purple-500 px-2 pt-1">Edit custom in Settings</p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
+                  {phaseInfo.label}
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">•</span>
               <span className="text-xs text-muted-foreground">{getProtocolName()}</span>
             </div>

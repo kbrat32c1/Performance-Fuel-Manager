@@ -16,7 +16,7 @@ import {
   STATUS_THRESHOLDS,
 } from './constants';
 import { SUGAR_FOODS } from './food-data';
-import { calculateSliceTargets, type ActivityLevel, type WeeklyGoal, type Gender, type SparMacroProtocol } from './spar-calculator';
+import { calculateSliceTargets, type ActivityLevel, type WeeklyGoal, type Gender, type SparMacroProtocol, type CustomMacros } from './spar-calculator';
 
 // Types
 export type Protocol = '1' | '2' | '3' | '4' | '5';
@@ -58,7 +58,8 @@ export interface AthleteProfile {
   gender?: 'male' | 'female';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
   weeklyGoal?: 'cut' | 'maintain' | 'build';
-  sparMacroProtocol?: 'sports' | 'maintenance' | 'recomp' | 'fatloss'; // SPAR macro split
+  sparMacroProtocol?: 'sports' | 'maintenance' | 'recomp' | 'fatloss' | 'custom'; // SPAR macro split
+  customMacros?: CustomMacros; // Custom C/P/F percentages when sparMacroProtocol === 'custom'
   nutritionPreference: 'spar' | 'sugar'; // slices or grams
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
 }
@@ -1251,8 +1252,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const activityLevel = (profile.activityLevel || 'active') as ActivityLevel;
     const weeklyGoal = (profile.weeklyGoal || 'maintain') as WeeklyGoal;
     const macroProtocol = (profile.sparMacroProtocol || 'maintenance') as SparMacroProtocol;
+    const customMacros = profile.customMacros;
 
-    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, weeklyGoal, macroProtocol);
+    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, weeklyGoal, macroProtocol, customMacros);
     return {
       protein: sparResult.protein,
       carb: sparResult.carb,

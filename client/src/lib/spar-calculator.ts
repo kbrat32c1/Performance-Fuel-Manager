@@ -15,9 +15,9 @@ export type Gender = 'male' | 'female';
 
 /**
  * SPAR Macro Protocols
- * Four distinct macro splits for different goals
+ * Four preset macro splits + custom option for experienced users
  */
-export type SparMacroProtocol = 'sports' | 'maintenance' | 'recomp' | 'fatloss';
+export type SparMacroProtocol = 'sports' | 'maintenance' | 'recomp' | 'fatloss' | 'custom';
 
 export interface SparMacroConfig {
   id: SparMacroProtocol;
@@ -31,8 +31,18 @@ export interface SparMacroConfig {
 }
 
 /**
- * The four SPAR macro protocols
- * Order: Performance → Health → Aesthetics → Weight Loss
+ * Custom macro settings interface
+ * Used when sparMacroProtocol === 'custom'
+ */
+export interface CustomMacros {
+  carbs: number;   // percentage (0-100)
+  protein: number; // percentage (0-100)
+  fat: number;     // percentage (0-100)
+}
+
+/**
+ * The five SPAR macro protocols
+ * Order: Performance → Health → Aesthetics → Weight Loss → Custom
  */
 export const SPAR_MACRO_PROTOCOLS: Record<SparMacroProtocol, SparMacroConfig> = {
   sports: {
@@ -75,6 +85,16 @@ export const SPAR_MACRO_PROTOCOLS: Record<SparMacroProtocol, SparMacroConfig> = 
     fat: 35,
     whoFor: 'Weight loss focus, weight-class athletes off-season',
   },
+  custom: {
+    id: 'custom',
+    name: 'Custom Split',
+    shortName: 'Custom',
+    description: 'Set your own C/P/F',
+    carbs: 40,   // defaults, overridden by customMacros
+    protein: 30,
+    fat: 30,
+    whoFor: 'Experienced users who know their ideal macro ratios',
+  },
 };
 
 // Activity multipliers (from SPAR Excel spreadsheet)
@@ -111,10 +131,25 @@ const DEFAULT_MACRO_SPLIT = {
  * Get macro split for a given protocol
  * Converts protocol percentages to slice-friendly ratios
  * Note: Fat is not tracked as slices, so we redistribute to carbs/protein/veg
+ * @param customMacros - Used when macroProtocol === 'custom'
  */
-function getMacroSplitForProtocol(macroProtocol: SparMacroProtocol): { protein: number; carb: number; veg: number } {
-  const config = SPAR_MACRO_PROTOCOLS[macroProtocol];
-  if (!config) return DEFAULT_MACRO_SPLIT;
+function getMacroSplitForProtocol(
+  macroProtocol: SparMacroProtocol,
+  customMacros?: CustomMacros
+): { protein: number; carb: number; veg: number } {
+  // For custom protocol, use the user's custom macros
+  let carbPercent: number;
+  let proteinPercent: number;
+
+  if (macroProtocol === 'custom' && customMacros) {
+    carbPercent = customMacros.carbs;
+    proteinPercent = customMacros.protein;
+  } else {
+    const config = SPAR_MACRO_PROTOCOLS[macroProtocol];
+    if (!config) return DEFAULT_MACRO_SPLIT;
+    carbPercent = config.carbs;
+    proteinPercent = config.protein;
+  }
 
   // Protocol defines C/P/F percentages, but slices track P/C/V
   // Veggies are always recommended regardless of macro split (fiber, micronutrients)
@@ -123,13 +158,13 @@ function getMacroSplitForProtocol(macroProtocol: SparMacroProtocol): { protein: 
   const remainingPercent = 1 - vegPercent;
 
   // Scale protein and carb percentages to fill the remaining 85%
-  const totalProteinCarb = config.protein + config.carbs;
-  const proteinPercent = (config.protein / totalProteinCarb) * remainingPercent;
-  const carbPercent = (config.carbs / totalProteinCarb) * remainingPercent;
+  const totalProteinCarb = proteinPercent + carbPercent;
+  const scaledProtein = (proteinPercent / totalProteinCarb) * remainingPercent;
+  const scaledCarb = (carbPercent / totalProteinCarb) * remainingPercent;
 
   return {
-    protein: proteinPercent,
-    carb: carbPercent,
+    protein: scaledProtein,
+    carb: scaledCarb,
     veg: vegPercent,
   };
 }
@@ -173,6 +208,7 @@ export function calculateTDEE(bmr: number, activityLevel: ActivityLevel): number
 /**
  * Calculate daily slice targets from profile data
  * @param macroProtocol - Optional SPAR macro protocol (defaults to 'maintenance')
+ * @param customMacros - Custom C/P/F percentages when macroProtocol === 'custom'
  */
 export function calculateSliceTargets(
   weightLbs: number,
@@ -182,6 +218,7 @@ export function calculateSliceTargets(
   activityLevel: ActivityLevel,
   weeklyGoal: WeeklyGoal,
   macroProtocol: SparMacroProtocol = 'maintenance',
+  customMacros?: CustomMacros,
 ): SliceTargets {
   const bmr = calculateBMR(weightLbs, heightInches, age, gender);
   const tdee = calculateTDEE(bmr, activityLevel);
@@ -190,8 +227,8 @@ export function calculateSliceTargets(
   // Minimum floor — never go below 1200 cal
   const targetCals = Math.max(adjusted, 1200);
 
-  // Get macro split based on selected protocol
-  const macroSplit = getMacroSplitForProtocol(macroProtocol);
+  // Get macro split based on selected protocol (pass custom macros if applicable)
+  const macroSplit = getMacroSplitForProtocol(macroProtocol, customMacros);
 
   const proteinCals = targetCals * macroSplit.protein;
   const carbCals = targetCals * macroSplit.carb;

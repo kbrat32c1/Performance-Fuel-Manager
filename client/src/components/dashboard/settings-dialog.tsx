@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -309,31 +309,44 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     <span className="text-xs font-bold">SPAR Nutrition Settings</span>
                   </div>
 
-                  {/* Macro Protocol Selector - Easy switching between the 4 protocols */}
+                  {/* Macro Protocol Selector - Easy switching between the 5 protocols */}
                   <div className="space-y-2">
                     <Label className="text-[11px] flex items-center gap-1.5">
                       <Activity className="w-3 h-3" />
                       Macro Protocol
                     </Label>
                     <div className="grid grid-cols-2 gap-1.5">
-                      {(['sports', 'maintenance', 'recomp', 'fatloss'] as SparMacroProtocol[]).map((protocolId) => {
+                      {(['sports', 'maintenance', 'recomp', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
                         const config = SPAR_MACRO_PROTOCOLS[protocolId];
                         const isSelected = (getValue('sparMacroProtocol') || 'maintenance') === protocolId;
                         const IconComponent = protocolId === 'sports' ? Zap :
                                               protocolId === 'maintenance' ? Scale :
-                                              protocolId === 'recomp' ? Dumbbell : TrendingDown;
+                                              protocolId === 'recomp' ? Dumbbell :
+                                              protocolId === 'fatloss' ? TrendingDown : Sliders;
                         const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
                                           protocolId === 'maintenance' ? 'text-blue-500' :
-                                          protocolId === 'recomp' ? 'text-green-500' : 'text-orange-500';
+                                          protocolId === 'recomp' ? 'text-green-500' :
+                                          protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+                        // For custom, show user's custom values if set
+                        const displayCarbs = protocolId === 'custom' && getValue('customMacros')?.carbs ? getValue('customMacros').carbs : config.carbs;
+                        const displayProtein = protocolId === 'custom' && getValue('customMacros')?.protein ? getValue('customMacros').protein : config.protein;
+                        const displayFat = protocolId === 'custom' && getValue('customMacros')?.fat ? getValue('customMacros').fat : config.fat;
                         return (
                           <button
                             key={protocolId}
-                            onClick={() => handleChange({ sparMacroProtocol: protocolId })}
+                            onClick={() => {
+                              handleChange({ sparMacroProtocol: protocolId });
+                              // Initialize custom macros with defaults if switching to custom for first time
+                              if (protocolId === 'custom' && !getValue('customMacros')) {
+                                handleChange({ customMacros: { carbs: 40, protein: 30, fat: 30 } });
+                              }
+                            }}
                             className={cn(
                               "flex flex-col items-start p-2 rounded-lg border-2 transition-all text-left",
                               isSelected
                                 ? "border-primary bg-primary/10"
-                                : "border-muted hover:border-muted-foreground/50"
+                                : "border-muted hover:border-muted-foreground/50",
+                              protocolId === 'custom' && "col-span-2"
                             )}
                           >
                             <div className="flex items-center gap-1.5 w-full">
@@ -343,14 +356,56 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             </div>
                             <span className="text-[9px] text-muted-foreground mt-0.5">{config.description}</span>
                             <div className="flex gap-1.5 mt-1 text-[8px] font-mono">
-                              <span className="text-amber-500">C{config.carbs}</span>
-                              <span className="text-orange-500">P{config.protein}</span>
-                              <span className="text-blue-400">F{config.fat}</span>
+                              <span className="text-amber-500">C{displayCarbs}</span>
+                              <span className="text-orange-500">P{displayProtein}</span>
+                              <span className="text-blue-400">F{displayFat}</span>
                             </div>
                           </button>
                         );
                       })}
                     </div>
+
+                    {/* Custom Macro Inputs - Show when custom is selected */}
+                    {(getValue('sparMacroProtocol') === 'custom') && (
+                      <div className="space-y-2 pt-2 border-t border-muted/50">
+                        <p className="text-[10px] text-muted-foreground">Set your custom C/P/F percentages (must total 100%):</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { key: 'carbs', label: 'Carbs', color: 'text-amber-500', bgColor: 'focus:ring-amber-500' },
+                            { key: 'protein', label: 'Protein', color: 'text-orange-500', bgColor: 'focus:ring-orange-500' },
+                            { key: 'fat', label: 'Fat', color: 'text-blue-400', bgColor: 'focus:ring-blue-400' },
+                          ].map(({ key, label, color }) => (
+                            <div key={key} className="space-y-1">
+                              <Label className={cn("text-[9px] font-bold", color)}>{label} %</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={getValue('customMacros')?.[key as keyof typeof getValue] || ''}
+                                onChange={(e) => {
+                                  const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                                  const current = getValue('customMacros') || { carbs: 40, protein: 30, fat: 30 };
+                                  handleChange({ customMacros: { ...current, [key]: val } });
+                                }}
+                                className="h-8 text-center font-mono text-sm"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        {/* Total validation */}
+                        {(() => {
+                          const cm = getValue('customMacros') || { carbs: 40, protein: 30, fat: 30 };
+                          const total = (cm.carbs || 0) + (cm.protein || 0) + (cm.fat || 0);
+                          const isValid = total === 100;
+                          return (
+                            <p className={cn("text-[10px] font-mono text-center", isValid ? "text-green-500" : "text-red-500")}>
+                              Total: {total}% {isValid ? '✓' : `(${total < 100 ? 'need ' + (100 - total) + ' more' : (total - 100) + ' over'})`}
+                            </p>
+                          );
+                        })()}
+                      </div>
+                    )}
+
                     <p className="text-[9px] text-muted-foreground">
                       {SPAR_MACRO_PROTOCOLS[(getValue('sparMacroProtocol') || 'maintenance') as SparMacroProtocol]?.whoFor}
                     </p>
