@@ -562,7 +562,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               : new Date(newProfile.simulatedDate).toISOString().split('T')[0])
           : null;
 
-        const profilePayload: Record<string, any> = {
+        // Core fields that should always exist in database
+        const corePayload: Record<string, any> = {
           user_id: user.id,
           name: newProfile.name,
           last_name: newProfile.lastName || '',
@@ -573,28 +574,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           protocol: parseInt(newProfile.protocol),
           has_completed_onboarding: newProfile.hasCompletedOnboarding || false,
           simulated_date: simulatedDateStr,
-          // SPAR fields
+        };
+
+        // SPAR fields - may not exist in older databases
+        const sparFields: Record<string, any> = {
           height_inches: newProfile.heightInches || null,
           age: newProfile.age || null,
           gender: newProfile.gender || null,
           activity_level: newProfile.activityLevel || null,
           weekly_goal: newProfile.weeklyGoal || null,
-          nutrition_preference: newProfile.nutritionPreference || 'spar',
         };
 
-        const { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+        // Optional fields - may not exist
+        const optionalFields: Record<string, any> = {
+          nutrition_preference: newProfile.nutritionPreference || 'spar',
+          target_weight: newProfile.targetWeight || null,
+        };
 
-        // If the nutrition_preference column doesn't exist yet, retry without it
-        if (upsertError && upsertError.message?.includes('nutrition_preference')) {
-          const { nutrition_preference, ...payloadWithout } = profilePayload;
-          const { error: retryError } = await supabase.from('profiles').upsert(payloadWithout, { onConflict: 'user_id' });
+        // Try with all fields first
+        let profilePayload = { ...corePayload, ...sparFields, ...optionalFields };
+        let { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+
+        // If error mentions a missing column, retry with fewer fields
+        if (upsertError) {
+          console.warn('Full save failed, trying without optional fields:', upsertError.message);
+          // Try without optional fields
+          profilePayload = { ...corePayload, ...sparFields };
+          const { error: retryError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+
           if (retryError) {
-            console.error('Error saving profile:', retryError);
-            toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+            console.warn('Save without optional failed, trying core only:', retryError.message);
+            // Try core only
+            const { error: coreError } = await supabase.from('profiles').upsert(corePayload, { onConflict: 'user_id' });
+            if (coreError) {
+              console.error('Error saving profile:', coreError);
+              toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+            }
           }
-        } else if (upsertError) {
-          console.error('Error saving profile:', upsertError);
-          toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
         }
       } catch (error) {
         console.error('Error saving profile:', error);

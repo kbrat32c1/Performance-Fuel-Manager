@@ -243,7 +243,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <Label className="text-[11px]">Protocol</Label>
                 <Select
                   value={getValue('protocol')}
-                  onValueChange={(v) => handleChange({ protocol: v as any })}
+                  onValueChange={(v) => {
+                    handleChange({ protocol: v as any });
+                    // Auto-expand SPAR fields when switching to SPAR
+                    if (v === PROTOCOLS.SPAR) {
+                      setShowSparFields(true);
+                    }
+                  }}
                 >
                   <SelectTrigger className="h-10">
                     <SelectValue />
@@ -296,25 +302,41 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </div>
               </div>
 
-              {/* SPAR Nutrition Profile - Collapsible */}
-              {isSparProtocol && (
-                <div className="pt-2 border-t border-muted">
-                  <button
-                    onClick={() => setShowSparFields(!showSparFields)}
-                    className="flex items-center justify-between w-full py-2"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Utensils className="w-4 h-4 text-primary" />
-                      <span className="text-xs font-bold">SPAR Nutrition Profile</span>
-                    </div>
-                    <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showSparFields && "rotate-180")} />
-                  </button>
+              {/* SPAR Nutrition Profile - Required for slice calculations */}
+              {isSparProtocol && (() => {
+                const sparFieldsMissing = !getValue('heightInches') || !getValue('age');
+                const shouldForceOpen = sparFieldsMissing || showSparFields;
 
-                  {showSparFields && (
-                    <div className="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
-                      <p className="text-[10px] text-muted-foreground">
-                        Used to calculate your daily slice targets.
-                      </p>
+                return (
+                  <div className={cn("pt-2 border-t", sparFieldsMissing ? "border-yellow-500/50" : "border-muted")}>
+                    <button
+                      onClick={() => !sparFieldsMissing && setShowSparFields(!showSparFields)}
+                      className={cn(
+                        "flex items-center justify-between w-full py-2",
+                        sparFieldsMissing && "cursor-default"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Utensils className={cn("w-4 h-4", sparFieldsMissing ? "text-yellow-500" : "text-primary")} />
+                        <span className="text-xs font-bold">SPAR Nutrition Profile</span>
+                        {sparFieldsMissing && (
+                          <span className="text-[9px] font-bold bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 px-1.5 py-0.5 rounded">
+                            Required
+                          </span>
+                        )}
+                      </div>
+                      {!sparFieldsMissing && (
+                        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", showSparFields && "rotate-180")} />
+                      )}
+                    </button>
+
+                    {shouldForceOpen && (
+                      <div className="space-y-3 pt-2 animate-in slide-in-from-top-2 duration-200">
+                        <p className={cn("text-[10px]", sparFieldsMissing ? "text-yellow-600 dark:text-yellow-400 font-medium" : "text-muted-foreground")}>
+                          {sparFieldsMissing
+                            ? "Fill in your profile to calculate daily slice targets."
+                            : "Used to calculate your daily slice targets."}
+                        </p>
 
                       {/* Height + Age Row */}
                       <div className="grid grid-cols-3 gap-2">
@@ -419,7 +441,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     </div>
                   )}
                 </div>
-              )}
+              );
+              })()}
 
               {/* Re-run Wizard */}
               <div className="pt-2 border-t border-muted">
