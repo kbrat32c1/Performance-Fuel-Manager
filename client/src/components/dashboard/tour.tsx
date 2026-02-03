@@ -195,6 +195,41 @@ export function DashboardTour() {
   const progress = ((step + 1) / TOUR_STEPS.length) * 100;
   const spotPad = 6;
 
+  // Calculate clamped spotlight position (prevent clipping at screen edges)
+  const getSpotlightStyle = (): React.CSSProperties | null => {
+    if (!rect) return null;
+    const edgeMargin = 4; // Minimum margin from viewport edge
+    const viewW = window.innerWidth;
+
+    let spotLeft = rect.left - spotPad;
+    let spotWidth = rect.width + spotPad * 2;
+    let spotTop = rect.top - spotPad;
+
+    // Clamp left edge
+    if (spotLeft < edgeMargin) {
+      spotLeft = edgeMargin;
+    }
+
+    // Clamp right edge (reduce width if needed)
+    if (spotLeft + spotWidth > viewW - edgeMargin) {
+      spotWidth = viewW - edgeMargin - spotLeft;
+    }
+
+    // Clamp top edge
+    if (spotTop < edgeMargin) {
+      spotTop = edgeMargin;
+    }
+
+    return {
+      top: spotTop,
+      left: spotLeft,
+      width: spotWidth,
+      height: rect.height + spotPad * 2,
+    };
+  };
+
+  const spotStyle = getSpotlightStyle();
+
   return (
     <>
       {/* Dark overlay — uses a massive box-shadow on the spotlight hole to darken everything else */}
@@ -204,14 +239,11 @@ export function DashboardTour() {
       />
 
       {/* Spotlight hole — the element with the giant box-shadow */}
-      {rect && (
+      {spotStyle && (
         <div
           className="fixed z-[200] rounded-xl transition-all duration-300 ease-out"
           style={{
-            top: rect.top - spotPad,
-            left: rect.left - spotPad,
-            width: rect.width + spotPad * 2,
-            height: rect.height + spotPad * 2,
+            ...spotStyle,
             boxShadow: "0 0 0 9999px rgba(0,0,0,0.55), 0 0 20px 4px rgba(0,0,0,0.3)",
             pointerEvents: "none",
           }}
@@ -219,15 +251,10 @@ export function DashboardTour() {
       )}
 
       {/* Ring highlight */}
-      {rect && (
+      {spotStyle && (
         <div
           className="fixed z-[201] rounded-xl ring-2 ring-primary pointer-events-none transition-all duration-300 ease-out"
-          style={{
-            top: rect.top - spotPad,
-            left: rect.left - spotPad,
-            width: rect.width + spotPad * 2,
-            height: rect.height + spotPad * 2,
-          }}
+          style={spotStyle}
         />
       )}
 
@@ -240,7 +267,7 @@ export function DashboardTour() {
       {/* Tooltip card */}
       <div
         ref={tooltipRef}
-        className="fixed z-[203] w-[320px] bg-background border border-border rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95 duration-200"
+        className="fixed z-[203] w-[calc(100vw-32px)] max-w-[320px] bg-background border border-border rounded-2xl shadow-[0_8px_40px_rgba(0,0,0,0.4)] animate-in fade-in zoom-in-95 duration-200"
         style={tooltipStyle}
         onClick={(e) => e.stopPropagation()}
       >

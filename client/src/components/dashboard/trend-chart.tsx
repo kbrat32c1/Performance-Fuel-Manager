@@ -75,9 +75,13 @@ export function TrendChart() {
 
       data.push({
         date: format(day, 'M/d'),
+        shortDate: undefined as string | undefined, // For type consistency with week view
         fullDate: dateStr,
         weight: morningLog ? morningLog.weight : null,
         target: profile.targetWeightClass,
+        projected: undefined as number | undefined, // Week view only
+        phase: undefined as string | undefined, // Week view only
+        daysUntil: undefined as number | undefined, // Week view only
         isToday: i === 0
       });
     }
@@ -105,9 +109,13 @@ export function TrendChart() {
 
       weeks.push({
         date: `Wk ${format(weekStart, 'M/d')}`,
+        shortDate: undefined as string | undefined, // For type consistency with week view
         fullDate: format(weekStart, 'yyyy-MM-dd'),
         weight: avgWeight ? parseFloat(avgWeight.toFixed(1)) : null,
         target: profile.targetWeightClass,
+        projected: undefined as number | undefined, // Week view only
+        phase: undefined as string | undefined, // Week view only
+        daysUntil: undefined as number | undefined, // Week view only
         isToday: i === 0
       });
     }

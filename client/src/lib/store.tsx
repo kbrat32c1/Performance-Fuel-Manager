@@ -587,10 +587,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // If the nutrition_preference column doesn't exist yet, retry without it
         if (upsertError && upsertError.message?.includes('nutrition_preference')) {
           const { nutrition_preference, ...payloadWithout } = profilePayload;
-          await supabase.from('profiles').upsert(payloadWithout, { onConflict: 'user_id' });
+          const { error: retryError } = await supabase.from('profiles').upsert(payloadWithout, { onConflict: 'user_id' });
+          if (retryError) {
+            console.error('Error saving profile:', retryError);
+            toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+          }
+        } else if (upsertError) {
+          console.error('Error saving profile:', upsertError);
+          toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
         }
       } catch (error) {
         console.error('Error saving profile:', error);
+        toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
       }
     }
   };
@@ -1121,7 +1129,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getHydrationTarget = () => {
     const daysUntilWeighIn = getDaysUntilWeighIn();
 
-    // All protocols use the centralized oz/lb hydration system
+    // SPAR Protocol (5) uses regular hydration - no competition water loading/restriction
+    if (profile.protocol === PROTOCOLS.SPAR) {
+      const morningLogs = logs.filter(l => l.type === 'morning');
+      const mostRecentMorning = morningLogs.length > 0
+        ? [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+        : null;
+      const athleteWeight = mostRecentMorning
+        ? mostRecentMorning.weight
+        : logs.length > 0
+          ? [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].weight
+          : profile.currentWeight || 150;
+      // Standard daily hydration: 0.5-0.6 oz per lb body weight
+      const targetOz = Math.round(athleteWeight * 0.55);
+      const gallons = targetOz / 128;
+      const rounded = Math.round(gallons * 4) / 4;
+      const amount = `${rounded.toFixed(rounded % 1 === 0 ? 1 : 2)} gal`;
+      return { amount, type: 'Regular', note: 'Daily hydration goal', targetOz };
+    }
+
+    // Competition protocols (1-4) use the centralized oz/lb hydration system
     const hydration = getHydrationForDaysUntil(daysUntilWeighIn);
 
     // Add contextual note based on days out
