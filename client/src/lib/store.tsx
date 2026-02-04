@@ -699,6 +699,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (!upsertError) {
           console.log('Profile saved successfully with v2 fields');
+          toast({ title: 'Settings saved', description: 'Your changes have been saved.', duration: 2000 });
         }
 
         // If error mentions a missing column, retry with fewer fields

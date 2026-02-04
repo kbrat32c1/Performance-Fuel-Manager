@@ -100,7 +100,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         setShowWeightClassConfirm(true);
         return;
       }
-      updateProfile({ ...pendingChanges, ...autoUpgradeV2 });
+      const savePayload = { ...pendingChanges, ...autoUpgradeV2 };
+      console.log('Settings handleSave - saving:', JSON.stringify(savePayload, null, 2));
+      updateProfile(savePayload);
     }
     setOpen(false);
   };
