@@ -1620,12 +1620,14 @@ function TodayTimeline({
     ? morningWeight - latestWeight
     : null;
 
-  // Completion count for daily weigh-ins — based on day type, not UI state
-  // Practice days: goal is 4 weigh-ins (AM, PRE, POST, BED) even if UI is collapsed
-  // Rest days: goal is 2 weigh-ins (AM, BED)
+  // Completion count for daily weigh-ins
+  // - SPAR users with trackPracticeWeighIns=false: always 2 (AM/BED)
+  // - SPAR users with trackPracticeWeighIns=true: 4 on practice days, 2 on rest days
+  // - Competition users: 4 on practice days, 2 on rest days
   const isPracticeDay = !noPractice;
-  const activeSlots = isPracticeDay ? 4 : 2;
-  const completedCount = isPracticeDay
+  const shouldTrackPractice = isSparProtocol ? trackPracticeWeighIns && isPracticeDay : isPracticeDay;
+  const activeSlots = shouldTrackPractice ? 4 : 2;
+  const completedCount = shouldTrackPractice
     ? [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length
     : [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length;
   const isComplete = completedCount === activeSlots;
