@@ -1347,9 +1347,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Protocol 5: Check if using v2 calculator
-    // Auto-detect v2 if user has height/age (went through v2 onboarding) even if sparV2 flag not set
-    const isSparV2 = profile.sparV2 || (profile.heightInches && profile.age);
-    if (isSparV2) {
+    if (profile.sparV2) {
       // Use SPAR v2 calculator (5 slice types, protein anchored to bodyweight)
       const v2Input: SparV2Input = {
         sex: (profile.gender || 'male') as 'male' | 'female',
