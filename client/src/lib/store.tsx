@@ -375,6 +375,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (profileData && !profileError) {
+        // Log v2 fields for debugging
+        console.log('Loaded profile v2 fields from Supabase:', {
+          spar_v2: profileData.spar_v2,
+          spar_goal: profileData.spar_goal,
+          training_sessions: profileData.training_sessions,
+          workday_activity: profileData.workday_activity,
+          gender: profileData.gender,
+        });
+
         // Parse dates as local time to avoid timezone shifts
         // Supabase returns dates as "YYYY-MM-DD" strings which get interpreted as UTC
         const parseLocalDate = (dateStr: string): Date => {
