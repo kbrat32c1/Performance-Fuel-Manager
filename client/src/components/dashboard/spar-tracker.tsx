@@ -622,6 +622,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
     updateDailyTracking(dateKey, updates);
 
     if (delta > 0) {
+      // Adding: create a new log entry
       const entry: FoodLogEntry = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: `Quick add ${CATEGORY_CONFIG[category].shortLabel}`,
@@ -631,8 +632,17 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
         sliceCount: delta,
       };
       setFoodHistory(prev => [...prev, entry]);
+    } else if (delta < 0) {
+      // Subtracting: remove the most recent entry for this category from the log
+      setFoodHistory(prev => {
+        // Find the last entry of this category
+        const lastIndex = [...prev].reverse().findIndex(e => e.sliceType === category);
+        if (lastIndex === -1) return prev;
+        const actualIndex = prev.length - 1 - lastIndex;
+        return [...prev.slice(0, actualIndex), ...prev.slice(actualIndex + 1)];
+      });
     }
-  }, [dateKey, tracking, updateDailyTracking]);
+  }, [dateKey, tracking, updateDailyTracking, blockedCategories]);
 
   // Custom food handlers
   const handleAddCustomFood = () => {
@@ -788,7 +798,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
         </div>
       )}
 
-      {/* ── Compact Progress Strip — tappable quick-add ── */}
+      {/* ── Compact Progress Strip — tappable quick-add/subtract ── */}
       {!readOnly && (
         <div className={cn("grid gap-1.5", isV2 ? "grid-cols-5" : "grid-cols-3")}>
           {([
@@ -814,27 +824,52 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
             }
             if (target === 0) return null;
             return (
-              <button
+              <div
                 key={cat}
-                onClick={() => handleQuickAdjust(cat, 1)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border transition-all active:scale-95",
+                  "flex-1 flex flex-col items-center rounded-lg border transition-all py-1.5",
                   done
-                    ? "bg-green-500/10 border-green-500/30 text-green-500"
-                    : `${config.bgColor} border-muted ${config.bgHover} ${config.bgActive}`
+                    ? "bg-green-500/10 border-green-500/30"
+                    : `${config.bgColor} border-muted`
                 )}
               >
-                <config.icon className={cn("w-3.5 h-3.5", done ? "text-green-500" : config.color)} />
-                <span className={cn(
-                  "text-xs font-mono font-bold",
-                  isOver ? "text-amber-500" : done ? "text-green-500" : "text-foreground"
-                )}>
-                  {consumed}<span className="text-muted-foreground font-normal">/{target}</span>
-                </span>
-                <span className={cn("text-[9px] font-bold", done ? "text-green-500" : config.color)}>
-                  {done ? '✓' : '+1'}
-                </span>
-              </button>
+                {/* Category label + count */}
+                <div className="flex items-center gap-1 mb-1">
+                  <config.icon className={cn("w-3 h-3", done ? "text-green-500" : config.color)} />
+                  <span className={cn(
+                    "text-[10px] font-mono font-bold",
+                    isOver ? "text-amber-500" : done ? "text-green-500" : "text-foreground"
+                  )}>
+                    {consumed}<span className="text-muted-foreground font-normal">/{target}</span>
+                  </span>
+                </div>
+                {/* +/- buttons */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleQuickAdjust(cat, -1); }}
+                    disabled={consumed === 0}
+                    className={cn(
+                      "w-7 h-7 flex items-center justify-center rounded-md text-sm font-bold transition-all active:scale-90",
+                      consumed === 0
+                        ? "bg-muted/30 text-muted-foreground/30 cursor-not-allowed"
+                        : "bg-muted/50 text-foreground hover:bg-muted active:bg-muted/80"
+                    )}
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleQuickAdjust(cat, 1); }}
+                    className={cn(
+                      "w-7 h-7 flex items-center justify-center rounded-md text-sm font-bold transition-all active:scale-90",
+                      done
+                        ? "bg-green-500/20 text-green-600 hover:bg-green-500/30"
+                        : `${config.bgColor} ${config.color} hover:bg-opacity-20 active:bg-opacity-30`
+                    )}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>
