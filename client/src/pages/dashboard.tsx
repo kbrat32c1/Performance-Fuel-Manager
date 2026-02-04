@@ -36,12 +36,55 @@ import { DashboardTour } from "@/components/dashboard/tour";
 function SparProtocolSelector({
   profile,
   updateProfile,
+  getSliceTargets,
 }: {
   profile: ReturnType<typeof useStore>['profile'];
   updateProfile: ReturnType<typeof useStore>['updateProfile'];
+  getSliceTargets?: ReturnType<typeof useStore>['getSliceTargets'];
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Check if user is on v2 (has height/age which means they went through v2 onboarding)
+  const isSparV2 = profile.sparV2 || (profile.heightInches && profile.age);
+
+  // V2 users: show goal-based display
+  if (isSparV2 && getSliceTargets) {
+    const sliceTargets = getSliceTargets();
+    const goal = profile.sparGoal || 'maintain';
+    const intensity = profile.goalIntensity;
+    const priority = profile.maintainPriority;
+
+    // Build display label
+    let goalLabel = goal === 'lose' ? 'LOSE' : goal === 'gain' ? 'GAIN' : 'MAINTAIN';
+    if (goal === 'lose' && intensity) {
+      goalLabel += intensity === 'aggressive' ? ' - AGG' : ' - LEAN';
+    } else if (goal === 'gain' && intensity) {
+      goalLabel += intensity === 'aggressive' ? ' - AGG' : ' - LEAN';
+    } else if (goal === 'maintain' && priority) {
+      goalLabel += priority === 'performance' ? ' - PERF' : '';
+    }
+
+    // Goal colors
+    const goalColor = goal === 'lose' ? 'text-orange-500' :
+                      goal === 'gain' ? 'text-green-500' : 'text-blue-500';
+
+    // Calorie adjustment display
+    const calAdj = sliceTargets.calorieAdjustment || 0;
+    const calDisplay = calAdj > 0 ? `+${calAdj}` : calAdj < 0 ? `${calAdj}` : '±0';
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className={cn("text-xs font-bold uppercase", goalColor)}>
+          {goalLabel}
+        </span>
+        <span className="text-[9px] font-mono bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">
+          {calDisplay} cal
+        </span>
+      </div>
+    );
+  }
+
+  // V1 users: show the old macro protocol dropdown
   const currentProtocol = profile.sparMacroProtocol || 'maintenance';
   const currentConfig = SPAR_MACRO_PROTOCOLS[currentProtocol];
 
@@ -1028,9 +1071,9 @@ export default function Dashboard() {
               )}
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              {/* For SPAR users, make the phase label clickable to switch protocols */}
+              {/* For SPAR users, show goal/protocol selector */}
               {isSparProtocol ? (
-                <SparProtocolSelector profile={profile} updateProfile={updateProfile} />
+                <SparProtocolSelector profile={profile} updateProfile={updateProfile} getSliceTargets={getSliceTargets} />
               ) : (
                 <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
                   {phaseInfo.label}
