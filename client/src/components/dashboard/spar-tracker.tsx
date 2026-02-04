@@ -18,6 +18,11 @@ import {
   Wheat,
   Apple,
   Droplets,
+  Calculator,
+  Activity,
+  TrendingUp,
+  TrendingDown,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -27,7 +32,7 @@ import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calcula
 
 // ─── Types ───
 
-type SliceCategory = 'protein' | 'carb' | 'veg';
+type SliceCategory = 'protein' | 'carb' | 'veg' | 'fruit' | 'fat';
 
 interface ProtocolRestrictions {
   /** Categories that are blocked (e.g., protein during fructose-only days) */
@@ -46,8 +51,8 @@ interface SparTrackerProps {
   embedded?: boolean;
   /** Protocol-based food restrictions */
   restrictions?: ProtocolRestrictions;
-  /** Override food lists (used when Protocols 1-4 display Sugar Diet foods as slices) */
-  foodOverride?: Record<SliceCategory, SparFood[]>;
+  /** Override food lists (used when Protocols 1-4 display Sugar Diet foods as slices). Partial allowed for v1 mode. */
+  foodOverride?: Partial<Record<SliceCategory, SparFood[]>>;
   /** Override the header label (e.g., "Fuel (Slices)" instead of "SPAR Nutrition") */
   headerLabel?: string;
   /** Gram targets to show alongside slice counts (for Sugar Diet protocols) */
@@ -92,16 +97,40 @@ const CATEGORY_CONFIG: Record<SliceCategory, {
     progressColor: 'bg-amber-500',
   },
   veg: {
-    label: 'Veggies & Fruit',
+    label: 'Vegetables',
     shortLabel: 'Veg',
     unit: 'fist',
-    icon: Apple,
+    icon: Salad,
     color: 'text-green-500',
-    bgColor: 'bg-primary/5',
-    bgHover: 'hover:bg-primary/15',
-    bgActive: 'active:bg-primary/25',
-    bgRing: 'bg-primary/30 ring-2 ring-primary',
-    progressColor: 'bg-primary',
+    bgColor: 'bg-green-500/5',
+    bgHover: 'hover:bg-green-500/15',
+    bgActive: 'active:bg-green-500/25',
+    bgRing: 'bg-green-500/30 ring-2 ring-green-500',
+    progressColor: 'bg-green-500',
+  },
+  fruit: {
+    label: 'Fruit',
+    shortLabel: 'Fruit',
+    unit: 'piece',
+    icon: Apple,
+    color: 'text-pink-500',
+    bgColor: 'bg-pink-500/5',
+    bgHover: 'hover:bg-pink-500/15',
+    bgActive: 'active:bg-pink-500/25',
+    bgRing: 'bg-pink-500/30 ring-2 ring-pink-500',
+    progressColor: 'bg-pink-500',
+  },
+  fat: {
+    label: 'Healthy Fats',
+    shortLabel: 'Fat',
+    unit: 'thumb',
+    icon: Droplets,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-400/5',
+    bgHover: 'hover:bg-blue-400/15',
+    bgActive: 'active:bg-blue-400/25',
+    bgRing: 'bg-blue-400/30 ring-2 ring-blue-400',
+    progressColor: 'bg-blue-400',
   },
 };
 
@@ -170,6 +199,100 @@ function WhyExplanation({ title, children }: { title: string; children: React.Re
         </div>
       )}
     </button>
+  );
+}
+
+// ─── Your Stats Section ───
+
+function YourStatsSection({
+  bmr,
+  tdee,
+  targetCalories,
+  activityLevel,
+  calorieAdjustment,
+}: {
+  bmr: number;
+  tdee: number;
+  targetCalories: number;
+  activityLevel?: string;
+  calorieAdjustment?: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const activityLabels: Record<string, string> = {
+    'sedentary': 'Sedentary',
+    'light': 'Light (1-3x/wk)',
+    'moderate': 'Moderate (3-5x/wk)',
+    'active': 'Active (6-7x/wk)',
+    'very-active': 'Very Active (2x/day)',
+  };
+
+  // Determine goal info from calorie adjustment
+  const adjustment = calorieAdjustment || 0;
+  const goalLabel = adjustment > 0 ? 'Building' : adjustment < 0 ? 'Cutting' : 'Maintaining';
+  const GoalIcon = adjustment > 0 ? TrendingUp : adjustment < 0 ? TrendingDown : Target;
+  const goalColor = adjustment > 0 ? 'text-green-500' : adjustment < 0 ? 'text-orange-500' : 'text-blue-500';
+
+  return (
+    <div className="space-y-1">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <Calculator className="w-3.5 h-3.5" />
+        <span className="text-[10px] font-bold uppercase">Your Stats</span>
+        <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
+      </button>
+
+      {isOpen && (
+        <div className="space-y-2 p-2.5 bg-muted/20 rounded-lg border border-muted/50 animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* Goal indicator */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <GoalIcon className={cn("w-3.5 h-3.5", goalColor)} />
+              <span className={cn("text-xs font-bold", goalColor)}>{goalLabel}</span>
+            </div>
+            {activityLevel && (
+              <div className="flex items-center gap-1 text-muted-foreground">
+                <Activity className="w-3 h-3" />
+                <span className="text-[10px]">{activityLabels[activityLevel] || activityLevel}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Calorie breakdown */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[10px]">
+              <span className="text-muted-foreground">BMR (Base Metabolic Rate)</span>
+              <span className="font-mono font-medium">{bmr} cal</span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-muted-foreground">× Activity Level</span>
+              <span className="font-mono font-medium">= {tdee} cal</span>
+            </div>
+            {adjustment !== 0 && (
+              <div className="flex justify-between text-[10px]">
+                <span className="text-muted-foreground">{adjustment > 0 ? '+ Surplus' : '− Deficit'}</span>
+                <span className={cn("font-mono font-medium", goalColor)}>
+                  {adjustment > 0 ? '+' : ''}{adjustment} cal
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-xs pt-1 border-t border-muted/30">
+              <span className="font-medium">Daily Target</span>
+              <span className="font-mono font-bold text-primary">{targetCalories} cal</span>
+            </div>
+          </div>
+
+          {/* Quick explanation */}
+          <p className="text-[9px] text-muted-foreground/70 leading-relaxed">
+            Your targets are calculated using the Mifflin-St Jeor equation, adjusted for your activity level and protocol.
+            {adjustment < 0 && ` A ${Math.abs(adjustment)} cal deficit = ~${Math.abs(adjustment) / 500} lb/week loss.`}
+            {adjustment > 0 && ` A ${adjustment} cal surplus supports lean muscle gain.`}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -330,8 +453,16 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   const handleAddSlice = useCallback((food: SparFood, category: SliceCategory) => {
     // Block restricted categories
     if (blockedCategories.includes(category)) return;
-    const sliceKey = category === 'protein' ? 'proteinSlices' : category === 'carb' ? 'carbSlices' : 'vegSlices';
-    const currentVal = category === 'protein' ? tracking.proteinSlices : category === 'carb' ? tracking.carbSlices : tracking.vegSlices;
+    const sliceKey = category === 'protein' ? 'proteinSlices'
+      : category === 'carb' ? 'carbSlices'
+      : category === 'veg' ? 'vegSlices'
+      : category === 'fruit' ? 'fruitSlices'
+      : 'fatSlices';
+    const currentVal = category === 'protein' ? tracking.proteinSlices
+      : category === 'carb' ? tracking.carbSlices
+      : category === 'veg' ? tracking.vegSlices
+      : category === 'fruit' ? (tracking.fruitSlices || 0)
+      : (tracking.fatSlices || 0);
 
     // Gram equivalent for cross-sync
     const gramAmount = category === 'protein' ? (food.protein || 25) : category === 'carb' ? (food.carbs || 30) : 0;
@@ -414,9 +545,15 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
 
     if (lastEntry.sliceType) {
       const sliceKey = lastEntry.sliceType === 'protein' ? 'proteinSlices'
-        : lastEntry.sliceType === 'carb' ? 'carbSlices' : 'vegSlices';
+        : lastEntry.sliceType === 'carb' ? 'carbSlices'
+        : lastEntry.sliceType === 'veg' ? 'vegSlices'
+        : lastEntry.sliceType === 'fruit' ? 'fruitSlices'
+        : 'fatSlices';
       const current = lastEntry.sliceType === 'protein' ? tracking.proteinSlices
-        : lastEntry.sliceType === 'carb' ? tracking.carbSlices : tracking.vegSlices;
+        : lastEntry.sliceType === 'carb' ? tracking.carbSlices
+        : lastEntry.sliceType === 'veg' ? tracking.vegSlices
+        : lastEntry.sliceType === 'fruit' ? (tracking.fruitSlices || 0)
+        : (tracking.fatSlices || 0);
 
       updates[sliceKey] = Math.max(0, current - sliceCount);
 
@@ -443,6 +580,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
       proteinSlices: 0,
       carbSlices: 0,
       vegSlices: 0,
+      fruitSlices: 0,
+      fatSlices: 0,
       proteinConsumed: 0,
       carbsConsumed: 0,
     });
@@ -458,8 +597,16 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   const handleQuickAdjust = useCallback((category: SliceCategory, delta: number) => {
     // Block adding to restricted categories (allow decrement for corrections)
     if (delta > 0 && blockedCategories.includes(category)) return;
-    const sliceKey = category === 'protein' ? 'proteinSlices' : category === 'carb' ? 'carbSlices' : 'vegSlices';
-    const current = category === 'protein' ? tracking.proteinSlices : category === 'carb' ? tracking.carbSlices : tracking.vegSlices;
+    const sliceKey = category === 'protein' ? 'proteinSlices'
+      : category === 'carb' ? 'carbSlices'
+      : category === 'veg' ? 'vegSlices'
+      : category === 'fruit' ? 'fruitSlices'
+      : 'fatSlices';
+    const current = category === 'protein' ? tracking.proteinSlices
+      : category === 'carb' ? tracking.carbSlices
+      : category === 'veg' ? tracking.vegSlices
+      : category === 'fruit' ? (tracking.fruitSlices || 0)
+      : (tracking.fatSlices || 0);
     const newVal = Math.max(0, current + delta);
 
     const updates: Record<string, any> = { [sliceKey]: newVal, nutritionMode: 'spar' };
@@ -529,7 +676,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   };
 
   const activeFoods = useMemo(() => {
-    const builtIn = foodOverride ? foodOverride[activeCategory] : SPAR_FOODS[activeCategory];
+    const builtIn = foodOverride?.[activeCategory] ?? SPAR_FOODS[activeCategory as keyof typeof SPAR_FOODS] ?? [];
     const custom = customFoods.filter(f => f.category === activeCategory).map(f => ({
       name: f.name,
       serving: f.serving,
@@ -563,12 +710,24 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
 
   // ─── Progress calculations ───
 
+  // Check if v2 mode (has fruit and fat targets)
+  const isV2 = targets.isV2 || (targets.fruit > 0 || targets.fat > 0);
+
   const proteinDone = tracking.proteinSlices >= targets.protein;
   const carbDone = tracking.carbSlices >= targets.carb;
   const vegDone = tracking.vegSlices >= targets.veg;
-  const allDone = proteinDone && carbDone && vegDone;
-  const totalSlices = tracking.proteinSlices + tracking.carbSlices + tracking.vegSlices;
-  const totalTarget = targets.protein + targets.carb + targets.veg;
+  const fruitDone = (tracking.fruitSlices || 0) >= targets.fruit;
+  const fatDone = (tracking.fatSlices || 0) >= targets.fat;
+
+  // For v2, all 5 categories must be done; for v1, just the 3
+  const allDone = isV2
+    ? proteinDone && carbDone && vegDone && fruitDone && fatDone
+    : proteinDone && carbDone && vegDone;
+
+  const totalSlices = tracking.proteinSlices + tracking.carbSlices + tracking.vegSlices
+    + (isV2 ? (tracking.fruitSlices || 0) + (tracking.fatSlices || 0) : 0);
+  const totalTarget = targets.protein + targets.carb + targets.veg
+    + (isV2 ? targets.fruit + targets.fat : 0);
   const overallProgress = totalTarget > 0 ? Math.min(100, Math.round((totalSlices / totalTarget) * 100)) : 0;
 
   // Category done map for tab indicators
@@ -576,6 +735,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
     protein: proteinDone,
     carb: carbDone,
     veg: vegDone,
+    fruit: fruitDone,
+    fat: fatDone,
   };
 
   // ─── Render ───
@@ -591,7 +752,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
           {targets.macroProtocol && (
             <span className={cn(
               "text-[8px] font-bold px-1.5 py-0.5 rounded",
-              targets.macroProtocol === 'sports' ? "bg-yellow-500/15 text-yellow-500" :
+              targets.macroProtocol === 'performance' ? "bg-yellow-500/15 text-yellow-500" :
+              targets.macroProtocol === 'build' ? "bg-green-500/15 text-green-500" :
               targets.macroProtocol === 'maintenance' ? "bg-blue-500/15 text-blue-500" :
               targets.macroProtocol === 'recomp' ? "bg-green-500/15 text-green-500" :
               "bg-orange-500/15 text-orange-500"
@@ -627,11 +789,15 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
 
       {/* ── Compact Progress Strip — tappable quick-add ── */}
       {!readOnly && (
-        <div className="flex gap-2">
+        <div className={cn("grid gap-1.5", isV2 ? "grid-cols-5" : "grid-cols-3")}>
           {([
             { cat: 'protein' as SliceCategory, consumed: tracking.proteinSlices, target: targets.protein },
             { cat: 'carb' as SliceCategory, consumed: tracking.carbSlices, target: targets.carb },
             { cat: 'veg' as SliceCategory, consumed: tracking.vegSlices, target: targets.veg },
+            ...(isV2 ? [
+              { cat: 'fruit' as SliceCategory, consumed: tracking.fruitSlices || 0, target: targets.fruit },
+              { cat: 'fat' as SliceCategory, consumed: tracking.fatSlices || 0, target: targets.fat },
+            ] : []),
           ]).map(({ cat, consumed, target }) => {
             const config = CATEGORY_CONFIG[cat];
             const blocked = isCategoryBlocked(cat);
@@ -675,11 +841,15 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
 
       {/* Read-only progress strip (no buttons) */}
       {readOnly && (
-        <div className="flex gap-2">
+        <div className={cn("grid gap-1.5", isV2 ? "grid-cols-5" : "grid-cols-3")}>
           {([
             { cat: 'protein' as SliceCategory, consumed: tracking.proteinSlices, target: targets.protein },
             { cat: 'carb' as SliceCategory, consumed: tracking.carbSlices, target: targets.carb },
             { cat: 'veg' as SliceCategory, consumed: tracking.vegSlices, target: targets.veg },
+            ...(isV2 ? [
+              { cat: 'fruit' as SliceCategory, consumed: tracking.fruitSlices || 0, target: targets.fruit },
+              { cat: 'fat' as SliceCategory, consumed: tracking.fatSlices || 0, target: targets.fat },
+            ] : []),
           ]).map(({ cat, consumed, target }) => {
             const config = CATEGORY_CONFIG[cat];
             const blocked = isCategoryBlocked(cat);
@@ -708,8 +878,11 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
       {!readOnly && (
         <div className="space-y-3">
           {/* Category tabs with done indicators */}
-          <div className="flex gap-1.5">
-            {(['protein', 'carb', 'veg'] as SliceCategory[]).map(cat => {
+          <div className={cn("grid gap-1", isV2 ? "grid-cols-5" : "grid-cols-3")}>
+            {([
+              'protein', 'carb', 'veg',
+              ...(isV2 ? ['fruit', 'fat'] : [])
+            ] as SliceCategory[]).map(cat => {
               const config = CATEGORY_CONFIG[cat];
               const isActive = activeCategory === cat;
               const blocked = isCategoryBlocked(cat);
@@ -1076,14 +1249,73 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
             )}
           </div>
 
-          {/* Calorie/target summary — de-emphasized at bottom */}
-          <div className="text-[10px] text-muted-foreground/60 pt-1 border-t border-muted/30">
-            {gramTargets ? (
-              <>Target: {gramTargets.carbs.max}g carbs / {gramTargets.protein.max}g protein → {targets.protein}P / {targets.carb}C / {targets.veg}V slices</>
-            ) : (
-              <>~{targets.totalCalories} cal/day • {targets.protein}P / {targets.carb}C / {targets.veg}V slices</>
+          {/* Enhanced Calorie/Stats Summary */}
+          <div className="space-y-2 pt-2 border-t border-muted/30">
+            {/* Remaining targets guidance */}
+            {totalSlices > 0 && !allDone && (
+              <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/20">
+                <Target className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-[10px] text-muted-foreground">
+                  Still need:{' '}
+                  {[
+                    tracking.proteinSlices < targets.protein && `${targets.protein - tracking.proteinSlices}P`,
+                    tracking.carbSlices < targets.carb && `${targets.carb - tracking.carbSlices}C`,
+                    tracking.vegSlices < targets.veg && `${targets.veg - tracking.vegSlices}V`,
+                    isV2 && (tracking.fruitSlices || 0) < targets.fruit && `${targets.fruit - (tracking.fruitSlices || 0)}Fr`,
+                    isV2 && (tracking.fatSlices || 0) < targets.fat && `${targets.fat - (tracking.fatSlices || 0)}Ft`,
+                  ].filter(Boolean).join(' / ')}
+                </span>
+              </div>
             )}
-            {restrictions?.ratioLabel && <span className="ml-1 font-mono">({restrictions.ratioLabel})</span>}
+
+            {/* Calorie breakdown with slice calorie values */}
+            {!gramTargets && (
+              <div className={cn("grid gap-1.5 text-center", isV2 ? "grid-cols-5" : "grid-cols-3")}>
+                <div className="px-1 py-1.5 rounded bg-orange-500/5">
+                  <div className="text-[10px] font-bold text-orange-500">{targets.protein}P</div>
+                  <div className="text-[8px] text-muted-foreground">~{targets.protein * 125} cal</div>
+                </div>
+                <div className="px-1 py-1.5 rounded bg-amber-500/5">
+                  <div className="text-[10px] font-bold text-amber-500">{targets.carb}C</div>
+                  <div className="text-[8px] text-muted-foreground">~{targets.carb * 104} cal</div>
+                </div>
+                <div className="px-1 py-1.5 rounded bg-green-500/5">
+                  <div className="text-[10px] font-bold text-green-500">{targets.veg}V</div>
+                  <div className="text-[8px] text-muted-foreground">~{targets.veg * 32} cal</div>
+                </div>
+                {isV2 && (
+                  <>
+                    <div className="px-1 py-1.5 rounded bg-pink-500/5">
+                      <div className="text-[10px] font-bold text-pink-500">{targets.fruit}Fr</div>
+                      <div className="text-[8px] text-muted-foreground">~{targets.fruit * 100} cal</div>
+                    </div>
+                    <div className="px-1 py-1.5 rounded bg-blue-400/5">
+                      <div className="text-[10px] font-bold text-blue-400">{targets.fat}Ft</div>
+                      <div className="text-[8px] text-muted-foreground">~{targets.fat * 126} cal</div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Sugar Diet gram targets display */}
+            {gramTargets && (
+              <div className="text-[10px] text-muted-foreground/60">
+                Target: {gramTargets.carbs.max}g carbs / {gramTargets.protein.max}g protein → {targets.protein}P / {targets.carb}C / {targets.veg}V slices
+                {restrictions?.ratioLabel && <span className="ml-1 font-mono">({restrictions.ratioLabel})</span>}
+              </div>
+            )}
+
+            {/* Expandable Your Stats section - only for Protocol 5 */}
+            {targets.bmr && targets.tdee && (
+              <YourStatsSection
+                bmr={targets.bmr}
+                tdee={targets.tdee}
+                targetCalories={targets.totalCalories}
+                activityLevel={targets.activityLevel}
+                calorieAdjustment={targets.calorieAdjustment}
+              />
+            )}
           </div>
 
           {/* Why SPAR? */}

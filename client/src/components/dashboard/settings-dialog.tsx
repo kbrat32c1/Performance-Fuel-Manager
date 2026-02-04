@@ -6,12 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders, Brain, ChevronDown, ChevronUp, Briefcase } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
 import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
+import {
+  type Goal as SparV2Goal,
+  type GoalIntensity,
+  type MaintainPriority,
+  type TrainingSessions,
+  type WorkdayActivity,
+} from "@/lib/spar-calculator-v2";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
@@ -45,6 +52,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [pendingChanges, setPendingChanges] = useState<any>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
+  const [showNerdMode, setShowNerdMode] = useState(false);
 
   // Reset pending changes when dialog opens
   useEffect(() => {
@@ -75,6 +83,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
   // Is SPAR protocol selected?
   const isSparProtocol = (getValue('protocol') || profile.protocol) === '5';
+
+  // Is SPAR v2 enabled?
+  const isSparV2 = getValue('sparV2') || profile.sparV2;
 
   // Save all changes
   const handleSave = () => {
@@ -309,133 +320,369 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     <span className="text-xs font-bold">SPAR Nutrition Settings</span>
                   </div>
 
-                  {/* Macro Protocol Selector - Easy switching between the 5 protocols */}
-                  <div className="space-y-2">
-                    <Label className="text-[11px] flex items-center gap-1.5">
-                      <Activity className="w-3 h-3" />
-                      Macro Protocol
-                    </Label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {(['sports', 'maintenance', 'recomp', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
-                        const config = SPAR_MACRO_PROTOCOLS[protocolId];
-                        const isSelected = (getValue('sparMacroProtocol') || 'maintenance') === protocolId;
-                        const IconComponent = protocolId === 'sports' ? Zap :
-                                              protocolId === 'maintenance' ? Scale :
-                                              protocolId === 'recomp' ? Dumbbell :
-                                              protocolId === 'fatloss' ? TrendingDown : Sliders;
-                        const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
-                                          protocolId === 'maintenance' ? 'text-blue-500' :
-                                          protocolId === 'recomp' ? 'text-green-500' :
-                                          protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
-                        // For custom, show user's custom values if set
-                        const displayCarbs = protocolId === 'custom' && getValue('customMacros')?.carbs ? getValue('customMacros').carbs : config.carbs;
-                        const displayProtein = protocolId === 'custom' && getValue('customMacros')?.protein ? getValue('customMacros').protein : config.protein;
-                        const displayFat = protocolId === 'custom' && getValue('customMacros')?.fat ? getValue('customMacros').fat : config.fat;
-                        return (
-                          <button
-                            key={protocolId}
-                            onClick={() => {
-                              handleChange({ sparMacroProtocol: protocolId });
-                              // Initialize custom macros with defaults if switching to custom for first time
-                              if (protocolId === 'custom' && !getValue('customMacros')) {
-                                handleChange({ customMacros: { carbs: 40, protein: 30, fat: 30 } });
-                              }
-                            }}
-                            className={cn(
-                              "flex flex-col items-start p-2 rounded-lg border-2 transition-all text-left",
-                              isSelected
-                                ? "border-primary bg-primary/10"
-                                : "border-muted hover:border-muted-foreground/50",
-                              protocolId === 'custom' && "col-span-2"
-                            )}
-                          >
-                            <div className="flex items-center gap-1.5 w-full">
-                              <IconComponent className={cn("w-3.5 h-3.5", iconColor)} />
-                              <span className="text-[11px] font-bold truncate">{config.shortName}</span>
-                              {isSelected && <Check className="w-3 h-3 text-primary ml-auto" />}
-                            </div>
-                            <span className="text-[9px] text-muted-foreground mt-0.5">{config.description}</span>
-                            <div className="flex gap-1.5 mt-1 text-[8px] font-mono">
-                              <span className="text-amber-500">C{displayCarbs}</span>
-                              <span className="text-orange-500">P{displayProtein}</span>
-                              <span className="text-blue-400">F{displayFat}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                  {/* V2 Settings - Goal, Training, Activity */}
+                  {isSparV2 ? (
+                    <>
+                      {/* Goal Selection */}
+                      <div className="space-y-2">
+                        <Label className="text-[11px] flex items-center gap-1.5">
+                          <Target className="w-3 h-3" />
+                          Goal
+                        </Label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {(['lose', 'maintain', 'gain'] as SparV2Goal[]).map((goal) => {
+                            const isSelected = (getValue('sparGoal') || 'maintain') === goal;
+                            const iconColor = goal === 'lose' ? 'text-orange-500' :
+                                              goal === 'maintain' ? 'text-blue-500' : 'text-green-500';
+                            const Icon = goal === 'lose' ? Flame : goal === 'maintain' ? Scale : Dumbbell;
+                            const label = goal === 'lose' ? 'Lose' : goal === 'maintain' ? 'Maintain' : 'Gain';
+                            return (
+                              <button
+                                key={goal}
+                                onClick={() => {
+                                  handleChange({
+                                    sparGoal: goal,
+                                    goalIntensity: goal !== 'maintain' ? (getValue('goalIntensity') || 'aggressive') : undefined,
+                                    maintainPriority: goal === 'maintain' ? (getValue('maintainPriority') || 'general') : undefined,
+                                  });
+                                }}
+                                className={cn(
+                                  "flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all",
+                                  isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
+                                )}
+                              >
+                                <Icon className={cn("w-4 h-4", iconColor)} />
+                                <span className="text-[10px] font-bold">{label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
 
-                    {/* Custom Macro Inputs - Show when custom is selected */}
-                    {(getValue('sparMacroProtocol') === 'custom') && (
+                        {/* Sub-options based on goal */}
+                        {getValue('sparGoal') === 'lose' || getValue('sparGoal') === 'gain' ? (
+                          <div className="grid grid-cols-2 gap-1.5 pt-1">
+                            {(['lean', 'aggressive'] as GoalIntensity[]).map((intensity) => {
+                              const isSelected = (getValue('goalIntensity') || 'aggressive') === intensity;
+                              const cal = getValue('sparGoal') === 'lose'
+                                ? (intensity === 'lean' ? -250 : -500)
+                                : (intensity === 'lean' ? 250 : 500);
+                              return (
+                                <button
+                                  key={intensity}
+                                  onClick={() => handleChange({ goalIntensity: intensity })}
+                                  className={cn(
+                                    "p-1.5 rounded border text-center transition-all",
+                                    isSelected ? "border-primary bg-primary/10" : "border-muted"
+                                  )}
+                                >
+                                  <span className="text-[10px] font-bold capitalize">{intensity}</span>
+                                  <span className="text-[8px] text-muted-foreground block">{cal > 0 ? '+' : ''}{cal} cal/day</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : getValue('sparGoal') === 'maintain' ? (
+                          <div className="grid grid-cols-2 gap-1.5 pt-1">
+                            {(['general', 'performance'] as MaintainPriority[]).map((priority) => {
+                              const isSelected = (getValue('maintainPriority') || 'general') === priority;
+                              const split = priority === 'general' ? '45/55' : '70/30';
+                              return (
+                                <button
+                                  key={priority}
+                                  onClick={() => handleChange({ maintainPriority: priority })}
+                                  className={cn(
+                                    "p-1.5 rounded border text-center transition-all",
+                                    isSelected ? "border-primary bg-primary/10" : "border-muted"
+                                  )}
+                                >
+                                  <span className="text-[10px] font-bold capitalize">{priority}</span>
+                                  <span className="text-[8px] text-muted-foreground block">{split} carb/fat</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {/* Goal Weight (for lose/gain) */}
+                      {(getValue('sparGoal') === 'lose' || getValue('sparGoal') === 'gain') && (
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Goal Weight (optional)</Label>
+                          <div className="flex gap-2 items-center">
+                            <Input
+                              type="number"
+                              placeholder="e.g. 165"
+                              className="h-9 font-mono flex-1"
+                              value={getValue('goalWeightLbs') || ''}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                handleChange({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
+                              }}
+                            />
+                            <span className="text-[10px] text-muted-foreground">lbs</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Training Sessions */}
                       <div className="space-y-2 pt-2 border-t border-muted/50">
-                        <p className="text-[10px] text-muted-foreground">Set your custom C/P/F percentages (must total 100%):</p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {[
-                            { key: 'carbs', label: 'Carbs', color: 'text-amber-500', bgColor: 'focus:ring-amber-500' },
-                            { key: 'protein', label: 'Protein', color: 'text-orange-500', bgColor: 'focus:ring-orange-500' },
-                            { key: 'fat', label: 'Fat', color: 'text-blue-400', bgColor: 'focus:ring-blue-400' },
-                          ].map(({ key, label, color }) => (
-                            <div key={key} className="space-y-1">
-                              <Label className={cn("text-[9px] font-bold", color)}>{label} %</Label>
+                        <Label className="text-[11px] flex items-center gap-1.5">
+                          <Dumbbell className="w-3 h-3" />
+                          Weekly Training
+                        </Label>
+                        <div className="grid grid-cols-4 gap-1">
+                          {(['1-2', '3-4', '5-6', '7+'] as TrainingSessions[]).map((sessions) => {
+                            const isSelected = (getValue('trainingSessions') || '3-4') === sessions;
+                            return (
+                              <button
+                                key={sessions}
+                                onClick={() => handleChange({ trainingSessions: sessions })}
+                                className={cn(
+                                  "p-1.5 rounded border text-center transition-all",
+                                  isSelected ? "border-primary bg-primary/10" : "border-muted"
+                                )}
+                              >
+                                <span className="text-[11px] font-bold">{sessions}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Workday Activity */}
+                      <div className="space-y-2">
+                        <Label className="text-[11px] flex items-center gap-1.5">
+                          <Briefcase className="w-3 h-3" />
+                          Workday Activity
+                        </Label>
+                        <div className="space-y-1">
+                          {(['mostly_sitting', 'on_feet_some', 'on_feet_most'] as WorkdayActivity[]).map((activity) => {
+                            const isSelected = (getValue('workdayActivity') || 'mostly_sitting') === activity;
+                            const label = activity === 'mostly_sitting' ? 'Mostly Sitting' :
+                                          activity === 'on_feet_some' ? 'On Feet Some' : 'On Feet Most';
+                            return (
+                              <button
+                                key={activity}
+                                onClick={() => handleChange({ workdayActivity: activity })}
+                                className={cn(
+                                  "w-full p-1.5 rounded border text-left transition-all flex items-center justify-between",
+                                  isSelected ? "border-primary bg-primary/10" : "border-muted"
+                                )}
+                              >
+                                <span className="text-[10px] font-medium">{label}</span>
+                                {isSelected && <Check className="w-3 h-3 text-primary" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Nerd Mode - Collapsible */}
+                      <div className="pt-2 border-t border-muted/50">
+                        <button
+                          onClick={() => setShowNerdMode(!showNerdMode)}
+                          className="flex items-center justify-between w-full py-1"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Brain className="w-4 h-4 text-purple-500" />
+                            <span className="text-xs font-bold">Nerd Mode</span>
+                          </div>
+                          {showNerdMode ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+
+                        {showNerdMode && (
+                          <div className="space-y-3 pt-2">
+                            {/* Body Fat % */}
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-purple-500">Body Fat % (enables Cunningham formula)</Label>
                               <Input
                                 type="number"
-                                min="0"
-                                max="100"
-                                value={getValue('customMacros')?.[key as keyof typeof getValue] || ''}
+                                min="5"
+                                max="50"
+                                placeholder="e.g. 15"
+                                className="h-8 font-mono text-sm"
+                                value={getValue('bodyFatPercent') || ''}
                                 onChange={(e) => {
-                                  const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
-                                  const current = getValue('customMacros') || { carbs: 40, protein: 30, fat: 30 };
-                                  handleChange({ customMacros: { ...current, [key]: val } });
+                                  const val = parseFloat(e.target.value);
+                                  handleChange({ bodyFatPercent: !isNaN(val) && val > 0 && val < 100 ? val : undefined });
                                 }}
-                                className="h-8 text-center font-mono text-sm"
                               />
                             </div>
-                          ))}
-                        </div>
-                        {/* Total validation */}
-                        {(() => {
-                          const cm = getValue('customMacros') || { carbs: 40, protein: 30, fat: 30 };
-                          const total = (cm.carbs || 0) + (cm.protein || 0) + (cm.fat || 0);
-                          const isValid = total === 100;
-                          return (
-                            <p className={cn("text-[10px] font-mono text-center", isValid ? "text-green-500" : "text-red-500")}>
-                              Total: {total}% {isValid ? '✓' : `(${total < 100 ? 'need ' + (100 - total) + ' more' : (total - 100) + ' over'})`}
+
+                            {/* Custom Protein g/lb */}
+                            <div className="space-y-1">
+                              <Label className="text-[10px] text-purple-500">Custom Protein (g/lb bodyweight)</Label>
+                              <Input
+                                type="number"
+                                min="0.5"
+                                max="1.5"
+                                step="0.05"
+                                placeholder="0.65 - 0.95"
+                                className="h-8 font-mono text-sm"
+                                value={getValue('customProteinPerLb') || ''}
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  handleChange({ customProteinPerLb: !isNaN(val) && val > 0 ? val : undefined });
+                                }}
+                              />
+                            </div>
+
+                            {/* Custom Fat/Carb Split */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-purple-500">Fat % of remaining</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  placeholder="30-50"
+                                  className="h-8 font-mono text-sm"
+                                  value={getValue('customFatPercent') || ''}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    handleChange({ customFatPercent: !isNaN(val) && val >= 0 ? val : undefined });
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] text-purple-500">Carb % of remaining</Label>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  placeholder="50-70"
+                                  className="h-8 font-mono text-sm"
+                                  value={getValue('customCarbPercent') || ''}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    handleChange({ customCarbPercent: !isNaN(val) && val >= 0 ? val : undefined });
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground">
+                              Leave blank to use protocol defaults. Fat + Carb should total 100%.
                             </p>
-                          );
-                        })()}
+                          </div>
+                        )}
                       </div>
-                    )}
 
-                    <p className="text-[9px] text-muted-foreground">
-                      {SPAR_MACRO_PROTOCOLS[(getValue('sparMacroProtocol') || 'maintenance') as SparMacroProtocol]?.whoFor}
-                    </p>
-                  </div>
-
-                  {/* Stats Summary */}
-                  {profile.heightInches && profile.age ? (
-                    <div className="grid grid-cols-3 gap-1.5 text-center">
-                      <div className="bg-muted/30 rounded px-2 py-1">
-                        <span className="text-[9px] text-muted-foreground block">Height</span>
-                        <span className="font-mono font-bold text-[11px] text-foreground">{Math.floor(profile.heightInches / 12)}'{profile.heightInches % 12}"</span>
+                      {/* Stats Summary */}
+                      <div className="grid grid-cols-4 gap-1 text-center pt-2 border-t border-muted/50">
+                        <div className="bg-muted/30 rounded px-1 py-1">
+                          <span className="text-[8px] text-muted-foreground block">Height</span>
+                          <span className="font-mono font-bold text-[10px]">{profile.heightInches ? `${Math.floor(profile.heightInches / 12)}'${profile.heightInches % 12}"` : '-'}</span>
+                        </div>
+                        <div className="bg-muted/30 rounded px-1 py-1">
+                          <span className="text-[8px] text-muted-foreground block">Age</span>
+                          <span className="font-mono font-bold text-[10px]">{profile.age || '-'}</span>
+                        </div>
+                        <div className="bg-muted/30 rounded px-1 py-1">
+                          <span className="text-[8px] text-muted-foreground block">Sex</span>
+                          <span className="font-mono font-bold text-[10px] capitalize">{profile.gender || '-'}</span>
+                        </div>
+                        <div className="bg-muted/30 rounded px-1 py-1">
+                          <span className="text-[8px] text-muted-foreground block">Training</span>
+                          <span className="font-mono font-bold text-[10px]">{getValue('trainingSessions') || '3-4'}/wk</span>
+                        </div>
                       </div>
-                      <div className="bg-muted/30 rounded px-2 py-1">
-                        <span className="text-[9px] text-muted-foreground block">Age</span>
-                        <span className="font-mono font-bold text-[11px] text-foreground">{profile.age}</span>
-                      </div>
-                      <div className="bg-muted/30 rounded px-2 py-1">
-                        <span className="text-[9px] text-muted-foreground block">Goal</span>
-                        <span className="font-mono font-bold text-[11px] text-foreground capitalize">{profile.weeklyGoal || 'maintain'}</span>
-                      </div>
-                    </div>
+                    </>
                   ) : (
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2">
-                      <p className="text-[10px] text-yellow-600 dark:text-yellow-400 font-medium">
-                        Complete your profile below to get accurate calorie targets.
-                      </p>
-                    </div>
+                    /* V1 Settings - Macro Protocol Selector */
+                    <>
+                      <div className="space-y-2">
+                        <Label className="text-[11px] flex items-center gap-1.5">
+                          <Activity className="w-3 h-3" />
+                          Macro Protocol
+                        </Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {(['performance', 'maintenance', 'recomp', 'build', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
+                            const config = SPAR_MACRO_PROTOCOLS[protocolId];
+                            const isSelected = (getValue('sparMacroProtocol') || 'maintenance') === protocolId;
+                            const IconComponent = protocolId === 'performance' ? Zap :
+                                                  protocolId === 'maintenance' ? Scale :
+                                                  protocolId === 'recomp' ? Dumbbell :
+                                                  protocolId === 'build' ? TrendingDown :
+                                                  protocolId === 'fatloss' ? Flame : Sliders;
+                            const iconColor = protocolId === 'performance' ? 'text-yellow-500' :
+                                              protocolId === 'maintenance' ? 'text-blue-500' :
+                                              protocolId === 'recomp' ? 'text-cyan-500' :
+                                              protocolId === 'build' ? 'text-green-500' :
+                                              protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+                            const displayCarbs = protocolId === 'custom' && getValue('customMacros')?.carbs ? getValue('customMacros').carbs : config.carbs;
+                            const displayProtein = protocolId === 'custom' && getValue('customMacros')?.protein ? getValue('customMacros').protein : config.protein;
+                            const displayFat = protocolId === 'custom' && getValue('customMacros')?.fat ? getValue('customMacros').fat : config.fat;
+                            const calAdj = protocolId === 'custom' && getValue('customMacros')?.calorieAdjustment !== undefined
+                              ? getValue('customMacros').calorieAdjustment
+                              : config.calorieAdjustment;
+                            return (
+                              <button
+                                key={protocolId}
+                                onClick={() => {
+                                  handleChange({ sparMacroProtocol: protocolId });
+                                  if (protocolId === 'custom' && !getValue('customMacros')) {
+                                    handleChange({ customMacros: { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 } });
+                                  }
+                                }}
+                                className={cn(
+                                  "flex flex-col items-start p-2 rounded-lg border-2 transition-all text-left",
+                                  isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50",
+                                  protocolId === 'custom' && "col-span-2"
+                                )}
+                              >
+                                <div className="flex items-center gap-1.5 w-full">
+                                  <IconComponent className={cn("w-3.5 h-3.5", iconColor)} />
+                                  <span className="text-[11px] font-bold truncate">{config.shortName}</span>
+                                  {isSelected && <Check className="w-3 h-3 text-primary ml-auto" />}
+                                </div>
+                                <span className="text-[9px] text-muted-foreground mt-0.5">{config.description}</span>
+                                <div className="flex items-center justify-between w-full mt-1">
+                                  <div className="flex gap-1.5 text-[8px] font-mono">
+                                    <span className="text-amber-500">C{displayCarbs}</span>
+                                    <span className="text-orange-500">P{displayProtein}</span>
+                                    <span className="text-blue-400">F{displayFat}</span>
+                                  </div>
+                                  <span className={cn("text-[8px] font-mono", calAdj !== 0 ? iconColor : "text-muted-foreground")}>
+                                    {calAdj > 0 ? `+${calAdj}` : calAdj < 0 ? calAdj : '±0'} cal
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <p className="text-[9px] text-muted-foreground">
+                          {SPAR_MACRO_PROTOCOLS[(getValue('sparMacroProtocol') || 'maintenance') as SparMacroProtocol]?.whoFor}
+                        </p>
+                      </div>
+
+                      {/* Stats Summary */}
+                      {profile.heightInches && profile.age ? (
+                        <div className="grid grid-cols-3 gap-1.5 text-center">
+                          <div className="bg-muted/30 rounded px-2 py-1">
+                            <span className="text-[9px] text-muted-foreground block">Height</span>
+                            <span className="font-mono font-bold text-[11px]">{Math.floor(profile.heightInches / 12)}'{profile.heightInches % 12}"</span>
+                          </div>
+                          <div className="bg-muted/30 rounded px-2 py-1">
+                            <span className="text-[9px] text-muted-foreground block">Age</span>
+                            <span className="font-mono font-bold text-[11px]">{profile.age}</span>
+                          </div>
+                          <div className="bg-muted/30 rounded px-2 py-1">
+                            <span className="text-[9px] text-muted-foreground block">Goal</span>
+                            <span className="font-mono font-bold text-[11px] capitalize">{profile.weeklyGoal || 'maintain'}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2">
+                          <p className="text-[10px] text-yellow-600 dark:text-yellow-400 font-medium">
+                            Complete your profile to get accurate calorie targets.
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {/* Practice Weigh-ins Toggle */}
+                  {/* Practice Weigh-ins Toggle - Always show */}
                   <div className="pt-2 border-t border-muted/50">
                     <button
                       onClick={() => handleChange({ trackPracticeWeighIns: !getValue('trackPracticeWeighIns') })}

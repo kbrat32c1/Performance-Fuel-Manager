@@ -53,11 +53,11 @@ export const SPAR_FOODS = {
   ] as SparFood[],
 
   veg: [
-    // Vegetables
+    // Vegetables only (fruit moved to separate category for v2)
     { name: 'Asparagus', serving: '1 fist', calories: 25, icon: '🌿' },
     { name: 'Bell Peppers', serving: '1 fist', calories: 25, icon: '🫑' },
     { name: 'Broccoli', serving: '1 fist', calories: 30, icon: '🥦' },
-    { name: 'Brussel Sprouts', serving: '1 fist', calories: 40, icon: '��' },
+    { name: 'Brussel Sprouts', serving: '1 fist', calories: 40, icon: '🥬' },
     { name: 'Carrots', serving: '1 fist', calories: 40, icon: '🥕' },
     { name: 'Cauliflower', serving: '1 fist', calories: 25, icon: '🥦' },
     { name: 'Celery', serving: '1 fist', calories: 10, icon: '🥒' },
@@ -72,23 +72,49 @@ export const SPAR_FOODS = {
     { name: 'Tomatoes', serving: '1 fist', calories: 25, icon: '🍅' },
     { name: 'Watercress', serving: '2 fists raw', calories: 5, icon: '🥬' },
     { name: 'Zucchini', serving: '1 fist', calories: 20, icon: '🥒' },
-    // Fruits
-    { name: 'Apples', serving: '1 medium', calories: 95, icon: '🍎' },
-    { name: 'Bananas', serving: '1 medium', calories: 105, icon: '🍌' },
-    { name: 'Berries (Any)', serving: '1 fist', calories: 50, icon: '🫐' },
-    { name: 'Cantaloupe', serving: '1 fist', calories: 55, icon: '🍈' },
-    { name: 'Cherries', serving: '1 fist', calories: 50, icon: '🍒' },
+  ] as SparFood[],
+
+  // v2: Fruit is now a separate category
+  fruit: [
+    { name: 'Apple', serving: '1 medium', calories: 95, icon: '🍎' },
+    { name: 'Banana', serving: '1 medium', calories: 105, icon: '🍌' },
+    { name: 'Berries (Any)', serving: '1 cup', calories: 50, icon: '🫐' },
+    { name: 'Cantaloupe', serving: '1 cup cubed', calories: 55, icon: '🍈' },
+    { name: 'Cherries', serving: '1 cup', calories: 50, icon: '🍒' },
     { name: 'Grapefruit', serving: '½ medium', calories: 40, icon: '🍊' },
-    { name: 'Grapes', serving: '1 fist', calories: 60, icon: '🍇' },
-    { name: 'Honeydew', serving: '1 fist', calories: 45, icon: '🍈' },
+    { name: 'Grapes', serving: '1 cup', calories: 60, icon: '🍇' },
+    { name: 'Honeydew', serving: '1 cup cubed', calories: 45, icon: '🍈' },
     { name: 'Kiwi', serving: '1 medium', calories: 45, icon: '🥝' },
-    { name: 'Nectarines', serving: '1 medium', calories: 60, icon: '🍑' },
-    { name: 'Oranges', serving: '1 medium', calories: 65, icon: '🍊' },
-    { name: 'Peaches', serving: '1 medium', calories: 60, icon: '🍑' },
-    { name: 'Pears', serving: '1 medium', calories: 100, icon: '🍐' },
-    { name: 'Pineapple', serving: '1 fist', calories: 55, icon: '🍍' },
-    { name: 'Plums', serving: '1 medium', calories: 30, icon: '🟣' },
-    { name: 'Watermelon', serving: '1 fist', calories: 45, icon: '🍉' },
+    { name: 'Mango', serving: '1 cup', calories: 100, icon: '🥭' },
+    { name: 'Nectarine', serving: '1 medium', calories: 60, icon: '🍑' },
+    { name: 'Orange', serving: '1 medium', calories: 65, icon: '🍊' },
+    { name: 'Peach', serving: '1 medium', calories: 60, icon: '🍑' },
+    { name: 'Pear', serving: '1 medium', calories: 100, icon: '🍐' },
+    { name: 'Pineapple', serving: '1 cup', calories: 55, icon: '🍍' },
+    { name: 'Plum', serving: '1 medium', calories: 30, icon: '🟣' },
+    { name: 'Strawberries', serving: '1 cup', calories: 50, icon: '🍓' },
+    { name: 'Watermelon', serving: '1 cup cubed', calories: 45, icon: '🍉' },
+  ] as SparFood[],
+
+  // v2: Healthy fats category
+  fat: [
+    { name: 'Almonds', serving: '1 thumb (~14g)', calories: 80, icon: '🥜' },
+    { name: 'Avocado', serving: '1 thumb slice', calories: 50, icon: '🥑' },
+    { name: 'Butter', serving: '1 thumb (~14g)', calories: 100, icon: '🧈' },
+    { name: 'Cashews', serving: '1 thumb (~14g)', calories: 80, icon: '🥜' },
+    { name: 'Cheese (hard)', serving: '1 thumb slice', calories: 110, icon: '🧀' },
+    { name: 'Coconut Oil', serving: '1 thumb (~14g)', calories: 120, icon: '🥥' },
+    { name: 'Dark Chocolate', serving: '1 thumb piece', calories: 80, icon: '🍫' },
+    { name: 'Egg Yolk', serving: '2 yolks', calories: 110, icon: '🥚' },
+    { name: 'Flax Seeds', serving: '1 Tbsp', calories: 55, icon: '🌱' },
+    { name: 'Ghee', serving: '1 thumb (~14g)', calories: 120, icon: '🧈' },
+    { name: 'Macadamia Nuts', serving: '1 thumb (~14g)', calories: 100, icon: '🥜' },
+    { name: 'Olive Oil', serving: '1 thumb (~14g)', calories: 120, icon: '🫒' },
+    { name: 'Peanut Butter', serving: '1 Tbsp', calories: 95, icon: '🥜' },
+    { name: 'Pecans', serving: '1 thumb (~14g)', calories: 100, icon: '🥜' },
+    { name: 'Pumpkin Seeds', serving: '1 Tbsp', calories: 45, icon: '🎃' },
+    { name: 'Sunflower Seeds', serving: '1 Tbsp', calories: 50, icon: '🌻' },
+    { name: 'Walnuts', serving: '1 thumb (~14g)', calories: 90, icon: '🥜' },
   ] as SparFood[],
 };
 

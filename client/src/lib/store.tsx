@@ -16,7 +16,17 @@ import {
   STATUS_THRESHOLDS,
 } from './constants';
 import { SUGAR_FOODS } from './food-data';
-import { calculateSliceTargets, type ActivityLevel, type WeeklyGoal, type Gender, type SparMacroProtocol, type CustomMacros } from './spar-calculator';
+import { calculateSliceTargets, SPAR_MACRO_PROTOCOLS, type ActivityLevel, type Gender, type SparMacroProtocol, type CustomMacros } from './spar-calculator';
+import {
+  calculateSparSlicesV2,
+  type Goal as SparV2Goal,
+  type GoalIntensity,
+  type MaintainPriority,
+  type TrainingSessions,
+  type WorkdayActivity,
+  type SparV2Input,
+  type SparV2Output,
+} from './spar-calculator-v2';
 
 // Types
 export type Protocol = '1' | '2' | '3' | '4' | '5';
@@ -52,16 +62,33 @@ export interface AthleteProfile {
   status: Status;
   simulatedDate: Date | null;
   hasCompletedOnboarding?: boolean;
-  // SPAR Nutrition profile fields
+  // SPAR Nutrition profile fields (v1 - legacy)
   heightInches?: number;
   age?: number;
   gender?: 'male' | 'female';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
-  weeklyGoal?: 'cut' | 'maintain' | 'build';
-  sparMacroProtocol?: 'sports' | 'maintenance' | 'recomp' | 'fatloss' | 'custom'; // SPAR macro split
-  customMacros?: CustomMacros; // Custom C/P/F percentages when sparMacroProtocol === 'custom'
+  weeklyGoal?: 'cut' | 'maintain' | 'build'; // DEPRECATED: Now derived from sparMacroProtocol
+  sparMacroProtocol?: SparMacroProtocol; // Unified protocol (includes both macros AND calorie strategy)
+  customMacros?: CustomMacros; // Custom C/P/F percentages + calorie adjustment when sparMacroProtocol === 'custom'
   nutritionPreference: 'spar' | 'sugar'; // slices or grams
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
+
+  // SPAR v2 fields
+  sparV2?: boolean; // Flag to indicate using v2 calculator
+  sparGoal?: SparV2Goal; // 'lose' | 'maintain' | 'gain'
+  goalIntensity?: GoalIntensity; // 'lean' | 'aggressive' - for lose/gain
+  maintainPriority?: MaintainPriority; // 'general' | 'performance' - for maintain
+  trainingSessions?: TrainingSessions; // '1-2' | '3-4' | '5-6' | '7+'
+  workdayActivity?: WorkdayActivity; // 'mostly_sitting' | 'on_feet_some' | 'on_feet_most'
+  goalWeightLbs?: number; // Target weight for lose/gain goals
+  // Nerd mode options
+  bodyFatPercent?: number; // Enables Cunningham formula (0-100)
+  customProteinPerLb?: number; // Override protein g/lb
+  customFatPercent?: number; // Override fat % of remaining calories
+  customCarbPercent?: number; // Override carb % of remaining calories
+  // Weight tracking for smart features
+  lastCalcWeight?: number; // Weight used for last slice calculation
+  lastCheckInDate?: string; // ISO date of last check-in prompt
 }
 
 export interface WeightLog {
@@ -87,8 +114,8 @@ export interface FoodLogEntry {
   name: string;
   timestamp: string; // ISO string
   mode: 'spar' | 'sugar';
-  // SPAR mode fields
-  sliceType?: 'protein' | 'carb' | 'veg';
+  // SPAR mode fields (v2 adds 'fruit' and 'fat')
+  sliceType?: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat';
   sliceCount?: number;         // usually 1, but could be 0.5 or 2
   // Sugar mode fields
   macroType?: 'carbs' | 'protein';
@@ -108,6 +135,9 @@ export interface DailyTracking {
   proteinSlices: number;
   carbSlices: number;
   vegSlices: number;
+  // SPAR v2 additional slice types
+  fruitSlices?: number;
+  fatSlices?: number;
   nutritionMode?: 'spar' | 'sugar'; // which mode was active when food was logged
   foodLog?: FoodLogEntry[];          // persisted food log
 }
@@ -156,7 +186,25 @@ interface StoreContextType {
   getMacroTargets: () => { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string; note?: string; weightWarning?: string };
   getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
   getNutritionMode: () => 'spar' | 'sugar';
-  getSliceTargets: () => { protein: number; carb: number; veg: number; totalCalories: number; macroProtocol?: SparMacroProtocol };
+  getSliceTargets: () => {
+    protein: number;
+    carb: number;
+    veg: number;
+    fruit: number;
+    fat: number;
+    totalCalories: number;
+    macroProtocol?: SparMacroProtocol;
+    bmr?: number;
+    tdee?: number;
+    activityLevel?: string;
+    calorieAdjustment?: number;
+    // v2 additional fields
+    isV2?: boolean;
+    proteinGrams?: number;
+    carbGramsTotal?: number;
+    fatGrams?: number;
+    proteinPerLb?: number;
+  };
   getCheckpoints: () => {
     walkAround: string;
     wedTarget: string;
@@ -358,7 +406,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           status: 'on-track',
           simulatedDate: profileData.simulated_date ? parseLocalDate(profileData.simulated_date) : null,
           hasCompletedOnboarding: profileData.has_completed_onboarding || false,
-          // SPAR fields
+          // SPAR fields (v1)
           heightInches: profileData.height_inches || undefined,
           age: profileData.age || undefined,
           gender: profileData.gender as 'male' | 'female' | undefined,
@@ -366,6 +414,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           weeklyGoal: profileData.weekly_goal as AthleteProfile['weeklyGoal'],
           nutritionPreference: (profileData.nutrition_preference === 'sugar' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
           trackPracticeWeighIns: profileData.track_practice_weigh_ins || false,
+          // SPAR macro protocol fields (v1)
+          sparMacroProtocol: profileData.spar_macro_protocol as SparMacroProtocol || undefined,
+          customMacros: profileData.custom_macros ? (typeof profileData.custom_macros === 'string' ? JSON.parse(profileData.custom_macros) : profileData.custom_macros) : undefined,
+          targetWeight: profileData.target_weight || undefined,
+          // SPAR v2 fields
+          sparV2: profileData.spar_v2 || false,
+          sparGoal: profileData.spar_goal as SparV2Goal || undefined,
+          goalIntensity: profileData.goal_intensity as GoalIntensity || undefined,
+          maintainPriority: profileData.maintain_priority as MaintainPriority || undefined,
+          trainingSessions: profileData.training_sessions as TrainingSessions || undefined,
+          workdayActivity: profileData.workday_activity as WorkdayActivity || undefined,
+          goalWeightLbs: profileData.goal_weight_lbs || undefined,
+          bodyFatPercent: profileData.body_fat_percent || undefined,
+          customProteinPerLb: profileData.custom_protein_per_lb || undefined,
+          customFatPercent: profileData.custom_fat_percent || undefined,
+          customCarbPercent: profileData.custom_carb_percent || undefined,
+          lastCalcWeight: profileData.last_calc_weight || undefined,
+          lastCheckInDate: profileData.last_check_in_date || undefined,
         });
       } else {
         // No profile found - user needs to complete onboarding
@@ -420,6 +486,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           proteinSlices: t.protein_slices || 0,
           carbSlices: t.carb_slices || 0,
           vegSlices: t.veg_slices || 0,
+          fruitSlices: t.fruit_slices || 0,
+          fatSlices: t.fat_slices || 0,
           nutritionMode: t.nutrition_mode || undefined,
           foodLog: t.food_log || [],
         })));
@@ -589,31 +657,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           weekly_goal: newProfile.weeklyGoal || null,
         };
 
+        // SPAR v2 fields
+        const sparV2Fields: Record<string, any> = {
+          spar_v2: newProfile.sparV2 || false,
+          spar_goal: newProfile.sparGoal || null,
+          goal_intensity: newProfile.goalIntensity || null,
+          maintain_priority: newProfile.maintainPriority || null,
+          training_sessions: newProfile.trainingSessions || null,
+          workday_activity: newProfile.workdayActivity || null,
+          goal_weight_lbs: newProfile.goalWeightLbs || null,
+          body_fat_percent: newProfile.bodyFatPercent || null,
+          custom_protein_per_lb: newProfile.customProteinPerLb || null,
+          custom_fat_percent: newProfile.customFatPercent || null,
+          custom_carb_percent: newProfile.customCarbPercent || null,
+          last_calc_weight: newProfile.lastCalcWeight || null,
+          last_check_in_date: newProfile.lastCheckInDate || null,
+        };
+
         // Optional fields - may not exist
         const optionalFields: Record<string, any> = {
           nutrition_preference: newProfile.nutritionPreference || 'spar',
           target_weight: newProfile.targetWeight || null,
           track_practice_weigh_ins: newProfile.trackPracticeWeighIns || false,
+          spar_macro_protocol: newProfile.sparMacroProtocol || null,
+          custom_macros: newProfile.customMacros ? JSON.stringify(newProfile.customMacros) : null,
         };
 
-        // Try with all fields first
-        let profilePayload = { ...corePayload, ...sparFields, ...optionalFields };
+        // Try with all fields first (including v2)
+        let profilePayload = { ...corePayload, ...sparFields, ...sparV2Fields, ...optionalFields };
         let { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
 
         // If error mentions a missing column, retry with fewer fields
         if (upsertError) {
-          console.warn('Full save failed, trying without optional fields:', upsertError.message);
-          // Try without optional fields
-          profilePayload = { ...corePayload, ...sparFields };
-          const { error: retryError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+          console.warn('Full save failed, trying without v2 fields:', upsertError.message);
+          // Try without v2 fields
+          profilePayload = { ...corePayload, ...sparFields, ...optionalFields };
+          let { error: retryError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
 
           if (retryError) {
-            console.warn('Save without optional failed, trying core only:', retryError.message);
-            // Try core only
-            const { error: coreError } = await supabase.from('profiles').upsert(corePayload, { onConflict: 'user_id' });
-            if (coreError) {
-              console.error('Error saving profile:', coreError);
-              toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+            console.warn('Save without v2 failed, trying without optional fields:', retryError.message);
+            // Try without optional fields
+            profilePayload = { ...corePayload, ...sparFields };
+            const { error: retry2Error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+
+            if (retry2Error) {
+              console.warn('Save without optional failed, trying core only:', retry2Error.message);
+              // Try core only
+              const { error: coreError } = await supabase.from('profiles').upsert(corePayload, { onConflict: 'user_id' });
+              if (coreError) {
+                console.error('Error saving profile:', coreError);
+                toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+              }
             }
           }
         }
@@ -819,11 +913,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         proteinSlices: existing.proteinSlices ?? 0,
         carbSlices: existing.carbSlices ?? 0,
         vegSlices: existing.vegSlices ?? 0,
+        fruitSlices: existing.fruitSlices ?? 0,
+        fatSlices: existing.fatSlices ?? 0,
         nutritionMode: existing.nutritionMode,
         foodLog: existing.foodLog ?? [],
       };
     }
-    return { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, noPractice: false, proteinSlices: 0, carbSlices: 0, vegSlices: 0, foodLog: [] };
+    return { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, noPractice: false, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, foodLog: [] };
   };
 
   const updateDailyTracking = async (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => {
@@ -840,6 +936,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       proteinSlices: updates.proteinSlices ?? existing.proteinSlices,
       carbSlices: updates.carbSlices ?? existing.carbSlices,
       vegSlices: updates.vegSlices ?? existing.vegSlices,
+      fruitSlices: updates.fruitSlices ?? existing.fruitSlices,
+      fatSlices: updates.fatSlices ?? existing.fatSlices,
       nutritionMode: updates.nutritionMode ?? existing.nutritionMode,
       foodLog: updates.foodLog ?? existing.foodLog,
     };
@@ -849,7 +947,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (found) {
         return prev.map(d => d.date === date ? { ...d, ...updates } : d);
       }
-      return [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, ...updates }];
+      return [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, ...updates }];
     });
 
     if (user) {
@@ -865,6 +963,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           protein_slices: merged.proteinSlices ?? 0,
           carb_slices: merged.carbSlices ?? 0,
           veg_slices: merged.vegSlices ?? 0,
+          fruit_slices: merged.fruitSlices ?? 0,
+          fat_slices: merged.fatSlices ?? 0,
           nutrition_mode: merged.nutritionMode ?? null,
           food_log: merged.foodLog ?? [],
         };
@@ -1222,7 +1322,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // ─── SPAR Slice Targets ───
   // Protocol 5: BMR → TDEE → macro-protocol-based slice split
   // Protocols 1-4: Derive slices from their gram-based macro targets
-  const getSliceTargets = (): { protein: number; carb: number; veg: number; totalCalories: number; macroProtocol?: SparMacroProtocol } => {
+  const getSliceTargets = () => {
     const protocol = profile.protocol;
 
     // Protocols 1-4: Convert gram targets into slices
@@ -1241,26 +1341,74 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const vegSlices = macroTargets.protein.max === 0 ? 0 : Math.max(2, Math.round(carbSlices * 0.4));
       // Estimate total calories
       const totalCal = (proteinSlices * 110) + (carbSlices * 120) + (vegSlices * 50);
-      return { protein: proteinSlices, carb: carbSlices, veg: vegSlices, totalCalories: totalCal };
+      return { protein: proteinSlices, carb: carbSlices, veg: vegSlices, fruit: 0, fat: 0, totalCalories: totalCal, isV2: false };
     }
 
-    // Protocol 5: Use dedicated SPAR calculator (includes 1200 cal floor + slice minimums)
+    // Protocol 5: Check if using v2 calculator
+    if (profile.sparV2) {
+      // Use SPAR v2 calculator (5 slice types, protein anchored to bodyweight)
+      const v2Input: SparV2Input = {
+        sex: (profile.gender || 'male') as 'male' | 'female',
+        age: profile.age || 16,
+        heightInches: profile.heightInches || 66,
+        weightLbs: profile.currentWeight || profile.targetWeightClass,
+        trainingSessions: profile.trainingSessions || '3-4',
+        workdayActivity: profile.workdayActivity || 'mostly_sitting',
+        goal: profile.sparGoal || 'maintain',
+        goalIntensity: profile.goalIntensity,
+        maintainPriority: profile.maintainPriority,
+        goalWeightLbs: profile.goalWeightLbs,
+        // Nerd mode options
+        bodyFatPercent: profile.bodyFatPercent,
+        customProteinPerLb: profile.customProteinPerLb,
+        customFatPercent: profile.customFatPercent,
+        customCarbPercent: profile.customCarbPercent,
+      };
+
+      const v2Result = calculateSparSlicesV2(v2Input);
+      return {
+        protein: v2Result.proteinPalms,
+        carb: v2Result.carbFists,
+        veg: v2Result.vegFists,
+        fruit: v2Result.fruitPieces,
+        fat: v2Result.fatThumbs,
+        totalCalories: v2Result.totalSliceCalories,
+        bmr: v2Result.bmr,
+        tdee: v2Result.tdee,
+        calorieAdjustment: v2Result.calorieAdjustment,
+        isV2: true,
+        proteinGrams: v2Result.proteinGrams,
+        carbGramsTotal: v2Result.carbGramsTotal,
+        fatGrams: v2Result.fatGrams,
+        proteinPerLb: v2Result.proteinPerLb,
+      };
+    }
+
+    // Protocol 5 v1: Use legacy SPAR calculator (3 slice types)
+    // The macro protocol now includes BOTH the C/P/F split AND the calorie adjustment
     const weight = profile.currentWeight || profile.targetWeightClass;
     const heightInches = profile.heightInches || 66; // default 5'6"
     const age = profile.age || 16;
     const gender = (profile.gender || 'male') as Gender;
     const activityLevel = (profile.activityLevel || 'active') as ActivityLevel;
-    const weeklyGoal = (profile.weeklyGoal || 'maintain') as WeeklyGoal;
     const macroProtocol = (profile.sparMacroProtocol || 'maintenance') as SparMacroProtocol;
     const customMacros = profile.customMacros;
 
-    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, weeklyGoal, macroProtocol, customMacros);
+    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, macroProtocol, customMacros);
     return {
       protein: sparResult.protein,
       carb: sparResult.carb,
       veg: sparResult.veg,
+      fruit: 0, // v1 doesn't have fruit
+      fat: 0,   // v1 doesn't have fat
       totalCalories: sparResult.totalCalories,
       macroProtocol: sparResult.macroProtocol,
+      // Include BMR/TDEE for display in SPAR tracker
+      bmr: sparResult.bmr,
+      tdee: sparResult.tdee,
+      activityLevel,
+      calorieAdjustment: sparResult.calorieAdjustment,
+      isV2: false,
     };
   };
 

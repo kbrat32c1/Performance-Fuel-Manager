@@ -12,6 +12,15 @@ import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
 import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
+import {
+  type Goal as SparV2Goal,
+  type GoalIntensity,
+  type MaintainPriority,
+  type TrainingSessions,
+  type WorkdayActivity,
+  getTrainingDescription,
+  getWorkdayDescription,
+} from "@/lib/spar-calculator-v2";
 
 // Step flow:
 // 1. Basics (name, weight) - no weight class yet
@@ -59,7 +68,9 @@ export default function Onboarding() {
   }, []);
 
   // Dynamic total steps
-  const TOTAL_STEPS = userGoal === 'spar' ? 4 : 5;
+  // SPAR v2: 1=Basics, 2=Goal, 3=Stats, 4=Goal Selection, 5=Summary
+  // Competition: 1=Basics, 2=Goal, 3=Weight Class/Protocol, 4=Timeline, 5=Summary
+  const TOTAL_STEPS = 5;
 
   const handleCancel = () => {
     sessionStorage.removeItem('rerunWizard');
@@ -88,15 +99,27 @@ export default function Onboarding() {
   const isWeightValid = profile.currentWeight > 0;
   const isStep1Valid = isFirstNameValid && isLastNameValid && isWeightValid;
 
-  // SPAR weeks calculation
+  // SPAR weeks calculation - based on selected protocol's calorie adjustment
   const sparWeeksToGoal = useMemo(() => {
-    if (!customTargetWeight || profile.weeklyGoal === 'maintain') return null;
+    if (!customTargetWeight) return null;
     const target = parseFloat(customTargetWeight);
     if (isNaN(target)) return null;
+
+    // Get calorie adjustment from selected protocol
+    const protocol = profile.sparMacroProtocol || 'maintenance';
+    const config = SPAR_MACRO_PROTOCOLS[protocol];
+    const calorieAdj = protocol === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
+      ? profile.customMacros.calorieAdjustment
+      : config?.calorieAdjustment || 0;
+
+    if (calorieAdj === 0) return null; // No progress on maintenance protocols
+
     const diff = Math.abs(profile.currentWeight - target);
-    const weeklyRate = profile.weeklyGoal === 'cut' ? 1 : 0.5;
-    return Math.ceil(diff / weeklyRate);
-  }, [customTargetWeight, profile.currentWeight, profile.weeklyGoal]);
+    // 3500 cal = ~1 lb, weekly cal deficit/surplus = calorieAdj * 7
+    const weeklyLbChange = Math.abs(calorieAdj * 7 / 3500);
+    if (weeklyLbChange === 0) return null;
+    return Math.ceil(diff / weeklyLbChange);
+  }, [customTargetWeight, profile.currentWeight, profile.sparMacroProtocol, profile.customMacros]);
 
   // Competition protocol recommendation
   const getProtocolRecommendation = () => {
@@ -136,6 +159,12 @@ export default function Onboarding() {
       return;
     }
 
+    // Validation for SPAR step 4 (goal selection)
+    if (step === 4 && userGoal === 'spar' && !profile.sparGoal) {
+      setShowValidation(true);
+      return;
+    }
+
     if (step < TOTAL_STEPS) {
       setShowValidation(false);
       setStep(step + 1);
@@ -152,9 +181,25 @@ export default function Onboarding() {
         protocol: userGoal === 'spar' ? '5' : profile.protocol,
       };
 
-      // For SPAR, clear competition-specific fields that might cause confusion
+      // For SPAR v2, enable v2 mode and set defaults
       if (userGoal === 'spar') {
         finalUpdate.protocol = '5';
+        finalUpdate.sparV2 = true;
+        // Set last calc weight to current weight for smart recalculation
+        finalUpdate.lastCalcWeight = profile.currentWeight;
+        // Default training sessions if not set
+        if (!profile.trainingSessions) {
+          finalUpdate.trainingSessions = '3-4';
+        }
+        // Default workday activity if not set
+        if (!profile.workdayActivity) {
+          finalUpdate.workdayActivity = 'mostly_sitting';
+        }
+        // Default goal if somehow not set
+        if (!profile.sparGoal) {
+          finalUpdate.sparGoal = 'maintain';
+          finalUpdate.maintainPriority = 'general';
+        }
       }
 
       // Await profile save to ensure it persists to Supabase before navigating
@@ -492,77 +537,17 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* ═══ Step 3 (SPAR): Nutrition Profile ═══ */}
+          {/* ═══ Step 3 (SPAR v2): Basic Stats ═══ */}
           {step === 3 && userGoal === 'spar' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
-                <h1 className="text-4xl font-heading font-bold uppercase italic">Your Profile</h1>
-                <p className="text-muted-foreground">We'll calculate your daily portion targets.</p>
+                <h1 className="text-4xl font-heading font-bold uppercase italic">Your Stats</h1>
+                <p className="text-muted-foreground">We'll use this to calculate your portions.</p>
               </div>
 
-              {/* Goal Selection */}
-              <div className="space-y-3">
-                <Label>What's your goal?</Label>
-                {[
-                  { value: 'cut', icon: Flame, label: 'Lose Weight', desc: '~1 lb per week deficit', color: 'text-orange-500', bg: 'bg-orange-500/10 border-orange-500/30' },
-                  { value: 'maintain', icon: Scale, label: 'Maintain', desc: 'Stay at current weight', color: 'text-primary', bg: 'bg-primary/10 border-primary/30' },
-                  { value: 'build', icon: Dumbbell, label: 'Build Muscle', desc: '~0.5 lb per week lean gain', color: 'text-green-500', bg: 'bg-green-500/10 border-green-500/30' },
-                ].map(goal => {
-                  const isSelected = profile.weeklyGoal === goal.value;
-                  const Icon = goal.icon;
-                  return (
-                    <Card
-                      key={goal.value}
-                      className={cn(
-                        "p-3 border-2 cursor-pointer transition-all",
-                        isSelected ? `${goal.bg}` : "border-muted hover:border-muted-foreground/50"
-                      )}
-                      onClick={() => {
-                        if (goal.value === 'maintain') {
-                          setCustomTargetWeight('');
-                          updateProfile({ weeklyGoal: 'maintain', targetWeight: undefined });
-                        } else {
-                          updateProfile({ weeklyGoal: goal.value as any });
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Icon className={cn("w-5 h-5", isSelected ? goal.color : "text-muted-foreground")} />
-                        <div className="flex-1">
-                          <span className={cn("font-bold", isSelected && goal.color)}>{goal.label}</span>
-                          <p className="text-[11px] text-muted-foreground">{goal.desc}</p>
-                        </div>
-                        {isSelected && <CheckCircle className={cn("w-4 h-4", goal.color)} />}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-
-              {/* Target Weight (optional) */}
-              {profile.weeklyGoal !== 'maintain' && (
-                <div className="space-y-2">
-                  <Label className="text-xs">Target Weight (optional)</Label>
-                  <Input
-                    type="number"
-                    placeholder={profile.weeklyGoal === 'cut' ? 'e.g. 165' : 'e.g. 180'}
-                    className="h-11 bg-muted/30 font-mono"
-                    value={customTargetWeight}
-                    onChange={(e) => {
-                      setCustomTargetWeight(e.target.value);
-                      const val = parseFloat(e.target.value);
-                      updateProfile({ targetWeight: !isNaN(val) && val > 0 ? val : undefined });
-                    }}
-                  />
-                  <div className="flex justify-between text-[10px] text-muted-foreground">
-                    <span>Current: {profile.currentWeight} lbs</span>
-                    {sparWeeksToGoal && <span className="text-primary">~{sparWeeksToGoal} weeks</span>}
-                  </div>
-                </div>
-              )}
-
-              {/* Nutrition Profile Fields */}
-              <div className="space-y-4 pt-4 border-t border-muted">
+              {/* Basic Stats */}
+              <div className="space-y-4">
+                {/* Height */}
                 <div className="space-y-2">
                   <Label className="text-xs">Height</Label>
                   <div className="grid grid-cols-2 gap-2">
@@ -599,21 +584,21 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-xs">Age</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter age"
-                    min="10" max="80"
-                    className="h-11 bg-muted/30 font-mono"
-                    value={profile.age || ''}
-                    onChange={(e) => updateProfile({ age: parseInt(e.target.value) || undefined })}
-                  />
-                </div>
-
+                {/* Age & Sex */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs">Gender</Label>
+                    <Label className="text-xs">Age</Label>
+                    <Input
+                      type="number"
+                      placeholder="16"
+                      min="10" max="80"
+                      className="h-11 bg-muted/30 font-mono"
+                      value={profile.age || ''}
+                      onChange={(e) => updateProfile({ age: parseInt(e.target.value) || undefined })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Sex</Label>
                     <Select value={profile.gender || 'male'} onValueChange={(v) => updateProfile({ gender: v as any })}>
                       <SelectTrigger className="h-11 bg-muted/30">
                         <SelectValue />
@@ -624,113 +609,70 @@ export default function Onboarding() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Training Sessions */}
+                <div className="space-y-2 pt-4 border-t border-muted">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Dumbbell className="w-3.5 h-3.5" />
+                    Weekly Training Sessions
+                  </Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['1-2', '3-4', '5-6', '7+'] as TrainingSessions[]).map((sessions) => {
+                      const isSelected = (profile.trainingSessions || '3-4') === sessions;
+                      return (
+                        <Card
+                          key={sessions}
+                          className={cn(
+                            "p-3 border-2 cursor-pointer transition-all text-center",
+                            isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
+                          )}
+                          onClick={() => updateProfile({ trainingSessions: sessions })}
+                        >
+                          <span className="font-bold text-lg">{sessions}</span>
+                          <p className="text-[9px] text-muted-foreground">per week</p>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Workday Activity */}
+                <div className="space-y-2 pt-4 border-t border-muted">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5" />
+                    Workday Activity
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground -mt-1">Outside of training, how active is your typical day?</p>
                   <div className="space-y-2">
-                    <Label className="text-xs">Activity Level</Label>
-                    <Select value={profile.activityLevel || 'active'} onValueChange={(v) => updateProfile({ activityLevel: v as any })}>
-                      <SelectTrigger className="h-11 bg-muted/30">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sedentary">Sedentary</SelectItem>
-                        <SelectItem value="light">Light (1-3 days/wk)</SelectItem>
-                        <SelectItem value="moderate">Moderate (3-5 days/wk)</SelectItem>
-                        <SelectItem value="active">Active (6-7 days/wk)</SelectItem>
-                        <SelectItem value="very-active">Very Active (2x/day)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Macro Protocol Selection */}
-              <div className="space-y-3 pt-4 border-t border-muted">
-                <Label className="text-xs flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5" />
-                  Macro Protocol
-                </Label>
-                <p className="text-[11px] text-muted-foreground -mt-1">
-                  How should your calories be split? You can change this anytime in settings.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['sports', 'maintenance', 'recomp', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
-                    const config = SPAR_MACRO_PROTOCOLS[protocolId];
-                    const isSelected = (profile.sparMacroProtocol || 'maintenance') === protocolId;
-                    const IconComponent = protocolId === 'sports' ? Zap :
-                                          protocolId === 'maintenance' ? Scale :
-                                          protocolId === 'recomp' ? Dumbbell :
-                                          protocolId === 'fatloss' ? Flame : Sliders;
-                    const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
-                                      protocolId === 'maintenance' ? 'text-blue-500' :
-                                      protocolId === 'recomp' ? 'text-green-500' :
-                                      protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
-                    const borderColor = protocolId === 'sports' ? 'border-yellow-500/30 bg-yellow-500/10' :
-                                        protocolId === 'maintenance' ? 'border-blue-500/30 bg-blue-500/10' :
-                                        protocolId === 'recomp' ? 'border-green-500/30 bg-green-500/10' :
-                                        protocolId === 'fatloss' ? 'border-orange-500/30 bg-orange-500/10' : 'border-purple-500/30 bg-purple-500/10';
-                    return (
-                      <Card
-                        key={protocolId}
-                        className={cn(
-                          "p-2.5 border-2 cursor-pointer transition-all",
-                          isSelected ? borderColor : "border-muted hover:border-muted-foreground/50",
-                          protocolId === 'custom' && "col-span-2"
-                        )}
-                        onClick={() => {
-                          updateProfile({ sparMacroProtocol: protocolId });
-                          // Initialize custom macros with defaults if not set
-                          if (protocolId === 'custom' && !profile.customMacros) {
-                            updateProfile({ customMacros: { carbs: 40, protein: 30, fat: 30 } });
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <IconComponent className={cn("w-4 h-4 shrink-0", iconColor)} />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[11px] font-bold block truncate">{config.shortName}</span>
-                            <span className="text-[9px] text-muted-foreground block truncate">
-                              {protocolId === 'custom' ? 'Set your own C/P/F in Settings after setup' : config.description}
-                            </span>
+                    {(['mostly_sitting', 'on_feet_some', 'on_feet_most'] as WorkdayActivity[]).map((activity) => {
+                      const isSelected = (profile.workdayActivity || 'mostly_sitting') === activity;
+                      const label = activity === 'mostly_sitting' ? 'Mostly Sitting' :
+                                    activity === 'on_feet_some' ? 'On Feet Some' : 'On Feet Most';
+                      const desc = activity === 'mostly_sitting' ? 'Desk job, studying, gaming' :
+                                   activity === 'on_feet_some' ? 'Walking between classes, retail' : 'Manual labor, server, warehouse';
+                      return (
+                        <Card
+                          key={activity}
+                          className={cn(
+                            "p-3 border-2 cursor-pointer transition-all",
+                            isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
+                          )}
+                          onClick={() => updateProfile({ workdayActivity: activity })}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-sm">{label}</span>
+                              <p className="text-[10px] text-muted-foreground">{desc}</p>
+                            </div>
+                            {isSelected && <CheckCircle className="w-4 h-4 text-primary" />}
                           </div>
-                          {isSelected && <CheckCircle className={cn("w-4 h-4 shrink-0", iconColor)} />}
-                        </div>
-                        <div className="flex gap-2 mt-1.5 text-[9px] font-mono">
-                          <span className="text-amber-500">C{config.carbs}%</span>
-                          <span className="text-orange-500">P{config.protein}%</span>
-                          <span className="text-blue-400">F{config.fat}%</span>
-                        </div>
-                      </Card>
-                    );
-                  })}
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {SPAR_MACRO_PROTOCOLS[profile.sparMacroProtocol || 'maintenance']?.whoFor}
-                </p>
               </div>
-
-              {/* SPAR visual guide */}
-              <Card className="p-4 bg-green-500/5 border-green-500/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <Salad className="w-4 h-4 text-green-500" />
-                  <span className="font-bold text-sm text-green-600 dark:text-green-400">How SPAR Works</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
-                    <div className="text-xl mb-1">🤚</div>
-                    <p className="text-[9px] font-bold text-orange-500">PROTEIN</p>
-                    <p className="text-[8px] text-muted-foreground">Palm-sized</p>
-                  </div>
-                  <div className="text-center p-2 rounded-lg bg-primary/10 border border-primary/30">
-                    <div className="text-xl mb-1">✊</div>
-                    <p className="text-[9px] font-bold text-primary">CARBS</p>
-                    <p className="text-[8px] text-muted-foreground">Fist-sized</p>
-                  </div>
-                  <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/30">
-                    <div className="text-xl mb-1">✊</div>
-                    <p className="text-[9px] font-bold text-green-500">VEGGIES</p>
-                    <p className="text-[8px] text-muted-foreground">Fist-sized</p>
-                  </div>
-                </div>
-              </Card>
             </div>
           )}
 
@@ -783,8 +725,184 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* ═══ Step 4 (SPAR): Final Summary ═══ */}
+          {/* ═══ Step 4 (SPAR v2): Goal Selection ═══ */}
           {step === 4 && userGoal === 'spar' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-2">
+                <h1 className="text-4xl font-heading font-bold uppercase italic">Your Goal</h1>
+                <p className="text-muted-foreground">What's your primary nutrition goal?</p>
+              </div>
+
+              <div className="space-y-3">
+                {/* Lose Weight */}
+                <Card
+                  className={cn(
+                    "p-4 border-2 cursor-pointer transition-all",
+                    profile.sparGoal === 'lose' ? "border-orange-500 bg-orange-500/10" : "border-muted hover:border-muted-foreground/50"
+                  )}
+                  onClick={() => updateProfile({ sparGoal: 'lose', goalIntensity: profile.goalIntensity || 'aggressive', maintainPriority: undefined })}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
+                      <Flame className="w-5 h-5 text-orange-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold">Lose Weight</h3>
+                      <p className="text-[11px] text-muted-foreground">Calorie deficit to lose body fat</p>
+                    </div>
+                    {profile.sparGoal === 'lose' && <CheckCircle className="w-5 h-5 text-orange-500" />}
+                  </div>
+                  {profile.sparGoal === 'lose' && (
+                    <div className="mt-3 pt-3 border-t border-muted grid grid-cols-2 gap-2">
+                      <Card
+                        className={cn(
+                          "p-2 border cursor-pointer text-center",
+                          profile.goalIntensity === 'lean' ? "border-orange-500 bg-orange-500/10" : "border-muted"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'lean' }); }}
+                      >
+                        <span className="text-sm font-bold">Lean</span>
+                        <p className="text-[9px] text-muted-foreground">-250 cal/day</p>
+                        <p className="text-[8px] text-orange-500">~0.5 lb/week</p>
+                      </Card>
+                      <Card
+                        className={cn(
+                          "p-2 border cursor-pointer text-center",
+                          profile.goalIntensity === 'aggressive' ? "border-orange-500 bg-orange-500/10" : "border-muted"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'aggressive' }); }}
+                      >
+                        <span className="text-sm font-bold">Aggressive</span>
+                        <p className="text-[9px] text-muted-foreground">-500 cal/day</p>
+                        <p className="text-[8px] text-orange-500">~1 lb/week</p>
+                      </Card>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Maintain Weight */}
+                <Card
+                  className={cn(
+                    "p-4 border-2 cursor-pointer transition-all",
+                    profile.sparGoal === 'maintain' ? "border-blue-500 bg-blue-500/10" : "border-muted hover:border-muted-foreground/50"
+                  )}
+                  onClick={() => updateProfile({ sparGoal: 'maintain', maintainPriority: profile.maintainPriority || 'general', goalIntensity: undefined })}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                      <Scale className="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold">Maintain Weight</h3>
+                      <p className="text-[11px] text-muted-foreground">Stay at current weight, fuel your training</p>
+                    </div>
+                    {profile.sparGoal === 'maintain' && <CheckCircle className="w-5 h-5 text-blue-500" />}
+                  </div>
+                  {profile.sparGoal === 'maintain' && (
+                    <div className="mt-3 pt-3 border-t border-muted grid grid-cols-2 gap-2">
+                      <Card
+                        className={cn(
+                          "p-2 border cursor-pointer text-center",
+                          profile.maintainPriority === 'general' ? "border-blue-500 bg-blue-500/10" : "border-muted"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); updateProfile({ maintainPriority: 'general' }); }}
+                      >
+                        <span className="text-sm font-bold">General</span>
+                        <p className="text-[9px] text-muted-foreground">Balanced macros</p>
+                        <p className="text-[8px] text-blue-500">45% carb / 55% fat</p>
+                      </Card>
+                      <Card
+                        className={cn(
+                          "p-2 border cursor-pointer text-center",
+                          profile.maintainPriority === 'performance' ? "border-blue-500 bg-blue-500/10" : "border-muted"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); updateProfile({ maintainPriority: 'performance' }); }}
+                      >
+                        <span className="text-sm font-bold">Performance</span>
+                        <p className="text-[9px] text-muted-foreground">Higher carbs</p>
+                        <p className="text-[8px] text-blue-500">70% carb / 30% fat</p>
+                      </Card>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Gain Muscle */}
+                <Card
+                  className={cn(
+                    "p-4 border-2 cursor-pointer transition-all",
+                    profile.sparGoal === 'gain' ? "border-green-500 bg-green-500/10" : "border-muted hover:border-muted-foreground/50"
+                  )}
+                  onClick={() => updateProfile({ sparGoal: 'gain', goalIntensity: profile.goalIntensity || 'aggressive', maintainPriority: undefined })}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                      <Dumbbell className="w-5 h-5 text-green-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold">Gain Muscle</h3>
+                      <p className="text-[11px] text-muted-foreground">Calorie surplus to build muscle</p>
+                    </div>
+                    {profile.sparGoal === 'gain' && <CheckCircle className="w-5 h-5 text-green-500" />}
+                  </div>
+                  {profile.sparGoal === 'gain' && (
+                    <div className="mt-3 pt-3 border-t border-muted grid grid-cols-2 gap-2">
+                      <Card
+                        className={cn(
+                          "p-2 border cursor-pointer text-center",
+                          profile.goalIntensity === 'lean' ? "border-green-500 bg-green-500/10" : "border-muted"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'lean' }); }}
+                      >
+                        <span className="text-sm font-bold">Lean</span>
+                        <p className="text-[9px] text-muted-foreground">+250 cal/day</p>
+                        <p className="text-[8px] text-green-500">~0.5 lb/week</p>
+                      </Card>
+                      <Card
+                        className={cn(
+                          "p-2 border cursor-pointer text-center",
+                          profile.goalIntensity === 'aggressive' ? "border-green-500 bg-green-500/10" : "border-muted"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'aggressive' }); }}
+                      >
+                        <span className="text-sm font-bold">Aggressive</span>
+                        <p className="text-[9px] text-muted-foreground">+500 cal/day</p>
+                        <p className="text-[8px] text-green-500">~1 lb/week</p>
+                      </Card>
+                    </div>
+                  )}
+                </Card>
+              </div>
+
+              {/* Target Weight (for lose/gain goals) */}
+              {(profile.sparGoal === 'lose' || profile.sparGoal === 'gain') && (
+                <div className="space-y-2 pt-4 border-t border-muted">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5" />
+                    Goal Weight (optional)
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder={profile.sparGoal === 'lose' ? 'e.g. 155' : 'e.g. 175'}
+                    className="h-11 bg-muted/30 font-mono"
+                    value={profile.goalWeightLbs || ''}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      updateProfile({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
+                    }}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Current: {profile.currentWeight} lbs
+                    {profile.goalWeightLbs && (
+                      <> • {profile.sparGoal === 'lose' ? 'Lose' : 'Gain'} {Math.abs(profile.currentWeight - profile.goalWeightLbs).toFixed(1)} lbs</>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ═══ Step 5 (SPAR v2): Final Summary ═══ */}
+          {step === 5 && userGoal === 'spar' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">You're Set!</h1>
@@ -808,30 +926,69 @@ export default function Onboarding() {
                   </div>
                   <div className="flex justify-between pb-2 border-b border-muted/50">
                     <span className="text-muted-foreground">Goal</span>
-                    <span className="font-bold capitalize flex items-center gap-1.5">
-                      {profile.weeklyGoal === 'cut' && <Flame className="w-4 h-4 text-orange-500" />}
-                      {profile.weeklyGoal === 'maintain' && <Scale className="w-4 h-4 text-primary" />}
-                      {profile.weeklyGoal === 'build' && <Dumbbell className="w-4 h-4 text-green-500" />}
-                      {profile.weeklyGoal === 'cut' ? 'Lose Weight' : profile.weeklyGoal === 'build' ? 'Build Muscle' : 'Maintain'}
+                    <span className="font-bold flex items-center gap-1.5">
+                      {(() => {
+                        const goal = profile.sparGoal || 'maintain';
+                        const intensity = profile.goalIntensity;
+                        const priority = profile.maintainPriority;
+                        const iconColor = goal === 'lose' ? 'text-orange-500' :
+                                          goal === 'maintain' ? 'text-blue-500' : 'text-green-500';
+                        let label = goal === 'lose' ? 'Lose Weight' :
+                                   goal === 'maintain' ? 'Maintain' : 'Gain Muscle';
+                        let sub = '';
+                        if (goal === 'lose' || goal === 'gain') {
+                          sub = intensity === 'lean' ? '(Lean)' : '(Aggressive)';
+                        } else if (goal === 'maintain') {
+                          sub = priority === 'performance' ? '(Performance)' : '(General)';
+                        }
+                        return (
+                          <>
+                            <span className={iconColor}>{label}</span>
+                            <span className="text-[10px] text-muted-foreground">{sub}</span>
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
-                  {profile.targetWeight && profile.weeklyGoal !== 'maintain' && (
-                    <>
-                      <div className="flex justify-between pb-2 border-b border-muted/50">
-                        <span className="text-muted-foreground">Target Weight</span>
-                        <span className="font-mono font-bold text-primary">{profile.targetWeight.toFixed(1)} lbs</span>
-                      </div>
-                      <div className="flex justify-between pb-2 border-b border-muted/50">
-                        <span className="text-muted-foreground">Estimated Time</span>
-                        <span className="font-mono font-bold">~{sparWeeksToGoal} weeks</span>
-                      </div>
-                    </>
+                  <div className="flex justify-between pb-2 border-b border-muted/50">
+                    <span className="text-muted-foreground">Training</span>
+                    <span className="font-mono font-bold">{profile.trainingSessions || '3-4'}/week</span>
+                  </div>
+                  {profile.goalWeightLbs && (
+                    <div className="flex justify-between pb-2 border-b border-muted/50">
+                      <span className="text-muted-foreground">Goal Weight</span>
+                      <span className="font-mono font-bold text-primary">{profile.goalWeightLbs} lbs</span>
+                    </div>
                   )}
+                </div>
+
+                {/* SPAR v2 visual guide - 5 categories */}
+                <div className="grid grid-cols-5 gap-1.5">
+                  <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                    <div className="text-lg mb-0.5">🤚</div>
+                    <p className="text-[8px] font-bold text-orange-500">PROTEIN</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <div className="text-lg mb-0.5">✊</div>
+                    <p className="text-[8px] font-bold text-amber-500">CARBS</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/30">
+                    <div className="text-lg mb-0.5">✊</div>
+                    <p className="text-[8px] font-bold text-green-500">VEG</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-pink-500/10 border border-pink-500/30">
+                    <div className="text-lg mb-0.5">🍎</div>
+                    <p className="text-[8px] font-bold text-pink-500">FRUIT</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-blue-400/10 border border-blue-400/30">
+                    <div className="text-lg mb-0.5">👍</div>
+                    <p className="text-[8px] font-bold text-blue-400">FAT</p>
+                  </div>
                 </div>
 
                 <div className="bg-green-500/10 text-green-600 dark:text-green-400 p-3 rounded text-xs font-bold flex gap-2">
                   <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>Track your daily portions using SPAR. We'll calculate your slice targets based on your stats.</span>
+                  <span>Track your daily portions using SPAR. We'll calculate your targets based on your stats and goals.</span>
                 </div>
               </Card>
             </div>

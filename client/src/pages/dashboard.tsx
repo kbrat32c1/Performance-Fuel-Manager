@@ -21,7 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
 import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
-import { useSwipe } from "@/hooks/use-swipe";
+import { useCarouselSwipe } from "@/hooks/use-carousel-swipe";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { HelpTip } from "@/components/ui/help-tip";
@@ -29,6 +29,490 @@ import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
 import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
 import { DashboardTour } from "@/components/dashboard/tour";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPAR PROTOCOL SELECTOR — clickable phase label with protocol switcher popover
+// ═══════════════════════════════════════════════════════════════════════════════
+function SparProtocolSelector({
+  profile,
+  updateProfile,
+}: {
+  profile: ReturnType<typeof useStore>['profile'];
+  updateProfile: ReturnType<typeof useStore>['updateProfile'];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const currentProtocol = profile.sparMacroProtocol || 'maintenance';
+  const currentConfig = SPAR_MACRO_PROTOCOLS[currentProtocol];
+
+  // For custom protocol, get actual values
+  const displayCarbs = currentProtocol === 'custom' && profile.customMacros?.carbs !== undefined
+    ? profile.customMacros.carbs : currentConfig.carbs;
+  const displayProtein = currentProtocol === 'custom' && profile.customMacros?.protein !== undefined
+    ? profile.customMacros.protein : currentConfig.protein;
+  const displayFat = currentProtocol === 'custom' && profile.customMacros?.fat !== undefined
+    ? profile.customMacros.fat : currentConfig.fat;
+
+  // Get color based on protocol
+  const iconColor = currentProtocol === 'performance' ? 'text-yellow-500' :
+                    currentProtocol === 'maintenance' ? 'text-blue-500' :
+                    currentProtocol === 'recomp' ? 'text-cyan-500' :
+                    currentProtocol === 'build' ? 'text-green-500' :
+                    currentProtocol === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          {/* Protocol name with color */}
+          <span className={cn("text-xs font-bold uppercase flex items-center gap-1", iconColor)}>
+            {currentConfig.shortName}
+            <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
+          </span>
+          {/* C/P/F split badge */}
+          <span className="text-[9px] font-mono bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">
+            C{displayCarbs}/P{displayProtein}/F{displayFat}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-2" align="start">
+        <div className="space-y-1">
+          <p className="text-[10px] text-muted-foreground px-2 pb-1 font-bold uppercase">Switch Macro Protocol</p>
+          {(['performance', 'maintenance', 'recomp', 'build', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
+            const config = SPAR_MACRO_PROTOCOLS[protocolId];
+            const isSelected = currentProtocol === protocolId;
+            const iconColor = protocolId === 'performance' ? 'text-yellow-500' :
+                              protocolId === 'maintenance' ? 'text-blue-500' :
+                              protocolId === 'recomp' ? 'text-cyan-500' :
+                              protocolId === 'build' ? 'text-green-500' :
+                              protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+            // Show calorie impact
+            const calAdj = protocolId === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
+              ? profile.customMacros.calorieAdjustment : config.calorieAdjustment;
+            const calInfo = calAdj > 0 ? `+${calAdj}` : calAdj < 0 ? `${calAdj}` : '±0';
+            // For custom, show user's values
+            const pCarbs = protocolId === 'custom' && profile.customMacros?.carbs ? profile.customMacros.carbs : config.carbs;
+            const pProtein = protocolId === 'custom' && profile.customMacros?.protein ? profile.customMacros.protein : config.protein;
+            const pFat = protocolId === 'custom' && profile.customMacros?.fat ? profile.customMacros.fat : config.fat;
+
+            return (
+              <button
+                key={protocolId}
+                onClick={() => {
+                  updateProfile({ sparMacroProtocol: protocolId });
+                  if (protocolId === 'custom' && !profile.customMacros) {
+                    updateProfile({ customMacros: { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 } });
+                  }
+                  // Don't close popover for custom - user needs to configure
+                  if (protocolId !== 'custom') {
+                    setIsOpen(false);
+                  }
+                }}
+                className={cn(
+                  "w-full flex items-center justify-between px-2 py-2 rounded-md text-left transition-colors",
+                  isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                )}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-[11px] font-bold", iconColor)}>{config.shortName}</span>
+                    <span className="text-[9px] text-muted-foreground font-mono">C{pCarbs}/P{pProtein}/F{pFat}</span>
+                  </div>
+                  <span className="text-[9px] text-muted-foreground">{config.weeklyChange}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={cn("text-[9px] font-mono", calAdj !== 0 ? iconColor : "text-muted-foreground")}>
+                    {calInfo} cal
+                  </span>
+                  {isSelected && <span className="text-[10px] text-primary font-bold">✓</span>}
+                </div>
+              </button>
+            );
+          })}
+          {/* Custom Macro Configuration - inline when custom is selected */}
+          {currentProtocol === 'custom' && (
+            <div className="pt-2 mt-1 border-t border-muted space-y-3 px-2">
+              <p className="text-[10px] text-purple-500 font-bold uppercase">Customize Your Plan</p>
+
+              {/* C/P/F Sliders */}
+              <div className="space-y-2">
+                {[
+                  { key: 'carbs', label: 'Carbs', color: 'text-amber-500', bgColor: 'bg-amber-500' },
+                  { key: 'protein', label: 'Protein', color: 'text-orange-500', bgColor: 'bg-orange-500' },
+                  { key: 'fat', label: 'Fat', color: 'text-blue-400', bgColor: 'bg-blue-400' },
+                ].map(({ key, label, color, bgColor }) => {
+                  const value = profile.customMacros?.[key as keyof typeof profile.customMacros] as number ||
+                    (key === 'carbs' ? 40 : key === 'protein' ? 30 : 30);
+                  return (
+                    <div key={key} className="space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span className={cn("font-bold", color)}>{label}</span>
+                        <span className={cn("font-mono font-bold", color)}>{value}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="60"
+                        value={value}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          const current = profile.customMacros || { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 };
+                          updateProfile({ customMacros: { ...current, [key]: val } });
+                        }}
+                        className={cn("w-full h-1.5 rounded-lg appearance-none cursor-pointer", bgColor + "/30")}
+                        style={{ accentColor: color.includes('amber') ? '#f59e0b' : color.includes('orange') ? '#f97316' : '#60a5fa' }}
+                      />
+                    </div>
+                  );
+                })}
+
+                {/* Total validation */}
+                {(() => {
+                  const cm = profile.customMacros || { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 };
+                  const total = (cm.carbs || 0) + (cm.protein || 0) + (cm.fat || 0);
+                  const isValid = total === 100;
+                  return (
+                    <p className={cn("text-[10px] font-mono text-center py-1 rounded",
+                      isValid ? "text-green-500 bg-green-500/10" : "text-red-500 bg-red-500/10"
+                    )}>
+                      Total: {total}% {isValid ? '✓' : `(${total < 100 ? 'need ' + (100 - total) + ' more' : (total - 100) + ' over'})`}
+                    </p>
+                  );
+                })()}
+              </div>
+
+              {/* Calorie Adjustment */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[10px]">
+                  <span className="font-bold text-purple-500">Calorie Adjustment</span>
+                  <span className="font-mono font-bold text-purple-500">
+                    {(profile.customMacros?.calorieAdjustment || 0) > 0 ? '+' : ''}
+                    {profile.customMacros?.calorieAdjustment || 0} cal/day
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="-750"
+                  max="750"
+                  step="50"
+                  value={profile.customMacros?.calorieAdjustment || 0}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    const current = profile.customMacros || { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 };
+                    updateProfile({ customMacros: { ...current, calorieAdjustment: val } });
+                  }}
+                  className="w-full h-1.5 bg-purple-500/30 rounded-lg appearance-none cursor-pointer"
+                  style={{ accentColor: '#a855f7' }}
+                />
+                <div className="flex justify-between text-[8px] text-muted-foreground">
+                  <span>-750 (lose)</span>
+                  <span className="font-mono">
+                    {(() => {
+                      const adj = profile.customMacros?.calorieAdjustment || 0;
+                      if (adj > 0) return `~${(adj * 7 / 3500).toFixed(1)} lb/wk gain`;
+                      if (adj < 0) return `~${(Math.abs(adj) * 7 / 3500).toFixed(1)} lb/wk loss`;
+                      return 'Maintain weight';
+                    })()}
+                  </span>
+                  <span>+750 (gain)</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPAR FOCUS CARD — Protocol summary, tips, and calorie info for SPAR users
+// ═══════════════════════════════════════════════════════════════════════════════
+function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['profile'] }) {
+  const { getSliceTargets } = useStore();
+  const [expanded, setExpanded] = useState(false);
+
+  const macroProtocol = profile.sparMacroProtocol || 'maintenance';
+  const config = SPAR_MACRO_PROTOCOLS[macroProtocol];
+  const targets = getSliceTargets();
+
+  // Get calorie adjustment
+  const calorieAdj = macroProtocol === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
+    ? profile.customMacros.calorieAdjustment : config.calorieAdjustment;
+
+  // Get C/P/F values
+  const carbs = macroProtocol === 'custom' && profile.customMacros?.carbs ? profile.customMacros.carbs : config.carbs;
+  const protein = macroProtocol === 'custom' && profile.customMacros?.protein ? profile.customMacros.protein : config.protein;
+  const fat = macroProtocol === 'custom' && profile.customMacros?.fat ? profile.customMacros.fat : config.fat;
+
+  // Protocol-specific tips
+  const getTips = () => {
+    switch (macroProtocol) {
+      case 'performance':
+        return [
+          'Prioritize carbs around training for energy',
+          'Eat complex carbs 2-3 hours before training',
+          'Recover with protein + carbs within 30min post-workout',
+        ];
+      case 'maintenance':
+        return [
+          'Spread meals evenly throughout the day',
+          'Balance each meal with protein, carbs, and veggies',
+          'Stay consistent with portion sizes',
+        ];
+      case 'recomp':
+        return [
+          'Higher protein supports muscle retention',
+          'Time carbs around workouts',
+          'Be patient — body composition changes are slow',
+        ];
+      case 'build':
+        return [
+          'Eat in a slight surplus for lean gains',
+          'Protein at every meal for muscle synthesis',
+          'Don\'t skip carbs — they fuel muscle growth',
+        ];
+      case 'fatloss':
+        return [
+          'Protein keeps you full longer',
+          'Fill up on veggies for volume without calories',
+          'Stay hydrated — thirst often feels like hunger',
+        ];
+      case 'custom':
+        return [
+          'Track consistently to see what works for you',
+          'Adjust ratios based on energy and performance',
+          'Review your progress weekly',
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const tips = getTips();
+  const iconColor = macroProtocol === 'performance' ? 'text-yellow-500' :
+                    macroProtocol === 'maintenance' ? 'text-blue-500' :
+                    macroProtocol === 'recomp' ? 'text-cyan-500' :
+                    macroProtocol === 'build' ? 'text-green-500' :
+                    macroProtocol === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+
+  const bgColor = macroProtocol === 'performance' ? 'from-yellow-500/10' :
+                  macroProtocol === 'maintenance' ? 'from-blue-500/10' :
+                  macroProtocol === 'recomp' ? 'from-cyan-500/10' :
+                  macroProtocol === 'build' ? 'from-green-500/10' :
+                  macroProtocol === 'fatloss' ? 'from-orange-500/10' : 'from-purple-500/10';
+
+  return (
+    <Card className={cn("mb-2 border-muted overflow-hidden bg-gradient-to-br", bgColor, "to-transparent")}>
+      <CardContent className="p-3">
+        {/* Header with expand toggle */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2">
+            <Zap className={cn("w-4 h-4", iconColor)} />
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Today's Focus</span>
+            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", iconColor, "bg-current/10")}>
+              {config.shortName}
+            </span>
+          </div>
+          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+        </button>
+
+        {/* Quick stats row — always visible */}
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="text-center">
+            <div className="text-lg font-bold font-mono text-foreground">{targets.totalCalories}</div>
+            <div className="text-[9px] text-muted-foreground uppercase">Calories</div>
+          </div>
+          <div className="text-center">
+            <div className="text-lg font-bold font-mono">
+              <span className="text-amber-500">{carbs}</span>
+              <span className="text-muted-foreground/50">/</span>
+              <span className="text-orange-500">{protein}</span>
+              <span className="text-muted-foreground/50">/</span>
+              <span className="text-blue-400">{fat}</span>
+            </div>
+            <div className="text-[9px] text-muted-foreground uppercase">C/P/F Split</div>
+          </div>
+          <div className="text-center">
+            <div className={cn("text-lg font-bold font-mono", iconColor)}>
+              {calorieAdj > 0 ? `+${calorieAdj}` : calorieAdj < 0 ? calorieAdj : '±0'}
+            </div>
+            <div className="text-[9px] text-muted-foreground uppercase">Adjustment</div>
+          </div>
+        </div>
+
+        {/* Slice targets summary */}
+        <div className="flex items-center justify-center gap-3 mt-3 py-2 bg-muted/30 rounded-lg">
+          <div className="flex items-center gap-1">
+            <span className="text-orange-500 font-bold text-sm">{targets.protein}P</span>
+          </div>
+          <span className="text-muted-foreground">•</span>
+          <div className="flex items-center gap-1">
+            <span className="text-amber-500 font-bold text-sm">{targets.carb}C</span>
+          </div>
+          <span className="text-muted-foreground">•</span>
+          <div className="flex items-center gap-1">
+            <span className="text-green-500 font-bold text-sm">{targets.veg}V</span>
+          </div>
+          <span className="text-muted-foreground/50 text-[10px]">slices today</span>
+        </div>
+
+        {/* Expanded section with tips */}
+        {expanded && (
+          <div className="mt-3 pt-3 border-t border-muted/50 animate-in slide-in-from-top-2 duration-200">
+            <p className="text-[10px] text-muted-foreground font-bold uppercase mb-2">Protocol Tips</p>
+            <div className="space-y-2">
+              {tips.map((tip, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className={cn("text-[10px] font-bold mt-0.5", iconColor)}>{i + 1}</span>
+                  <span className="text-[11px] text-muted-foreground leading-relaxed">{tip}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Who this protocol is for */}
+            <div className="mt-3 p-2 bg-muted/20 rounded-lg">
+              <p className="text-[9px] text-muted-foreground">
+                <span className="font-bold">Best for:</span> {config.whoFor}
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEIGHT PROJECTION SLIDER — Shows future weight based on protocol
+// ═══════════════════════════════════════════════════════════════════════════════
+function WeightProjectionCard({ profile, logs }: {
+  profile: ReturnType<typeof useStore>['profile'];
+  logs: Array<{ date: Date; weight: number; type: string }>;
+}) {
+  const [weeksAhead, setWeeksAhead] = useState(4);
+
+  const macroProtocol = profile.sparMacroProtocol || 'maintenance';
+  const config = SPAR_MACRO_PROTOCOLS[macroProtocol];
+
+  // Get calorie adjustment
+  const calorieAdj = macroProtocol === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
+    ? profile.customMacros.calorieAdjustment : config.calorieAdjustment;
+
+  // Get current weight from most recent morning log
+  const morningLogs = logs.filter(l => l.type === 'morning').sort((a, b) =>
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+  const currentWeight = morningLogs[0]?.weight || profile.currentWeight;
+
+  if (!currentWeight) {
+    return null; // No weight data available
+  }
+
+  // Calculate weekly weight change based on calorie adjustment
+  // 3500 cal deficit/surplus = ~1 lb loss/gain
+  const weeklyChange = (calorieAdj * 7) / 3500;
+
+  // Generate projections
+  const projections = Array.from({ length: 13 }, (_, i) => {
+    const week = i;
+    const projectedWeight = currentWeight + (weeklyChange * week);
+    const date = addDays(new Date(), week * 7);
+    return {
+      week,
+      weight: Math.round(projectedWeight * 10) / 10,
+      date,
+    };
+  });
+
+  const selectedProjection = projections[weeksAhead];
+  const totalChange = selectedProjection.weight - currentWeight;
+
+  // Protocol-specific colors (matching the dashboard header and settings)
+  const protocolColor = macroProtocol === 'performance' ? 'text-yellow-500' :
+                        macroProtocol === 'build' ? 'text-green-500' :
+                        macroProtocol === 'fatloss' ? 'text-orange-500' :
+                        macroProtocol === 'recomp' ? 'text-cyan-500' :
+                        macroProtocol === 'custom' ? 'text-purple-500' : 'text-blue-500';
+
+  return (
+    <Card className="mb-2 border-muted overflow-hidden">
+      <CardContent className="p-3">
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingUp className={cn("w-4 h-4", protocolColor)} />
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Weight Projection</span>
+        </div>
+
+        {/* Current vs Projected */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold font-mono text-foreground">{currentWeight}</div>
+            <div className="text-[9px] text-muted-foreground uppercase">Current (lbs)</div>
+          </div>
+          <div className="text-center">
+            <div className={cn("text-2xl font-bold font-mono", protocolColor)}>
+              {selectedProjection.weight}
+            </div>
+            <div className="text-[9px] text-muted-foreground uppercase">
+              In {weeksAhead} week{weeksAhead !== 1 ? 's' : ''} (lbs)
+            </div>
+          </div>
+        </div>
+
+        {/* Change summary - shows protocol name and weight change */}
+        <div className="flex items-center justify-center gap-2 mb-4 py-2 bg-muted/30 rounded-lg">
+          <Scale className={cn("w-4 h-4", protocolColor)} />
+          <span className={cn("font-bold text-sm", protocolColor)}>{config.shortName}</span>
+          {totalChange !== 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              ({totalChange > 0 ? '+' : ''}{totalChange.toFixed(1)} lbs in {weeksAhead}w)
+            </span>
+          )}
+        </div>
+
+        {/* Week slider */}
+        <div className="space-y-2">
+          <div className="flex justify-between text-[10px] text-muted-foreground">
+            <span>Today</span>
+            <span>{format(selectedProjection.date, 'MMM d, yyyy')}</span>
+            <span>12 weeks</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="12"
+            value={weeksAhead}
+            onChange={(e) => setWeeksAhead(parseInt(e.target.value))}
+            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+          />
+          {/* Week markers */}
+          <div className="flex justify-between px-1">
+            {[0, 4, 8, 12].map((w) => (
+              <button
+                key={w}
+                onClick={() => setWeeksAhead(w)}
+                className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                  weeksAhead === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {w}w
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Protocol explanation */}
+        <p className="text-[9px] text-muted-foreground mt-3 text-center">
+          Based on {config.shortName} protocol ({calorieAdj > 0 ? '+' : ''}{calorieAdj} cal/day)
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -104,54 +588,71 @@ export default function Dashboard() {
     updateProfile({ simulatedDate: date });
   }, [updateProfile]);
 
-  // Swipe navigation with slide animation
-  const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const isAnimating = useRef(false);
+  // Carousel swipe navigation
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 375);
 
-  const handleSwipeLeft = useCallback(() => {
-    if (isAnimating.current) return;
-    if (!isViewingHistorical) return;
-    isAnimating.current = true;
-    setSlideDir('left');
-    setTimeout(() => {
-      const nextDay = addDays(displayDate, 1);
-      if (nextDay >= today) {
-        handleDateChange(null);
+  // Update container width on resize
+  useEffect(() => {
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.offsetWidth);
       } else {
-        handleDateChange(nextDay);
+        setContainerWidth(window.innerWidth);
       }
-      setSlideDir(null);
-      setSwipeOffset(0);
-      isAnimating.current = false;
-    }, 180);
-  }, [displayDate, isViewingHistorical, today, handleDateChange]);
-
-  const handleSwipeRight = useCallback(() => {
-    if (isAnimating.current) return;
-    isAnimating.current = true;
-    setSlideDir('right');
-    setTimeout(() => {
-      const prevDay = subDays(displayDate, 1);
-      handleDateChange(prevDay);
-      setSlideDir(null);
-      setSwipeOffset(0);
-      isAnimating.current = false;
-    }, 180);
-  }, [displayDate, handleDateChange]);
-
-  const handleSwipeDrag = useCallback((offsetX: number) => {
-    if (!isAnimating.current) {
-      setSwipeOffset(offsetX);
-    }
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
   }, []);
 
-  const swipeHandlers = useSwipe({
-    onSwipeLeft: handleSwipeLeft,
-    onSwipeRight: handleSwipeRight,
-    onDrag: handleSwipeDrag,
-    onCancel: () => setSwipeOffset(0),
-  }, { threshold: 40 });
+  const handleGoPrev = useCallback(() => {
+    const prevDay = subDays(displayDate, 1);
+    handleDateChange(prevDay);
+  }, [displayDate, handleDateChange]);
+
+  const handleGoNext = useCallback(() => {
+    const nextDay = addDays(displayDate, 1);
+    if (nextDay >= today) {
+      handleDateChange(null);
+    } else {
+      handleDateChange(nextDay);
+    }
+  }, [displayDate, today, handleDateChange]);
+
+  // Can always go to previous days, can only go next if viewing historical
+  const canGoPrev = true;
+  const canGoNext = isViewingHistorical;
+
+  const { offset: swipeOffset, isDragging, isAnimating, handlers: swipeHandlers } = useCarouselSwipe(
+    handleGoPrev,
+    handleGoNext,
+    canGoPrev,
+    canGoNext,
+    containerWidth,
+    { threshold: 50 }
+  );
+
+  // Calculate which adjacent day is being revealed
+  const revealingPrev = swipeOffset > 20;
+  const revealingNext = swipeOffset < -20;
+  const prevDate = subDays(displayDate, 1);
+  const nextDate = addDays(displayDate, 1);
+
+  // Get morning weight for a specific date (for peek preview)
+  const getDateMorningWeight = useCallback((date: Date) => {
+    const log = logs.find(l => {
+      if (l.type !== 'morning') return false;
+      const ld = new Date(l.date);
+      return ld.getFullYear() === date.getFullYear() &&
+        ld.getMonth() === date.getMonth() &&
+        ld.getDate() === date.getDate();
+    });
+    return log?.weight ?? null;
+  }, [logs]);
+
+  const prevDayWeight = useMemo(() => getDateMorningWeight(prevDate), [getDateMorningWeight, prevDate]);
+  const nextDayWeight = useMemo(() => getDateMorningWeight(nextDate), [getDateMorningWeight, nextDate]);
 
   // Macro tracking data
   const macros = getMacroTargets();
@@ -179,12 +680,24 @@ export default function Dashboard() {
 
   // Get phase display info - driven by days-until-weigh-in, not day-of-week
   const getPhaseInfo = () => {
-    // SPAR users have a simple display - based on their weekly goal
+    // SPAR users: derive label from the macro protocol's calorie adjustment
     if (isSparProtocol) {
-      const goalLabel = profile.weeklyGoal === 'cut' ? 'Cutting'
-        : profile.weeklyGoal === 'build' ? 'Building'
-        : 'Maintaining';
-      return { label: goalLabel, color: 'text-green-500' };
+      const macroProtocol = profile.sparMacroProtocol || 'maintenance';
+      const config = SPAR_MACRO_PROTOCOLS[macroProtocol];
+
+      // Get calorie adjustment (use custom if applicable)
+      const calorieAdj = macroProtocol === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
+        ? profile.customMacros.calorieAdjustment
+        : config?.calorieAdjustment || 0;
+
+      // Derive label and color from calorie adjustment
+      if (calorieAdj > 0) {
+        return { label: 'Building', color: 'text-green-500' };
+      } else if (calorieAdj < 0) {
+        return { label: 'Cutting', color: 'text-orange-500' };
+      } else {
+        return { label: 'Maintaining', color: 'text-blue-500' };
+      }
     }
 
     if (daysUntilWeighIn < 0) {
@@ -405,22 +918,60 @@ export default function Dashboard() {
       {/* Dashboard feature tour for new users */}
       {!isViewingHistorical && <DashboardTour />}
 
-      <div
-        {...swipeHandlers}
-        style={{
-          transform: slideDir
-            ? `translateX(${slideDir === 'left' ? '-100' : '100'}px)`
-            : swipeOffset !== 0
-              ? `translateX(${swipeOffset}px)`
-              : undefined,
-          opacity: slideDir ? 0 : swipeOffset !== 0 ? Math.max(0.6, 1 - Math.abs(swipeOffset) / 200) : 1,
-          transition: slideDir
-            ? 'transform 180ms ease-out, opacity 180ms ease-out'
-            : swipeOffset !== 0
-              ? 'none'
-              : 'transform 200ms ease-out, opacity 200ms ease-out',
-        }}
-      >
+      {/* Carousel container */}
+      <div ref={containerRef} className="relative overflow-hidden">
+        {/* Previous day peek (shown during swipe right) */}
+        {revealingPrev && (
+          <div
+            className="absolute inset-y-0 right-full w-full flex items-start justify-center pt-8 pointer-events-none"
+            style={{
+              transform: `translateX(${swipeOffset}px)`,
+              transition: isDragging ? 'none' : 'transform 250ms ease-out',
+            }}
+          >
+            <div className="text-center">
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                {format(prevDate, 'EEE, MMM d')}
+              </div>
+              {prevDayWeight && (
+                <div className="text-lg font-mono font-bold text-foreground/70 mt-1">
+                  {prevDayWeight.toFixed(1)} lbs
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Next day peek (shown during swipe left) */}
+        {revealingNext && canGoNext && (
+          <div
+            className="absolute inset-y-0 left-full w-full flex items-start justify-center pt-8 pointer-events-none"
+            style={{
+              transform: `translateX(${swipeOffset}px)`,
+              transition: isDragging ? 'none' : 'transform 250ms ease-out',
+            }}
+          >
+            <div className="text-center">
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
+                {nextDate >= today ? 'Today' : format(nextDate, 'EEE, MMM d')}
+              </div>
+              {nextDayWeight && (
+                <div className="text-lg font-mono font-bold text-foreground/70 mt-1">
+                  {nextDayWeight.toFixed(1)} lbs
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Current day content */}
+        <div
+          {...swipeHandlers}
+          style={{
+            transform: swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
+            transition: isDragging ? 'none' : 'transform 250ms ease-out',
+          }}
+        >
         {/* ═══════════════════════════════════════════════════════ */}
         {/* OFFLINE INDICATOR — Shows when network is unavailable */}
         {/* ═══════════════════════════════════════════════════════ */}
@@ -479,54 +1030,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mt-1">
               {/* For SPAR users, make the phase label clickable to switch protocols */}
               {isSparProtocol ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className={cn(
-                      "text-xs font-bold uppercase flex items-center gap-1 hover:opacity-80 transition-opacity",
-                      phaseInfo.color
-                    )}>
-                      {phaseInfo.label}
-                      <ChevronDown className="w-3 h-3" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-2" align="start">
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted-foreground px-2 pb-1">Switch Macro Protocol</p>
-                      {(['sports', 'maintenance', 'recomp', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
-                        const config = SPAR_MACRO_PROTOCOLS[protocolId];
-                        const isSelected = (profile.sparMacroProtocol || 'maintenance') === protocolId;
-                        const iconColor = protocolId === 'sports' ? 'text-yellow-500' :
-                                          protocolId === 'maintenance' ? 'text-blue-500' :
-                                          protocolId === 'recomp' ? 'text-green-500' :
-                                          protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
-                        return (
-                          <button
-                            key={protocolId}
-                            onClick={() => {
-                              updateProfile({ sparMacroProtocol: protocolId });
-                              if (protocolId === 'custom' && !profile.customMacros) {
-                                updateProfile({ customMacros: { carbs: 40, protein: 30, fat: 30 } });
-                              }
-                            }}
-                            className={cn(
-                              "w-full flex items-center justify-between px-2 py-1.5 rounded-md text-left transition-colors",
-                              isSelected ? "bg-primary/10" : "hover:bg-muted"
-                            )}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={cn("text-[11px] font-bold", iconColor)}>{config.shortName}</span>
-                              <span className="text-[9px] text-muted-foreground">{config.carbs}/{config.protein}/{config.fat}</span>
-                            </div>
-                            {isSelected && <span className="text-[10px] text-primary">✓</span>}
-                          </button>
-                        );
-                      })}
-                      {profile.sparMacroProtocol === 'custom' && (
-                        <p className="text-[9px] text-purple-500 px-2 pt-1">Edit custom in Settings</p>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <SparProtocolSelector profile={profile} updateProfile={updateProfile} />
               ) : (
                 <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
                   {phaseInfo.label}
@@ -659,22 +1163,29 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* INSIGHTS — contextual data-driven encouragement         */}
+      {/* INSIGHTS — hidden behind "View Stats" toggle (competition only) */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {insights.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 mb-2 scrollbar-none -mx-1 px-1">
-          {insights.map((insight, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-1.5 bg-card border border-muted rounded-full px-3 py-1.5 shrink-0"
-            >
-              <span className="text-xs">{insight.emoji}</span>
-              <span className={cn("text-[11px] font-medium whitespace-nowrap", insight.color)}>
-                {insight.text}
-              </span>
-            </div>
-          ))}
-        </div>
+      {!isSparProtocol && insights.length > 0 && (
+        <details className="mb-2 group">
+          <summary className="flex items-center justify-center gap-1.5 cursor-pointer py-1 list-none [&::-webkit-details-marker]:hidden text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+            <TrendingUp className="w-3 h-3" />
+            <span className="text-[10px] font-bold uppercase tracking-wide">View Stats</span>
+            <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="flex gap-2 overflow-x-auto pb-1 pt-2 scrollbar-none -mx-1 px-1 animate-in slide-in-from-top-2 duration-200">
+            {insights.map((insight, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-1.5 bg-card border border-muted rounded-full px-3 py-1.5 shrink-0"
+              >
+                <span className="text-xs">{insight.emoji}</span>
+                <span className={cn("text-[11px] font-medium whitespace-nowrap", insight.color)}>
+                  {insight.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -682,6 +1193,20 @@ export default function Dashboard() {
       {/* ═══════════════════════════════════════════════════════ */}
       {!isSparProtocol && (
         <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} descentData={descentData} timeUntilWeighIn={daysUntilWeighIn >= 0 ? getTimeUntilWeighIn() : null} daysUntilWeighIn={daysUntilWeighIn} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* SPAR FOCUS CARD — Protocol tips and calorie summary */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {isSparProtocol && !isViewingHistorical && (
+        <SparFocusCard profile={profile} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* WEIGHT PROJECTION — Shows future weight over weeks */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {isSparProtocol && !isViewingHistorical && (
+        <WeightProjectionCard profile={profile} logs={logs} />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -699,6 +1224,7 @@ export default function Dashboard() {
 
         {/* Bottom Spacing for Nav */}
         <div className="h-20" />
+        </div>
       </div>
     </MobileLayout>
   );
@@ -1043,18 +1569,37 @@ function TodayTimeline({
   // Auto-detect: if PRE or POST already logged, can't be no-practice
   const hasPracticeLog = !!todayLogs.prePractice || !!todayLogs.postPractice;
 
+  // Practice slots expansion state - auto-expands if practice is logged
+  const [practiceExpanded, setPracticeExpanded] = useState(false);
+
+  // Auto-expand when practice log exists
+  useEffect(() => {
+    if (hasPracticeLog) {
+      setPracticeExpanded(true);
+    }
+  }, [hasPracticeLog]);
+
   // SPAR users only see AM + BED by default, but can opt-in to practice tracking
-  // Competition users always see all 4 slots
-  const showPracticeSlots = !isSparProtocol || trackPracticeWeighIns;
-  const coreSlots = showPracticeSlots ? [
-    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
-    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500', dimmed: noPractice && !hasPracticeLog },
-    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500', dimmed: noPractice && !hasPracticeLog },
-    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500', dimmed: false },
-  ] : [
+  // Competition users: show AM + BED by default, practice slots expand on demand or when logged
+  const showPracticeSlots = isSparProtocol ? trackPracticeWeighIns : (practiceExpanded || hasPracticeLog);
+
+  // Core slots - always AM and BED
+  const amBedSlots = [
     { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500', dimmed: false },
     { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500', dimmed: false },
   ];
+
+  // Practice slots - shown when expanded
+  const practiceSlots = [
+    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500', dimmed: false },
+    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500', dimmed: false },
+  ];
+
+  const coreSlots = showPracticeSlots ? [
+    amBedSlots[0], // AM
+    ...practiceSlots, // PRE, POST
+    amBedSlots[1], // BED
+  ] : amBedSlots;
 
   const handleSlotTap = (type: string, log: any) => {
     if (log) {
@@ -1075,13 +1620,14 @@ function TodayTimeline({
     ? morningWeight - latestWeight
     : null;
 
-  // Completion count for daily weigh-ins — adjusts for SPAR and no-practice days
-  const activeSlots = !showPracticeSlots ? 2 : (noPractice && !hasPracticeLog) ? 2 : 4;
-  const completedCount = isSparProtocol
-    ? [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length
-    : (noPractice && !hasPracticeLog)
-      ? [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length
-      : [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length;
+  // Completion count for daily weigh-ins — based on day type, not UI state
+  // Practice days: goal is 4 weigh-ins (AM, PRE, POST, BED) even if UI is collapsed
+  // Rest days: goal is 2 weigh-ins (AM, BED)
+  const isPracticeDay = !noPractice;
+  const activeSlots = isPracticeDay ? 4 : 2;
+  const completedCount = isPracticeDay
+    ? [todayLogs.morning, todayLogs.prePractice, todayLogs.postPractice, todayLogs.beforeBed].filter(Boolean).length
+    : [todayLogs.morning, todayLogs.beforeBed].filter(Boolean).length;
   const isComplete = completedCount === activeSlots;
 
   return (
@@ -1166,33 +1712,12 @@ function TodayTimeline({
             </span>
             )}
         </div>
-        {/* Positive feedback when at or under target - competition only */}
-        {!isSparProtocol && latestWeight && latestWeight <= targetWeight && (
-          <div className={cn(
-            "flex items-center gap-1.5 rounded-md px-2 py-1",
-            latestWeight <= weightClass
-              ? "bg-green-500/10 border border-green-500/20"
-              : descentData.projectedSaturday !== null && descentData.projectedSaturday > weightClass + 0.5
-                ? "bg-yellow-500/10 border border-yellow-500/20"
-                : "bg-green-500/10 border border-green-500/20"
-          )}>
-            <span className={cn(
-              "text-xs",
-              latestWeight <= weightClass ? "text-green-500"
-                : descentData.projectedSaturday !== null && descentData.projectedSaturday > weightClass + 0.5 ? "text-yellow-500"
-                : "text-green-500"
-            )}>&#9733;</span>
-            <span className={cn(
-              "text-[11px] font-bold",
-              latestWeight <= weightClass ? "text-green-500"
-                : descentData.projectedSaturday !== null && descentData.projectedSaturday > weightClass + 0.5 ? "text-yellow-500"
-                : "text-green-500"
-            )}>
-              {latestWeight <= weightClass
-                ? "At weight — you're competition ready"
-                : descentData.projectedSaturday !== null && descentData.projectedSaturday > weightClass + 0.5
-                  ? `Today's goal hit (${targetWeight}) — but projected ${(descentData.projectedSaturday - weightClass).toFixed(1)} over by weigh-in`
-                  : `On target — ${(targetWeight - latestWeight).toFixed(1)} lbs under today's goal`}
+        {/* Simple positive feedback - competition only, no conflicting messages */}
+        {!isSparProtocol && latestWeight && latestWeight <= weightClass && (
+          <div className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-green-500/10 border border-green-500/20">
+            <span className="text-xs text-green-500">&#9733;</span>
+            <span className="text-[11px] font-bold text-green-500">
+              At weight — you're competition ready
             </span>
           </div>
         )}
@@ -1200,8 +1725,8 @@ function TodayTimeline({
 
       {/* Core weigh-in slots */}
       <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
-        <div className={cn("grid gap-1", !showPracticeSlots || (noPractice && !hasPracticeLog) ? "grid-cols-2" : "grid-cols-4")}>
-          {coreSlots.filter(slot => !(slot.dimmed)).map((slot) => {
+        <div className={cn("grid gap-1", showPracticeSlots ? "grid-cols-4" : "grid-cols-2")}>
+          {coreSlots.map((slot) => {
             const isMostRecent = mostRecentLog && slot.log && mostRecentLog.id === slot.log.id;
             const hasWeight = !!slot.log;
             const diff = hasWeight ? slot.log.weight - targetWeight : null;
@@ -1259,26 +1784,44 @@ function TodayTimeline({
             );
           })}
         </div>
-        {/* No Practice toggle — available on today and past days (not for SPAR) */}
-        {!isSparProtocol && !hasPracticeLog && (
-          <button
-            onClick={toggleNoPractice}
-            className={cn(
-              "w-full flex items-center justify-center gap-1.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition-all",
-              noPractice
-                ? "bg-muted/50 text-muted-foreground"
-                : "text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30"
+        {/* Practice toggle - for competition users only */}
+        {!isSparProtocol && (
+          <div className="flex items-center justify-center gap-2 py-1.5">
+            {/* Show/hide practice slots toggle */}
+            {!hasPracticeLog && (
+              <button
+                onClick={() => setPracticeExpanded(!practiceExpanded)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide text-muted-foreground bg-muted/50 hover:bg-muted transition-colors"
+              >
+                {practiceExpanded ? (
+                  <>
+                    <ChevronUp className="w-3 h-3" />
+                    Hide practice
+                  </>
+                ) : (
+                  <>
+                    <Dumbbell className="w-3 h-3" />
+                    Show practice
+                  </>
+                )}
+              </button>
             )}
-          >
-            {noPractice ? (
-              <>
+            {/* Rest day toggle - only when practice not logged */}
+            {!hasPracticeLog && !practiceExpanded && (
+              <button
+                onClick={toggleNoPractice}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+                  noPractice
+                    ? "text-purple-600 bg-purple-500/15 hover:bg-purple-500/25"
+                    : "text-muted-foreground bg-muted/50 hover:bg-muted"
+                )}
+              >
                 <Moon className="w-3 h-3" />
-                Rest day — tap to add practice
-              </>
-            ) : (
-              <>No practice today?</>
+                {noPractice ? "Rest day" : "Rest day?"}
+              </button>
             )}
-          </button>
+          </div>
         )}
       </div>
 
@@ -1713,16 +2256,42 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   daysUntilWeighIn: number;
 }) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const weekPlan = getWeeklyPlan();
 
   const selectedDayData = selectedDay !== null ? weekPlan[selectedDay] : null;
+
+  // Find the weigh-in day for the summary
+  const weighInDay = weekPlan.find(d => d.phase === 'Competition') || weekPlan[weekPlan.length - 1];
+
+  // Summary text for collapsed view
+  const getSummaryText = () => {
+    if (descentData.projectedSaturday === null) {
+      return `${daysUntilWeighIn} days to weigh-in`;
+    }
+    const diff = descentData.projectedSaturday - descentData.targetWeight;
+    if (diff <= 0) {
+      return `On pace for ${descentData.projectedSaturday.toFixed(1)} lbs ${weighInDay?.day || 'Saturday'}`;
+    } else if (diff <= 1) {
+      return `Projected ${descentData.projectedSaturday.toFixed(1)} lbs — close`;
+    } else {
+      return `Projected ${descentData.projectedSaturday.toFixed(1)} lbs ${weighInDay?.day || 'Saturday'}`;
+    }
+  };
+
+  const projectionColor = descentData.projectedSaturday === null ? 'text-muted-foreground' :
+    descentData.projectedSaturday <= descentData.targetWeight ? 'text-green-500' :
+    descentData.projectedSaturday <= descentData.targetWeight * 1.01 ? 'text-yellow-500' : 'text-orange-500';
 
   return (
     <div className="space-y-2 mt-2">
       <Card data-tour="countdown" className="border-muted overflow-hidden">
         <CardContent className="p-0">
-          {/* Header */}
-          <div className="px-4 py-2.5 flex items-center justify-between">
+          {/* Collapsed Header - always visible */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+          >
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" />
               <h4 className="font-bold text-sm uppercase tracking-wide">The Countdown</h4>
@@ -1732,8 +2301,17 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-muted-foreground">Tap any day</span>
-          </div>
+            <div className="flex items-center gap-2">
+              <span className={cn("text-[11px] font-bold", projectionColor)}>
+                {getSummaryText()}
+              </span>
+              <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
+            </div>
+          </button>
+
+          {/* Expanded Content */}
+          {isExpanded && (
+            <div className="animate-in slide-in-from-top-2 duration-200">
 
           {/* Stats Row */}
           {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null || descentData.projectedSaturday !== null) && (
@@ -2025,18 +2603,20 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               </div>
             </div>
           )}
+
+          {/* Phase Legend — pill style (inside expanded) */}
+          <div className="flex flex-wrap justify-center gap-2 px-2 pb-3">
+            {['Load', 'Prep', 'Cut', 'Compete', 'Recover'].map((phase) => (
+              <div key={phase} className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-full">
+                <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
+                <span className="text-[11px] text-muted-foreground font-medium">{phase}</span>
+              </div>
+            ))}
+          </div>
+          </div>
+          )}
         </CardContent>
       </Card>
-
-      {/* Phase Legend — pill style */}
-      <div className="flex flex-wrap justify-center gap-2 px-2">
-        {['Load', 'Prep', 'Cut', 'Compete', 'Recover'].map((phase) => (
-          <div key={phase} className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-full">
-            <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
-            <span className="text-[11px] text-muted-foreground font-medium">{phase}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

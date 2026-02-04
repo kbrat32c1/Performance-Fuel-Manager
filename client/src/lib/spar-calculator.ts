@@ -10,23 +10,24 @@
  */
 
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
-export type WeeklyGoal = 'cut' | 'maintain' | 'build';
 export type Gender = 'male' | 'female';
 
 /**
  * SPAR Macro Protocols
- * Four preset macro splits + custom option for experienced users
+ * Six unified protocols - each defines BOTH the macro split AND the calorie adjustment
  */
-export type SparMacroProtocol = 'sports' | 'maintenance' | 'recomp' | 'fatloss' | 'custom';
+export type SparMacroProtocol = 'performance' | 'maintenance' | 'recomp' | 'build' | 'fatloss' | 'custom';
 
 export interface SparMacroConfig {
   id: SparMacroProtocol;
   name: string;
   shortName: string;
   description: string;
-  carbs: number;   // percentage
-  protein: number; // percentage
-  fat: number;     // percentage
+  carbs: number;        // percentage
+  protein: number;      // percentage
+  fat: number;          // percentage
+  calorieAdjustment: number;  // +/- calories from TDEE
+  weeklyChange: string; // human-readable weekly change
   whoFor: string;
 }
 
@@ -35,64 +36,87 @@ export interface SparMacroConfig {
  * Used when sparMacroProtocol === 'custom'
  */
 export interface CustomMacros {
-  carbs: number;   // percentage (0-100)
-  protein: number; // percentage (0-100)
-  fat: number;     // percentage (0-100)
+  carbs: number;           // percentage (0-100)
+  protein: number;         // percentage (0-100)
+  fat: number;             // percentage (0-100)
+  calorieAdjustment: number; // +/- calories from TDEE
 }
 
 /**
- * The five SPAR macro protocols
- * Order: Performance → Health → Aesthetics → Weight Loss → Custom
+ * The six SPAR macro protocols
+ * Each protocol defines BOTH the macro split AND the calorie strategy
  */
 export const SPAR_MACRO_PROTOCOLS: Record<SparMacroProtocol, SparMacroConfig> = {
-  sports: {
-    id: 'sports',
+  performance: {
+    id: 'performance',
     name: 'Sports Performance',
     shortName: 'Performance',
-    description: 'Fuel output and recovery',
+    description: 'Fuel training & recovery',
     carbs: 55,
     protein: 25,
     fat: 20,
+    calorieAdjustment: 0,
+    weeklyChange: 'Maintain weight',
     whoFor: 'In-season athletes, two-a-days, competition weeks',
   },
   maintenance: {
     id: 'maintenance',
     name: 'Balanced Maintenance',
     shortName: 'Maintain',
-    description: 'Live well without thinking',
+    description: 'Sustain current weight',
     carbs: 45,
     protein: 25,
     fat: 30,
+    calorieAdjustment: 0,
+    weeklyChange: 'Maintain weight',
     whoFor: 'Active adults, 2-4x/week training, long-term sustainability',
   },
   recomp: {
     id: 'recomp',
     name: 'Body Recomposition',
     shortName: 'Recomp',
-    description: 'Lean out while training',
+    description: 'Build muscle, lose fat',
     carbs: 40,
     protein: 30,
     fat: 30,
-    whoFor: 'Off-season athletes, slow cut without suffering',
+    calorieAdjustment: 0,
+    weeklyChange: 'Maintain weight',
+    whoFor: 'Off-season athletes wanting slow body composition change',
+  },
+  build: {
+    id: 'build',
+    name: 'Muscle Building',
+    shortName: 'Build',
+    description: 'Gain strength & size',
+    carbs: 50,
+    protein: 30,
+    fat: 20,
+    calorieAdjustment: 500,
+    weeklyChange: '~1 lb/week gain',
+    whoFor: 'Off-season athletes, bulking phase, strength focus',
   },
   fatloss: {
     id: 'fatloss',
-    name: 'Fat Loss Control',
+    name: 'Fat Loss',
     shortName: 'Fat Loss',
-    description: 'Lose weight predictably',
+    description: 'Lose ~1 lb/week',
     carbs: 30,
     protein: 35,
     fat: 35,
-    whoFor: 'Weight loss focus, weight-class athletes off-season',
+    calorieAdjustment: -500,
+    weeklyChange: '~1 lb/week loss',
+    whoFor: 'Weight loss focus, weight-class athletes cutting',
   },
   custom: {
     id: 'custom',
-    name: 'Custom Split',
+    name: 'Custom Plan',
     shortName: 'Custom',
-    description: 'Set your own C/P/F',
-    carbs: 40,   // defaults, overridden by customMacros
+    description: 'Set your own targets',
+    carbs: 40,
     protein: 30,
     fat: 30,
+    calorieAdjustment: 0,
+    weeklyChange: 'You decide',
     whoFor: 'Experienced users who know their ideal macro ratios',
   },
 };
@@ -104,13 +128,6 @@ const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   'moderate': 1.55,
   'active': 1.725,      // wrestlers in-season
   'very-active': 1.9,
-};
-
-// Goal calorie adjustments
-const GOAL_ADJUSTMENTS: Record<WeeklyGoal, number> = {
-  'cut': -500,        // ~1 lb/week loss
-  'maintain': 0,
-  'build': 300,       // lean gain
 };
 
 // Calories per slice by category
@@ -177,6 +194,7 @@ export interface SliceTargets {
   bmr: number;
   tdee: number;
   macroProtocol?: SparMacroProtocol;
+  calorieAdjustment?: number;
 }
 
 /**
@@ -207,8 +225,9 @@ export function calculateTDEE(bmr: number, activityLevel: ActivityLevel): number
 
 /**
  * Calculate daily slice targets from profile data
- * @param macroProtocol - Optional SPAR macro protocol (defaults to 'maintenance')
- * @param customMacros - Custom C/P/F percentages when macroProtocol === 'custom'
+ * The protocol now includes both the macro split AND the calorie adjustment
+ * @param macroProtocol - SPAR macro protocol (defaults to 'maintenance')
+ * @param customMacros - Custom C/P/F percentages + calorie adjustment when macroProtocol === 'custom'
  */
 export function calculateSliceTargets(
   weightLbs: number,
@@ -216,13 +235,22 @@ export function calculateSliceTargets(
   age: number,
   gender: Gender,
   activityLevel: ActivityLevel,
-  weeklyGoal: WeeklyGoal,
   macroProtocol: SparMacroProtocol = 'maintenance',
   customMacros?: CustomMacros,
 ): SliceTargets {
   const bmr = calculateBMR(weightLbs, heightInches, age, gender);
   const tdee = calculateTDEE(bmr, activityLevel);
-  const adjusted = tdee + (GOAL_ADJUSTMENTS[weeklyGoal] || 0);
+
+  // Get calorie adjustment from protocol (or custom macros)
+  let calorieAdjustment = 0;
+  if (macroProtocol === 'custom' && customMacros) {
+    calorieAdjustment = customMacros.calorieAdjustment || 0;
+  } else {
+    const config = SPAR_MACRO_PROTOCOLS[macroProtocol];
+    calorieAdjustment = config?.calorieAdjustment || 0;
+  }
+
+  const adjusted = tdee + calorieAdjustment;
 
   // Minimum floor — never go below 1200 cal
   const targetCals = Math.max(adjusted, 1200);
@@ -242,7 +270,32 @@ export function calculateSliceTargets(
     bmr: Math.round(bmr),
     tdee: Math.round(tdee),
     macroProtocol,
+    calorieAdjustment,
   };
+}
+
+/**
+ * Calculate what the target calories would be for each protocol
+ * Used to display calorie previews in protocol selector
+ */
+export function getProtocolCaloriePreview(
+  weightLbs: number,
+  heightInches: number,
+  age: number,
+  gender: Gender,
+  activityLevel: ActivityLevel,
+): Record<SparMacroProtocol, number> {
+  const bmr = calculateBMR(weightLbs, heightInches, age, gender);
+  const tdee = calculateTDEE(bmr, activityLevel);
+
+  const previews: Record<SparMacroProtocol, number> = {} as Record<SparMacroProtocol, number>;
+
+  for (const [id, config] of Object.entries(SPAR_MACRO_PROTOCOLS)) {
+    const adjusted = tdee + config.calorieAdjustment;
+    previews[id as SparMacroProtocol] = Math.max(1200, Math.round(adjusted));
+  }
+
+  return previews;
 }
 
 /**
