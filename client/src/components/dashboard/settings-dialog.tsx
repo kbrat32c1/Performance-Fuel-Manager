@@ -85,17 +85,22 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const isSparProtocol = (getValue('protocol') || profile.protocol) === '5';
 
   // Is SPAR v2 enabled?
-  const isSparV2 = getValue('sparV2') || profile.sparV2;
+  // Auto-upgrade: If user is on SPAR protocol and has v2 stats (height, age), treat as v2
+  const hasV2Stats = profile.heightInches && profile.age;
+  const isSparV2 = getValue('sparV2') || profile.sparV2 || (isSparProtocol && hasV2Stats);
+
+  // Auto-upgrade: If showing v2 UI but sparV2 not explicitly set, include it in save
+  const autoUpgradeV2 = isSparV2 && !profile.sparV2 ? { sparV2: true } : {};
 
   // Save all changes
   const handleSave = () => {
-    if (hasChanges) {
+    if (hasChanges || Object.keys(autoUpgradeV2).length > 0) {
       // If weight class changed, show confirmation dialog
       if (weightClassChanged) {
         setShowWeightClassConfirm(true);
         return;
       }
-      updateProfile(pendingChanges);
+      updateProfile({ ...pendingChanges, ...autoUpgradeV2 });
     }
     setOpen(false);
   };
@@ -103,14 +108,14 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   // Save with clear logs option
   const handleSaveWithClearLogs = async () => {
     await clearLogs();
-    updateProfile(pendingChanges);
+    updateProfile({ ...pendingChanges, ...autoUpgradeV2 });
     setShowWeightClassConfirm(false);
     setOpen(false);
   };
 
   // Save and keep logs
   const handleSaveKeepLogs = () => {
-    updateProfile(pendingChanges);
+    updateProfile({ ...pendingChanges, ...autoUpgradeV2 });
     setShowWeightClassConfirm(false);
     setOpen(false);
   };
