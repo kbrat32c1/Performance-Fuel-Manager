@@ -53,10 +53,14 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const [editValue, setEditValue] = useState('');
   const [confirmingReset, setConfirmingReset] = useState(false);
 
+  // SPAR users don't do weight cuts, so hide water loading explanations
+  const isSparProtocol = profile.protocol === '5';
+
   const progress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
   const consumedOz = tracking.waterConsumed;
 
-  const isSipOnly = hydration.type === 'Sip Only' || daysUntilWeighIn === 1;
+  // Only apply sip-only mode for competition users doing weight cuts
+  const isSipOnly = !isSparProtocol && (hydration.type === 'Sip Only' || daysUntilWeighIn === 1);
   const quickAddAmounts = isSipOnly ? [2, 4, 6, 8] : [8, 16, 24, 32];
 
   const handleAddWater = (oz: number) => {
@@ -247,30 +251,32 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
           </div>
         )}
 
-        {/* Why Explanations */}
-        <div className="pt-2 mt-2 border-t border-muted space-y-2">
-          {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
-            <WhyExplanation title="water loading (3-5 days out)">
-              <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
-              increases urine production. When you cut water the day before, your body keeps flushing even without
-              intake, helping you drop water weight safely without severe dehydration.
-            </WhyExplanation>
-          )}
-          {daysUntilWeighIn === 2 && (
-            <WhyExplanation title="flush day (2 days out)">
-              <strong>Water weight starts dropping.</strong> After days of high water intake, your body is in
-              full flush mode. Maintain high intake to keep kidneys active while cutting sodium and fiber
-              to accelerate water loss.
-            </WhyExplanation>
-          )}
-          {daysUntilWeighIn === 1 && (
-            <WhyExplanation title="sip only (1 day out)">
-              <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
-              overdrive. Sipping just enough to stay functional lets your body continue eliminating water
-              naturally. Gulping would halt this process and add weight back.
-            </WhyExplanation>
-          )}
-        </div>
+        {/* Why Explanations — only for competition users doing weight cuts */}
+        {!isSparProtocol && (
+          <div className="pt-2 mt-2 border-t border-muted space-y-2">
+            {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
+              <WhyExplanation title="water loading (3-5 days out)">
+                <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
+                increases urine production. When you cut water the day before, your body keeps flushing even without
+                intake, helping you drop water weight safely without severe dehydration.
+              </WhyExplanation>
+            )}
+            {daysUntilWeighIn === 2 && (
+              <WhyExplanation title="flush day (2 days out)">
+                <strong>Water weight starts dropping.</strong> After days of high water intake, your body is in
+                full flush mode. Maintain high intake to keep kidneys active while cutting sodium and fiber
+                to accelerate water loss.
+              </WhyExplanation>
+            )}
+            {daysUntilWeighIn === 1 && (
+              <WhyExplanation title="sip only (1 day out)">
+                <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
+                overdrive. Sipping just enough to stay functional lets your body continue eliminating water
+                naturally. Gulping would halt this process and add weight back.
+              </WhyExplanation>
+            )}
+          </div>
+        )}
     </>
   );
 

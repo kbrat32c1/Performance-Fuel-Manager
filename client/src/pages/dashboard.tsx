@@ -1536,7 +1536,8 @@ function TodayTimeline({
                 {completedCount}/{activeSlots}
               </span>
             </div>
-            <StatusExplanation statusInfo={statusInfo} />
+            {/* ON TRACK status badge — only for competition users doing weight cuts */}
+            {!isSparProtocol && <StatusExplanation statusInfo={statusInfo} />}
           </div>
         </div>
         {/* Streak + daily stats row */}
