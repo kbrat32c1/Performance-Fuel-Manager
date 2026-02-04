@@ -90,34 +90,38 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const isSparV2 = getValue('sparV2') || profile.sparV2 || (isSparProtocol && hasV2Stats);
 
   // Auto-upgrade: If showing v2 UI but sparV2 not explicitly set, include it in save
-  const autoUpgradeV2 = isSparV2 && !profile.sparV2 ? { sparV2: true } : {};
+  // Also always include current v2 settings to ensure they persist
+  const v2SettingsToSave = isSparV2 ? {
+    sparV2: true,
+    sparGoal: getValue('sparGoal') || profile.sparGoal || 'maintain',
+    trainingSessions: getValue('trainingSessions') || profile.trainingSessions || '3-4',
+    workdayActivity: getValue('workdayActivity') || profile.workdayActivity || 'mostly_sitting',
+  } : {};
 
   // Save all changes
   const handleSave = () => {
-    if (hasChanges || Object.keys(autoUpgradeV2).length > 0) {
-      // If weight class changed, show confirmation dialog
-      if (weightClassChanged) {
-        setShowWeightClassConfirm(true);
-        return;
-      }
-      const savePayload = { ...pendingChanges, ...autoUpgradeV2 };
-      console.log('Settings handleSave - saving:', JSON.stringify(savePayload, null, 2));
-      updateProfile(savePayload);
+    // If weight class changed, show confirmation dialog
+    if (weightClassChanged) {
+      setShowWeightClassConfirm(true);
+      return;
     }
+    const savePayload = { ...pendingChanges, ...v2SettingsToSave };
+    console.log('Settings handleSave - saving:', JSON.stringify(savePayload, null, 2));
+    updateProfile(savePayload);
     setOpen(false);
   };
 
   // Save with clear logs option
   const handleSaveWithClearLogs = async () => {
     await clearLogs();
-    updateProfile({ ...pendingChanges, ...autoUpgradeV2 });
+    updateProfile({ ...pendingChanges, ...v2SettingsToSave });
     setShowWeightClassConfirm(false);
     setOpen(false);
   };
 
   // Save and keep logs
   const handleSaveKeepLogs = () => {
-    updateProfile({ ...pendingChanges, ...autoUpgradeV2 });
+    updateProfile({ ...pendingChanges, ...v2SettingsToSave });
     setShowWeightClassConfirm(false);
     setOpen(false);
   };
