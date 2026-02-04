@@ -91,9 +91,12 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
   // Auto-upgrade: If showing v2 UI but sparV2 not explicitly set, include it in save
   // Also always include current v2 settings to ensure they persist
+  const currentGoal = getValue('sparGoal') || profile.sparGoal || 'maintain';
   const v2SettingsToSave = isSparV2 ? {
     sparV2: true,
-    sparGoal: getValue('sparGoal') || profile.sparGoal || 'maintain',
+    sparGoal: currentGoal,
+    goalIntensity: getValue('goalIntensity') || profile.goalIntensity || (currentGoal !== 'maintain' ? 'lean' : undefined),
+    maintainPriority: getValue('maintainPriority') || profile.maintainPriority || (currentGoal === 'maintain' ? 'general' : undefined),
     trainingSessions: getValue('trainingSessions') || profile.trainingSessions || '3-4',
     workdayActivity: getValue('workdayActivity') || profile.workdayActivity || 'mostly_sitting',
   } : {};
