@@ -702,8 +702,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           toast({ title: 'Settings saved', description: 'Your changes have been saved.', duration: 2000 });
         }
 
-        // If error mentions a missing column, retry with fewer fields
+        // If error, show it but DON'T fall back to saving without v2 fields
+        // (that would overwrite user's v2 settings!)
         if (upsertError) {
+          console.error('Profile save failed:', upsertError.message, upsertError.code, upsertError.details);
+          toast({ title: 'Save failed', description: `Error: ${upsertError.message}`, variant: 'destructive' });
+          // DON'T fall back - just report the error
+          return;
+        }
+
+        // OLD FALLBACK CODE - DISABLED to prevent overwriting v2 settings
+        if (false && upsertError) {
           console.error('Full save failed:', upsertError.message, upsertError.code, upsertError.details);
           // Try without v2 fields
           profilePayload = { ...corePayload, ...sparFields, ...optionalFields };
