@@ -685,11 +685,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Try with all fields first (including v2)
         let profilePayload = { ...corePayload, ...sparFields, ...sparV2Fields, ...optionalFields };
+        console.log('Saving profile with v2 fields:', JSON.stringify(sparV2Fields, null, 2));
         let { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
+
+        if (!upsertError) {
+          console.log('Profile saved successfully with v2 fields');
+        }
 
         // If error mentions a missing column, retry with fewer fields
         if (upsertError) {
-          console.warn('Full save failed, trying without v2 fields:', upsertError.message);
+          console.error('Full save failed:', upsertError.message, upsertError.code, upsertError.details);
           // Try without v2 fields
           profilePayload = { ...corePayload, ...sparFields, ...optionalFields };
           let { error: retryError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
