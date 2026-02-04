@@ -23,6 +23,7 @@ import {
   TrendingUp,
   TrendingDown,
   Target,
+  Egg,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -124,13 +125,13 @@ const CATEGORY_CONFIG: Record<SliceCategory, {
     label: 'Healthy Fats',
     shortLabel: 'Fat',
     unit: 'thumb',
-    icon: Droplets,
-    color: 'text-blue-400',
-    bgColor: 'bg-blue-400/5',
-    bgHover: 'hover:bg-blue-400/15',
-    bgActive: 'active:bg-blue-400/25',
-    bgRing: 'bg-blue-400/30 ring-2 ring-blue-400',
-    progressColor: 'bg-blue-400',
+    icon: Egg,
+    color: 'text-yellow-600',
+    bgColor: 'bg-yellow-600/5',
+    bgHover: 'hover:bg-yellow-600/15',
+    bgActive: 'active:bg-yellow-600/25',
+    bgRing: 'bg-yellow-600/30 ring-2 ring-yellow-600',
+    progressColor: 'bg-yellow-600',
   },
 };
 
@@ -1289,8 +1290,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                       <div className="text-[10px] font-bold text-pink-500">{targets.fruit}Fr</div>
                       <div className="text-[8px] text-muted-foreground">~{targets.fruit * 100} cal</div>
                     </div>
-                    <div className="px-1 py-1.5 rounded bg-blue-400/5">
-                      <div className="text-[10px] font-bold text-blue-400">{targets.fat}Ft</div>
+                    <div className="px-1 py-1.5 rounded bg-yellow-600/5">
+                      <div className="text-[10px] font-bold text-yellow-600">{targets.fat}Ft</div>
                       <div className="text-[8px] text-muted-foreground">~{targets.fat * 126} cal</div>
                     </div>
                   </>

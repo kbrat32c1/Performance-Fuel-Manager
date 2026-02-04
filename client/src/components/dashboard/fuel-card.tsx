@@ -339,6 +339,11 @@ export function FuelCard({
                     { label: 'Pro', consumed: tracking.proteinSlices, target: sliceTargets.protein, blocked: isProteinBlocked, done: sparProteinDone, color: 'text-orange-500', doneColor: 'text-green-500' },
                     { label: 'Carb', consumed: tracking.carbSlices, target: sliceTargets.carb, blocked: isCarbBlocked, done: sparCarbDone, color: 'text-amber-500', doneColor: 'text-green-500' },
                     { label: 'Veg', consumed: tracking.vegSlices, target: sliceTargets.veg, blocked: isVegBlocked, done: sparVegDone, color: 'text-emerald-500', doneColor: 'text-green-500' },
+                    // V2: Fruit and Fat (only show if targets > 0)
+                    ...(sliceTargets.isV2 || sliceTargets.fruit > 0 || sliceTargets.fat > 0 ? [
+                      { label: 'Fruit', consumed: tracking.fruitSlices || 0, target: sliceTargets.fruit, blocked: false, done: (tracking.fruitSlices || 0) >= sliceTargets.fruit, color: 'text-pink-500', doneColor: 'text-green-500' },
+                      { label: 'Fat', consumed: tracking.fatSlices || 0, target: sliceTargets.fat, blocked: false, done: (tracking.fatSlices || 0) >= sliceTargets.fat, color: 'text-yellow-600', doneColor: 'text-green-500' },
+                    ] : []),
                   ].map(({ label, consumed, target, blocked, done, color, doneColor }) => {
                     if (blocked) return (
                       <span key={label} className="text-[11px] text-muted-foreground/40 font-mono line-through">{label}</span>
