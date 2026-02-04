@@ -184,7 +184,7 @@ function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['prof
         </div>
 
         {/* Slice targets summary */}
-        <div className="flex items-center justify-center gap-3 mt-3 py-2 bg-muted/30 rounded-lg">
+        <div className="flex items-center justify-center gap-2 mt-3 py-2 bg-muted/30 rounded-lg flex-wrap">
           <div className="flex items-center gap-1">
             <span className="text-orange-500 font-bold text-sm">{targets.protein}P</span>
           </div>
@@ -196,6 +196,19 @@ function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['prof
           <div className="flex items-center gap-1">
             <span className="text-green-500 font-bold text-sm">{targets.veg}V</span>
           </div>
+          {/* V2: Show Fruit and Fat */}
+          {(targets.isV2 || targets.fruit > 0 || targets.fat > 0) && (
+            <>
+              <span className="text-muted-foreground">•</span>
+              <div className="flex items-center gap-1">
+                <span className="text-pink-500 font-bold text-sm">{targets.fruit}Fr</span>
+              </div>
+              <span className="text-muted-foreground">•</span>
+              <div className="flex items-center gap-1">
+                <span className="text-yellow-600 font-bold text-sm">{targets.fat}Ft</span>
+              </div>
+            </>
+          )}
           <span className="text-muted-foreground/50 text-[10px]">slices today</span>
         </div>
 
