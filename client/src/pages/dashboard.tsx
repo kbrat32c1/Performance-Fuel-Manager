@@ -49,7 +49,13 @@ function SparProtocolSelector({
 
   // V2 users: show goal-based display
   if (isSparV2 && getSliceTargets) {
-    const sliceTargets = getSliceTargets();
+    let sliceTargets;
+    try {
+      sliceTargets = getSliceTargets();
+    } catch (e) {
+      console.error('Error calculating slice targets:', e);
+      sliceTargets = { calorieAdjustment: 0 };
+    }
     const goal = profile.sparGoal || 'maintain';
     const intensity = profile.goalIntensity;
     const priority = profile.maintainPriority;
