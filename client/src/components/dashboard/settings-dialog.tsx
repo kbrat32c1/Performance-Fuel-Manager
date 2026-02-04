@@ -91,14 +91,20 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
   // Auto-upgrade: If showing v2 UI but sparV2 not explicitly set, include it in save
   // Also always include current v2 settings to ensure they persist
-  const currentGoal = getValue('sparGoal') || profile.sparGoal || 'maintain';
+  // Use explicit undefined checks because || doesn't distinguish between undefined and falsy
+  const currentGoal = pendingChanges.sparGoal !== undefined ? pendingChanges.sparGoal : (profile.sparGoal || 'maintain');
+  const currentIntensity = pendingChanges.goalIntensity !== undefined ? pendingChanges.goalIntensity : profile.goalIntensity;
+  const currentPriority = pendingChanges.maintainPriority !== undefined ? pendingChanges.maintainPriority : profile.maintainPriority;
+  const currentTraining = pendingChanges.trainingSessions !== undefined ? pendingChanges.trainingSessions : (profile.trainingSessions || '3-4');
+  const currentActivity = pendingChanges.workdayActivity !== undefined ? pendingChanges.workdayActivity : (profile.workdayActivity || 'mostly_sitting');
+
   const v2SettingsToSave = isSparV2 ? {
     sparV2: true,
     sparGoal: currentGoal,
-    goalIntensity: getValue('goalIntensity') || profile.goalIntensity || (currentGoal !== 'maintain' ? 'lean' : undefined),
-    maintainPriority: getValue('maintainPriority') || profile.maintainPriority || (currentGoal === 'maintain' ? 'general' : undefined),
-    trainingSessions: getValue('trainingSessions') || profile.trainingSessions || '3-4',
-    workdayActivity: getValue('workdayActivity') || profile.workdayActivity || 'mostly_sitting',
+    goalIntensity: currentGoal !== 'maintain' ? (currentIntensity || 'lean') : null,
+    maintainPriority: currentGoal === 'maintain' ? (currentPriority || 'general') : null,
+    trainingSessions: currentTraining,
+    workdayActivity: currentActivity,
   } : {};
 
   // Save all changes
