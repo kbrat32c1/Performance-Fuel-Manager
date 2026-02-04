@@ -35,193 +35,32 @@ import { DashboardTour } from "@/components/dashboard/tour";
 // ═══════════════════════════════════════════════════════════════════════════════
 function SparProtocolSelector({
   profile,
-  updateProfile,
 }: {
   profile: ReturnType<typeof useStore>['profile'];
-  updateProfile: ReturnType<typeof useStore>['updateProfile'];
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  // Simple v2 goal label - no dropdown, edit in settings
+  const goal = profile.sparGoal || 'maintain';
+  const intensity = profile.goalIntensity;
+  const priority = profile.maintainPriority;
 
-  const currentProtocol = profile.sparMacroProtocol || 'maintenance';
-  const currentConfig = SPAR_MACRO_PROTOCOLS[currentProtocol];
+  // Build display label
+  let goalLabel = goal === 'lose' ? 'LOSE' : goal === 'gain' ? 'GAIN' : 'MAINTAIN';
+  if (goal === 'lose' && intensity) {
+    goalLabel += intensity === 'aggressive' ? ' - AGG' : ' - LEAN';
+  } else if (goal === 'gain' && intensity) {
+    goalLabel += intensity === 'aggressive' ? ' - AGG' : ' - LEAN';
+  } else if (goal === 'maintain' && priority) {
+    goalLabel += priority === 'performance' ? ' - PERF' : '';
+  }
 
-  // For custom protocol, get actual values
-  const displayCarbs = currentProtocol === 'custom' && profile.customMacros?.carbs !== undefined
-    ? profile.customMacros.carbs : currentConfig.carbs;
-  const displayProtein = currentProtocol === 'custom' && profile.customMacros?.protein !== undefined
-    ? profile.customMacros.protein : currentConfig.protein;
-  const displayFat = currentProtocol === 'custom' && profile.customMacros?.fat !== undefined
-    ? profile.customMacros.fat : currentConfig.fat;
-
-  // Get color based on protocol
-  const iconColor = currentProtocol === 'performance' ? 'text-yellow-500' :
-                    currentProtocol === 'maintenance' ? 'text-blue-500' :
-                    currentProtocol === 'recomp' ? 'text-cyan-500' :
-                    currentProtocol === 'build' ? 'text-green-500' :
-                    currentProtocol === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
+  // Goal colors
+  const goalColor = goal === 'lose' ? 'text-orange-500' :
+                    goal === 'gain' ? 'text-green-500' : 'text-blue-500';
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <button className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          {/* Protocol name with color */}
-          <span className={cn("text-xs font-bold uppercase flex items-center gap-1", iconColor)}>
-            {currentConfig.shortName}
-            <ChevronDown className={cn("w-3 h-3 transition-transform", isOpen && "rotate-180")} />
-          </span>
-          {/* C/P/F split badge */}
-          <span className="text-[9px] font-mono bg-muted/50 px-1.5 py-0.5 rounded text-muted-foreground">
-            C{displayCarbs}/P{displayProtein}/F{displayFat}
-          </span>
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80 p-2" align="start">
-        <div className="space-y-1">
-          <p className="text-[10px] text-muted-foreground px-2 pb-1 font-bold uppercase">Switch Macro Protocol</p>
-          {(['performance', 'maintenance', 'recomp', 'build', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
-            const config = SPAR_MACRO_PROTOCOLS[protocolId];
-            const isSelected = currentProtocol === protocolId;
-            const iconColor = protocolId === 'performance' ? 'text-yellow-500' :
-                              protocolId === 'maintenance' ? 'text-blue-500' :
-                              protocolId === 'recomp' ? 'text-cyan-500' :
-                              protocolId === 'build' ? 'text-green-500' :
-                              protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
-            // Show calorie impact
-            const calAdj = protocolId === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
-              ? profile.customMacros.calorieAdjustment : config.calorieAdjustment;
-            const calInfo = calAdj > 0 ? `+${calAdj}` : calAdj < 0 ? `${calAdj}` : '±0';
-            // For custom, show user's values
-            const pCarbs = protocolId === 'custom' && profile.customMacros?.carbs ? profile.customMacros.carbs : config.carbs;
-            const pProtein = protocolId === 'custom' && profile.customMacros?.protein ? profile.customMacros.protein : config.protein;
-            const pFat = protocolId === 'custom' && profile.customMacros?.fat ? profile.customMacros.fat : config.fat;
-
-            return (
-              <button
-                key={protocolId}
-                onClick={() => {
-                  updateProfile({ sparMacroProtocol: protocolId });
-                  if (protocolId === 'custom' && !profile.customMacros) {
-                    updateProfile({ customMacros: { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 } });
-                  }
-                  // Don't close popover for custom - user needs to configure
-                  if (protocolId !== 'custom') {
-                    setIsOpen(false);
-                  }
-                }}
-                className={cn(
-                  "w-full flex items-center justify-between px-2 py-2 rounded-md text-left transition-colors",
-                  isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
-                )}
-              >
-                <div className="flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-[11px] font-bold", iconColor)}>{config.shortName}</span>
-                    <span className="text-[9px] text-muted-foreground font-mono">C{pCarbs}/P{pProtein}/F{pFat}</span>
-                  </div>
-                  <span className="text-[9px] text-muted-foreground">{config.weeklyChange}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className={cn("text-[9px] font-mono", calAdj !== 0 ? iconColor : "text-muted-foreground")}>
-                    {calInfo} cal
-                  </span>
-                  {isSelected && <span className="text-[10px] text-primary font-bold">✓</span>}
-                </div>
-              </button>
-            );
-          })}
-          {/* Custom Macro Configuration - inline when custom is selected */}
-          {currentProtocol === 'custom' && (
-            <div className="pt-2 mt-1 border-t border-muted space-y-3 px-2">
-              <p className="text-[10px] text-purple-500 font-bold uppercase">Customize Your Plan</p>
-
-              {/* C/P/F Sliders */}
-              <div className="space-y-2">
-                {[
-                  { key: 'carbs', label: 'Carbs', color: 'text-amber-500', bgColor: 'bg-amber-500' },
-                  { key: 'protein', label: 'Protein', color: 'text-orange-500', bgColor: 'bg-orange-500' },
-                  { key: 'fat', label: 'Fat', color: 'text-blue-400', bgColor: 'bg-blue-400' },
-                ].map(({ key, label, color, bgColor }) => {
-                  const value = profile.customMacros?.[key as keyof typeof profile.customMacros] as number ||
-                    (key === 'carbs' ? 40 : key === 'protein' ? 30 : 30);
-                  return (
-                    <div key={key} className="space-y-1">
-                      <div className="flex justify-between text-[10px]">
-                        <span className={cn("font-bold", color)}>{label}</span>
-                        <span className={cn("font-mono font-bold", color)}>{value}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="10"
-                        max="60"
-                        value={value}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          const current = profile.customMacros || { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 };
-                          updateProfile({ customMacros: { ...current, [key]: val } });
-                        }}
-                        className={cn("w-full h-1.5 rounded-lg appearance-none cursor-pointer", bgColor + "/30")}
-                        style={{ accentColor: color.includes('amber') ? '#f59e0b' : color.includes('orange') ? '#f97316' : '#60a5fa' }}
-                      />
-                    </div>
-                  );
-                })}
-
-                {/* Total validation */}
-                {(() => {
-                  const cm = profile.customMacros || { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 };
-                  const total = (cm.carbs || 0) + (cm.protein || 0) + (cm.fat || 0);
-                  const isValid = total === 100;
-                  return (
-                    <p className={cn("text-[10px] font-mono text-center py-1 rounded",
-                      isValid ? "text-green-500 bg-green-500/10" : "text-red-500 bg-red-500/10"
-                    )}>
-                      Total: {total}% {isValid ? '✓' : `(${total < 100 ? 'need ' + (100 - total) + ' more' : (total - 100) + ' over'})`}
-                    </p>
-                  );
-                })()}
-              </div>
-
-              {/* Calorie Adjustment */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[10px]">
-                  <span className="font-bold text-purple-500">Calorie Adjustment</span>
-                  <span className="font-mono font-bold text-purple-500">
-                    {(profile.customMacros?.calorieAdjustment || 0) > 0 ? '+' : ''}
-                    {profile.customMacros?.calorieAdjustment || 0} cal/day
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="-750"
-                  max="750"
-                  step="50"
-                  value={profile.customMacros?.calorieAdjustment || 0}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value);
-                    const current = profile.customMacros || { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 };
-                    updateProfile({ customMacros: { ...current, calorieAdjustment: val } });
-                  }}
-                  className="w-full h-1.5 bg-purple-500/30 rounded-lg appearance-none cursor-pointer"
-                  style={{ accentColor: '#a855f7' }}
-                />
-                <div className="flex justify-between text-[8px] text-muted-foreground">
-                  <span>-750 (lose)</span>
-                  <span className="font-mono">
-                    {(() => {
-                      const adj = profile.customMacros?.calorieAdjustment || 0;
-                      if (adj > 0) return `~${(adj * 7 / 3500).toFixed(1)} lb/wk gain`;
-                      if (adj < 0) return `~${(Math.abs(adj) * 7 / 3500).toFixed(1)} lb/wk loss`;
-                      return 'Maintain weight';
-                    })()}
-                  </span>
-                  <span>+750 (gain)</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <span className={cn("text-xs font-bold uppercase", goalColor)}>
+      {goalLabel}
+    </span>
   );
 }
 
@@ -1028,9 +867,9 @@ export default function Dashboard() {
               )}
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              {/* For SPAR users, show goal/protocol selector */}
+              {/* For SPAR users, show goal label */}
               {isSparProtocol ? (
-                <SparProtocolSelector profile={profile} updateProfile={updateProfile} />
+                <SparProtocolSelector profile={profile} />
               ) : (
                 <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
                   {phaseInfo.label}
