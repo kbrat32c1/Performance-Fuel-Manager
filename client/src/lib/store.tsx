@@ -780,8 +780,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             // Rollback on error
             setLogs(previousLogs);
             setProfile(previousProfile);
-            console.error('Error adding log:', error);
-            toast({ title: "Sync failed", description: "Could not save weight log. Please try again.", variant: "destructive" });
+            console.error('Error adding log:', error, 'Code:', error.code, 'Details:', error.details, 'Message:', error.message);
+            const errorDetail = error.message || error.code || 'Unknown error';
+            toast({ title: "Sync failed", description: `Could not save weight log: ${errorDetail}`, variant: "destructive" });
             return;
           }
 
@@ -801,12 +802,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             console.error('Error updating profile weight:', profileError);
           }
         }
-      } catch (error) {
+      } catch (error: any) {
         // Rollback on exception
         setLogs(previousLogs);
         setProfile(previousProfile);
         console.error('Error adding log:', error);
-        toast({ title: "Sync failed", description: "Could not save weight log. Please try again.", variant: "destructive" });
+        const errorDetail = error?.message || 'Network error';
+        toast({ title: "Sync failed", description: `Could not save weight log: ${errorDetail}`, variant: "destructive" });
       }
     }
   };
