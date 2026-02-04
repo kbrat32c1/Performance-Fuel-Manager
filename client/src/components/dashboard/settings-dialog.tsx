@@ -572,23 +572,78 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         )}
                       </div>
 
-                      {/* Stats Summary */}
-                      <div className="grid grid-cols-4 gap-1 text-center pt-2 border-t border-muted/50">
-                        <div className="bg-muted/30 rounded px-1 py-1">
-                          <span className="text-[8px] text-muted-foreground block">Height</span>
-                          <span className="font-mono font-bold text-[10px]">{profile.heightInches ? `${Math.floor(profile.heightInches / 12)}'${profile.heightInches % 12}"` : '-'}</span>
-                        </div>
-                        <div className="bg-muted/30 rounded px-1 py-1">
-                          <span className="text-[8px] text-muted-foreground block">Age</span>
-                          <span className="font-mono font-bold text-[10px]">{profile.age || '-'}</span>
-                        </div>
-                        <div className="bg-muted/30 rounded px-1 py-1">
-                          <span className="text-[8px] text-muted-foreground block">Sex</span>
-                          <span className="font-mono font-bold text-[10px] capitalize">{profile.gender || '-'}</span>
-                        </div>
-                        <div className="bg-muted/30 rounded px-1 py-1">
-                          <span className="text-[8px] text-muted-foreground block">Training</span>
-                          <span className="font-mono font-bold text-[10px]">{getValue('trainingSessions') || '3-4'}/wk</span>
+                      {/* Editable Stats */}
+                      <div className="space-y-3 pt-2 border-t border-muted/50">
+                        <div className="grid grid-cols-3 gap-2">
+                          {/* Height */}
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Height</Label>
+                            <div className="flex gap-1">
+                              <Input
+                                type="number"
+                                min="4"
+                                max="7"
+                                placeholder="ft"
+                                className="h-7 font-mono text-xs w-12 px-1 text-center"
+                                value={getValue('heightInches') ? Math.floor(getValue('heightInches') / 12) : ''}
+                                onChange={(e) => {
+                                  const ft = parseInt(e.target.value) || 0;
+                                  const currentIn = (getValue('heightInches') || 0) % 12;
+                                  handleChange({ heightInches: ft * 12 + currentIn });
+                                }}
+                              />
+                              <Input
+                                type="number"
+                                min="0"
+                                max="11"
+                                placeholder="in"
+                                className="h-7 font-mono text-xs w-12 px-1 text-center"
+                                value={getValue('heightInches') ? getValue('heightInches') % 12 : ''}
+                                onChange={(e) => {
+                                  const inches = parseInt(e.target.value) || 0;
+                                  const currentFt = Math.floor((getValue('heightInches') || 0) / 12);
+                                  handleChange({ heightInches: currentFt * 12 + inches });
+                                }}
+                              />
+                            </div>
+                          </div>
+                          {/* Age */}
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Age</Label>
+                            <Input
+                              type="number"
+                              min="10"
+                              max="100"
+                              placeholder="Age"
+                              className="h-7 font-mono text-xs text-center"
+                              value={getValue('age') || ''}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                handleChange({ age: !isNaN(val) && val > 0 ? val : undefined });
+                              }}
+                            />
+                          </div>
+                          {/* Sex */}
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Sex</Label>
+                            <div className="flex gap-1">
+                              {(['male', 'female'] as const).map((sex) => (
+                                <button
+                                  key={sex}
+                                  type="button"
+                                  onClick={() => handleChange({ gender: sex })}
+                                  className={cn(
+                                    "flex-1 h-7 rounded text-[10px] font-medium transition-colors",
+                                    (getValue('gender') || profile.gender) === sex
+                                      ? "bg-primary text-primary-foreground"
+                                      : "bg-muted/50 hover:bg-muted"
+                                  )}
+                                >
+                                  {sex === 'male' ? 'M' : 'F'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </>
