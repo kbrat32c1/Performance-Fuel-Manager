@@ -709,14 +709,12 @@ export default function Dashboard() {
     { threshold: 50 }
   );
 
-  // Calculate which adjacent day is being revealed
-  const revealingPrev = swipeOffset > 20;
-  const revealingNext = swipeOffset < -20;
+  // Adjacent dates for carousel preview
   const prevDate = subDays(displayDate, 1);
   const nextDate = addDays(displayDate, 1);
 
-  // Get morning weight for a specific date (for peek preview)
-  const getDateMorningWeight = useCallback((date: Date) => {
+  // Get weight data for adjacent days
+  const getDateWeight = useCallback((date: Date) => {
     const log = logs.find(l => {
       if (l.type !== 'morning') return false;
       const ld = new Date(l.date);
@@ -727,8 +725,8 @@ export default function Dashboard() {
     return log?.weight ?? null;
   }, [logs]);
 
-  const prevDayWeight = useMemo(() => getDateMorningWeight(prevDate), [getDateMorningWeight, prevDate]);
-  const nextDayWeight = useMemo(() => getDateMorningWeight(nextDate), [getDateMorningWeight, nextDate]);
+  const prevDayWeight = useMemo(() => getDateWeight(prevDate), [getDateWeight, prevDate]);
+  const nextDayWeight = useMemo(() => getDateWeight(nextDate), [getDateWeight, nextDate]);
 
   // Macro tracking data
   const macros = getMacroTargets();
@@ -994,48 +992,76 @@ export default function Dashboard() {
       {/* Dashboard feature tour for new users */}
       {!isViewingHistorical && <DashboardTour />}
 
-      {/* Carousel container */}
+      {/* Carousel container - Apple-style swipe with full preview */}
       <div ref={containerRef} className="relative overflow-hidden">
-        {/* Previous day peek (shown during swipe right) */}
-        {revealingPrev && (
-          <div
-            className="absolute inset-y-0 right-full w-full flex items-start justify-center pt-8 pointer-events-none"
-            style={{
-              transform: `translateX(${swipeOffset}px)`,
-              transition: swipeTransition,
-            }}
-          >
-            <div className="text-center">
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
-                {format(prevDate, 'EEE, MMM d')}
+        {/* Previous day - full preview panel (positioned to the left) */}
+        <div
+          className="absolute top-0 right-full w-full h-full pointer-events-none"
+          style={{
+            transform: `translateX(${swipeOffset}px)`,
+            transition: swipeTransition,
+          }}
+        >
+          <div className="p-4 pt-2 opacity-80">
+            {/* Previous day header */}
+            <div className="text-center mb-4">
+              <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
+                {format(prevDate, 'EEEE, MMM d')}
               </div>
-              {prevDayWeight && (
-                <div className="text-lg font-mono font-bold text-foreground/70 mt-1">
-                  {prevDayWeight.toFixed(1)} lbs
-                </div>
-              )}
+            </div>
+            {/* Previous day weight card */}
+            <div className="bg-card rounded-xl border p-4 mb-3">
+              <div className="text-center">
+                {prevDayWeight ? (
+                  <>
+                    <div className="text-3xl font-bold font-mono">{prevDayWeight.toFixed(1)}</div>
+                    <div className="text-sm text-muted-foreground">lbs</div>
+                  </>
+                ) : (
+                  <div className="text-muted-foreground">No weight logged</div>
+                )}
+              </div>
+            </div>
+            {/* Hint to swipe */}
+            <div className="text-center text-xs text-muted-foreground">
+              Release to view this day
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Next day peek (shown during swipe left) */}
-        {revealingNext && canGoNext && (
+        {/* Next day - full preview panel (positioned to the right) */}
+        {canGoNext && (
           <div
-            className="absolute inset-y-0 left-full w-full flex items-start justify-center pt-8 pointer-events-none"
+            className="absolute top-0 left-full w-full h-full pointer-events-none"
             style={{
               transform: `translateX(${swipeOffset}px)`,
               transition: swipeTransition,
             }}
           >
-            <div className="text-center">
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
-                {nextDate >= today ? 'Today' : format(nextDate, 'EEE, MMM d')}
-              </div>
-              {nextDayWeight && (
-                <div className="text-lg font-mono font-bold text-foreground/70 mt-1">
-                  {nextDayWeight.toFixed(1)} lbs
+            <div className="p-4 pt-2 opacity-80">
+              {/* Next day header */}
+              <div className="text-center mb-4">
+                <div className="text-sm font-bold text-muted-foreground uppercase tracking-wide">
+                  {nextDate >= today ? 'Today' : format(nextDate, 'EEEE, MMM d')}
                 </div>
-              )}
+              </div>
+              {/* Next day weight card */}
+              <div className="bg-card rounded-xl border p-4 mb-3">
+                <div className="text-center">
+                  {nextDayWeight ? (
+                    <>
+                      <div className="text-3xl font-bold font-mono">{nextDayWeight.toFixed(1)}</div>
+                      <div className="text-sm text-muted-foreground">lbs</div>
+                    </>
+                  ) : (
+                    <div className="text-muted-foreground">No weight logged</div>
+                  )}
+                </div>
+              </div>
+              {/* Hint to swipe */}
+              <div className="text-center text-xs text-muted-foreground">
+                Release to view this day
+              </div>
             </div>
           </div>
         )}
@@ -1046,6 +1072,7 @@ export default function Dashboard() {
           style={{
             transform: swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
             transition: swipeTransition,
+            touchAction: 'pan-y',
           }}
         >
         {/* ═══════════════════════════════════════════════════════ */}
@@ -1156,7 +1183,7 @@ export default function Dashboard() {
         )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* WEIGHT PACE BADGE — prominent projection status for competition users */}
+      {/* PROJECTION BANNER — shows projected vs target weight (status shown in badge below) */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn > 0 && descentData.projectedSaturday !== null && (
         <div className={cn(
@@ -1174,20 +1201,6 @@ export default function Dashboard() {
               <TrendingUp className="w-4 h-4 text-yellow-500" />
             )}
             <div>
-              <span className={cn(
-                "text-xs font-bold uppercase",
-                descentData.projectedSaturday <= profile.targetWeightClass
-                  ? "text-green-500"
-                  : descentData.projectedSaturday <= profile.targetWeightClass + 1
-                    ? "text-yellow-500"
-                    : "text-red-500"
-              )}>
-                {descentData.projectedSaturday <= profile.targetWeightClass
-                  ? "On Track"
-                  : descentData.projectedSaturday <= profile.targetWeightClass + 1
-                    ? "Close"
-                    : "Behind Pace"}
-              </span>
               <p className="text-[10px] text-muted-foreground">
                 Projected: <span className="font-mono font-bold text-foreground">{descentData.projectedSaturday.toFixed(1)}</span> lbs
                 {' '}• Target: <span className="font-mono">{profile.targetWeightClass}</span> lbs
@@ -1555,7 +1568,7 @@ function StatusExplanation({ statusInfo, className }: {
         };
       case 'borderline':
         return {
-          title: "BORDERLINE",
+          title: "CLOSE",
           criteria: "You're within 2 lbs of today's target but slightly over.",
           guidance: "Stay disciplined with nutrition. Consider adding an extra practice or workout to accelerate weight loss.",
           color: "text-yellow-500",

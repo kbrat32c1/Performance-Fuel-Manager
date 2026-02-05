@@ -255,7 +255,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
   const onTrackThreshold = isLoadingPhase ? 4 : 1.5;
   const borderlineThreshold = isLoadingPhase ? 6 : 3;
   const status = overTarget <= onTrackThreshold ? 'on-track' : overTarget <= borderlineThreshold ? 'borderline' : 'risk';
-  const statusLabel = status === 'on-track' ? 'ON TRACK' : status === 'borderline' ? 'BORDERLINE' : 'AT RISK';
+  const statusLabel = status === 'on-track' ? 'ON TRACK' : status === 'borderline' ? 'CLOSE' : 'AT RISK';
   const statusColor = status === 'on-track' ? 'text-green-500' : status === 'borderline' ? 'text-yellow-500' : 'text-red-500';
   const statusBg = status === 'on-track' ? 'bg-green-500/15' : status === 'borderline' ? 'bg-yellow-500/15' : 'bg-red-500/15';
 

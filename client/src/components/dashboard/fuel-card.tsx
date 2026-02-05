@@ -302,15 +302,6 @@ export function FuelCard({
             )} />
           </div>
 
-          {/* Weight warning — over target on cut days (both modes) */}
-          {macros.weightWarning && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-1.5 mb-2">
-              <p className="text-[10px] text-red-400 font-medium">
-                <span className="font-bold">⚠️ OVER TARGET:</span> {macros.weightWarning}
-              </p>
-            </div>
-          )}
-
           {/* Compact summary — one-line progress + thin bar */}
           <div className="space-y-1.5">
             {/* Warnings first */}
