@@ -350,7 +350,7 @@ COACHING RULES:
   });
 
   // ─── Coach Share Endpoint ─────────────────────────────────────────────────
-  app.get("/api/share/:token", async (req: Request, res: Response) => {
+  app.get("/api/share/:token", foodSearchLimiter, async (req: Request, res: Response) => {
     try {
       const { token } = req.params;
 

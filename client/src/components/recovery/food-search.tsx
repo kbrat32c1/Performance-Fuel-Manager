@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Search, X, Apple, Loader2, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface USDAFood {
   fdcId: number;
@@ -31,6 +32,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
   const [expandedFood, setExpandedFood] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   // Debounced search
   useEffect(() => {
@@ -47,10 +49,18 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
       setSearched(true);
       try {
         const res = await fetch(`/api/foods/search?q=${encodeURIComponent(query.trim())}`);
+        if (!res.ok) {
+          throw new Error(`Search failed: ${res.status}`);
+        }
         const data = await res.json();
         setResults(data.foods || []);
       } catch (err) {
         setResults([]);
+        toast({
+          title: "Search failed",
+          description: "Could not search for foods. Please try again.",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }

@@ -361,7 +361,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const updates: Record<string, any> = {};
     if (meal.totalCarbs > 0) {
       updates.carbsConsumed = tracking.carbsConsumed + meal.totalCarbs;
-      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(meal.totalCarbs / 30));
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(meal.totalCarbs / 26));
     }
     if (meal.totalProtein > 0) {
       updates.proteinConsumed = tracking.proteinConsumed + meal.totalProtein;
@@ -502,7 +502,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const updates: Record<string, any> = {};
     if (carbs > 0) {
       updates.carbsConsumed = tracking.carbsConsumed + carbs;
-      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 30));
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 26));
     }
     if (protein > 0) {
       updates.proteinConsumed = tracking.proteinConsumed + protein;
@@ -553,7 +553,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const updates: Record<string, any> = {};
     if (carbs > 0) {
       updates.carbsConsumed = tracking.carbsConsumed + carbs;
-      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 30));
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 26));
     }
     if (protein > 0) {
       updates.proteinConsumed = tracking.proteinConsumed + protein;
@@ -686,7 +686,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     if (macroType === 'carbs') {
       updates.carbsConsumed = tracking.carbsConsumed + amount;
       // Cross-sync: also update slice count
-      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(amount / 30));
+      updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(amount / 26));
     } else {
       updates.proteinConsumed = tracking.proteinConsumed + amount;
       // Cross-sync: also update slice count
@@ -724,7 +724,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     // Subtract the amount from tracking + cross-sync slices
     if (lastEntry.macroType === 'carbs') {
       updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - lastEntry.amount);
-      updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(lastEntry.amount / 30)));
+      updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(lastEntry.amount / 26)));
     } else {
       updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - lastEntry.amount);
       updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(lastEntry.amount / 25)));
@@ -750,7 +750,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
     if (entry.macroType === 'carbs') {
       updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - entry.amount);
-      updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(entry.amount / 30)));
+      updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(entry.amount / 26)));
     } else {
       updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - entry.amount);
       updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(entry.amount / 25)));
@@ -778,7 +778,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     const newProtein = tracking.proteinConsumed + parsedProtein;
     const updates: Record<string, any> = { carbsConsumed: newCarbs, proteinConsumed: newProtein };
     // Cross-sync slices
-    if (parsedCarbs > 0) updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(parsedCarbs / 30));
+    if (parsedCarbs > 0) updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(parsedCarbs / 26));
     if (parsedProtein > 0) updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(parsedProtein / 25));
     updateDailyTracking(dateKey, updates);
     setAddCarbs('');
@@ -792,7 +792,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
   const handleSaveCarbs = () => {
     const newCarbs = parseInt(editCarbsValue) || 0;
-    updateDailyTracking(dateKey, { carbsConsumed: newCarbs, carbSlices: Math.round(newCarbs / 30) });
+    updateDailyTracking(dateKey, { carbsConsumed: newCarbs, carbSlices: Math.round(newCarbs / 26) });
     setIsEditingCarbs(false);
     setEditCarbsValue('');
   };
@@ -993,7 +993,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <CircularProgress value={tracking.carbsConsumed} max={macros.carbs.max} color="hsl(var(--primary))" consumed={tracking.carbsConsumed} label="Carbs" size={52} sliceEquivalent={macros.carbs.max > 0 ? `~${Math.round(tracking.carbsConsumed / 30)} slc` : undefined} />
+                    <CircularProgress value={tracking.carbsConsumed} max={macros.carbs.max} color="hsl(var(--primary))" consumed={tracking.carbsConsumed} label="Carbs" size={52} sliceEquivalent={macros.carbs.max > 0 ? `~${Math.round(tracking.carbsConsumed / 26)} slc` : undefined} />
                     {!readOnly && (
                       <button onClick={handleEditCarbs} className="p-1 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
                         <Pencil className="w-3 h-3" />

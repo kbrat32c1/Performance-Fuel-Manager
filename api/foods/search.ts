@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const USDA_API_KEY = process.env.USDA_API_KEY || "DEMO_KEY";
+// No fallback key - return error if not configured
+const USDA_API_KEY = process.env.USDA_API_KEY || "";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
@@ -8,6 +9,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    // Check if USDA API key is configured
+    if (!USDA_API_KEY) {
+      console.error("USDA API key not configured");
+      return res.status(503).json({ error: "Food search service not configured", foods: [] });
+    }
+
     const query = req.query.q as string;
     if (!query || query.trim().length < 2) {
       return res.json({ foods: [] });

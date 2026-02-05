@@ -2,6 +2,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
+// Sanitize user input for AI prompts to prevent injection
+function sanitizeForPrompt(input: string | number | null | undefined): string {
+  if (input === null || input === undefined) return '';
+  const str = String(input);
+  // Remove potential prompt injection patterns and limit length
+  return str
+    .replace(/```/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/<[^>]*>/g, '')
+    .slice(0, 500);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -24,15 +36,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const ctx = context || {};
     const contextLines: string[] = [];
 
-    if (ctx.name) contextLines.push(`Athlete: ${ctx.name}`);
-    if (ctx.currentWeight) contextLines.push(`Current weight: ${ctx.currentWeight} lbs`);
-    if (ctx.targetWeightClass) contextLines.push(`Target weight class: ${ctx.targetWeightClass} lbs`);
+    // All inputs are sanitized to prevent prompt injection
+    if (ctx.name) contextLines.push(`Athlete: ${sanitizeForPrompt(ctx.name)}`);
+    if (ctx.currentWeight) contextLines.push(`Current weight: ${sanitizeForPrompt(ctx.currentWeight)} lbs`);
+    if (ctx.targetWeightClass) contextLines.push(`Target weight class: ${sanitizeForPrompt(ctx.targetWeightClass)} lbs`);
     if (ctx.daysUntilWeighIn !== undefined) {
-      if (ctx.daysUntilWeighIn > 0) contextLines.push(`Days until weigh-in: ${ctx.daysUntilWeighIn}`);
-      else if (ctx.daysUntilWeighIn === 0) contextLines.push(`Competition day: TODAY`);
-      else contextLines.push(`Post-competition: ${Math.abs(ctx.daysUntilWeighIn)} days after`);
+      const days = Number(ctx.daysUntilWeighIn) || 0;
+      if (days > 0) contextLines.push(`Days until weigh-in: ${days}`);
+      else if (days === 0) contextLines.push(`Competition day: TODAY`);
+      else contextLines.push(`Post-competition: ${Math.abs(days)} days after`);
     }
-    if (ctx.weightToLose) contextLines.push(`Weight still to cut: ${ctx.weightToLose} lbs`);
+    if (ctx.weightToLose) contextLines.push(`Weight still to cut: ${sanitizeForPrompt(ctx.weightToLose)} lbs`);
 
     const protocolNames: Record<string, string> = {
       '1': 'Sugar Fast / Body Comp (aggressive cut)',
@@ -41,9 +55,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       '4': 'Hypertrophy / Build Phase',
       '5': 'SPAR Nutrition (portion-based balanced eating)',
     };
-    if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || ctx.protocol}`);
-    if (ctx.phase) contextLines.push(`Current phase: ${ctx.phase}`);
-    if (ctx.status) contextLines.push(`Status: ${ctx.status}`);
+    if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || sanitizeForPrompt(ctx.protocol)}`);
+    if (ctx.phase) contextLines.push(`Current phase: ${sanitizeForPrompt(ctx.phase)}`);
+    if (ctx.status) contextLines.push(`Status: ${sanitizeForPrompt(ctx.status)}`);
 
     if (ctx.macroTargets) {
       contextLines.push(`Today's targets — Carbs: ${ctx.macroTargets.carbs?.min}-${ctx.macroTargets.carbs?.max}g, Protein: ${ctx.macroTargets.protein?.min}-${ctx.macroTargets.protein?.max}g`);
@@ -247,7 +261,7 @@ The body has 5 "fuel tanks" that lose weight differently:
         messages: [
           // Include conversation history for multi-turn context
           ...(Array.isArray(history) ? history.slice(-6) : []),
-          { role: "user", content: question.trim() },
+          { role: "user", content: sanitizeForPrompt(question.trim()) },
         ],
       }),
     });

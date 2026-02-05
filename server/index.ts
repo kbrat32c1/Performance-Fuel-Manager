@@ -60,6 +60,7 @@ app.use(globalLimiter);
 
 app.use(
   express.json({
+    limit: '1mb', // Prevent large payload attacks
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },

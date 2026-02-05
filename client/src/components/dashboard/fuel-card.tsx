@@ -88,7 +88,7 @@ export function FuelCard({
       }
     } else {
       // Grams are truth → sync slices FROM grams
-      const expectedCarbSlices = Math.round(tracking.carbsConsumed / 30);
+      const expectedCarbSlices = Math.round(tracking.carbsConsumed / 26);
       const expectedProteinSlices = Math.round(tracking.proteinConsumed / 25);
       if (Math.abs(tracking.carbSlices - expectedCarbSlices) > 0) {
         updates.carbSlices = expectedCarbSlices;
