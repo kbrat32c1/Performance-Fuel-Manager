@@ -1,13 +1,52 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xcqsnrqjghcxuotoaryv.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+/**
+ * Supabase Client Configuration
+ *
+ * SECURITY: No hardcoded URLs or keys. All values must come from environment variables.
+ * This prevents accidental connection to wrong database in different environments.
+ *
+ * Required env vars:
+ * - VITE_SUPABASE_URL: Your Supabase project URL
+ * - VITE_SUPABASE_ANON_KEY: Your Supabase anon/public key (safe for client)
+ *
+ * DO NOT use SUPABASE_SERVICE_ROLE_KEY on the client - it bypasses RLS!
+ */
 
-if (!supabaseAnonKey) {
-  console.error('Missing VITE_SUPABASE_ANON_KEY environment variable');
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Validate required environment variables
+if (!supabaseUrl) {
+  console.error(
+    'Missing VITE_SUPABASE_URL environment variable. ' +
+    'Please set it in your .env file or deployment configuration.'
+  );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseAnonKey) {
+  console.error(
+    'Missing VITE_SUPABASE_ANON_KEY environment variable. ' +
+    'Please set it in your .env file or deployment configuration.'
+  );
+}
+
+// Create client - will fail gracefully if credentials missing
+// The app will show appropriate errors when Supabase calls fail
+export const supabase = createClient(
+  supabaseUrl || '',
+  supabaseAnonKey || '',
+  {
+    auth: {
+      // Persist session in localStorage
+      persistSession: true,
+      // Auto-refresh tokens before expiry
+      autoRefreshToken: true,
+      // Detect session from URL (for OAuth redirects)
+      detectSessionInUrl: true,
+    },
+  }
+);
 
 // Types for database tables
 export interface DbProfile {

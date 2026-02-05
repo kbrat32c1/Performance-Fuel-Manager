@@ -3,6 +3,90 @@
  * Centralized configuration for weight management calculations and protocols
  */
 
+// =============================================================================
+// UNIT CONVERSION CONSTANTS
+// Single source of truth for all unit conversions - use these everywhere!
+// =============================================================================
+
+/**
+ * Pounds to kilograms conversion factor
+ * Source: International System of Units (SI)
+ * 1 lb = 0.45359237 kg (exact definition)
+ */
+export const LBS_TO_KG = 0.453592;
+export const KG_TO_LBS = 2.20462;
+
+/**
+ * Inches to centimeters conversion factor
+ * Source: International System of Units (SI)
+ * 1 inch = 2.54 cm (exact definition)
+ */
+export const INCHES_TO_CM = 2.54;
+export const CM_TO_INCHES = 0.393701;
+
+/**
+ * Fluid ounces to milliliters conversion factor
+ * Source: US customary units
+ * 1 fl oz (US) = 29.5735 ml
+ */
+export const OZ_TO_ML = 29.5735;
+export const ML_TO_OZ = 0.033814;
+
+/**
+ * Gallons to fluid ounces
+ * 1 US gallon = 128 fl oz
+ */
+export const GAL_TO_OZ = 128;
+
+// =============================================================================
+// WEIGHT VALIDATION CONSTANTS
+// Safety bounds for weight entries
+// =============================================================================
+
+/**
+ * Minimum reasonable weight for a wrestler (lbs)
+ * Below this triggers validation error
+ */
+export const MIN_WEIGHT_LBS = 50;
+
+/**
+ * Maximum reasonable weight for a wrestler (lbs)
+ * Above this triggers validation error
+ */
+export const MAX_WEIGHT_LBS = 400;
+
+/**
+ * Validate a weight value is within reasonable bounds
+ */
+export function isValidWeight(weightLbs: number): boolean {
+  return (
+    typeof weightLbs === 'number' &&
+    !isNaN(weightLbs) &&
+    weightLbs >= MIN_WEIGHT_LBS &&
+    weightLbs <= MAX_WEIGHT_LBS
+  );
+}
+
+/**
+ * Get validation error message for invalid weight
+ */
+export function getWeightValidationError(weightLbs: number): string | null {
+  if (typeof weightLbs !== 'number' || isNaN(weightLbs)) {
+    return 'Weight must be a number';
+  }
+  if (weightLbs < MIN_WEIGHT_LBS) {
+    return `Weight must be at least ${MIN_WEIGHT_LBS} lbs`;
+  }
+  if (weightLbs > MAX_WEIGHT_LBS) {
+    return `Weight must be less than ${MAX_WEIGHT_LBS} lbs`;
+  }
+  return null;
+}
+
+// =============================================================================
+// WEIGHT CLASSES & PROTOCOLS
+// =============================================================================
+
 // Weight class definitions for wrestling
 export const WEIGHT_CLASSES = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285] as const;
 export type WeightClass = typeof WEIGHT_CLASSES[number];

@@ -9,6 +9,8 @@
  *   - Veggie/Fruit: 1 fist (~50 cal avg)
  */
 
+import { LBS_TO_KG, INCHES_TO_CM } from './constants';
+
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
 export type Gender = 'male' | 'female';
 
@@ -200,6 +202,11 @@ export interface SliceTargets {
 /**
  * Calculate BMR using Mifflin-St Jeor equation
  * More accurate for athletes than Harris-Benedict
+ *
+ * Formula (male):   BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age + 5
+ * Formula (female): BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age - 161
+ *
+ * Source: Mifflin MD, et al. Am J Clin Nutr. 1990;51(2):241-247
  */
 export function calculateBMR(
   weightLbs: number,
@@ -207,8 +214,8 @@ export function calculateBMR(
   age: number,
   gender: Gender,
 ): number {
-  const weightKg = weightLbs * 0.453592;
-  const heightCm = heightInches * 2.54;
+  const weightKg = weightLbs * LBS_TO_KG;
+  const heightCm = heightInches * INCHES_TO_CM;
 
   if (gender === 'male') {
     return 10 * weightKg + 6.25 * heightCm - 5 * age + 5;

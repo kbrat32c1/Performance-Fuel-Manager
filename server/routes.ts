@@ -332,8 +332,12 @@ COACHING RULES:
   app.get("/api/share/:token", async (req: Request, res: Response) => {
     try {
       const { token } = req.params;
-      if (!token || token.length < 10) {
-        return res.status(400).json({ error: "Invalid token" });
+
+      // Validate token format: must be a valid UUID v4
+      // This prevents enumeration attacks and invalid database queries
+      const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!token || !UUID_REGEX.test(token)) {
+        return res.status(400).json({ error: "Invalid share token format" });
       }
 
       if (!supabase) {

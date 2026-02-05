@@ -1,8 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL || "https://xcqsnrqjghcxuotoaryv.supabase.co";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+/**
+ * Supabase Configuration for Vercel Edge Function
+ *
+ * SECURITY: No hardcoded URLs. Both env vars are required.
+ * Uses service role key because this bypasses RLS for the share feature.
+ */
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
@@ -23,7 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid token format" });
   }
 
-  if (!supabaseServiceKey) {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
     return res.status(500).json({ error: "Server configuration error" });
   }
 

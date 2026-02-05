@@ -14,6 +14,8 @@ import {
   getWaterTargetOz,
   getWaterTargetGallons,
   STATUS_THRESHOLDS,
+  isValidWeight,
+  getWeightValidationError,
 } from './constants';
 import { SUGAR_FOODS } from './food-data';
 import { calculateSliceTargets, SPAR_MACRO_PROTOCOLS, type ActivityLevel, type Gender, type SparMacroProtocol, type CustomMacros } from './spar-calculator';
@@ -771,6 +773,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Add log to Supabase
   const addLog = async (log: Omit<WeightLog, 'id'>) => {
+    // Weight validation: ensure weight is within reasonable bounds
+    const weightError = getWeightValidationError(log.weight);
+    if (weightError) {
+      toast({
+        title: "Invalid weight",
+        description: weightError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Duplicate prevention: core weigh-in types + check-in allow only one per day
     const UNIQUE_PER_DAY_TYPES = [...CORE_WEIGH_IN_TYPES, LOG_TYPES.CHECK_IN];
     if (UNIQUE_PER_DAY_TYPES.includes(log.type as any)) {
@@ -865,6 +878,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateLog = async (id: string, updates: Partial<WeightLog>) => {
+    // Weight validation: ensure weight is within reasonable bounds
+    if (updates.weight !== undefined) {
+      const weightError = getWeightValidationError(updates.weight);
+      if (weightError) {
+        toast({
+          title: "Invalid weight",
+          description: weightError,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Capture previous state for rollback
     const previousLogs = logs;
     const previousProfile = profile;

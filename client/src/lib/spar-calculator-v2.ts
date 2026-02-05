@@ -10,6 +10,8 @@
  * - Nerd mode: Body fat %, custom protein, custom macro split
  */
 
+import { LBS_TO_KG, INCHES_TO_CM } from './constants';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Sex = 'male' | 'female';
@@ -138,10 +140,15 @@ const FIXED_CAL_TOTAL = FIXED_VEG_CAL + FIXED_FRUIT_CAL;         // 360 cal
 
 /**
  * Calculate BMR using Mifflin-St Jeor equation
+ *
+ * Formula (male):   BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age + 5
+ * Formula (female): BMR = 10 × weight(kg) + 6.25 × height(cm) - 5 × age - 161
+ *
+ * Source: Mifflin MD, et al. Am J Clin Nutr. 1990;51(2):241-247
  */
 function calculateBMR(weightLbs: number, heightInches: number, age: number, sex: Sex): number {
-  const weightKg = weightLbs / 2.2046;
-  const heightCm = heightInches * 2.54;
+  const weightKg = weightLbs * LBS_TO_KG;
+  const heightCm = heightInches * INCHES_TO_CM;
 
   if (sex === 'male') {
     return (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
@@ -152,9 +159,13 @@ function calculateBMR(weightLbs: number, heightInches: number, age: number, sex:
 /**
  * Calculate BMR using Cunningham equation (lean mass based)
  * More accurate for lean/muscular individuals
+ *
+ * Formula: BMR = 500 + (22 × lean body mass in kg)
+ *
+ * Source: Cunningham JJ. Am J Clin Nutr. 1991;54(6):963-969
  */
 function calculateCunninghamBMR(weightLbs: number, bodyFatPercent: number): number {
-  const weightKg = weightLbs / 2.2046;
+  const weightKg = weightLbs * LBS_TO_KG;
   const leanMassKg = weightKg * (1 - bodyFatPercent / 100);
   return 500 + (22 * leanMassKg);
 }
