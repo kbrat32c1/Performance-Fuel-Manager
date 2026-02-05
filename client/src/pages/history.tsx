@@ -3,6 +3,7 @@ import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
 
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays, differenceInDays, startOfDay } from "date-fns";
@@ -29,7 +30,6 @@ export default function History() {
   const [editingExtraId, setEditingExtraId] = useState<string | null>(null);
   const [editExtraBefore, setEditExtraBefore] = useState('');
   const [editExtraAfter, setEditExtraAfter] = useState('');
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
 
@@ -424,12 +424,6 @@ export default function History() {
     setEditExtraAfter('');
   };
 
-  // Delete confirmation handler
-  const confirmDelete = (id: string) => {
-    deleteLog(id);
-    setDeletingId(null);
-  };
-
   // Get missing log types for a date
   const getMissingLogTypes = (date: Date): Array<'morning' | 'pre-practice' | 'post-practice' | 'before-bed'> => {
     const dayLogs = getLogsForDate(date);
@@ -774,144 +768,132 @@ export default function History() {
 
           {/* Individual Logs */}
           {groupedSelectedDateLogs.length === 0 ? (
-            <Card className="border-dashed border-muted">
-              <CardContent className="p-4 text-center">
-                <p className="text-muted-foreground text-sm mb-2">No logs for this day</p>
-                <Button size="sm" variant="outline" onClick={handleAddLog}>
-                  <Plus className="w-3 h-3 mr-1" /> Add First Log
+            <Card className="border-dashed border-muted bg-primary/5">
+              <CardContent className="p-5 text-center">
+                <Scale className="w-10 h-10 mx-auto mb-3 text-primary/40" />
+                <p className="font-bold text-sm mb-1">No Weight Logs</p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  {selectedDate && isSameDay(selectedDate, new Date())
+                    ? "Log your morning weight to track progress"
+                    : "Add historical weight data for this date"}
+                </p>
+                <Button size="sm" onClick={handleAddLog} className="h-9 px-4">
+                  <Plus className="w-4 h-4 mr-1.5" /> Log Weight
                 </Button>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-2">
               {groupedSelectedDateLogs.map((log) => (
-                <Card key={log.id} className={cn("border-muted", log.type === 'extra-workout' && "border-orange-500/30 bg-orange-500/5")}>
-                  <CardContent className="p-3">
-                    {/* Extra Workout grouped display */}
-                    {log.type === 'extra-workout' ? (
-                      deletingId === log.id ? (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {getLogTypeIcon(log.type)}
-                            <span className="text-sm font-bold text-destructive">Delete this workout?</span>
+                <SwipeableRow
+                  key={log.id}
+                  onDelete={() => {
+                    deleteLog(log.id);
+                    if (log.type === 'extra-workout' && log.afterId) {
+                      deleteLog(log.afterId);
+                    }
+                  }}
+                  disabled={editingExtraId === log.id}
+                >
+                  <Card className={cn("border-muted", log.type === 'extra-workout' && "border-orange-500/30 bg-orange-500/5")}>
+                    <CardContent className="p-3">
+                      {/* Extra Workout grouped display */}
+                      {log.type === 'extra-workout' ? (
+                        editingExtraId === log.id ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              {getLogTypeIcon(log.type)}
+                              <span className="font-bold text-sm text-orange-500">Edit Extra Workout</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground w-12">Before</span>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={editExtraBefore}
+                                onChange={(e) => setEditExtraBefore(e.target.value)}
+                                className="w-20 h-8 font-mono"
+                                autoFocus
+                              />
+                              <span className="text-xs text-muted-foreground">→</span>
+                              <span className="text-xs text-muted-foreground w-10">After</span>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={editExtraAfter}
+                                onChange={(e) => setEditExtraAfter(e.target.value)}
+                                className="w-20 h-8 font-mono"
+                              />
+                              <span className="text-sm text-muted-foreground">lbs</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button size="icon" variant="ghost" onClick={() => saveExtraEdit(log)} className="h-8 w-8" aria-label="Save changes">
+                                <Check className="w-4 h-4 text-green-500" />
+                              </Button>
+                              <Button size="icon" variant="ghost" onClick={cancelExtraEdit} className="h-8 w-8" aria-label="Cancel">
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => {
-                                deleteLog(log.id);
-                                if (log.afterId) deleteLog(log.afterId);
-                                setDeletingId(null);
-                              }}
-                              className="h-7 text-xs"
-                            >
-                              <Check className="w-3 h-3 mr-1" /> Delete
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setDeletingId(null)}
-                              className="h-7 text-xs"
-                            >
-                              Cancel
-                            </Button>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {getLogTypeIcon(log.type)}
+                              <div>
+                                <span className="font-bold text-sm text-orange-500">Extra Workout</span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  {format(new Date(log.date), 'h:mm a')}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-right">
+                                <span className="font-mono font-bold text-lg text-green-500">-{log.loss.toFixed(1)} lbs</span>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {log.beforeWeight} → {log.afterWeight}
+                                </div>
+                              </div>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => startExtraEdit(log)}
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                aria-label="Edit workout"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ) : editingExtraId === log.id ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            {getLogTypeIcon(log.type)}
-                            <span className="font-bold text-sm text-orange-500">Edit Extra Workout</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground w-12">Before</span>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={editExtraBefore}
-                              onChange={(e) => setEditExtraBefore(e.target.value)}
-                              className="w-20 h-8 font-mono"
-                              autoFocus
-                            />
-                            <span className="text-xs text-muted-foreground">→</span>
-                            <span className="text-xs text-muted-foreground w-10">After</span>
-                            <Input
-                              type="number"
-                              step="0.1"
-                              value={editExtraAfter}
-                              onChange={(e) => setEditExtraAfter(e.target.value)}
-                              className="w-20 h-8 font-mono"
-                            />
-                            <span className="text-sm text-muted-foreground">lbs</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => saveExtraEdit(log)} className="h-8 w-8" aria-label="Save changes">
-                              <Check className="w-4 h-4 text-green-500" />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={cancelExtraEdit} className="h-8 w-8" aria-label="Cancel">
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
+                        )
                       ) : (
+                        // View mode
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             {getLogTypeIcon(log.type)}
                             <div>
-                              <span className="font-bold text-sm text-orange-500">Extra Workout</span>
+                              <span className="font-bold text-sm">{getLogTypeLabel(log.type)}</span>
                               <span className="text-xs text-muted-foreground ml-2">
                                 {format(new Date(log.date), 'h:mm a')}
                               </span>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <span className="font-mono font-bold text-lg text-green-500">-{log.loss.toFixed(1)} lbs</span>
-                              <div className="text-[10px] text-muted-foreground">
-                                {log.beforeWeight} → {log.afterWeight}
-                              </div>
-                            </div>
+                            <span className="font-mono font-bold text-lg">{log.weight} lbs</span>
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() => startExtraEdit(log)}
+                              onClick={() => startEdit(log)}
                               className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              aria-label="Edit workout"
+                              aria-label="Edit weight log"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </div>
-                      )
-                    ) : (
-                      // View mode
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {getLogTypeIcon(log.type)}
-                          <div>
-                            <span className="font-bold text-sm">{getLogTypeLabel(log.type)}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {format(new Date(log.date), 'h:mm a')}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-lg">{log.weight} lbs</span>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => startEdit(log)}
-                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                            aria-label="Edit weight log"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      )}
+                    </CardContent>
+                  </Card>
+                </SwipeableRow>
               ))}
             </div>
           )}
@@ -1158,11 +1140,12 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
       </Card>
 
       {daysWithData.length === 0 && (
-        <Card className="border-dashed border-muted">
-          <CardContent className="p-6 text-center text-muted-foreground">
-            <Droplets className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No hydration data yet</p>
-            <p className="text-xs mt-1">Start tracking water on the dashboard</p>
+        <Card className="border-dashed border-muted bg-cyan-500/5">
+          <CardContent className="p-6 text-center">
+            <Droplets className="w-10 h-10 mx-auto mb-3 text-cyan-500/40" />
+            <p className="font-bold text-sm mb-1">No Hydration Data Yet</p>
+            <p className="text-xs text-muted-foreground mb-3">Track your water intake to hit your daily target</p>
+            <p className="text-[10px] text-cyan-500 font-medium">Tap the 💧 button on the dashboard to log water</p>
           </CardContent>
         </Card>
       )}
@@ -1423,11 +1406,12 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
       </Card>
 
       {!hasData && (
-        <Card className="border-dashed border-muted">
-          <CardContent className="p-6 text-center text-muted-foreground">
-            <Utensils className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No macro data yet</p>
-            <p className="text-xs mt-1">Start tracking on the dashboard</p>
+        <Card className="border-dashed border-muted bg-amber-500/5">
+          <CardContent className="p-6 text-center">
+            <Utensils className="w-10 h-10 mx-auto mb-3 text-amber-500/40" />
+            <p className="font-bold text-sm mb-1">No Macro Data Yet</p>
+            <p className="text-xs text-muted-foreground mb-3">Track your carbs and protein to see your nutrition trends</p>
+            <p className="text-[10px] text-amber-500 font-medium">Open FUEL on the dashboard to log foods</p>
           </CardContent>
         </Card>
       )}
@@ -1660,11 +1644,12 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
       </Card>
 
       {daysWithData.length === 0 && (
-        <Card className="border-dashed border-muted">
-          <CardContent className="p-6 text-center text-muted-foreground">
-            <Apple className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>No slice data yet</p>
-            <p className="text-xs mt-1">Start tracking slices on the dashboard</p>
+        <Card className="border-dashed border-muted bg-green-500/5">
+          <CardContent className="p-6 text-center">
+            <Apple className="w-10 h-10 mx-auto mb-3 text-green-500/40" />
+            <p className="font-bold text-sm mb-1">No Slice Data Yet</p>
+            <p className="text-xs text-muted-foreground mb-3">Track your protein, carb, and veggie slices</p>
+            <p className="text-[10px] text-green-500 font-medium">Tap the SPAR tracker on the dashboard to start</p>
           </CardContent>
         </Card>
       )}

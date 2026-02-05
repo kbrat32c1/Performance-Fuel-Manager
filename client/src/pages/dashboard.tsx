@@ -1323,9 +1323,15 @@ export default function Dashboard() {
               {isSparProtocol ? (
                 <SparProtocolSelector profile={profile} />
               ) : (
-                <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
-                  {phaseInfo.label}
-                </span>
+                <>
+                  <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
+                    {phaseInfo.label}
+                  </span>
+                  {/* Prominent goal badge for cut athletes */}
+                  <span className="px-2 py-0.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-[10px] font-bold font-mono">
+                    {profile.targetWeightClass} lbs
+                  </span>
+                </>
               )}
               <span className="text-xs text-muted-foreground">•</span>
               <span className="text-xs text-muted-foreground">{getProtocolName()}</span>

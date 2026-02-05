@@ -166,11 +166,23 @@ function FoodRow({ food, index, category, isJustAdded, onAdd }: {
   const macroLabel = food.protein !== undefined && !food.carbs ? 'P' : 'C';
   const foodOz = (food as any).oz as number | undefined;
 
+  // Get border color class based on category
+  const borderColor = category === 'fructose' ? 'border-l-green-500'
+    : category === 'glucose' ? 'border-l-amber-500'
+    : category === 'zerofiber' ? 'border-l-red-500'
+    : category === 'protein' ? 'border-l-orange-500'
+    : category === 'custom' ? 'border-l-purple-500'
+    : category === 'meals' ? 'border-l-blue-500'
+    : category === 'usda' ? 'border-l-cyan-500'
+    : category === 'off' ? 'border-l-emerald-500'
+    : 'border-l-muted';
+
   return (
     <button
       onClick={onAdd}
       className={cn(
-        "w-full flex items-center justify-between rounded px-2 py-2 transition-all text-left",
+        "w-full flex items-center justify-between rounded px-2 py-2 transition-all text-left border-l-2",
+        borderColor,
         isJustAdded ? colors.bgRing : `${colors.bg} ${colors.bgHover} ${colors.bgActive}`
       )}
     >
@@ -641,7 +653,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
   // Food history log for undo functionality - persisted to localStorage per day
   const foodHistoryKey = `pwm-food-history-${dateKey}`;
   const [foodHistory, setFoodHistory] = useState<FoodLogEntry[]>([]);
-  const [showHistory, setShowHistory] = useState(false); // Collapsed by default, tap to expand
+  const [showHistory, setShowHistory] = useState(true); // Auto-expanded when there are items
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   // Load food history when dateKey changes (new day or date navigation)
@@ -1155,11 +1167,23 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
 
                 {showHistory && (
                   <div className="space-y-1 max-h-[25vh] overflow-y-auto">
-                    {[...foodHistory].reverse().map((entry) => (
+                    {[...foodHistory].reverse().map((entry) => {
+                      // Get border color for left accent
+                      const historyBorderColor = entry.category === 'usda' ? 'border-l-cyan-500'
+                        : entry.category === 'off' ? 'border-l-emerald-500'
+                        : entry.category === 'meals' ? 'border-l-blue-500'
+                        : entry.category === 'fructose' ? 'border-l-green-500'
+                        : entry.category === 'zerofiber' ? 'border-l-red-500'
+                        : entry.category === 'glucose' ? 'border-l-amber-500'
+                        : entry.macroType === 'protein' ? 'border-l-orange-500'
+                        : 'border-l-amber-500';
+
+                      return (
                       <div
                         key={entry.id}
                         className={cn(
-                          "flex items-center justify-between px-2 py-1.5 rounded text-[10px]",
+                          "flex items-center justify-between px-2 py-1.5 rounded text-[10px] border-l-2",
+                          historyBorderColor,
                           entry.category === 'usda'
                             ? "bg-cyan-500/10"
                             : entry.category === 'off'
@@ -1212,7 +1236,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
                           </button>
                         </div>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 )}
               </div>
