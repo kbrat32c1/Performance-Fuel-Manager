@@ -14,11 +14,12 @@ import { ToastAction } from "@/components/ui/toast";
 import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
 import { getPhaseForDaysUntil } from "@/lib/constants";
 import { TrendChart } from "@/components/dashboard";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets } = useStore();
+  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
@@ -492,6 +493,31 @@ export default function History() {
   const handleAddLog = () => {
     window.dispatchEvent(new CustomEvent('open-quick-log'));
   };
+
+  // Show skeleton while loading
+  if (isLoading) {
+    return (
+      <MobileLayout showNav={true}>
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="mb-4">
+            <Skeleton className="h-4 w-32 mb-1" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <div className="flex gap-1.5 mb-4">
+            <Skeleton className="h-9 flex-1 rounded-lg" />
+            <Skeleton className="h-9 flex-1 rounded-lg" />
+            <Skeleton className="h-9 flex-1 rounded-lg" />
+          </div>
+          <Skeleton className="h-48 w-full rounded-lg" />
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </MobileLayout>
+    );
+  }
 
   return (
     <MobileLayout showNav={true}>

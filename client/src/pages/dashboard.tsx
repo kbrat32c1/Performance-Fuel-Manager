@@ -29,6 +29,7 @@ import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
 import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
 import { DashboardTour } from "@/components/dashboard/tour";
+import { DashboardSkeleton } from "@/components/ui/dashboard-skeletons";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPAR PROTOCOL SELECTOR — clickable phase label with protocol switcher popover
@@ -779,6 +780,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const {
     profile,
+    isLoading,
     calculateTarget,
     getPhase,
     getFuelingGuide,
@@ -1157,6 +1159,15 @@ export default function Dashboard() {
 
     return items;
   }, [todayLogs, yesterdayMorning, descentData, historyInsights, profile.targetWeightClass, daysUntilWeighIn, streak, isSparProtocol]);
+
+  // Show skeleton while initial data is loading
+  if (isLoading) {
+    return (
+      <MobileLayout showNav={true}>
+        <DashboardSkeleton />
+      </MobileLayout>
+    );
+  }
 
   return (
     <MobileLayout showNav={true}>
