@@ -457,10 +457,11 @@ export function FuelCard({
                 />
               )}
 
-              {/* Full HydrationTracker — shared by both modes */}
+              {/* Full HydrationTracker — embedded mode hides duplicate quick-add buttons */}
               <HydrationTracker
                 hydration={hydration}
                 readOnly={readOnly}
+                embedded
               />
             </div>
           </div>

@@ -2,10 +2,23 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
-import { log } from "./index";
+import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 
-const USDA_API_KEY = process.env.USDA_API_KEY || "DEMO_KEY";
+// USDA API key - no fallback to DEMO_KEY for security
+const USDA_API_KEY = process.env.USDA_API_KEY || "";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+
+// Sanitize user input for AI prompts to prevent injection
+function sanitizeForPrompt(input: string | number | null | undefined): string {
+  if (input === null || input === undefined) return '';
+  const str = String(input);
+  // Remove potential prompt injection patterns and limit length
+  return str
+    .replace(/```/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/<[^>]*>/g, '')
+    .slice(0, 500);
+}
 
 // Server-side Supabase client (uses service role key if available, falls back to anon)
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
@@ -18,8 +31,14 @@ export async function registerRoutes(
 ): Promise<Server> {
 
   // ─── USDA Food Search ──────────────────────────────────────────────────────
-  app.get("/api/foods/search", async (req: Request, res: Response) => {
+  app.get("/api/foods/search", foodSearchLimiter, async (req: Request, res: Response) => {
     try {
+      // Check if USDA API key is configured
+      if (!USDA_API_KEY) {
+        log("USDA API key not configured");
+        return res.status(503).json({ error: "Food search service not configured", foods: [] });
+      }
+
       const query = req.query.q as string;
       if (!query || query.trim().length < 2) {
         return res.json({ foods: [] });
@@ -78,7 +97,7 @@ export async function registerRoutes(
   });
 
   // ─── Open Food Facts Text Search ───────────────────────────────────────────
-  app.get("/api/foods/off-search", async (req: Request, res: Response) => {
+  app.get("/api/foods/off-search", foodSearchLimiter, async (req: Request, res: Response) => {
     try {
       const query = req.query.q as string;
       if (!query || query.trim().length < 2) {
@@ -145,7 +164,7 @@ export async function registerRoutes(
   });
 
   // ─── Open Food Facts Barcode Lookup ───────────────────────────────────────
-  app.get("/api/foods/off-barcode", async (req: Request, res: Response) => {
+  app.get("/api/foods/off-barcode", foodSearchLimiter, async (req: Request, res: Response) => {
     try {
       const code = req.query.code as string;
       if (!code || code.trim().length < 4) {
@@ -204,7 +223,7 @@ export async function registerRoutes(
   });
 
   // ─── AI Weight Cutting & Recovery Coach ─────────────────────────────────────
-  app.post("/api/ai/coach", async (req: Request, res: Response) => {
+  app.post("/api/ai/coach", aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({
@@ -222,18 +241,20 @@ export async function registerRoutes(
       const ctx = context || {};
 
       // Build a rich context string from whatever data the client sends
+      // All inputs are sanitized to prevent prompt injection
       const contextLines: string[] = [];
 
-      // Athlete profile
-      if (ctx.name) contextLines.push(`Athlete: ${ctx.name}`);
-      if (ctx.currentWeight) contextLines.push(`Current weight: ${ctx.currentWeight} lbs`);
-      if (ctx.targetWeightClass) contextLines.push(`Target weight class: ${ctx.targetWeightClass} lbs`);
+      // Athlete profile (sanitized)
+      if (ctx.name) contextLines.push(`Athlete: ${sanitizeForPrompt(ctx.name)}`);
+      if (ctx.currentWeight) contextLines.push(`Current weight: ${sanitizeForPrompt(ctx.currentWeight)} lbs`);
+      if (ctx.targetWeightClass) contextLines.push(`Target weight class: ${sanitizeForPrompt(ctx.targetWeightClass)} lbs`);
       if (ctx.daysUntilWeighIn !== undefined) {
-        if (ctx.daysUntilWeighIn > 0) contextLines.push(`Days until weigh-in: ${ctx.daysUntilWeighIn}`);
-        else if (ctx.daysUntilWeighIn === 0) contextLines.push(`Competition day: TODAY`);
-        else contextLines.push(`Post-competition: ${Math.abs(ctx.daysUntilWeighIn)} days after`);
+        const days = Number(ctx.daysUntilWeighIn) || 0;
+        if (days > 0) contextLines.push(`Days until weigh-in: ${days}`);
+        else if (days === 0) contextLines.push(`Competition day: TODAY`);
+        else contextLines.push(`Post-competition: ${Math.abs(days)} days after`);
       }
-      if (ctx.weightToLose) contextLines.push(`Weight still to cut: ${ctx.weightToLose} lbs`);
+      if (ctx.weightToLose) contextLines.push(`Weight still to cut: ${sanitizeForPrompt(ctx.weightToLose)} lbs`);
 
       // Protocol
       const protocolNames: Record<string, string> = {
@@ -308,7 +329,7 @@ COACHING RULES:
           model: "claude-sonnet-4-20250514",
           max_tokens: 500,
           system: systemPrompt,
-          messages: [{ role: "user", content: question.trim() }],
+          messages: [{ role: "user", content: sanitizeForPrompt(question.trim()) }],
         }),
       });
 

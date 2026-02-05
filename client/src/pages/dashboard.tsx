@@ -1183,60 +1183,17 @@ export default function Dashboard() {
         )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* PROJECTION BANNER — shows projected vs target weight (status shown in badge below) */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn > 0 && descentData.projectedSaturday !== null && (
-        <div className={cn(
-          "flex items-center justify-between rounded-lg px-3 py-2 mb-2 border",
-          descentData.projectedSaturday <= profile.targetWeightClass
-            ? "bg-green-500/10 border-green-500/30"
-            : descentData.projectedSaturday <= profile.targetWeightClass + 1
-              ? "bg-yellow-500/10 border-yellow-500/30"
-              : "bg-red-500/10 border-red-500/30"
-        )}>
-          <div className="flex items-center gap-2">
-            {descentData.projectedSaturday <= profile.targetWeightClass ? (
-              <TrendingDown className="w-4 h-4 text-green-500" />
-            ) : (
-              <TrendingUp className="w-4 h-4 text-yellow-500" />
-            )}
-            <div>
-              <p className="text-[10px] text-muted-foreground">
-                Projected: <span className="font-mono font-bold text-foreground">{descentData.projectedSaturday.toFixed(1)}</span> lbs
-                {' '}• Target: <span className="font-mono">{profile.targetWeightClass}</span> lbs
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className={cn(
-              "text-lg font-bold font-mono",
-              descentData.projectedSaturday <= profile.targetWeightClass
-                ? "text-green-500"
-                : descentData.projectedSaturday <= profile.targetWeightClass + 1
-                  ? "text-yellow-500"
-                  : "text-red-500"
-            )}>
-              {descentData.projectedSaturday <= profile.targetWeightClass
-                ? `−${(profile.targetWeightClass - descentData.projectedSaturday).toFixed(1)}`
-                : `+${(descentData.projectedSaturday - profile.targetWeightClass).toFixed(1)}`}
-            </span>
-            <p className="text-[9px] text-muted-foreground">lbs from target</p>
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* FOCUS CARD — persistent coaching card at top (competition only) */}
+      {/* HERO WEIGHT — Clean elite-style weight display          */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
-        <FocusCard
-          dailyPriority={dailyPriority}
-          statusInfo={statusInfo}
-          daysUntilWeighIn={daysUntilWeighIn}
-          todayMorning={todayLogs.morning}
-          yesterdayMorning={yesterdayMorning}
-          protocol={profile.protocol}
+        <HeroWeight
+          currentWeight={mostRecentLog?.weight ?? todayLogs.morning?.weight ?? null}
           targetWeight={profile.targetWeightClass}
+          timeUntil={getTimeUntilWeighIn()}
+          dailyChange={todayLogs.morning && yesterdayMorning ? todayLogs.morning.weight - yesterdayMorning.weight : null}
+          streak={streak}
+          status={statusInfo.status as 'on-track' | 'borderline' | 'risk' | 'unknown'}
+          daysUntilWeighIn={daysUntilWeighIn}
         />
       )}
 
@@ -1322,35 +1279,9 @@ export default function Dashboard() {
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* INSIGHTS — hidden behind "View Stats" toggle (competition only) */}
+      {/* WEEK OVERVIEW — collapsed by default, tap to see week plan */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {!isSparProtocol && insights.length > 0 && (
-        <details className="mb-2 group">
-          <summary className="flex items-center justify-center gap-1.5 cursor-pointer py-1 list-none [&::-webkit-details-marker]:hidden text-muted-foreground/60 hover:text-muted-foreground transition-colors">
-            <TrendingUp className="w-3 h-3" />
-            <span className="text-[10px] font-bold uppercase tracking-wide">View Stats</span>
-            <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="flex gap-2 overflow-x-auto pb-1 pt-2 scrollbar-none -mx-1 px-1 animate-in slide-in-from-top-2 duration-200">
-            {insights.map((insight, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-1.5 bg-card border border-muted rounded-full px-3 py-1.5 shrink-0"
-              >
-                <span className="text-xs">{insight.emoji}</span>
-                <span className={cn("text-[11px] font-medium whitespace-nowrap", insight.color)}>
-                  {insight.text}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* WEEK OVERVIEW (with drift/practice/projected stats) - competition only */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      {!isSparProtocol && (
+      {!isSparProtocol && daysUntilWeighIn >= 0 && (
         <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} descentData={descentData} timeUntilWeighIn={daysUntilWeighIn >= 0 ? getTimeUntilWeighIn() : null} daysUntilWeighIn={daysUntilWeighIn} />
       )}
 
@@ -1806,101 +1737,32 @@ function TodayTimeline({
   const isComplete = completedCount === activeSlots;
 
   return (
-    <div className="mb-2 space-y-1.5">
-      {/* Header: Row 1 = Weight + Class + Status + Completion, Row 2 = Over + Daily Loss */}
-      <div className="px-1 space-y-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {latestWeight ? (
-              <span className="text-sm font-mono font-bold text-foreground">
-                {latestWeight.toFixed(1)} lbs
-              </span>
-            ) : (
-              <span className="text-sm font-mono text-muted-foreground">— lbs</span>
-            )}
-            {/* Only show weight class for competition users */}
-            {!isSparProtocol && (
-              <>
-                <span className="text-[11px] text-muted-foreground">·</span>
-                <span className="text-[11px] text-muted-foreground uppercase font-bold">
-                  Class: <span className="text-foreground font-mono">{weightClass}</span>
-                </span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Completion indicator */}
-            <div className="flex items-center gap-1">
-              <svg width="20" height="20" viewBox="0 0 20 20" className="shrink-0">
-                <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" strokeWidth="2" className="text-muted/50" />
-                <circle
-                  cx="10" cy="10" r="8" fill="none"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(completedCount / activeSlots) * 50.27} 50.27`}
-                  transform="rotate(-90 10 10)"
+    <div className="mb-2">
+      {/* Core weigh-in slots - clean card */}
+      <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
+        {/* Completion indicator - small, inline */}
+        <div className="flex items-center justify-between px-1 pb-1">
+          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Weigh-ins</span>
+          <div className="flex items-center gap-1.5">
+            <div className="flex gap-0.5">
+              {Array.from({ length: activeSlots }).map((_, i) => (
+                <div
+                  key={i}
                   className={cn(
-                    "transition-all duration-500",
-                    isComplete ? "stroke-green-500" : completedCount >= 2 ? "stroke-primary" : "stroke-muted-foreground"
+                    "w-1.5 h-1.5 rounded-full transition-all",
+                    i < completedCount ? "bg-green-500" : "bg-muted"
                   )}
                 />
-                {isComplete && (
-                  <text x="10" y="10" textAnchor="middle" dominantBaseline="central" className="fill-green-500 text-[7px] font-bold">
-                    ✓
-                  </text>
-                )}
-              </svg>
-              <span className={cn(
-                "text-[11px] font-mono font-bold",
-                isComplete ? "text-green-500" : completedCount > 0 ? "text-foreground" : "text-muted-foreground"
-              )}>
-                {completedCount}/{activeSlots}
-              </span>
+              ))}
             </div>
-            {/* ON TRACK status badge — only for competition users doing weight cuts */}
-            {!isSparProtocol && <StatusExplanation statusInfo={statusInfo} />}
+            <span className={cn(
+              "text-[10px] font-mono",
+              isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
+            )}>
+              {completedCount}/{activeSlots}
+            </span>
           </div>
         </div>
-        {/* Streak + daily stats row */}
-        <div className="flex items-center gap-3">
-          {streak >= 2 && (
-            <span className={cn(
-              "text-[11px] font-bold flex items-center gap-1",
-              streak >= 14 ? "text-orange-500" : streak >= 7 ? "text-yellow-500" : "text-muted-foreground"
-            )}>
-              <Flame className="w-3 h-3" />
-              {streak} day streak
-            </span>
-          )}
-          {/* Over class display - competition only */}
-          {!isSparProtocol && latestWeight && weightClass && latestWeight > weightClass && (
-            <span className={cn(
-              "text-[11px] font-mono font-bold",
-              latestWeight - weightClass > 5 ? "text-destructive" :
-              latestWeight - weightClass > 2 ? "text-yellow-500" : "text-muted-foreground"
-            )}>
-              +{(latestWeight - weightClass).toFixed(1)} over class
-            </span>
-          )}
-          {dailyLoss !== null && dailyLoss > 0 && (
-            <span className="text-[11px] font-mono font-bold text-primary">
-              -{dailyLoss.toFixed(1)} today
-            </span>
-            )}
-        </div>
-        {/* Simple positive feedback - competition only, no conflicting messages */}
-        {!isSparProtocol && latestWeight && latestWeight <= weightClass && (
-          <div className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-green-500/10 border border-green-500/20">
-            <span className="text-xs text-green-500">&#9733;</span>
-            <span className="text-[11px] font-bold text-green-500">
-              At weight — you're competition ready
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Core weigh-in slots */}
-      <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
         <div className={cn("grid gap-1", showPracticeSlots ? "grid-cols-4" : "grid-cols-2")}>
           {coreSlots.map((slot) => {
             const isMostRecent = mostRecentLog && slot.log && mostRecentLog.id === slot.log.id;
@@ -2148,163 +2010,111 @@ function TodayTimeline({
   );
 }
 
-// Persistent Focus coaching card — always visible at top of dashboard
-function FocusCard({ dailyPriority, statusInfo, daysUntilWeighIn, todayMorning, yesterdayMorning, protocol, targetWeight }: {
-  dailyPriority: { priority: string; urgency: string; subtext?: string };
-  statusInfo: { status: string; label: string; contextMessage: string; recommendation?: any };
-  daysUntilWeighIn: number;
-  todayMorning: any;
-  yesterdayMorning: any;
-  protocol: string;
+// ═══════════════════════════════════════════════════════════════════════════════
+// HERO WEIGHT — Clean, elite-style weight display with progress bar
+// ═══════════════════════════════════════════════════════════════════════════════
+function HeroWeight({
+  currentWeight,
+  targetWeight,
+  timeUntil,
+  dailyChange,
+  streak,
+  status,
+  daysUntilWeighIn,
+}: {
+  currentWeight: number | null;
   targetWeight: number;
+  timeUntil: string | null;
+  dailyChange: number | null;
+  streak: number;
+  status: 'on-track' | 'borderline' | 'risk' | 'unknown';
+  daysUntilWeighIn: number;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const weightToLose = currentWeight ? currentWeight - targetWeight : 0;
+  const isAtWeight = weightToLose <= 0;
 
-  const urgencyColor = dailyPriority.urgency === 'critical' ? 'text-red-500' :
-    dailyPriority.urgency === 'high' ? 'text-yellow-500' : 'text-primary';
-  const urgencyBorder = dailyPriority.urgency === 'critical' ? 'border-red-500/30' :
-    dailyPriority.urgency === 'high' ? 'border-yellow-500/30' : 'border-primary/20';
-  const urgencyBg = dailyPriority.urgency === 'critical' ? 'bg-red-500/5' :
-    dailyPriority.urgency === 'high' ? 'bg-yellow-500/5' : 'bg-primary/5';
+  // Progress percentage (capped at 100%)
+  // Assume max cut is ~15 lbs, so we show progress toward that
+  const maxCut = 15;
+  const progressPct = currentWeight
+    ? Math.min(100, Math.max(0, ((maxCut - weightToLose) / maxCut) * 100))
+    : 0;
 
-  // Progress since yesterday
-  const progressDiff = todayMorning && yesterdayMorning
-    ? todayMorning.weight - yesterdayMorning.weight
-    : null;
+  // Status color
+  const statusColor = status === 'on-track' ? 'text-green-500' :
+    status === 'borderline' ? 'text-yellow-500' :
+    status === 'risk' ? 'text-red-500' : 'text-muted-foreground';
 
-  // Protocol-specific daily tip based on days out
-  const getDailyTip = (): string | null => {
-    if (protocol === '1') {
-      // Body Comp Phase tips
-      if (daysUntilWeighIn >= 6) return "Fructose window: fruit within 30 min of waking. Zero protein for first 4 hours.";
-      if (daysUntilWeighIn === 5) return "Water loading starts today — drink 1.5 gal. Sodium: 3-5g.";
-      if (daysUntilWeighIn === 4) return "Peak water day tomorrow. Keep hitting fructose targets.";
-      if (daysUntilWeighIn === 3) return "Peak water: 1.5 gal. Your body is flushing — trust the process.";
-    } else if (protocol === '2') {
-      // Make Weight Phase tips
-      if (daysUntilWeighIn >= 6) return "Follow your macro targets. Recovery is priority — protein within 30 min of practice.";
-      if (daysUntilWeighIn === 5) return "Water loading begins — 1.5 gal today. Sodium up to 3-5g.";
-      if (daysUntilWeighIn === 4) return "Continue loading. High water + sodium suppresses ADH hormone.";
-      if (daysUntilWeighIn === 3) return "Final load day. Tomorrow your body starts flushing — ADH is suppressed.";
-    } else if (protocol === '3') {
-      // Hold Weight Phase tips
-      if (daysUntilWeighIn >= 6) return "Balanced nutrition: 40C/35P/25F. Train hard, recover harder.";
-      if (daysUntilWeighIn === 5) return "Start hydration focus — consistent water intake keeps you competition-ready.";
-    } else if (protocol === '4') {
-      // Build Phase tips
-      if (daysUntilWeighIn >= 6) return "Protein target: 1.0-1.2 g/lb. Pair carbs with protein post-training.";
-      if (daysUntilWeighIn <= 5 && daysUntilWeighIn >= 3) return "Competition week approaching — shift to maintenance calories.";
-    }
-    // Cut/compete day tips handled by priority message
-    return null;
-  };
-
-  const dailyTip = getDailyTip();
-  const rec = statusInfo.recommendation;
+  const progressBarColor = status === 'on-track' ? 'bg-green-500' :
+    status === 'borderline' ? 'bg-yellow-500' :
+    status === 'risk' ? 'bg-orange-500' : 'bg-primary';
 
   return (
-    <div data-tour="daily-coach" className={cn("rounded-lg border mb-2 overflow-hidden transition-all", urgencyBorder, urgencyBg)}>
-      {/* Collapsed: always-visible coaching strip */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full text-left px-3 py-2.5"
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-start gap-2 flex-1 min-w-0">
-            <Zap className={cn("w-4 h-4 shrink-0 mt-0.5", urgencyColor)} />
-            <div className="min-w-0">
-              <p className={cn("text-xs font-bold leading-tight", urgencyColor)}>
-                {dailyPriority.priority}
-              </p>
-              {/* Quick stats row — always visible (status badge removed - shown in Weight Pace Badge above) */}
-              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                {/* Progress since yesterday */}
-                {progressDiff !== null && (
-                  <span className={cn(
-                    "text-[11px] font-mono font-bold flex items-center gap-0.5",
-                    progressDiff < 0 ? "text-green-500" : progressDiff > 0 ? "text-red-400" : "text-muted-foreground"
-                  )}>
-                    {progressDiff < 0 ? <TrendingDown className="w-3 h-3" /> : progressDiff > 0 ? <TrendingUp className="w-3 h-3" /> : null}
-                    {progressDiff > 0 ? '+' : ''}{progressDiff.toFixed(1)} lbs vs yesterday
-                  </span>
-                )}
-                {/* Workouts needed */}
-                {rec && rec.extraWorkoutsNeeded > 0 && (
-                  <span className="text-[11px] font-bold text-orange-400 flex items-center gap-0.5">
-                    <Dumbbell className="w-3 h-3" />
-                    {rec.extraWorkoutsNeeded} workout{rec.extraWorkoutsNeeded > 1 ? 's' : ''} needed
-                  </span>
-                )}
-              </div>
-              {/* Explain estimate updates on loading days */}
-              {rec && rec.extraWorkoutsNeeded > 0 && daysUntilWeighIn >= 3 && (
-                <p className="text-[10px] text-muted-foreground/60 mt-1 ml-6">
-                  Based on your avg sweat rate — updates as you log
-                </p>
-              )}
-            </div>
-          </div>
-          {expanded
-            ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-            : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-          }
-        </div>
-      </button>
+    <div className="mb-3">
+      {/* Main weight display */}
+      <div className="flex items-baseline justify-center gap-2 mb-1">
+        <span className="text-4xl font-mono font-bold tracking-tight">
+          {currentWeight ? currentWeight.toFixed(1) : '—'}
+        </span>
+        <span className="text-2xl text-muted-foreground">→</span>
+        <span className="text-4xl font-mono font-bold text-primary tracking-tight">
+          {targetWeight}
+        </span>
+      </div>
 
-      {/* Expanded: full detail */}
-      {expanded && (
-        <div className="px-3 pb-3 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="border-t border-muted/50 pt-2.5" />
+      {/* Progress bar */}
+      <div className="h-2 bg-muted/40 rounded-full overflow-hidden mb-2 mx-4">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", progressBarColor)}
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
 
-          {/* Projection & workout detail */}
-          {dailyPriority.subtext && (
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              {dailyPriority.subtext}
-            </p>
-          )}
+      {/* Stats row */}
+      <div className="flex items-center justify-center gap-3 text-[11px]">
+        {/* Weight to lose / at weight */}
+        {currentWeight && (
+          <span className={cn("font-mono font-bold", statusColor)}>
+            {isAtWeight ? '✓ AT WEIGHT' : `${weightToLose.toFixed(1)} lbs to go`}
+          </span>
+        )}
 
-          {/* Fiber warning for cut days */}
-          {(daysUntilWeighIn === 1 || daysUntilWeighIn === 2) && (
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-orange-400">
-                No vegetables, fruits with skin, whole grains, or beans. Check every ingredient.
-              </p>
-            </div>
-          )}
+        {/* Time until */}
+        {timeUntil && (
+          <>
+            <span className="text-muted-foreground/40">·</span>
+            <span className="font-mono text-muted-foreground">{timeUntil}</span>
+          </>
+        )}
 
-          {/* Status context */}
-          <p className="text-[11px] text-muted-foreground">
-            {statusInfo.contextMessage}
-          </p>
+        {/* Daily change */}
+        {dailyChange !== null && (
+          <>
+            <span className="text-muted-foreground/40">·</span>
+            <span className={cn(
+              "font-mono font-bold",
+              dailyChange < 0 ? "text-green-500" : dailyChange > 0 ? "text-red-400" : "text-muted-foreground"
+            )}>
+              {dailyChange > 0 ? '+' : ''}{dailyChange.toFixed(1)} today
+            </span>
+          </>
+        )}
 
-          {/* Protocol tip */}
-          {dailyTip && (
-            <div className="flex items-start gap-2 bg-muted/30 rounded-md px-2.5 py-2">
-              <Flame className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                <span className="font-bold text-foreground/70">Tip: </span>
-                {dailyTip}
-              </p>
-            </div>
-          )}
+        {/* Streak */}
+        {streak >= 2 && (
+          <>
+            <span className="text-muted-foreground/40">·</span>
+            <span className={cn(
+              "font-bold flex items-center gap-0.5",
+              streak >= 14 ? "text-orange-500" : streak >= 7 ? "text-yellow-500" : "text-muted-foreground"
+            )}>
+              <Flame className="w-3 h-3" />
+              {streak}
+            </span>
+          </>
+        )}
+      </div>
 
-          {/* Extra workout action */}
-          {rec && rec.extraWorkoutsNeeded > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: 'extra-workout' } }));
-              }}
-              className="w-full h-8 text-[11px] border-muted-foreground/30"
-            >
-              <Dumbbell className="w-3.5 h-3.5 mr-2" />
-              Log Extra Workout
-            </Button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -2460,12 +2270,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
           >
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-primary" />
-              <h4 className="font-bold text-sm uppercase tracking-wide">The Countdown</h4>
-              {timeUntilWeighIn && (
-                <span className="text-[10px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                  {timeUntilWeighIn}
-                </span>
-              )}
+              <h4 className="font-bold text-sm uppercase tracking-wide">Week Plan</h4>
             </div>
             <div className="flex items-center gap-2">
               <span className={cn("text-[11px] font-bold", projectionColor)}>

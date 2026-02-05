@@ -1412,9 +1412,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const proteinSlices = macroTargets.protein.max > 0
         ? Math.max(1, Math.round(macroTargets.protein.max / 25))
         : 0;
-      // Carbs: grams → slices (1 fist carb ≈ 30g carbs ≈ 120 cal)
+      // Carbs: grams → slices (1 fist carb ≈ 26g carbs per SPAR v2 spec)
       const carbSlices = macroTargets.carbs.max > 0
-        ? Math.max(1, Math.round(macroTargets.carbs.max / 30))
+        ? Math.max(1, Math.round(macroTargets.carbs.max / 26))
         : 0;
       // Veg: when protein is allowed, suggest 2-3 veg servings; when restricted, 0
       const vegSlices = macroTargets.protein.max === 0 ? 0 : Math.max(2, Math.round(carbSlices * 0.4));

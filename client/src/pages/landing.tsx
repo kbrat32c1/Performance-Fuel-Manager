@@ -72,6 +72,16 @@ export default function Landing() {
   const [resetSent, setResetSent] = useState(false);
   const [showMigration, setShowMigration] = useState(false);
 
+  // Password validation - 12+ chars, uppercase, lowercase, number, special char
+  const validatePassword = (pwd: string): string | null => {
+    if (pwd.length < 12) return 'Password must be at least 12 characters';
+    if (!/[A-Z]/.test(pwd)) return 'Password must include an uppercase letter';
+    if (!/[a-z]/.test(pwd)) return 'Password must include a lowercase letter';
+    if (!/[0-9]/.test(pwd)) return 'Password must include a number';
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) return 'Password must include a special character';
+    return null;
+  };
+
   // Handle redirects in useEffect to avoid render-time side effects
   useEffect(() => {
     if (!authLoading && !storeLoading && user) {
@@ -135,6 +145,13 @@ export default function Landing() {
           // Auth state change will trigger redirect
         }
       } else if (authMode === 'signup') {
+        // Validate password complexity before signup
+        const pwdError = validatePassword(password);
+        if (pwdError) {
+          setError(pwdError);
+          setIsSubmitting(false);
+          return;
+        }
         const { error } = await signUp(email, password);
         if (error) {
           setError(error.message);
@@ -254,7 +271,7 @@ export default function Landing() {
                         onChange={(e) => setPassword(e.target.value)}
                         className="pl-10 pr-10 h-12 bg-card border-border"
                         required
-                        minLength={6}
+                        minLength={12}
                       />
                       <button
                         type="button"

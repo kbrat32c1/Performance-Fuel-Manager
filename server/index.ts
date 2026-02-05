@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -11,6 +13,50 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://*.supabase.co", "https://world.openfoodfacts.org", "https://api.nal.usda.gov", "https://api.anthropic.com"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // Allow embedding for PWA
+}));
+
+// Global rate limiter - 100 requests per minute per IP
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100,
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limiter for AI coach - 10 requests per minute
+export const aiCoachLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'AI coach rate limit exceeded. Please wait a moment.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Food search rate limiter - 30 requests per minute
+export const foodSearchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Search rate limit exceeded. Please slow down.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use(globalLimiter);
 
 app.use(
   express.json({

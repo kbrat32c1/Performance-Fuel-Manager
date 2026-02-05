@@ -10,9 +10,31 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// Allowed origins for CORS - production and local dev
+const ALLOWED_ORIGINS = [
+  "https://performance-fuel-manager.vercel.app",
+  "https://performance-fuel-manager-*.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed => {
+    if (allowed.includes('*')) {
+      const pattern = allowed.replace('*', '.*');
+      return new RegExp(`^${pattern}$`).test(origin);
+    }
+    return allowed === origin;
+  });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS headers - restrict to allowed origins
+  const origin = req.headers.origin;
+  if (isAllowedOrigin(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin!);
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
 
   if (req.method === "OPTIONS") return res.status(200).end();
