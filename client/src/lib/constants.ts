@@ -3,6 +3,189 @@
  * Centralized configuration for weight management calculations and protocols
  */
 
+// =============================================================================
+// UNIT CONVERSION CONSTANTS
+// Single source of truth for all unit conversions - use these everywhere!
+// =============================================================================
+
+/**
+ * Pounds to kilograms conversion factor
+ * Source: International System of Units (SI)
+ * 1 lb = 0.45359237 kg (exact definition)
+ */
+export const LBS_TO_KG = 0.453592;
+export const KG_TO_LBS = 2.20462;
+
+/**
+ * Inches to centimeters conversion factor
+ * Source: International System of Units (SI)
+ * 1 inch = 2.54 cm (exact definition)
+ */
+export const INCHES_TO_CM = 2.54;
+export const CM_TO_INCHES = 0.393701;
+
+/**
+ * Fluid ounces to milliliters conversion factor
+ * Source: US customary units
+ * 1 fl oz (US) = 29.5735 ml
+ */
+export const OZ_TO_ML = 29.5735;
+export const ML_TO_OZ = 0.033814;
+
+/**
+ * Gallons to fluid ounces
+ * 1 US gallon = 128 fl oz
+ */
+export const GAL_TO_OZ = 128;
+
+// =============================================================================
+// WEIGHT VALIDATION CONSTANTS
+// Safety bounds for weight entries
+// =============================================================================
+
+/**
+ * Minimum reasonable weight for a wrestler (lbs)
+ * Below this triggers validation error
+ */
+export const MIN_WEIGHT_LBS = 50;
+
+/**
+ * Maximum reasonable weight for a wrestler (lbs)
+ * Above this triggers validation error
+ */
+export const MAX_WEIGHT_LBS = 400;
+
+/**
+ * Validate a weight value is within reasonable bounds
+ */
+export function isValidWeight(weightLbs: number): boolean {
+  return (
+    typeof weightLbs === 'number' &&
+    !isNaN(weightLbs) &&
+    weightLbs >= MIN_WEIGHT_LBS &&
+    weightLbs <= MAX_WEIGHT_LBS
+  );
+}
+
+/**
+ * Get validation error message for invalid weight
+ */
+export function getWeightValidationError(weightLbs: number): string | null {
+  if (typeof weightLbs !== 'number' || isNaN(weightLbs)) {
+    return 'Weight must be a number';
+  }
+  if (weightLbs < MIN_WEIGHT_LBS) {
+    return `Weight must be at least ${MIN_WEIGHT_LBS} lbs`;
+  }
+  if (weightLbs > MAX_WEIGHT_LBS) {
+    return `Weight must be less than ${MAX_WEIGHT_LBS} lbs`;
+  }
+  return null;
+}
+
+// =============================================================================
+// WEIGHT CUT SAFETY THRESHOLDS
+// Based on NWCA (National Wrestling Coaches Association) guidelines
+// and sports medicine best practices
+// =============================================================================
+
+/**
+ * Maximum safe weight loss per week (percentage of body weight)
+ * Source: NWCA Optimal Performance Calculator guidelines
+ * Exceeding this increases risk of dehydration, muscle loss, and performance decline
+ */
+export const MAX_SAFE_WEEKLY_LOSS_PERCENT = 1.5;
+
+/**
+ * Maximum total weight cut from walk-around weight (percentage)
+ * Source: NCAA Wrestling Weight Management Program
+ * Larger cuts significantly increase health risks
+ */
+export const MAX_SAFE_TOTAL_CUT_PERCENT = 8;
+
+/**
+ * Days before weigh-in when aggressive cutting becomes high risk
+ * At this point, only water manipulation should be used
+ */
+export const CRITICAL_DAYS_THRESHOLD = 2;
+
+/**
+ * Pounds over target that triggers DANGER alert in final 24 hours
+ * This amount is extremely difficult to cut safely
+ */
+export const DANGER_DELTA_24H_LBS = 3;
+
+/**
+ * Pounds over target that triggers WARNING alert in final 48 hours
+ */
+export const WARNING_DELTA_48H_LBS = 5;
+
+/**
+ * Minimum hydration level (specific gravity) before cutting
+ * Source: NCAA hydration testing threshold
+ * Below 1.025 indicates adequate hydration
+ */
+export const MIN_HYDRATION_SPECIFIC_GRAVITY = 1.025;
+
+/**
+ * Safety assessment levels for weight cutting
+ */
+export type SafetyLevel = 'safe' | 'caution' | 'warning' | 'danger';
+
+/**
+ * Assess safety level based on weight delta and time remaining
+ */
+export function assessWeightCutSafety(
+  currentWeight: number,
+  targetWeight: number,
+  daysUntilWeighIn: number
+): { level: SafetyLevel; message: string } {
+  const delta = currentWeight - targetWeight;
+  const percentOver = (delta / targetWeight) * 100;
+
+  // Already at or below target
+  if (delta <= 0) {
+    return { level: 'safe', message: 'On target' };
+  }
+
+  // Final 24 hours
+  if (daysUntilWeighIn <= 1) {
+    if (delta > DANGER_DELTA_24H_LBS) {
+      return { level: 'danger', message: `${delta.toFixed(1)} lbs in <24h is dangerous` };
+    }
+    if (delta > 2) {
+      return { level: 'warning', message: 'Aggressive water cut needed' };
+    }
+    return { level: 'caution', message: 'Final push - sip water only' };
+  }
+
+  // Final 48 hours
+  if (daysUntilWeighIn <= CRITICAL_DAYS_THRESHOLD) {
+    if (delta > WARNING_DELTA_48H_LBS) {
+      return { level: 'danger', message: 'Behind schedule - high risk' };
+    }
+    if (delta > 3) {
+      return { level: 'warning', message: 'Tight timeline - extra cardio needed' };
+    }
+    return { level: 'caution', message: 'On pace - stay disciplined' };
+  }
+
+  // More than 2 days out
+  if (percentOver > MAX_SAFE_TOTAL_CUT_PERCENT) {
+    return { level: 'warning', message: `${percentOver.toFixed(1)}% cut is aggressive` };
+  }
+
+  if (delta > 5) {
+    return { level: 'caution', message: 'Significant weight to lose' };
+  }
+
+  return { level: 'safe', message: 'On track' };
+}
+
+// =============================================================================
+// WEIGHT CLASSES & PROTOCOLS
+// =============================================================================
+
 // Weight class definitions for wrestling
 export const WEIGHT_CLASSES = [125, 133, 141, 149, 157, 165, 174, 184, 197, 285] as const;
 export type WeightClass = typeof WEIGHT_CLASSES[number];

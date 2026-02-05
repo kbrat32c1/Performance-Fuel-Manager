@@ -19,7 +19,7 @@ import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
-import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt } from "@/components/dashboard";
+import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt, TodayCard } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useCarouselSwipe } from "@/hooks/use-carousel-swipe";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -1154,6 +1154,14 @@ export default function Dashboard() {
             </Button>
           </div>
         )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TODAY CARD — Focused view for stressed athletes        */}
+      {/* Shows: Target, Delta, Action, Safety Flag              */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {!isViewingHistorical && (
+        <TodayCard />
+      )}
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* WEIGHT PACE BADGE — prominent projection status for competition users */}
