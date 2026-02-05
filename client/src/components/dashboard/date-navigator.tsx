@@ -60,6 +60,7 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
         size="icon"
         className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
         onClick={handlePreviousDay}
+        aria-label="Previous day"
       >
         <ChevronLeft className="w-5 h-5" />
       </Button>
@@ -73,6 +74,7 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
               "hover:bg-muted/50 active:bg-muted",
               !viewingToday && "bg-yellow-500/20 border border-yellow-500/30"
             )}
+            aria-label={`Open calendar picker. Currently viewing ${format(currentDate, 'EEEE, MMMM d')}`}
           >
             <Calendar className={cn(
               "w-4 h-4 shrink-0",
@@ -127,6 +129,7 @@ export function DateNavigator({ currentDate, onDateChange, className }: DateNavi
         )}
         onClick={handleNextDay}
         disabled={viewingToday}
+        aria-label="Next day"
       >
         <ChevronRight className="w-5 h-5" />
       </Button>

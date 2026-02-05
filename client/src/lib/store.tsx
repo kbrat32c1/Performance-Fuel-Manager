@@ -30,6 +30,29 @@ import {
   type SparV2Output,
 } from './spar-calculator-v2';
 
+// ─── Supabase Database Row Types ───────────────────────────────────────────
+interface SupabaseDailyTrackingRow {
+  date: string;
+  water_consumed: number;
+  carbs_consumed: number;
+  protein_consumed: number;
+  no_practice?: boolean;
+  protein_slices?: number;
+  carb_slices?: number;
+  veg_slices?: number;
+  fruit_slices?: number;
+  fat_slices?: number;
+  nutrition_mode?: 'spar' | 'sugar';
+  food_log?: FoodLogEntry[];
+}
+
+interface SupabaseWeightLogRow {
+  id: string;
+  weight: number;
+  date: string;
+  type: string;
+}
+
 // Types
 export type Protocol = '1' | '2' | '3' | '4' | '5';
 // 1: Sugar Fast / Body Comp Phase (Extreme fat loss)
@@ -377,7 +400,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(savedProfile);
         // Check if they completed onboarding (has real data)
         return parsed.currentWeight > 0 || parsed.targetWeightClass !== 157;
-      } catch {
+      } catch (e) {
+        console.warn('Failed to parse localStorage profile:', e);
         return false;
       }
     }
@@ -509,7 +533,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id);
 
       if (trackingData && !trackingError) {
-        setDailyTracking(trackingData.map((t: any) => ({
+        setDailyTracking(trackingData.map((t: SupabaseDailyTrackingRow) => ({
           date: t.date,
           waterConsumed: t.water_consumed || 0,
           carbsConsumed: t.carbs_consumed || 0,
@@ -568,10 +592,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Migrate logs
       if (savedLogs) {
         const parsedLogs = JSON.parse(savedLogs);
-        const validTypes = Object.values(LOG_TYPES);
+        const validTypes = Object.values(LOG_TYPES) as string[];
         const logsToInsert = parsedLogs
-          .filter((log: any) => validTypes.includes(log.type))
-          .map((log: any) => ({
+          .filter((log: { type: string; weight: number; date: string }) => validTypes.includes(log.type))
+          .map((log: { type: string; weight: number; date: string }) => ({
             user_id: user.id,
             weight: log.weight,
             date: new Date(log.date).toISOString(),
@@ -590,7 +614,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Migrate daily tracking
       if (savedTracking) {
         const parsedTracking = JSON.parse(savedTracking);
-        const trackingToInsert = parsedTracking.map((t: any) => ({
+        const trackingToInsert = parsedTracking.map((t: { date: string; carbsConsumed?: number; proteinConsumed?: number; waterConsumed?: number }) => ({
           user_id: user.id,
           date: t.date,
           carbs_consumed: t.carbsConsumed || 0,
@@ -741,29 +765,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         // OLD FALLBACK CODE - DISABLED to prevent overwriting v2 settings
-        if (false && upsertError) {
-          console.error('Full save failed:', upsertError.message, upsertError.code, upsertError.details);
-          // Try without v2 fields
-          profilePayload = { ...corePayload, ...sparFields, ...optionalFields };
-          let { error: retryError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
-
-          if (retryError) {
-            console.warn('Save without v2 failed, trying without optional fields:', retryError.message);
-            // Try without optional fields
-            profilePayload = { ...corePayload, ...sparFields };
-            const { error: retry2Error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
-
-            if (retry2Error) {
-              console.warn('Save without optional failed, trying core only:', retry2Error.message);
-              // Try core only
-              const { error: coreError } = await supabase.from('profiles').upsert(corePayload, { onConflict: 'user_id' });
-              if (coreError) {
-                console.error('Error saving profile:', coreError);
-                toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
-              }
-            }
-          }
-        }
+        // This code block is intentionally disabled and kept for reference only
       } catch (error) {
         console.error('Error saving profile:', error);
         toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
@@ -829,7 +831,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Only insert valid log types (all weight log types)
         const validTypes = Object.values(LOG_TYPES);
         if (validTypes.includes(log.type)) {
-          const insertData: any = {
+          const insertData: {
+            user_id: string;
+            weight: number;
+            date: string;
+            type: string;
+            duration?: number;
+            sleep_hours?: number;
+          } = {
             user_id: user.id,
             weight: log.weight,
             date: log.date.toISOString(),
@@ -866,12 +875,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             console.error('Error updating profile weight:', profileError);
           }
         }
-      } catch (error: any) {
+      } catch (error) {
         // Rollback on exception
         setLogs(previousLogs);
         setProfile(previousProfile);
         console.error('Error adding log:', error);
-        const errorDetail = error?.message || 'Network error';
+        const errorDetail = error instanceof Error ? error.message : 'Network error';
         toast({ title: "Sync failed", description: `Could not save weight log: ${errorDetail}`, variant: "destructive" });
       }
     }
@@ -914,7 +923,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       try {
-        const updateData: any = {};
+        const updateData: {
+          weight?: number;
+          date?: string;
+          type?: string;
+          duration?: number;
+          sleep_hours?: number;
+        } = {};
         if (updates.weight !== undefined) updateData.weight = updates.weight;
         if (updates.date !== undefined) updateData.date = updates.date.toISOString();
         if (updates.type !== undefined) updateData.type = updates.type;

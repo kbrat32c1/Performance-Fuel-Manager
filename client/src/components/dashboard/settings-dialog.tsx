@@ -165,7 +165,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground">
+        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open settings">
           <Settings className="w-5 h-5" />
         </Button>
       </DialogTrigger>

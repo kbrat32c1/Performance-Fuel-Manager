@@ -9,7 +9,7 @@ import {
   ChevronRight, ChevronDown, ChevronUp, Info,
   AlertTriangle, Flame, Zap, Trash2,
   Calendar, Clock, ArrowDownToLine, ArrowUpFromLine, Plus,
-  TrendingDown, TrendingUp, HelpCircle, X, WifiOff, RefreshCw
+  TrendingDown, TrendingUp, HelpCircle, X, WifiOff, RefreshCw, Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, isToday, startOfDay } from "date-fns";

@@ -221,12 +221,12 @@ export default function Onboarding() {
         {/* Header */}
         <div className="flex items-center gap-2 mb-6">
           {step > (switchingProtocol ? 2 : 1) ? (
-            <Button variant="ghost" size="icon" onClick={handleBack} className="-ml-2 h-10 w-10 text-muted-foreground">
+            <Button variant="ghost" size="icon" onClick={handleBack} className="-ml-2 h-10 w-10 text-muted-foreground" aria-label="Go back">
               <ChevronRight className="w-6 h-6 rotate-180" />
             </Button>
           ) : <div className="w-8" />}
 
-          <div className="flex-1 bg-muted h-1 rounded-full overflow-hidden">
+          <div className="flex-1 bg-muted h-1 rounded-full overflow-hidden" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={TOTAL_STEPS} aria-label={`Step ${step} of ${TOTAL_STEPS}`}>
             <div
               className="bg-primary h-full transition-all duration-500"
               style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
@@ -234,7 +234,7 @@ export default function Onboarding() {
           </div>
 
           {isRerun ? (
-            <Button variant="ghost" size="icon" onClick={handleCancel} className="-mr-2 h-10 w-10 text-muted-foreground">
+            <Button variant="ghost" size="icon" onClick={handleCancel} className="-mr-2 h-10 w-10 text-muted-foreground" aria-label="Cancel onboarding">
               <X className="w-5 h-5" />
             </Button>
           ) : <div className="w-8" />}

@@ -229,7 +229,8 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
       if (saved) {
         try {
           return JSON.parse(saved);
-        } catch {
+        } catch (e) {
+          console.warn('Failed to parse custom foods:', e);
           return [];
         }
       }
@@ -252,7 +253,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
   const [customMeals, setCustomMeals] = useState<CustomMeal[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(customMealsKey);
-      if (saved) { try { return JSON.parse(saved); } catch { return []; } }
+      if (saved) { try { return JSON.parse(saved); } catch (e) { console.warn('Failed to parse custom meals:', e); return []; } }
     }
     return [];
   });
@@ -651,11 +652,12 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
         try {
           const parsed = JSON.parse(saved);
           // Restore Date objects from ISO strings
-          setFoodHistory(parsed.map((entry: any) => ({
+          setFoodHistory(parsed.map((entry: FoodLogEntry) => ({
             ...entry,
             timestamp: new Date(entry.timestamp)
           })));
-        } catch {
+        } catch (e) {
+          console.warn('Failed to parse food history:', e);
           setFoodHistory([]);
         }
       } else {

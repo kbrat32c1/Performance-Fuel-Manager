@@ -351,7 +351,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   }>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(customFoodsKey);
-      if (saved) { try { return JSON.parse(saved); } catch { return []; } }
+      if (saved) { try { return JSON.parse(saved); } catch (e) { console.warn('Failed to parse custom foods:', e); return []; } }
     }
     return [];
   });
@@ -378,7 +378,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   const [customMeals, setCustomMeals] = useState<SparMeal[]>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(customMealsKey);
-      if (saved) { try { return JSON.parse(saved); } catch { return []; } }
+      if (saved) { try { return JSON.parse(saved); } catch (e) { console.warn('Failed to parse custom meals:', e); return []; } }
     }
     return [];
   });
@@ -394,7 +394,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   const [recentFoods, setRecentFoods] = useState<Record<string, string[]>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(recentFoodsKey);
-      if (saved) { try { return JSON.parse(saved); } catch { return {}; } }
+      if (saved) { try { return JSON.parse(saved); } catch (e) { console.warn('Failed to parse recent foods:', e); return {}; } }
     }
     return {};
   });
@@ -436,7 +436,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
       if (saved) {
         try {
           setFoodHistory(JSON.parse(saved));
-        } catch {
+        } catch (e) {
+          console.warn('Failed to parse food history:', e);
           setFoodHistory([]);
         }
       } else {

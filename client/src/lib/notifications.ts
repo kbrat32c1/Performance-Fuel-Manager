@@ -26,7 +26,9 @@ export function getNotificationPrefs(): NotificationPreferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to parse notification preferences:', e);
+  }
   return { ...DEFAULT_PREFS };
 }
 

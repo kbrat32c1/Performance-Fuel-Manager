@@ -4,6 +4,58 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 
+// ─── API Response Types ───────────────────────────────────────────────────────
+interface USDAFoodNutrient {
+  nutrientId: number;
+  value: number;
+}
+
+interface USDAFood {
+  fdcId: number;
+  description: string;
+  foodCategory?: string;
+  foodNutrients?: USDAFoodNutrient[];
+  servingSize?: number;
+  servingSizeUnit?: string;
+  dataType?: string;
+}
+
+interface OFFProduct {
+  code?: string;
+  product_name?: string;
+  brands?: string;
+  nutriments?: {
+    'energy-kcal_100g'?: number;
+    proteins_100g?: number;
+    carbohydrates_100g?: number;
+    fat_100g?: number;
+    fiber_100g?: number;
+    sugars_100g?: number;
+    sodium_100g?: number;
+  };
+  serving_quantity?: number;
+  serving_size?: string;
+  image_small_url?: string;
+  completeness?: number;
+}
+
+interface TransformedOFFFood {
+  barcode: string;
+  name: string;
+  brand: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  sugar: number;
+  sodium: number;
+  servingSize: number | null;
+  servingSizeLabel: string;
+  imageUrl: string | null;
+  dataQuality: "complete" | "partial" | "poor";
+}
+
 // USDA API key - no fallback to DEMO_KEY for security
 const USDA_API_KEY = process.env.USDA_API_KEY || "";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
@@ -65,10 +117,10 @@ export async function registerRoutes(
       const data = await response.json();
 
       // Transform USDA response into our simplified format
-      const foods = (data.foods || []).map((food: any) => {
+      const foods = (data.foods || []).map((food: USDAFood) => {
         const nutrients = food.foodNutrients || [];
         const getNutrient = (id: number) => {
-          const n = nutrients.find((n: any) => n.nutrientId === id);
+          const n = nutrients.find((n: USDAFoodNutrient) => n.nutrientId === id);
           return n ? Math.round(n.value * 10) / 10 : 0;
         };
 
@@ -90,8 +142,9 @@ export async function registerRoutes(
       });
 
       return res.json({ foods, totalHits: data.totalHits || 0 });
-    } catch (err: any) {
-      log(`Food search error: ${err.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      log(`Food search error: ${message}`);
       return res.status(500).json({ error: "Search failed", foods: [] });
     }
   });
@@ -124,8 +177,8 @@ export async function registerRoutes(
       const data = await response.json();
 
       const foods = (data.products || [])
-        .filter((p: any) => p.product_name && p.product_name.trim().length > 0)
-        .map((p: any) => {
+        .filter((p: OFFProduct) => p.product_name && p.product_name.trim().length > 0)
+        .map((p: OFFProduct): TransformedOFFFood => {
           const n = p.nutriments || {};
           const calories = Math.round((n["energy-kcal_100g"] || 0) * 10) / 10;
           const protein = Math.round((n.proteins_100g || 0) * 10) / 10;
@@ -153,12 +206,13 @@ export async function registerRoutes(
             dataQuality,
           };
         })
-        .filter((f: any) => f.dataQuality !== "poor")
-        .sort((a: any, b: any) => (a.dataQuality === "complete" ? -1 : 1) - (b.dataQuality === "complete" ? -1 : 1));
+        .filter((f: TransformedOFFFood) => f.dataQuality !== "poor")
+        .sort((a: TransformedOFFFood, b: TransformedOFFFood) => (a.dataQuality === "complete" ? -1 : 1) - (b.dataQuality === "complete" ? -1 : 1));
 
       return res.json({ foods, totalHits: data.count || 0 });
-    } catch (err: any) {
-      log(`OFF search error: ${err.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      log(`OFF search error: ${message}`);
       return res.status(500).json({ error: "Search failed", foods: [] });
     }
   });
@@ -216,8 +270,9 @@ export async function registerRoutes(
           dataQuality,
         },
       });
-    } catch (err: any) {
-      log(`OFF barcode error: ${err.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      log(`OFF barcode error: ${message}`);
       return res.status(500).json({ found: false, error: "Barcode lookup failed" });
     }
   });
@@ -276,7 +331,7 @@ export async function registerRoutes(
         contextLines.push(`Today's carb type: ${ctx.todaysFoods.carbsLabel}`);
         contextLines.push(`Today's protein: ${ctx.todaysFoods.proteinLabel}`);
         if (ctx.todaysFoods.avoid?.length > 0) {
-          contextLines.push(`Foods to avoid today: ${ctx.todaysFoods.avoid.slice(0, 5).map((a: any) => a.name).join(', ')}`);
+          contextLines.push(`Foods to avoid today: ${ctx.todaysFoods.avoid.slice(0, 5).map((a: { name: string }) => a.name).join(', ')}`);
         }
       }
 
@@ -343,8 +398,9 @@ COACHING RULES:
       const reply = aiData.content?.[0]?.text || "Sorry, I couldn't generate a recommendation.";
 
       return res.json({ recommendation: reply });
-    } catch (err: any) {
-      log(`AI coach error: ${err.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      log(`AI coach error: ${message}`);
       return res.status(500).json({ error: "AI coaching failed" });
     }
   });
@@ -352,7 +408,7 @@ COACHING RULES:
   // ─── Coach Share Endpoint ─────────────────────────────────────────────────
   app.get("/api/share/:token", foodSearchLimiter, async (req: Request, res: Response) => {
     try {
-      const { token } = req.params;
+      const token = req.params.token as string;
 
       // Validate token format: must be a valid UUID v4
       // This prevents enumeration attacks and invalid database queries
@@ -418,8 +474,9 @@ COACHING RULES:
         logs: logs || [],
         dailyTracking,
       });
-    } catch (err: any) {
-      log(`Share endpoint error: ${err.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      log(`Share endpoint error: ${message}`);
       return res.status(500).json({ error: "Failed to load athlete data" });
     }
   });

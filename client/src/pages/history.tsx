@@ -645,6 +645,7 @@ export default function History() {
           variant="ghost"
           size="icon"
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+          aria-label="Previous month"
         >
           <ChevronLeft className="w-5 h-5" />
         </Button>
@@ -655,6 +656,7 @@ export default function History() {
           variant="ghost"
           size="icon"
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+          aria-label="Next month"
         >
           <ChevronRight className="w-5 h-5" />
         </Button>
@@ -844,10 +846,10 @@ export default function History() {
                             <span className="text-sm text-muted-foreground">lbs</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button size="icon" variant="ghost" onClick={() => saveExtraEdit(log)} className="h-8 w-8">
+                            <Button size="icon" variant="ghost" onClick={() => saveExtraEdit(log)} className="h-8 w-8" aria-label="Save changes">
                               <Check className="w-4 h-4 text-green-500" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={cancelExtraEdit} className="h-8 w-8">
+                            <Button size="icon" variant="ghost" onClick={cancelExtraEdit} className="h-8 w-8" aria-label="Cancel">
                               <X className="w-4 h-4" />
                             </Button>
                           </div>
@@ -875,6 +877,7 @@ export default function History() {
                               variant="ghost"
                               onClick={() => startExtraEdit(log)}
                               className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              aria-label="Edit workout"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
@@ -900,6 +903,7 @@ export default function History() {
                             variant="ghost"
                             onClick={() => startEdit(log)}
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            aria-label="Edit weight log"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </Button>
