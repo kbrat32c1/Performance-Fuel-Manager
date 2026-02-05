@@ -164,6 +164,8 @@ function SparFoodRow({
         "w-full flex items-center justify-between rounded-lg px-2.5 py-2.5 transition-all text-left",
         isJustAdded ? config.bgRing : `${config.bgColor} ${config.bgHover} ${config.bgActive}`
       )}
+      aria-label={`Add ${food.name}, ${food.serving}${food.oz ? `, includes ${food.oz} ounces of water` : ''}`}
+      aria-pressed={isJustAdded}
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {isJustAdded ? (
@@ -821,9 +823,13 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
               : null;
 
             const circleContent = (
-              <div className={cn("flex flex-col items-center gap-0.5", blocked && "opacity-40")}>
-                <div className="relative w-11 h-11">
-                  <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
+              <div
+                className={cn("flex flex-col items-center gap-0.5", blocked && "opacity-40")}
+                role="group"
+                aria-label={`${config.label}: ${blocked ? 'restricted' : `${consumed} of ${target} servings`}`}
+              >
+                <div className="relative w-11 h-11" role="progressbar" aria-valuenow={consumed} aria-valuemin={0} aria-valuemax={target} aria-label={`${config.label} progress`}>
+                  <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44" aria-hidden="true">
                     {/* Background circle */}
                     <circle
                       cx="22"
@@ -945,16 +951,19 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
               >
                 {/* Category label + count */}
                 <div className="flex items-center gap-1 mb-1">
-                  <config.icon className={cn("w-3 h-3", done ? "text-green-500" : config.color)} />
-                  <span className={cn(
-                    "text-[10px] font-mono font-bold",
-                    isOver ? "text-amber-500" : done ? "text-green-500" : "text-foreground"
-                  )}>
+                  <config.icon className={cn("w-3 h-3 transition-colors", done ? "text-green-500" : config.color)} />
+                  <span
+                    key={`${cat}-${consumed}`}
+                    className={cn(
+                      "text-[10px] font-mono font-bold animate-count-change",
+                      isOver ? "text-amber-500" : done ? "text-green-500" : "text-foreground"
+                    )}
+                  >
                     {consumed}<span className="text-muted-foreground font-normal">/{target}</span>
                   </span>
                 </div>
                 {/* +/- buttons - min 44px touch targets for mobile */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" role="group" aria-label={`Adjust ${config.label} servings`}>
                   <button
                     onClick={(e) => { e.stopPropagation(); handleQuickAdjust(cat, -1); }}
                     disabled={consumed === 0}
@@ -964,6 +973,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                         ? "bg-muted/30 text-muted-foreground/30 cursor-not-allowed"
                         : "bg-muted/50 text-foreground hover:bg-muted active:bg-muted/80"
                     )}
+                    aria-label={`Remove one ${config.label} serving`}
                   >
                     −
                   </button>
@@ -975,6 +985,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                         ? "bg-green-500/20 text-green-600 hover:bg-green-500/30"
                         : `${config.bgColor} ${config.color} hover:bg-opacity-20 active:bg-opacity-30`
                     )}
+                    aria-label={`Add one ${config.label} serving`}
                   >
                     +
                   </button>

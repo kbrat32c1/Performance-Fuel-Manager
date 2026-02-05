@@ -104,16 +104,22 @@ export function SwipeableRow({ children, onDelete, className, disabled = false }
   }, [isOpen, handleClose]);
 
   return (
-    <div className={cn("relative overflow-hidden rounded-lg", className)}>
+    <div
+      className={cn("relative overflow-hidden rounded-lg", className)}
+      role="group"
+      aria-label="Swipeable item with delete action"
+    >
       {/* Delete background revealed on swipe */}
       <div
         className="absolute inset-y-0 right-0 flex items-center justify-end bg-destructive"
         style={{ width: Math.abs(Math.min(offset, 0)) + 80 }}
+        aria-hidden={!isOpen}
       >
         <button
           onClick={handleDelete}
           className="h-full px-6 flex items-center justify-center text-destructive-foreground hover:bg-destructive/90 transition-colors"
-          aria-label="Delete"
+          aria-label="Delete this item"
+          tabIndex={isOpen ? 0 : -1}
         >
           <Trash2 className="w-5 h-5" />
         </button>

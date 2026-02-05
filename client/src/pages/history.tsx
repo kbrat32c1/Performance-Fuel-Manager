@@ -565,14 +565,17 @@ export default function History() {
       </header>
 
       {/* Tab Buttons */}
-      <div className="flex gap-1.5 mb-4">
+      <div className="flex gap-1.5 mb-4" role="tablist" aria-label="History data types">
         <Button
           variant={activeTab === 'weight' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setActiveTab('weight')}
           className={cn("flex-1 px-2", activeTab === 'weight' && "bg-primary text-white")}
+          role="tab"
+          aria-selected={activeTab === 'weight'}
+          aria-controls="weight-panel"
         >
-          <Scale className="w-4 h-4 mr-1" />
+          <Scale className="w-4 h-4 mr-1" aria-hidden="true" />
           Weight
         </Button>
         <Button
@@ -580,8 +583,11 @@ export default function History() {
           size="sm"
           onClick={() => setActiveTab('hydration')}
           className={cn("flex-1 px-2", activeTab === 'hydration' && "bg-cyan-500 text-black hover:bg-cyan-600")}
+          role="tab"
+          aria-selected={activeTab === 'hydration'}
+          aria-controls="hydration-panel"
         >
-          <Droplets className="w-4 h-4 mr-1" />
+          <Droplets className="w-4 h-4 mr-1" aria-hidden="true" />
           Water
         </Button>
         <Button
@@ -589,8 +595,11 @@ export default function History() {
           size="sm"
           onClick={() => setActiveTab('macros')}
           className={cn("flex-1 px-2", activeTab === 'macros' && (isSparMode ? "bg-primary text-white hover:bg-primary/90" : "bg-orange-500 text-black hover:bg-orange-600"))}
+          role="tab"
+          aria-selected={activeTab === 'macros'}
+          aria-controls="macros-panel"
         >
-          <Utensils className="w-4 h-4 mr-1" />
+          <Utensils className="w-4 h-4 mr-1" aria-hidden="true" />
           {isSparMode ? 'Slices' : 'Macros'}
         </Button>
       </div>

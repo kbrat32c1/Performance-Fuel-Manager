@@ -4,6 +4,8 @@ import { useLocation } from "wouter";
 import { useStore } from "@/lib/store";
 import { QuickLogFAB } from "@/components/quick-log-fab";
 import { CompetitionBanner, useCompetitionActive } from "@/components/competition-banner";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { KeyboardShortcutsHelp } from "@/components/keyboard-shortcuts-help";
 
 interface MobileLayoutProps {
   children: React.ReactNode;
@@ -16,6 +18,9 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
   const { profile, getDaysUntilWeighIn } = useStore();
   const mainRef = useRef<HTMLElement>(null);
   const compState = useCompetitionActive();
+
+  // Enable keyboard shortcuts for navigation
+  useKeyboardShortcuts({ enabled: showNav });
 
   // Scroll to top on route change
   useEffect(() => {
@@ -44,7 +49,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
 
         {/* Bottom Nav */}
         {showNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-center min-h-[64px] pb-safe-bottom max-w-md mx-auto">
+          <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-center min-h-[64px] pb-safe-bottom max-w-md mx-auto" aria-label="Main navigation">
             <NavItem
               icon="LayoutDashboard"
               label="Today"
@@ -74,6 +79,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
           </nav>
         )}
         {showNav && <QuickLogFAB />}
+        {showNav && <KeyboardShortcutsHelp />}
       </div>
     </div>
   );
@@ -104,6 +110,8 @@ function NavItem({ icon, label, active, onClick, primary, highlighted, badge }: 
         primary && "text-primary -mt-8",
         highlighted && !active && "text-cyan-500"
       )}
+      aria-label={`${label}${badge ? ', competition active' : ''}`}
+      aria-current={active ? "page" : undefined}
     >
       <div className={cn(
         // Larger touch target for the icon area
@@ -111,10 +119,10 @@ function NavItem({ icon, label, active, onClick, primary, highlighted, badge }: 
         primary ? "bg-primary text-white shadow-[0_0_20px_rgba(232,80,30,0.4)] scale-125" : "",
         highlighted && !active && "bg-cyan-500/10"
       )}>
-        <Icon size={primary ? 24 : 22} strokeWidth={primary ? 2.5 : 2} />
+        <Icon size={primary ? 24 : 22} strokeWidth={primary ? 2.5 : 2} aria-hidden="true" />
         {/* Pulsing competition badge */}
         {badge && (
-          <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
+          <span className="absolute top-1 right-1 flex h-2.5 w-2.5" aria-hidden="true">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
           </span>

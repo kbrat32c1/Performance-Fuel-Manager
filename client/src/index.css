@@ -181,3 +181,97 @@
     padding-bottom: max(env(safe-area-inset-bottom), 8px);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MICRO-ANIMATIONS — Subtle state change animations for better UX
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Number change animation - used for slice counts, weights, etc. */
+@keyframes number-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.animate-number-pop {
+  animation: number-pop 0.25s ease-out;
+}
+
+/* Success checkmark animation */
+@keyframes check-bounce {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-check-bounce {
+  animation: check-bounce 0.3s ease-out;
+}
+
+/* Progress bar fill animation */
+@keyframes progress-fill {
+  from { width: 0%; }
+}
+
+.animate-progress-fill {
+  animation: progress-fill 0.5s ease-out;
+}
+
+/* Subtle pulse for active elements */
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-subtle-pulse {
+  animation: subtle-pulse 2s ease-in-out infinite;
+}
+
+/* Shake animation for errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-out;
+}
+
+/* Slide up for new list items */
+@keyframes slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up-fade 0.2s ease-out;
+}
+
+/* Scale in for buttons/cards on tap */
+.tap-scale {
+  transition: transform 0.1s ease-out;
+}
+
+.tap-scale:active {
+  transform: scale(0.97);
+}
+
+/* Smooth transitions for interactive elements */
+.transition-interactive {
+  transition: all 0.15s ease-out;
+}
+
+/* Counter increment animation class - to be added via JS */
+@keyframes count-up {
+  from { opacity: 0.5; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count-change {
+  animation: count-up 0.2s ease-out;
+}

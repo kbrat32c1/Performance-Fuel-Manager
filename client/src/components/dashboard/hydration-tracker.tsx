@@ -102,7 +102,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Droplets className="w-4 h-4 text-cyan-500" />
-                <span className="font-bold text-sm">
+                <span key={consumedOz} className="font-bold text-sm animate-count-change">
                   {consumedOz} <span className="text-xs text-muted-foreground font-normal">oz</span>
                 </span>
                 <span className={cn(
@@ -135,7 +135,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                     </span>
                     {!readOnly && (
                       <>
-                        <button onClick={handleEdit} className="p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center">
+                        <button onClick={handleEdit} className="p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Edit water intake">
                           <Pencil className="w-4 h-4" />
                         </button>
                         {tracking.waterConsumed > 0 && (
@@ -145,7 +145,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                                 <button onClick={() => setConfirmingReset(false)} className="text-xs font-bold text-muted-foreground px-3 py-2 min-h-[44px] active:scale-95 transition-transform">No</button>
                               </div>
                             ) : (
-                              <button onClick={() => setConfirmingReset(true)} className="p-2 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center">
+                              <button onClick={() => setConfirmingReset(true)} className="p-2 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Reset water intake">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             )
@@ -231,6 +231,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                 key={oz}
                 onClick={() => handleAddWater(oz)}
                 className="min-h-[44px] px-4 text-sm font-semibold rounded-lg border border-muted bg-muted/30 hover:bg-muted/60 active:bg-muted active:scale-95 transition-all"
+                aria-label={`Add ${oz} ounces of water`}
               >
                 +{oz}oz
               </button>
@@ -247,6 +248,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                 onClick={handleCustomAdd}
                 disabled={!addAmount}
                 className="min-h-[40px] px-3 text-xs font-medium rounded-lg border border-muted bg-muted/30 hover:bg-muted/60 disabled:opacity-40 active:scale-95 transition-all"
+                aria-label="Add custom water amount"
               >
                 Add
               </button>

@@ -473,15 +473,16 @@ export function QuickLogFAB() {
 
       {/* Full-screen overlay modal instead of Vaul drawer — no jumping on mobile */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col">
+        <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-labelledby="quick-log-title">
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/80 animate-in fade-in duration-200"
             onClick={() => { setIsOpen(false); resetForm(); }}
+            aria-hidden="true"
           />
 
           {/* Panel — fixed to bottom, doesn't shift with keyboard */}
-          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col">
+          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col" role="document">
             {/* Drag handle visual */}
             <div className="flex justify-center pt-3 pb-1 shrink-0">
               <div className="w-12 h-1.5 rounded-full bg-muted" />
@@ -492,15 +493,15 @@ export function QuickLogFAB() {
               <div className="flex items-center justify-between mb-4">
                 {directMode && !showTypeGrid ? (
                   <div className="flex items-center gap-2.5">
-                    <span className={typeInfo.color}>{typeInfo.icon}</span>
-                    <span className={cn("text-xl font-bold", typeInfo.color)}>
+                    <span className={typeInfo.color} aria-hidden="true">{typeInfo.icon}</span>
+                    <h2 id="quick-log-title" className={cn("text-xl font-bold", typeInfo.color)}>
                       {isEditMode ? `Edit ${typeInfo.label}` : typeInfo.label}
-                    </span>
+                    </h2>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <Scale className="w-5 h-5 text-primary" />
-                    <span className="text-xl font-bold">Log Weight</span>
+                    <Scale className="w-5 h-5 text-primary" aria-hidden="true" />
+                    <h2 id="quick-log-title" className="text-xl font-bold">Log Weight</h2>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -515,6 +516,7 @@ export function QuickLogFAB() {
                   <button
                     onClick={() => { setIsOpen(false); resetForm(); }}
                     className="p-2.5 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted text-muted-foreground active:scale-95 transition-transform flex items-center justify-center"
+                    aria-label="Close dialog"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -523,7 +525,7 @@ export function QuickLogFAB() {
 
               {/* Type Selector Grid — hidden in edit mode */}
               {showTypeGrid && !isEditMode && (
-                <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="grid grid-cols-3 gap-2 mb-4" role="radiogroup" aria-label="Select weigh-in type">
                   {LOG_TYPE_OPTIONS.map((opt) => {
                     const isSelected = selectedType === opt.value;
                     const isCoreType = CORE_TYPES.includes(opt.value);
@@ -541,11 +543,14 @@ export function QuickLogFAB() {
                             ? `${opt.color} ${opt.selectedBg}`
                             : "border-border text-muted-foreground active:scale-95"
                         )}
+                        role="radio"
+                        aria-checked={isSelected}
+                        aria-label={`${opt.label}${isLogged ? ', already logged today' : ''}`}
                       >
                         {isLogged && !isSelected && (
-                          <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-green-500" />
+                          <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-green-500" aria-hidden="true" />
                         )}
-                        {opt.icon}
+                        <span aria-hidden="true">{opt.icon}</span>
                         <span className="leading-tight text-center text-[11px]">{opt.label}</span>
                       </button>
                     );
@@ -637,7 +642,7 @@ export function QuickLogFAB() {
                     value={weight}
                     onChange={(e) => { setWeight(e.target.value); setConfirmWildcard(false); }}
                     placeholder="Enter weight"
-                    className={cn("font-mono text-center text-3xl h-16 text-foreground transition-colors", inputError && "border-destructive ring-1 ring-destructive/50")}
+                    className={cn("font-mono text-center text-3xl h-16 text-foreground transition-colors", inputError && "border-destructive ring-1 ring-destructive/50 animate-shake")}
                   />
                   {/* Show change from original in edit mode, or diff from target in new log mode */}
                   {isEditMode && originalWeight !== null ? (
