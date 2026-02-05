@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Utensils, Plus, Pencil, Trash2, ChevronRight, HelpCircle, Apple, Wheat, Fish, AlertTriangle, Check, Undo2, History, ChevronDown, Search, X, Star, Loader2, Database, Minus, ScanBarcode, ShoppingBag } from "lucide-react";
 import { BarcodeScanner } from "@/components/barcode-scanner";
+import { useToast } from "@/hooks/use-toast";
 
 // Food log entry for tracking additions
 interface FoodLogEntry {
@@ -192,6 +193,7 @@ function FoodRow({ food, index, category, isJustAdded, onAdd }: {
 
 export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn, protocol, readOnly = false, embedded = false }: MacroTrackerProps) {
   const { getDailyTracking, updateDailyTracking, profile } = useStore();
+  const { toast } = useToast();
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
@@ -463,15 +465,27 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
       setOffSearched(true);
 
       const usdaPromise = fetch(`/api/foods/search?q=${q}`)
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error('USDA search failed');
+          return r.json();
+        })
         .then(data => setUsdaResults(data.foods || []))
-        .catch(() => setUsdaResults([]))
+        .catch(() => {
+          setUsdaResults([]);
+          toast({ title: "Search error", description: "USDA database unavailable", variant: "destructive" });
+        })
         .finally(() => setUsdaLoading(false));
 
       const offPromise = fetch(`/api/foods/off-search?q=${q}`)
-        .then(r => r.json())
+        .then(r => {
+          if (!r.ok) throw new Error('OFF search failed');
+          return r.json();
+        })
         .then(data => setOffResults(data.foods || []))
-        .catch(() => setOffResults([]))
+        .catch(() => {
+          setOffResults([]);
+          // Don't double-toast if USDA also failed - just silently fail OFF
+        })
         .finally(() => setOffLoading(false));
 
       await Promise.allSettled([usdaPromise, offPromise]);
@@ -598,6 +612,7 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
     setBarcodeLoading(true);
     try {
       const res = await fetch(`/api/foods/off-barcode?code=${encodeURIComponent(barcode)}`);
+      if (!res.ok) throw new Error('Barcode lookup failed');
       const data = await res.json();
       if (data.found && data.food) {
         setSelectedOFF(data.food);
@@ -608,10 +623,11 @@ export function MacroTracker({ macros, todaysFoods, foodLists, daysUntilWeighIn,
       } else {
         setOffResults([]);
         setOffSearched(true);
-        // Show a "not found" state — offSearched=true with empty results will show message
+        toast({ title: "Product not found", description: "This barcode isn't in our database. Try searching by name." });
       }
     } catch {
       setOffResults([]);
+      toast({ title: "Scan failed", description: "Could not look up barcode. Try again.", variant: "destructive" });
     } finally {
       setBarcodeLoading(false);
     }
