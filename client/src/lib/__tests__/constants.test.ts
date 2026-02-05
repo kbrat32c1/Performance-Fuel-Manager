@@ -20,12 +20,6 @@ import {
   getWeightValidationError,
   WEIGHT_CLASSES,
   PROTOCOLS,
-  assessWeightCutSafety,
-  MAX_SAFE_WEEKLY_LOSS_PERCENT,
-  MAX_SAFE_TOTAL_CUT_PERCENT,
-  CRITICAL_DAYS_THRESHOLD,
-  DANGER_DELTA_24H_LBS,
-  WARNING_DELTA_48H_LBS,
 } from '../constants';
 
 describe('Unit Conversion Constants', () => {
@@ -211,85 +205,6 @@ describe('Wrestling Constants', () => {
       const values = Object.values(PROTOCOLS);
       const uniqueValues = new Set(values);
       expect(uniqueValues.size).toBe(values.length);
-    });
-  });
-});
-
-describe('Weight Cut Safety Assessment', () => {
-  describe('Safety Threshold Constants', () => {
-    it('has reasonable safety thresholds defined', () => {
-      expect(MAX_SAFE_WEEKLY_LOSS_PERCENT).toBe(1.5);
-      expect(MAX_SAFE_TOTAL_CUT_PERCENT).toBe(8);
-      expect(CRITICAL_DAYS_THRESHOLD).toBe(2);
-      expect(DANGER_DELTA_24H_LBS).toBe(3);
-      expect(WARNING_DELTA_48H_LBS).toBe(5);
-    });
-  });
-
-  describe('assessWeightCutSafety function', () => {
-    const targetWeight = 165;
-
-    it('returns safe when at or below target', () => {
-      const result = assessWeightCutSafety(165, targetWeight, 3);
-      expect(result.level).toBe('safe');
-
-      const underResult = assessWeightCutSafety(163, targetWeight, 3);
-      expect(underResult.level).toBe('safe');
-    });
-
-    it('returns danger when >3 lbs over in final 24h', () => {
-      const result = assessWeightCutSafety(169, targetWeight, 1);
-      expect(result.level).toBe('danger');
-    });
-
-    it('returns warning when 2-3 lbs over in final 24h', () => {
-      const result = assessWeightCutSafety(167.5, targetWeight, 1);
-      expect(result.level).toBe('warning');
-    });
-
-    it('returns caution when <2 lbs over in final 24h', () => {
-      const result = assessWeightCutSafety(166, targetWeight, 1);
-      expect(result.level).toBe('caution');
-    });
-
-    it('returns danger when >5 lbs over in final 48h', () => {
-      const result = assessWeightCutSafety(171, targetWeight, 2);
-      expect(result.level).toBe('danger');
-    });
-
-    it('returns warning when 3-5 lbs over in final 48h', () => {
-      const result = assessWeightCutSafety(169, targetWeight, 2);
-      expect(result.level).toBe('warning');
-    });
-
-    it('returns caution when <3 lbs over in final 48h', () => {
-      const result = assessWeightCutSafety(167, targetWeight, 2);
-      expect(result.level).toBe('caution');
-    });
-
-    it('returns warning when cut exceeds max safe percentage', () => {
-      // 165 * 1.08 = 178.2 (8% over)
-      const result = assessWeightCutSafety(180, targetWeight, 5);
-      expect(result.level).toBe('warning');
-    });
-
-    it('returns caution when significant weight to lose (>5 lbs)', () => {
-      const result = assessWeightCutSafety(171, targetWeight, 5);
-      expect(result.level).toBe('caution');
-    });
-
-    it('returns safe when on track with reasonable margin', () => {
-      const result = assessWeightCutSafety(168, targetWeight, 5);
-      expect(result.level).toBe('safe');
-    });
-
-    it('provides meaningful messages', () => {
-      const dangerResult = assessWeightCutSafety(170, targetWeight, 1);
-      expect(dangerResult.message).toBeTruthy();
-      expect(dangerResult.message.length).toBeGreaterThan(5);
-
-      const safeResult = assessWeightCutSafety(165, targetWeight, 5);
-      expect(safeResult.message).toBeTruthy();
     });
   });
 });

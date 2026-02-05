@@ -1,6 +1,5 @@
 export { DailyStep } from './daily-step';
 export { FuelCard } from './fuel-card';
-export { TodayCard } from './today-card';
 export { HydrationTracker } from './hydration-tracker';
 export { MacroTracker } from './macro-tracker';
 export { SparTracker } from './spar-tracker';
