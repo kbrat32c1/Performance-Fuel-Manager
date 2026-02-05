@@ -264,7 +264,7 @@ export default function Onboarding() {
                       />
                     </div>
                     {showValidation && !isFirstNameValid && (
-                      <p className="text-[10px] text-destructive flex items-center gap-1">
+                      <p className="text-xs text-destructive flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" /> Required
                       </p>
                     )}
@@ -279,7 +279,7 @@ export default function Onboarding() {
                       onChange={(e) => updateName(firstName, e.target.value)}
                     />
                     {showValidation && !isLastNameValid && (
-                      <p className="text-[10px] text-destructive flex items-center gap-1">
+                      <p className="text-xs text-destructive flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" /> Required
                       </p>
                     )}
@@ -299,7 +299,7 @@ export default function Onboarding() {
                     />
                   </div>
                   {showValidation && !isWeightValid && (
-                    <p className="text-[10px] text-destructive flex items-center gap-1">
+                    <p className="text-xs text-destructive flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3" /> Required
                     </p>
                   )}

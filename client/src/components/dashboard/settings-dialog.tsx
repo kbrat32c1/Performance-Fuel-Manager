@@ -1085,31 +1085,110 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
           </div>
         )}
 
-        {/* Protocol Switch Confirmation */}
+        {/* Protocol Switch Confirmation — now does inline switching */}
         {showProtocolSwitchConfirm && (
-          <div className="absolute inset-0 bg-background/95 flex items-center justify-center p-4 rounded-xl z-50">
-            <div className="space-y-4 w-full max-w-sm">
+          <div className="absolute inset-0 bg-background/95 flex flex-col p-4 rounded-xl z-50 overflow-y-auto">
+            <div className="space-y-4 w-full max-w-sm mx-auto">
               <div className="space-y-2 text-center">
-                <h4 className="font-bold text-base">Switch Protocol?</h4>
+                <h4 className="font-bold text-base">Switch to {PROTOCOL_NAMES[showProtocolSwitchConfirm as keyof typeof PROTOCOL_NAMES]}?</h4>
                 <p className="text-xs text-muted-foreground">
-                  Switching to <span className="font-bold text-foreground">{PROTOCOL_NAMES[showProtocolSwitchConfirm as keyof typeof PROTOCOL_NAMES]}</span> will open the setup wizard to configure your new protocol.
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  Your current weight ({profile.currentWeight} lbs) and name will be kept.
+                  {showProtocolSwitchConfirm === '5'
+                    ? 'SPAR uses portion-based tracking with slices instead of strict macros.'
+                    : 'This will change your daily targets and recommendations.'
+                  }
                 </p>
               </div>
-              <div className="space-y-2">
+
+              {/* Inline SPAR setup when switching to SPAR */}
+              {showProtocolSwitchConfirm === '5' && (
+                <div className="space-y-3 py-2 border-t border-muted">
+                  {/* Goal */}
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Your Goal</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'lose', label: 'Lose', icon: <TrendingDown className="w-4 h-4" />, color: 'text-orange-500' },
+                        { value: 'maintain', label: 'Maintain', icon: <Target className="w-4 h-4" />, color: 'text-blue-500' },
+                        { value: 'gain', label: 'Gain', icon: <Flame className="w-4 h-4" />, color: 'text-green-500' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          onClick={() => handleChange({ sparGoal: opt.value })}
+                          className={cn(
+                            "flex flex-col items-center gap-1 py-2 rounded-lg border-2 transition-all",
+                            (pendingChanges.sparGoal || 'maintain') === opt.value
+                              ? "border-primary bg-primary/10"
+                              : "border-muted hover:border-muted-foreground/50"
+                          )}
+                        >
+                          <span className={opt.color}>{opt.icon}</span>
+                          <span className="text-xs font-bold">{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Training Frequency */}
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Training Sessions / Week</Label>
+                    <Select
+                      value={pendingChanges.trainingSessions || profile.trainingSessions || '3-4'}
+                      onValueChange={(v) => handleChange({ trainingSessions: v })}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1-2">1-2 sessions</SelectItem>
+                        <SelectItem value="3-4">3-4 sessions</SelectItem>
+                        <SelectItem value="5-6">5-6 sessions</SelectItem>
+                        <SelectItem value="7+">7+ sessions</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Workday Activity */}
+                  <div className="space-y-1">
+                    <Label className="text-[11px]">Daily Activity Level</Label>
+                    <Select
+                      value={pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting'}
+                      onValueChange={(v) => handleChange({ workdayActivity: v })}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mostly_sitting">Mostly sitting (desk job)</SelectItem>
+                        <SelectItem value="on_feet_some">On feet some of the day</SelectItem>
+                        <SelectItem value="on_feet_most">On feet most of the day</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2 pt-2">
                 <Button
                   onClick={() => {
-                    setOpen(false);
-                    sessionStorage.setItem('rerunWizard', 'true');
-                    sessionStorage.setItem('switchingProtocol', showProtocolSwitchConfirm);
+                    // Apply the protocol change inline
+                    const updates: any = { protocol: showProtocolSwitchConfirm };
+                    if (showProtocolSwitchConfirm === '5') {
+                      updates.sparV2 = true;
+                      updates.sparGoal = pendingChanges.sparGoal || 'maintain';
+                      updates.trainingSessions = pendingChanges.trainingSessions || profile.trainingSessions || '3-4';
+                      updates.workdayActivity = pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting';
+                    }
+                    handleChange(updates);
                     setShowProtocolSwitchConfirm(null);
-                    setTimeout(() => navigate('/onboarding'), 100);
+                    toast({
+                      title: 'Protocol updated',
+                      description: `Switched to ${PROTOCOL_NAMES[showProtocolSwitchConfirm as keyof typeof PROTOCOL_NAMES]}. Save to apply.`,
+                    });
                   }}
                   className="w-full h-10"
                 >
-                  Continue to Setup
+                  <Check className="w-4 h-4 mr-2" />
+                  Switch Protocol
                 </Button>
                 <Button
                   onClick={() => setShowProtocolSwitchConfirm(null)}

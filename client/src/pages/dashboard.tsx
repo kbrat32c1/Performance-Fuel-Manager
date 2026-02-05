@@ -460,6 +460,194 @@ function WeeklyComplianceCard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// QUICK WEIGH-IN CARD — Prominent weight entry with immediate feedback
+// ═══════════════════════════════════════════════════════════════════════════════
+function QuickWeighInCard({
+  todayLogs,
+  targetWeight,
+  isSparProtocol,
+  lastWeight,
+}: {
+  todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
+  targetWeight: number;
+  isSparProtocol: boolean;
+  lastWeight: number | null;
+}) {
+  const [weight, setWeight] = useState('');
+  const [selectedType, setSelectedType] = useState<string>('morning');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Smart default type selection based on time and what's already logged
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (!todayLogs.morning && hour < 12) {
+      setSelectedType('morning');
+    } else if (!todayLogs.prePractice && hour >= 12 && hour < 16) {
+      setSelectedType('pre-practice');
+    } else if (!todayLogs.postPractice && hour >= 14 && hour < 20) {
+      setSelectedType('post-practice');
+    } else if (!todayLogs.beforeBed && hour >= 18) {
+      setSelectedType('before-bed');
+    } else if (!todayLogs.morning) {
+      setSelectedType('morning');
+    } else if (!todayLogs.beforeBed) {
+      setSelectedType('before-bed');
+    }
+  }, [todayLogs]);
+
+  // Pre-fill weight from last known weight (for quick adjustment)
+  useEffect(() => {
+    if (lastWeight && !weight) {
+      setWeight(lastWeight.toFixed(1));
+    }
+  }, [lastWeight]);
+
+  const handleSubmit = () => {
+    const weightNum = parseFloat(weight);
+    if (isNaN(weightNum) || weightNum < 50 || weightNum > 500) {
+      toast({
+        title: "Invalid weight",
+        description: "Enter a weight between 50-500 lbs",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    // Dispatch to open the quick-log modal with pre-filled values
+    window.dispatchEvent(new CustomEvent('open-quick-log', {
+      detail: { type: selectedType, prefillWeight: weightNum }
+    }));
+
+    // Reset after a short delay
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setWeight('');
+    }, 500);
+  };
+
+  // Quick type buttons
+  const typeOptions = [
+    { type: 'morning', label: 'AM', icon: <Sun className="w-3.5 h-3.5" />, color: 'text-yellow-500', logged: !!todayLogs.morning },
+    { type: 'pre-practice', label: 'PRE', icon: <ArrowDownToLine className="w-3.5 h-3.5" />, color: 'text-blue-500', logged: !!todayLogs.prePractice },
+    { type: 'post-practice', label: 'POST', icon: <ArrowUpFromLine className="w-3.5 h-3.5" />, color: 'text-green-500', logged: !!todayLogs.postPractice },
+    { type: 'before-bed', label: 'BED', icon: <Moon className="w-3.5 h-3.5" />, color: 'text-purple-500', logged: !!todayLogs.beforeBed },
+  ];
+
+  // Calculate comparison to target
+  const weightNum = parseFloat(weight);
+  const diff = !isNaN(weightNum) ? weightNum - targetWeight : null;
+
+  return (
+    <Card className="mb-3 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
+      <CardContent className="p-3">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Scale className="w-4 h-4 text-primary" />
+            <span className="text-xs font-bold uppercase tracking-wide">Quick Weigh-In</span>
+          </div>
+          {!isSparProtocol && (
+            <span className="text-xs text-muted-foreground">
+              Target: <span className="font-mono font-bold text-foreground">{targetWeight}</span> lbs
+            </span>
+          )}
+        </div>
+
+        {/* Weight Input */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              type="number"
+              inputMode="decimal"
+              step="0.1"
+              placeholder={lastWeight ? lastWeight.toFixed(1) : "Enter weight"}
+              value={weight}
+              onChange={(e) => setWeight(e.target.value)}
+              className={cn(
+                "w-full h-12 pl-4 pr-12 rounded-lg border-2 font-mono text-xl font-bold",
+                "bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all",
+                diff !== null && diff <= 0 ? "border-green-500/50" :
+                diff !== null && diff <= 2 ? "border-yellow-500/50" :
+                diff !== null ? "border-red-400/50" : "border-muted"
+              )}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
+              lbs
+            </span>
+          </div>
+          <Button
+            onClick={handleSubmit}
+            disabled={!weight || isSubmitting}
+            className="h-12 px-4"
+          >
+            {isSubmitting ? (
+              <span className="animate-spin">⏳</span>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-1" />
+                Log
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Immediate feedback */}
+        {diff !== null && !isSparProtocol && (
+          <div className={cn(
+            "text-center py-2 px-3 rounded-lg mb-3 text-sm font-bold",
+            diff <= 0 ? "bg-green-500/10 text-green-500" :
+            diff <= 2 ? "bg-yellow-500/10 text-yellow-500" :
+            "bg-red-500/10 text-red-400"
+          )}>
+            {diff <= 0 ? (
+              <>✓ On target{diff < 0 ? ` — ${Math.abs(diff).toFixed(1)} lbs under!` : '!'}</>
+            ) : (
+              <>You're {diff.toFixed(1)} lbs over target</>
+            )}
+          </div>
+        )}
+
+        {/* Type selector */}
+        <div className="grid grid-cols-4 gap-1.5">
+          {typeOptions.map((opt) => (
+            <button
+              key={opt.type}
+              onClick={() => setSelectedType(opt.type)}
+              disabled={opt.logged}
+              className={cn(
+                "flex flex-col items-center gap-1 py-2 rounded-lg transition-all text-xs font-bold",
+                selectedType === opt.type && !opt.logged
+                  ? "bg-primary text-primary-foreground ring-2 ring-primary"
+                  : opt.logged
+                    ? "bg-muted/30 text-muted-foreground/50 cursor-not-allowed"
+                    : "bg-muted/50 hover:bg-muted text-muted-foreground"
+              )}
+            >
+              <span className={cn(
+                selectedType === opt.type && !opt.logged ? "text-primary-foreground" : opt.color,
+                opt.logged && "opacity-50"
+              )}>
+                {opt.icon}
+              </span>
+              <span>{opt.label}</span>
+              {opt.logged && (
+                <span className="text-[9px] text-green-500">✓</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // WEIGHT PROJECTION SLIDER — Shows future weight based on protocol
 // ═══════════════════════════════════════════════════════════════════════════════
 function WeightProjectionCard({ profile, logs }: {
@@ -1206,18 +1394,14 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Missing Log Prompt */}
-      {!isViewingHistorical && !todayLogs.morning && (
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: 'morning' } }))}
-          className="w-full mb-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2.5 flex items-center justify-between"
-        >
-          <div className="flex items-center gap-2">
-            <Scale className="w-4 h-4 text-yellow-500" />
-            <span className="text-yellow-500 text-xs font-bold">Log morning weight</span>
-          </div>
-          <span className="text-[10px] text-yellow-500/70">Tap to log →</span>
-        </button>
+      {/* Quick Weigh-In Card — prominent weight entry */}
+      {!isViewingHistorical && (
+        <QuickWeighInCard
+          todayLogs={todayLogs}
+          targetWeight={targetWeight}
+          isSparProtocol={isSparProtocol}
+          lastWeight={mostRecentLog?.weight ?? null}
+        />
       )}
 
       {/* First-time user welcome — zero logs ever */}

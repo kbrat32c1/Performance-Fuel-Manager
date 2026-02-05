@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Salad,
   Plus,
@@ -25,6 +26,7 @@ import {
   Target,
   Egg,
   Lock,
+  Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -811,8 +813,13 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
             const done = !blocked && consumed >= target;
             const circumference = 2 * Math.PI * 18; // radius = 18
             const strokeDashoffset = circumference - (progress / 100) * circumference;
-            return (
-              <div key={cat} className={cn("flex flex-col items-center gap-0.5", blocked && "opacity-40")}>
+            // Build tooltip message for blocked categories
+            const blockedReason = blocked
+              ? restrictions?.warningDetail || `${config.label} is restricted today based on your protocol.`
+              : null;
+
+            const circleContent = (
+              <div className={cn("flex flex-col items-center gap-0.5", blocked && "opacity-40")}>
                 <div className="relative w-11 h-11">
                   <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
                     {/* Background circle */}
@@ -856,13 +863,33 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                     )}
                   </div>
                 </div>
-                <span className={cn(
-                  "text-[8px] font-bold uppercase",
-                  blocked ? "text-muted-foreground/50" : done ? "text-green-500" : config.color
-                )}>
-                  {config.shortLabel}
-                </span>
+                <div className="flex items-center gap-0.5">
+                  <span className={cn(
+                    "text-[8px] font-bold uppercase",
+                    blocked ? "text-muted-foreground/50" : done ? "text-green-500" : config.color
+                  )}>
+                    {config.shortLabel}
+                  </span>
+                  {blocked && <Info className="w-2.5 h-2.5 text-muted-foreground/50" />}
+                </div>
               </div>
+            );
+
+            // Wrap blocked categories in tooltip
+            return blocked ? (
+              <TooltipProvider key={cat} delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {circleContent}
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[200px] text-center bg-card border border-muted text-foreground">
+                    <p className="font-bold text-orange-500 mb-1">{config.label} Restricted</p>
+                    <p className="text-xs text-muted-foreground">{blockedReason}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <div key={cat}>{circleContent}</div>
             );
           })}
         </div>
@@ -1004,9 +1031,12 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
               const isActive = activeCategory === cat;
               const blocked = isCategoryBlocked(cat);
               const done = categoryDone[cat];
-              return (
+              const blockedReason = blocked
+                ? restrictions?.warningDetail || `${config.label} is restricted today based on your protocol.`
+                : null;
+
+              const buttonContent = (
                 <button
-                  key={cat}
                   onClick={() => { if (!blocked) { setActiveCategory(cat); } }}
                   className={cn(
                     "flex-1 py-2 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1",
@@ -1022,9 +1052,25 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                   )}
                 >
                   {done && !blocked && <Check className="w-3 h-3" />}
+                  {blocked && <Lock className="w-3 h-3" />}
                   {config.shortLabel}
-                  {blocked && <span className="text-[8px] no-underline">🚫</span>}
                 </button>
+              );
+
+              return blocked ? (
+                <TooltipProvider key={cat} delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {buttonContent}
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[200px] bg-card border border-muted text-foreground">
+                      <p className="font-bold text-orange-500">{restrictions?.warning || `No ${config.label}`}</p>
+                      <p className="text-xs text-muted-foreground">{blockedReason}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <div key={cat}>{buttonContent}</div>
               );
             })}
           </div>
