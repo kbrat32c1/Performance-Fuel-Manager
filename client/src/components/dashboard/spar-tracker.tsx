@@ -24,6 +24,7 @@ import {
   TrendingDown,
   Target,
   Egg,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -369,6 +370,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
     totalProtein: number;
     totalCarb: number;
     totalVeg: number;
+    totalFruit: number;
+    totalFat: number;
   }
 
   const customMealsKey = 'pwm-spar-custom-meals';
@@ -519,6 +522,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
       updates.carbsConsumed = tracking.carbsConsumed + (meal.totalCarb * 30);
     }
     if (meal.totalVeg > 0) updates.vegSlices = tracking.vegSlices + meal.totalVeg;
+    if ((meal.totalFruit || 0) > 0) updates.fruitSlices = (tracking.fruitSlices || 0) + meal.totalFruit;
+    if ((meal.totalFat || 0) > 0) updates.fatSlices = (tracking.fatSlices || 0) + meal.totalFat;
 
     updateDailyTracking(dateKey, updates);
     setLastAdded({ foodName: meal.name, category: 'protein' });
@@ -647,13 +652,20 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   // Custom food handlers
   const handleAddCustomFood = () => {
     if (!customName) return;
+    const categoryIcons: Record<SliceCategory, string> = {
+      protein: '🥩',
+      carb: '🍚',
+      veg: '🥗',
+      fruit: '🍎',
+      fat: '🥜',
+    };
     const newFood = {
       id: `spar-custom-${Date.now()}`,
       name: customName,
       serving: customServing || '1 serving',
       calories: parseInt(customCalories) || 0,
       category: customCategory,
-      icon: customCategory === 'protein' ? '🥩' : customCategory === 'carb' ? '🍚' : '🥗',
+      icon: categoryIcons[customCategory],
     };
     setCustomFoods(prev => [...prev, newFood]);
     setCustomName('');
@@ -671,6 +683,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
       totalProtein: mealItems.filter(i => i.category === 'protein').reduce((s, i) => s + i.slices, 0),
       totalCarb: mealItems.filter(i => i.category === 'carb').reduce((s, i) => s + i.slices, 0),
       totalVeg: mealItems.filter(i => i.category === 'veg').reduce((s, i) => s + i.slices, 0),
+      totalFruit: mealItems.filter(i => i.category === 'fruit').reduce((s, i) => s + i.slices, 0),
+      totalFat: mealItems.filter(i => i.category === 'fat').reduce((s, i) => s + i.slices, 0),
     };
     setCustomMeals(prev => [...prev, newMeal]);
     setMealName('');
@@ -778,17 +792,83 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
         </div>
       </div>
 
-      {/* Protocol restriction warning */}
-      {restrictions?.warning && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-1.5">
-          <p className="text-[10px] font-bold text-red-400">
-            {restrictions.warning}
-          </p>
-          {restrictions.warningDetail && (
-            <p className="text-[9px] text-red-400/80 mt-0.5">{restrictions.warningDetail}</p>
-          )}
+      {/* ── Macro Progress Rings ── */}
+      {!readOnly && (
+        <div className={cn("flex items-center justify-center gap-3 py-2", isV2 ? "" : "")}>
+          {([
+            { cat: 'protein' as SliceCategory, consumed: tracking.proteinSlices, target: targets.protein, color: 'stroke-orange-500', bg: 'stroke-orange-500/20' },
+            { cat: 'carb' as SliceCategory, consumed: tracking.carbSlices, target: targets.carb, color: 'stroke-amber-500', bg: 'stroke-amber-500/20' },
+            { cat: 'veg' as SliceCategory, consumed: tracking.vegSlices, target: targets.veg, color: 'stroke-green-500', bg: 'stroke-green-500/20' },
+            ...(isV2 ? [
+              { cat: 'fruit' as SliceCategory, consumed: tracking.fruitSlices || 0, target: targets.fruit, color: 'stroke-pink-500', bg: 'stroke-pink-500/20' },
+              { cat: 'fat' as SliceCategory, consumed: tracking.fatSlices || 0, target: targets.fat, color: 'stroke-yellow-600', bg: 'stroke-yellow-600/20' },
+            ] : []),
+          ]).filter(({ target }) => target > 0).map(({ cat, consumed, target, color, bg }) => {
+            const config = CATEGORY_CONFIG[cat];
+            const blocked = isCategoryBlocked(cat);
+            const progress = blocked ? 0 : Math.min(100, (consumed / target) * 100);
+            const done = !blocked && consumed >= target;
+            const circumference = 2 * Math.PI * 18; // radius = 18
+            const strokeDashoffset = circumference - (progress / 100) * circumference;
+            return (
+              <div key={cat} className={cn("flex flex-col items-center gap-0.5", blocked && "opacity-40")}>
+                <div className="relative w-11 h-11">
+                  <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
+                    {/* Background circle */}
+                    <circle
+                      cx="22"
+                      cy="22"
+                      r="18"
+                      fill="none"
+                      strokeWidth="4"
+                      className={blocked ? "stroke-muted-foreground/20" : bg}
+                    />
+                    {/* Progress circle - hidden when blocked */}
+                    {!blocked && (
+                      <circle
+                        cx="22"
+                        cy="22"
+                        r="18"
+                        fill="none"
+                        strokeWidth="4"
+                        strokeLinecap="round"
+                        className={done ? "stroke-green-500" : color}
+                        style={{
+                          strokeDasharray: circumference,
+                          strokeDashoffset: strokeDashoffset,
+                          transition: 'stroke-dashoffset 0.3s ease-out',
+                        }}
+                      />
+                    )}
+                  </svg>
+                  {/* Center content - lock icon when blocked, otherwise count */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {blocked ? (
+                      <Lock className="w-4 h-4 text-muted-foreground/50" />
+                    ) : (
+                      <span className={cn(
+                        "text-[10px] font-bold font-mono",
+                        done ? "text-green-500" : "text-foreground"
+                      )}>
+                        {consumed}/{target}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className={cn(
+                  "text-[8px] font-bold uppercase",
+                  blocked ? "text-muted-foreground/50" : done ? "text-green-500" : config.color
+                )}>
+                  {config.shortLabel}
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
+
+      {/* Protocol restriction warning - removed to avoid duplication with FocusCard */}
+      {/* Restriction messaging is now consolidated in the FocusCard "coach" section above */}
 
       {/* Water toast notification */}
       {waterToast && (
@@ -843,13 +923,13 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                     {consumed}<span className="text-muted-foreground font-normal">/{target}</span>
                   </span>
                 </div>
-                {/* +/- buttons */}
-                <div className="flex items-center gap-1">
+                {/* +/- buttons - min 44px touch targets for mobile */}
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleQuickAdjust(cat, -1); }}
                     disabled={consumed === 0}
                     className={cn(
-                      "w-7 h-7 flex items-center justify-center rounded-md text-sm font-bold transition-all active:scale-90",
+                      "w-10 h-10 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-base font-bold transition-all active:scale-95",
                       consumed === 0
                         ? "bg-muted/30 text-muted-foreground/30 cursor-not-allowed"
                         : "bg-muted/50 text-foreground hover:bg-muted active:bg-muted/80"
@@ -860,7 +940,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                   <button
                     onClick={(e) => { e.stopPropagation(); handleQuickAdjust(cat, 1); }}
                     className={cn(
-                      "w-7 h-7 flex items-center justify-center rounded-md text-sm font-bold transition-all active:scale-90",
+                      "w-10 h-10 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-base font-bold transition-all active:scale-95",
                       done
                         ? "bg-green-500/20 text-green-600 hover:bg-green-500/30"
                         : `${config.bgColor} ${config.color} hover:bg-opacity-20 active:bg-opacity-30`
@@ -1020,6 +1100,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                         {meal.totalProtein > 0 && <span className="text-orange-500 font-mono font-bold">{meal.totalProtein}P</span>}
                         {meal.totalCarb > 0 && <span className="text-amber-500 font-mono font-bold">{meal.totalCarb}C</span>}
                         {meal.totalVeg > 0 && <span className="text-green-500 font-mono font-bold">{meal.totalVeg}V</span>}
+                        {(meal.totalFruit || 0) > 0 && <span className="text-pink-500 font-mono font-bold">{meal.totalFruit}Fr</span>}
+                        {(meal.totalFat || 0) > 0 && <span className="text-yellow-600 font-mono font-bold">{meal.totalFat}Ft</span>}
                       </div>
                     </button>
                     <button
@@ -1076,7 +1158,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                 />
               </div>
               <div className="flex gap-1.5">
-                {(['protein', 'carb', 'veg'] as SliceCategory[]).map(cat => (
+                {(['protein', 'carb', 'veg', 'fruit', 'fat'] as SliceCategory[]).map(cat => (
                   <button
                     key={cat}
                     onClick={() => setCustomCategory(cat)}
@@ -1148,6 +1230,8 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
                   <option value="protein">Pro</option>
                   <option value="carb">Carb</option>
                   <option value="veg">Veg</option>
+                  <option value="fruit">Fruit</option>
+                  <option value="fat">Fat</option>
                 </select>
                 <Input
                   type="number"
@@ -1287,20 +1371,59 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
 
           {/* Enhanced Calorie/Stats Summary */}
           <div className="space-y-2 pt-2 border-t border-muted/30">
-            {/* Remaining targets guidance */}
+            {/* Enhanced remaining targets guidance with food suggestions */}
             {totalSlices > 0 && !allDone && (
-              <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/5 border border-primary/20">
-                <Target className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span className="text-[10px] text-muted-foreground">
-                  Still need:{' '}
-                  {[
-                    tracking.proteinSlices < targets.protein && `${targets.protein - tracking.proteinSlices}P`,
-                    tracking.carbSlices < targets.carb && `${targets.carb - tracking.carbSlices}C`,
-                    tracking.vegSlices < targets.veg && `${targets.veg - tracking.vegSlices}V`,
-                    isV2 && (tracking.fruitSlices || 0) < targets.fruit && `${targets.fruit - (tracking.fruitSlices || 0)}Fr`,
-                    isV2 && (tracking.fatSlices || 0) < targets.fat && `${targets.fat - (tracking.fatSlices || 0)}Ft`,
-                  ].filter(Boolean).join(' / ')}
-                </span>
+              <div className="rounded-lg bg-primary/5 border border-primary/20 overflow-hidden">
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                  <Target className="w-4 h-4 text-primary shrink-0" />
+                  <div className="flex-1">
+                    <span className="text-[11px] font-bold text-foreground">Still need: </span>
+                    <span className="text-[11px] font-mono font-bold">
+                      {[
+                        tracking.proteinSlices < targets.protein && (
+                          <span key="p" className="text-orange-500">{targets.protein - tracking.proteinSlices}P</span>
+                        ),
+                        tracking.carbSlices < targets.carb && (
+                          <span key="c" className="text-amber-500">{targets.carb - tracking.carbSlices}C</span>
+                        ),
+                        tracking.vegSlices < targets.veg && (
+                          <span key="v" className="text-green-500">{targets.veg - tracking.vegSlices}V</span>
+                        ),
+                        isV2 && (tracking.fruitSlices || 0) < targets.fruit && (
+                          <span key="fr" className="text-pink-500">{targets.fruit - (tracking.fruitSlices || 0)}Fr</span>
+                        ),
+                        isV2 && (tracking.fatSlices || 0) < targets.fat && (
+                          <span key="ft" className="text-yellow-600">{targets.fat - (tracking.fatSlices || 0)}Ft</span>
+                        ),
+                      ].filter(Boolean).reduce((acc: React.ReactNode[], item, i, arr) => {
+                        if (i === 0) return [item];
+                        return [...acc, <span key={`sep-${i}`} className="text-muted-foreground mx-0.5">/</span>, item];
+                      }, [])}
+                    </span>
+                  </div>
+                </div>
+                {/* Quick suggestion based on what's most needed */}
+                {(() => {
+                  const needs = [
+                    { cat: 'protein', need: targets.protein - tracking.proteinSlices, emoji: '🥩', suggestion: '1 palm of chicken or fish' },
+                    { cat: 'carb', need: targets.carb - tracking.carbSlices, emoji: '🍚', suggestion: '1 fist of rice or potato' },
+                    { cat: 'veg', need: targets.veg - tracking.vegSlices, emoji: '🥗', suggestion: '1 fist of veggies' },
+                    ...(isV2 ? [
+                      { cat: 'fruit', need: targets.fruit - (tracking.fruitSlices || 0), emoji: '🍎', suggestion: '1 apple or banana' },
+                      { cat: 'fat', need: targets.fat - (tracking.fatSlices || 0), emoji: '🥜', suggestion: '1 thumb of nuts or oil' },
+                    ] : []),
+                  ].filter(n => n.need > 0).sort((a, b) => b.need - a.need);
+                  const top = needs[0];
+                  if (!top) return null;
+                  return (
+                    <div className="px-2.5 py-1.5 bg-muted/30 border-t border-primary/10 flex items-center gap-2">
+                      <span className="text-sm">{top.emoji}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        <span className="font-medium text-foreground/80">Try:</span> {top.suggestion}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

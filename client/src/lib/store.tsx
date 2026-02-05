@@ -291,6 +291,27 @@ interface StoreContextType {
     lastSaturdayWeight: number | null;
     madeWeightLastWeek: boolean;
   };
+  getAdaptiveAdjustment: () => {
+    isPlateaued: boolean;
+    plateauDays: number;
+    suggestedAdjustment: number; // negative = reduce calories, positive = increase
+    reason: string;
+    recentWeights: Array<{ date: string; weight: number }>;
+    variance: number;
+    expectedLoss: number;
+    actualLoss: number;
+  };
+  getWeeklyCompliance: () => {
+    protein: { percentage: number; avgConsumed: number; avgTarget: number };
+    carb: { percentage: number; avgConsumed: number; avgTarget: number };
+    veg: { percentage: number; avgConsumed: number; avgTarget: number };
+    fruit: { percentage: number; avgConsumed: number; avgTarget: number };
+    fat: { percentage: number; avgConsumed: number; avgTarget: number };
+    daysTracked: number;
+    bestCategory: string;
+    worstCategory: string;
+    insight: string;
+  };
 }
 
 /**
@@ -619,6 +640,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Save profile to Supabase
   const updateProfile = async (updates: Partial<AthleteProfile>) => {
+    // Check if this is ONLY a simulatedDate change (date navigation, not a real settings change)
+    const isOnlySimulatedDateChange = Object.keys(updates).length === 1 && 'simulatedDate' in updates;
+
     // Ensure dates are Date objects
     const normalizedUpdates = { ...updates };
     if (normalizedUpdates.weighInDate && !(normalizedUpdates.weighInDate instanceof Date)) {
@@ -699,7 +723,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (!upsertError) {
           console.log('Profile saved successfully with v2 fields');
-          toast({ title: 'Settings saved', description: 'Your changes have been saved.', duration: 2000 });
+          // Only show toast for real settings changes, not date navigation
+          if (!isOnlySimulatedDateChange) {
+            toast({ title: 'Settings saved', description: 'Your changes have been saved.', duration: 2000 });
+          }
         }
 
         // If error, show it but DON'T fall back to saving without v2 fields
@@ -2230,7 +2257,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return plan.map(d => {
       if (!d.isToday) return d;
       if (effectivePctOver >= 10) {
-        return { ...d, carbs: { min: 0, max: 0 }, protein: { min: 0, max: 0 }, weightWarning: `OVERWEIGHT: ${overTarget.toFixed(1)} lbs over with ${daysUntil} day${daysUntil > 1 ? 's' : ''} left. Do not eat.` };
+        return { ...d, carbs: { min: 0, max: 0 }, protein: { min: 0, max: 0 }, weightWarning: `${overTarget.toFixed(1)} lbs over target with ${daysUntil} day${daysUntil > 1 ? 's' : ''} left. Do not eat.` };
       }
       if (effectivePctOver >= 7) {
         return { ...d, carbs: { min: 0, max: Math.round(d.carbs.max * 0.15) }, protein: { min: 0, max: Math.round(d.protein.max * 0.2) }, weightWarning: `${overTarget.toFixed(1)} lbs over — eat only if you feel faint.` };
@@ -2876,11 +2903,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (projectedToMakeWeight && !projectionWarning) {
           return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target (loading)` };
         }
-        return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target`, projectionWarning, recommendation };
+        return { status: 'borderline', label: 'CLOSE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target`, projectionWarning, recommendation };
       }
       // Significantly over - upgrade to borderline if projection shows making weight
       if (projectedToMakeWeight && !projectionWarning) {
-        return { status: 'borderline', label: 'PROJECTED OK', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target (loading)` };
+        return { status: 'borderline', label: 'CLOSE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target (loading)` };
       }
       return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target`, projectionWarning, recommendation };
     }
@@ -2898,11 +2925,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (projectedToMakeWeight && !projectionWarning) {
         return { status: 'on-track', label: 'ON TRACK', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage };
       }
-      return { status: 'borderline', label: 'BORDERLINE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, projectionWarning, recommendation };
+      return { status: 'borderline', label: 'CLOSE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage, projectionWarning, recommendation };
     }
     // Significantly over — upgrade to BORDERLINE if projection shows making weight
     if (projectedToMakeWeight && !projectionWarning) {
-      return { status: 'borderline', label: 'PROJECTED OK', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage };
+      return { status: 'borderline', label: 'CLOSE', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage };
     }
     return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', contextMessage, projectionWarning, recommendation };
   };
@@ -3524,6 +3551,243 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // ADAPTIVE MACRO ADJUSTMENT — detects plateaus and suggests calorie changes
+  // ═══════════════════════════════════════════════════════════════════════════════
+  const getAdaptiveAdjustment = () => {
+    const now = profile.simulatedDate || new Date();
+
+    // Get last 5 morning weights
+    const morningLogs = logs
+      .filter(l => l.type === 'morning')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+
+    const recentWeights = morningLogs.map(l => ({
+      date: format(new Date(l.date), 'yyyy-MM-dd'),
+      weight: l.weight,
+    }));
+
+    // Need at least 3 days of data
+    if (morningLogs.length < 3) {
+      return {
+        isPlateaued: false,
+        plateauDays: 0,
+        suggestedAdjustment: 0,
+        reason: 'Need at least 3 days of weight data',
+        recentWeights,
+        variance: 0,
+        expectedLoss: 0,
+        actualLoss: 0,
+      };
+    }
+
+    // Calculate variance (standard deviation)
+    const weights = morningLogs.map(l => l.weight);
+    const mean = weights.reduce((a, b) => a + b, 0) / weights.length;
+    const squaredDiffs = weights.map(w => Math.pow(w - mean, 2));
+    const variance = Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / weights.length);
+
+    // Calculate actual weight change over the period
+    const oldestWeight = morningLogs[morningLogs.length - 1].weight;
+    const newestWeight = morningLogs[0].weight;
+    const daysBetween = Math.max(1, differenceInDays(
+      new Date(morningLogs[0].date),
+      new Date(morningLogs[morningLogs.length - 1].date)
+    ));
+    const actualLoss = oldestWeight - newestWeight;
+    const actualDailyLoss = actualLoss / daysBetween;
+
+    // Expected loss based on calorie deficit (3500 cal = 1 lb)
+    // Get current calorie adjustment from profile
+    const sliceTargets = getSliceTargets();
+    const calorieAdjustment = sliceTargets.calorieAdjustment || 0;
+    const expectedDailyLoss = Math.abs(calorieAdjustment) / 3500; // lbs per day
+    const expectedLoss = expectedDailyLoss * daysBetween;
+
+    // Plateau detection: variance < 0.3 lbs AND actual loss much less than expected
+    const isPlateaued = variance < 0.35 && daysBetween >= 3 && (
+      (calorieAdjustment < 0 && actualLoss < expectedLoss * 0.3) || // Cutting but not losing
+      (calorieAdjustment > 0 && actualLoss > -expectedLoss * 0.3)   // Building but gaining too fast
+    );
+
+    // Count plateau days (consecutive days with minimal change)
+    let plateauDays = 0;
+    if (isPlateaued) {
+      for (let i = 0; i < weights.length - 1; i++) {
+        if (Math.abs(weights[i] - weights[i + 1]) < 0.3) {
+          plateauDays++;
+        } else {
+          break;
+        }
+      }
+      plateauDays = Math.max(plateauDays, daysBetween);
+    }
+
+    // Calculate suggested adjustment
+    let suggestedAdjustment = 0;
+    let reason = '';
+
+    if (isPlateaued) {
+      if (calorieAdjustment < 0) {
+        // On a cut, weight stalled → reduce by 100 cal
+        suggestedAdjustment = -100;
+        reason = `Weight stalled at ~${mean.toFixed(1)} lbs for ${plateauDays}+ days. Consider reducing calories by 100.`;
+      } else if (calorieAdjustment > 0) {
+        // On a bulk, gaining too fast → reduce surplus
+        suggestedAdjustment = -50;
+        reason = `Gaining faster than expected. Consider reducing surplus by 50 cal to stay lean.`;
+      } else {
+        // Maintenance, but weight drifting
+        if (actualLoss < -0.5) {
+          suggestedAdjustment = 100;
+          reason = `Unintentional weight gain detected. Consider reducing by 100 cal.`;
+        } else if (actualLoss > 0.5) {
+          suggestedAdjustment = 100;
+          reason = `Unintentional weight loss detected. Consider adding 100 cal.`;
+        }
+      }
+    } else if (calorieAdjustment < 0 && actualDailyLoss > expectedDailyLoss * 1.5) {
+      // Losing faster than expected — might want to slow down to preserve muscle
+      suggestedAdjustment = 50;
+      reason = `Losing faster than expected (${(actualDailyLoss * 7).toFixed(1)} lbs/week). Consider adding 50 cal to preserve muscle.`;
+    }
+
+    return {
+      isPlateaued,
+      plateauDays,
+      suggestedAdjustment,
+      reason,
+      recentWeights,
+      variance: Math.round(variance * 100) / 100,
+      expectedLoss: Math.round(expectedLoss * 100) / 100,
+      actualLoss: Math.round(actualLoss * 100) / 100,
+    };
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════════
+  // WEEKLY COMPLIANCE REPORT — tracks how well user hits macro targets
+  // ═══════════════════════════════════════════════════════════════════════════════
+  const getWeeklyCompliance = () => {
+    const now = profile.simulatedDate || new Date();
+    const targets = getSliceTargets();
+
+    // Get last 7 days of daily tracking
+    const weekData: Array<{
+      date: string;
+      protein: { consumed: number; target: number };
+      carb: { consumed: number; target: number };
+      veg: { consumed: number; target: number };
+      fruit: { consumed: number; target: number };
+      fat: { consumed: number; target: number };
+    }> = [];
+
+    for (let i = 0; i < 7; i++) {
+      const date = subDays(now, i);
+      const dateKey = format(date, 'yyyy-MM-dd');
+      const tracking = getDailyTracking(dateKey);
+
+      // Only count days where user logged something
+      const hasData = tracking.proteinSlices > 0 || tracking.carbSlices > 0 ||
+                      tracking.vegSlices > 0 || (tracking.fruitSlices || 0) > 0 ||
+                      (tracking.fatSlices || 0) > 0;
+
+      if (hasData) {
+        weekData.push({
+          date: dateKey,
+          protein: { consumed: tracking.proteinSlices, target: targets.protein },
+          carb: { consumed: tracking.carbSlices, target: targets.carb },
+          veg: { consumed: tracking.vegSlices, target: targets.veg },
+          fruit: { consumed: tracking.fruitSlices || 0, target: targets.fruit },
+          fat: { consumed: tracking.fatSlices || 0, target: targets.fat },
+        });
+      }
+    }
+
+    const daysTracked = weekData.length;
+
+    // Calculate compliance for each category
+    const calcCompliance = (category: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat') => {
+      if (daysTracked === 0) return { percentage: 0, avgConsumed: 0, avgTarget: 0 };
+
+      const totalConsumed = weekData.reduce((sum, d) => sum + d[category].consumed, 0);
+      const totalTarget = weekData.reduce((sum, d) => sum + d[category].target, 0);
+      const avgConsumed = totalConsumed / daysTracked;
+      const avgTarget = totalTarget / daysTracked;
+
+      // Percentage: how close to target (cap at 100% if over)
+      const percentage = totalTarget > 0
+        ? Math.min(100, Math.round((totalConsumed / totalTarget) * 100))
+        : 0;
+
+      return {
+        percentage,
+        avgConsumed: Math.round(avgConsumed * 10) / 10,
+        avgTarget: Math.round(avgTarget * 10) / 10,
+      };
+    };
+
+    const compliance = {
+      protein: calcCompliance('protein'),
+      carb: calcCompliance('carb'),
+      veg: calcCompliance('veg'),
+      fruit: calcCompliance('fruit'),
+      fat: calcCompliance('fat'),
+    };
+
+    // Find best and worst categories
+    const categories = ['protein', 'carb', 'veg', 'fruit', 'fat'] as const;
+    const validCategories = categories.filter(c => compliance[c].avgTarget > 0);
+
+    let bestCategory = 'protein';
+    let worstCategory = 'protein';
+    let bestPct = 0;
+    let worstPct = 100;
+
+    for (const cat of validCategories) {
+      if (compliance[cat].percentage > bestPct) {
+        bestPct = compliance[cat].percentage;
+        bestCategory = cat;
+      }
+      if (compliance[cat].percentage < worstPct) {
+        worstPct = compliance[cat].percentage;
+        worstCategory = cat;
+      }
+    }
+
+    // Generate insight
+    let insight = '';
+    if (daysTracked === 0) {
+      insight = 'Start tracking to see your weekly compliance stats!';
+    } else if (daysTracked < 3) {
+      insight = `Only ${daysTracked} day${daysTracked === 1 ? '' : 's'} tracked. Log more for accurate insights.`;
+    } else if (worstPct < 70) {
+      const catLabel = worstCategory === 'protein' ? 'protein' :
+                       worstCategory === 'carb' ? 'carbs' :
+                       worstCategory === 'veg' ? 'veggies' :
+                       worstCategory === 'fruit' ? 'fruit' : 'fats';
+      insight = `You're under-hitting ${catLabel} (${worstPct}%). Try adding 1 extra serving at dinner.`;
+    } else if (bestPct > 100) {
+      const catLabel = bestCategory === 'protein' ? 'protein' :
+                       bestCategory === 'carb' ? 'carbs' :
+                       bestCategory === 'veg' ? 'veggies' :
+                       bestCategory === 'fruit' ? 'fruit' : 'fats';
+      insight = `Great ${catLabel} intake! Make sure other macros are balanced too.`;
+    } else if (worstPct >= 85) {
+      insight = 'Excellent compliance across all categories! Keep it up.';
+    } else {
+      insight = `Focus on ${worstCategory} — currently at ${worstPct}% of target.`;
+    }
+
+    return {
+      ...compliance,
+      daysTracked,
+      bestCategory,
+      worstCategory,
+      insight,
+    };
+  };
+
   return (
     <StoreContext.Provider value={{
       profile,
@@ -3566,7 +3830,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getWeekDescentData,
       getFoodLists,
       getTodaysFoods,
-      getHistoryInsights
+      getHistoryInsights,
+      getAdaptiveAdjustment,
+      getWeeklyCompliance
     }}>
       {children}
     </StoreContext.Provider>

@@ -302,11 +302,11 @@ export function FuelCard({
             )} />
           </div>
 
-          {/* Weight warning — overweight on cut days (both modes) */}
+          {/* Weight warning — over target on cut days (both modes) */}
           {macros.weightWarning && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-2.5 py-1.5 mb-2">
               <p className="text-[10px] text-red-400 font-medium">
-                <span className="font-bold">⚠ OVERWEIGHT:</span> {macros.weightWarning}
+                <span className="font-bold">⚠️ OVER TARGET:</span> {macros.weightWarning}
               </p>
             </div>
           )}

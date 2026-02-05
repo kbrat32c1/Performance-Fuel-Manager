@@ -239,6 +239,227 @@ function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['prof
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ADAPTIVE ADJUSTMENT BANNER — Suggests calorie changes when weight plateaus
+// ═══════════════════════════════════════════════════════════════════════════════
+function AdaptiveAdjustmentBanner() {
+  const { getAdaptiveAdjustment } = useStore();
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('adaptive-adjustment-dismissed');
+      return saved === 'true';
+    }
+    return false;
+  });
+
+  const adjustment = getAdaptiveAdjustment();
+
+  // Don't show if no suggestion, no plateau, or dismissed
+  if (!adjustment.suggestedAdjustment || !adjustment.reason || dismissed) {
+    return null;
+  }
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    sessionStorage.setItem('adaptive-adjustment-dismissed', 'true');
+  };
+
+  return (
+    <Card className={cn(
+      "mb-2 border overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300",
+      adjustment.isPlateaued
+        ? "bg-amber-500/5 border-amber-500/30"
+        : "bg-blue-500/5 border-blue-500/30"
+    )}>
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start gap-2 flex-1">
+            <AlertTriangle className={cn(
+              "w-4 h-4 mt-0.5 shrink-0",
+              adjustment.isPlateaued ? "text-amber-500" : "text-blue-500"
+            )} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={cn(
+                  "text-xs font-bold uppercase",
+                  adjustment.isPlateaued ? "text-amber-500" : "text-blue-500"
+                )}>
+                  {adjustment.isPlateaued ? 'Plateau Detected' : 'Adjustment Suggestion'}
+                </span>
+                {adjustment.plateauDays > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {adjustment.plateauDays}+ days
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {adjustment.reason}
+              </p>
+              {/* Weight data mini-chart */}
+              {adjustment.recentWeights.length > 0 && (
+                <div className="flex items-center gap-1 mt-2">
+                  <span className="text-[9px] text-muted-foreground">Recent:</span>
+                  {adjustment.recentWeights.slice(0, 5).reverse().map((w, i) => (
+                    <span key={i} className="text-[10px] font-mono text-foreground/70">
+                      {w.weight.toFixed(1)}
+                      {i < Math.min(4, adjustment.recentWeights.length - 1) && (
+                        <span className="text-muted-foreground mx-0.5">→</span>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleDismiss}
+            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WEEKLY COMPLIANCE CARD — Shows macro tracking performance for the week
+// ═══════════════════════════════════════════════════════════════════════════════
+function WeeklyComplianceCard() {
+  const { getWeeklyCompliance, getSliceTargets } = useStore();
+  const [expanded, setExpanded] = useState(false);
+
+  const compliance = getWeeklyCompliance();
+  const targets = getSliceTargets();
+  const isV2 = targets.isV2;
+
+  // Don't show if no data
+  if (compliance.daysTracked === 0) {
+    return null;
+  }
+
+  // Calculate overall compliance
+  const categories = isV2
+    ? ['protein', 'carb', 'veg', 'fruit', 'fat'] as const
+    : ['protein', 'carb', 'veg'] as const;
+
+  const validCategories = categories.filter(c => compliance[c].avgTarget > 0);
+  const overallCompliance = validCategories.length > 0
+    ? Math.round(validCategories.reduce((sum, c) => sum + compliance[c].percentage, 0) / validCategories.length)
+    : 0;
+
+  // Color based on overall compliance
+  const overallColor = overallCompliance >= 85 ? 'text-green-500' :
+                       overallCompliance >= 70 ? 'text-yellow-500' : 'text-red-500';
+
+  return (
+    <Card className="mb-2 border-muted overflow-hidden">
+      <CardContent className="p-0">
+        {/* Header - tap to expand */}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full text-left px-3 py-3 hover:bg-muted/30 transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                This Week
+              </span>
+              <span className={cn("text-xs font-bold", overallColor)}>
+                {overallCompliance}%
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                ({compliance.daysTracked} day{compliance.daysTracked !== 1 ? 's' : ''})
+              </span>
+            </div>
+            <ChevronDown className={cn(
+              "w-4 h-4 text-muted-foreground transition-transform",
+              expanded && "rotate-180"
+            )} />
+          </div>
+
+          {/* Mini progress bars - always visible */}
+          <div className="flex gap-1 mt-2">
+            {categories.map(cat => {
+              const pct = compliance[cat].percentage;
+              const color = cat === 'protein' ? 'bg-orange-500' :
+                           cat === 'carb' ? 'bg-amber-500' :
+                           cat === 'veg' ? 'bg-green-500' :
+                           cat === 'fruit' ? 'bg-pink-500' : 'bg-yellow-600';
+              if (compliance[cat].avgTarget === 0) return null;
+              return (
+                <div key={cat} className="flex-1">
+                  <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all", color)}
+                      style={{ width: `${Math.min(100, pct)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </button>
+
+        {/* Expanded details */}
+        {expanded && (
+          <div className="px-3 pb-3 border-t border-muted animate-in slide-in-from-top-2 duration-200">
+            {/* Category breakdown */}
+            <div className="grid grid-cols-5 gap-2 pt-3">
+              {categories.map(cat => {
+                const data = compliance[cat];
+                if (data.avgTarget === 0) return null;
+                const pct = data.percentage;
+                const color = cat === 'protein' ? 'text-orange-500' :
+                             cat === 'carb' ? 'text-amber-500' :
+                             cat === 'veg' ? 'text-green-500' :
+                             cat === 'fruit' ? 'text-pink-500' : 'text-yellow-600';
+                const label = cat === 'protein' ? 'Pro' :
+                             cat === 'carb' ? 'Carb' :
+                             cat === 'veg' ? 'Veg' :
+                             cat === 'fruit' ? 'Fruit' : 'Fat';
+                const isBest = cat === compliance.bestCategory;
+                const isWorst = cat === compliance.worstCategory;
+                return (
+                  <div key={cat} className={cn(
+                    "text-center p-2 rounded-lg",
+                    isBest && "bg-green-500/10",
+                    isWorst && pct < 80 && "bg-red-500/10"
+                  )}>
+                    <div className={cn("text-lg font-bold font-mono", color)}>
+                      {pct}%
+                    </div>
+                    <div className="text-[9px] text-muted-foreground uppercase font-bold">
+                      {label}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {data.avgConsumed}/{data.avgTarget}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Insight */}
+            {compliance.insight && (
+              <div className="mt-3 px-2.5 py-2 rounded-lg bg-primary/5 border border-primary/20">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span className="text-[11px] text-muted-foreground">
+                    {compliance.insight}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // WEIGHT PROJECTION SLIDER — Shows future weight based on protocol
 // ═══════════════════════════════════════════════════════════════════════════════
 function WeightProjectionCard({ profile, logs }: {
@@ -396,7 +617,10 @@ export default function Dashboard() {
     isWaterLoadingDay,
     clearLogs,
     getHistoryInsights,
-    resetData
+    resetData,
+    getAdaptiveAdjustment,
+    getWeeklyCompliance,
+    getSliceTargets
   } = useStore();
 
   const phase = getPhase();
@@ -476,7 +700,7 @@ export default function Dashboard() {
   const canGoPrev = true;
   const canGoNext = isViewingHistorical;
 
-  const { offset: swipeOffset, isDragging, isAnimating, handlers: swipeHandlers } = useCarouselSwipe(
+  const { offset: swipeOffset, isDragging, isAnimating, transition: swipeTransition, handlers: swipeHandlers } = useCarouselSwipe(
     handleGoPrev,
     handleGoNext,
     canGoPrev,
@@ -778,7 +1002,7 @@ export default function Dashboard() {
             className="absolute inset-y-0 right-full w-full flex items-start justify-center pt-8 pointer-events-none"
             style={{
               transform: `translateX(${swipeOffset}px)`,
-              transition: isDragging ? 'none' : 'transform 250ms ease-out',
+              transition: swipeTransition,
             }}
           >
             <div className="text-center">
@@ -800,7 +1024,7 @@ export default function Dashboard() {
             className="absolute inset-y-0 left-full w-full flex items-start justify-center pt-8 pointer-events-none"
             style={{
               transform: `translateX(${swipeOffset}px)`,
-              transition: isDragging ? 'none' : 'transform 250ms ease-out',
+              transition: swipeTransition,
             }}
           >
             <div className="text-center">
@@ -821,7 +1045,7 @@ export default function Dashboard() {
           {...swipeHandlers}
           style={{
             transform: swipeOffset !== 0 ? `translateX(${swipeOffset}px)` : undefined,
-            transition: isDragging ? 'none' : 'transform 250ms ease-out',
+            transition: swipeTransition,
           }}
         >
         {/* ═══════════════════════════════════════════════════════ */}
@@ -890,6 +1114,19 @@ export default function Dashboard() {
               )}
               <span className="text-xs text-muted-foreground">•</span>
               <span className="text-xs text-muted-foreground">{getProtocolName()}</span>
+              {/* Logging streak indicator */}
+              {streak > 0 && (
+                <>
+                  <span className="text-xs text-muted-foreground">•</span>
+                  <span className={cn(
+                    "text-xs font-bold flex items-center gap-0.5",
+                    streak >= 7 ? "text-orange-500" : streak >= 3 ? "text-yellow-500" : "text-muted-foreground"
+                  )}>
+                    <Flame className={cn("w-3 h-3", streak >= 7 ? "text-orange-500" : streak >= 3 ? "text-yellow-500" : "text-muted-foreground")} />
+                    {streak}
+                  </span>
+                </>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -917,6 +1154,63 @@ export default function Dashboard() {
             </Button>
           </div>
         )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* WEIGHT PACE BADGE — prominent projection status for competition users */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn > 0 && descentData.projectedSaturday !== null && (
+        <div className={cn(
+          "flex items-center justify-between rounded-lg px-3 py-2 mb-2 border",
+          descentData.projectedSaturday <= profile.targetWeightClass
+            ? "bg-green-500/10 border-green-500/30"
+            : descentData.projectedSaturday <= profile.targetWeightClass + 1
+              ? "bg-yellow-500/10 border-yellow-500/30"
+              : "bg-red-500/10 border-red-500/30"
+        )}>
+          <div className="flex items-center gap-2">
+            {descentData.projectedSaturday <= profile.targetWeightClass ? (
+              <TrendingDown className="w-4 h-4 text-green-500" />
+            ) : (
+              <TrendingUp className="w-4 h-4 text-yellow-500" />
+            )}
+            <div>
+              <span className={cn(
+                "text-xs font-bold uppercase",
+                descentData.projectedSaturday <= profile.targetWeightClass
+                  ? "text-green-500"
+                  : descentData.projectedSaturday <= profile.targetWeightClass + 1
+                    ? "text-yellow-500"
+                    : "text-red-500"
+              )}>
+                {descentData.projectedSaturday <= profile.targetWeightClass
+                  ? "On Track"
+                  : descentData.projectedSaturday <= profile.targetWeightClass + 1
+                    ? "Close"
+                    : "Behind Pace"}
+              </span>
+              <p className="text-[10px] text-muted-foreground">
+                Projected: <span className="font-mono font-bold text-foreground">{descentData.projectedSaturday.toFixed(1)}</span> lbs
+                {' '}• Target: <span className="font-mono">{profile.targetWeightClass}</span> lbs
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className={cn(
+              "text-lg font-bold font-mono",
+              descentData.projectedSaturday <= profile.targetWeightClass
+                ? "text-green-500"
+                : descentData.projectedSaturday <= profile.targetWeightClass + 1
+                  ? "text-yellow-500"
+                  : "text-red-500"
+            )}>
+              {descentData.projectedSaturday <= profile.targetWeightClass
+                ? `−${(profile.targetWeightClass - descentData.projectedSaturday).toFixed(1)}`
+                : `+${(descentData.projectedSaturday - profile.targetWeightClass).toFixed(1)}`}
+            </span>
+            <p className="text-[9px] text-muted-foreground">lbs from target</p>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* FOCUS CARD — persistent coaching card at top (competition only) */}
@@ -1052,6 +1346,20 @@ export default function Dashboard() {
       {/* ═══════════════════════════════════════════════════════ */}
       {isSparProtocol && !isViewingHistorical && (
         <SparFocusCard profile={profile} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* ADAPTIVE ADJUSTMENT BANNER — suggests calorie changes on plateau */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {isSparProtocol && !isViewingHistorical && (
+        <AdaptiveAdjustmentBanner />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* WEEKLY COMPLIANCE CARD — macro tracking summary */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {isSparProtocol && !isViewingHistorical && (
+        <WeeklyComplianceCard />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -1895,18 +2203,8 @@ function FocusCard({ dailyPriority, statusInfo, daysUntilWeighIn, todayMorning, 
               <p className={cn("text-xs font-bold leading-tight", urgencyColor)}>
                 {dailyPriority.priority}
               </p>
-              {/* Quick stats row — always visible */}
+              {/* Quick stats row — always visible (status badge removed - shown in Weight Pace Badge above) */}
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                {/* Status badge with hint icon */}
-                <span className={cn(
-                  "text-[10px] font-bold uppercase px-1.5 py-0.5 rounded flex items-center gap-1",
-                  statusInfo.status === 'on-track' ? "bg-green-500/15 text-green-500" :
-                  statusInfo.status === 'borderline' ? "bg-yellow-500/15 text-yellow-500" :
-                  "bg-red-500/15 text-red-500"
-                )}>
-                  {statusInfo.label}
-                  <HelpCircle className="w-2.5 h-2.5 opacity-50" />
-                </span>
                 {/* Progress since yesterday */}
                 {progressDiff !== null && (
                   <span className={cn(
@@ -1914,7 +2212,7 @@ function FocusCard({ dailyPriority, statusInfo, daysUntilWeighIn, todayMorning, 
                     progressDiff < 0 ? "text-green-500" : progressDiff > 0 ? "text-red-400" : "text-muted-foreground"
                   )}>
                     {progressDiff < 0 ? <TrendingDown className="w-3 h-3" /> : progressDiff > 0 ? <TrendingUp className="w-3 h-3" /> : null}
-                    {progressDiff > 0 ? '+' : ''}{progressDiff.toFixed(1)} lbs
+                    {progressDiff > 0 ? '+' : ''}{progressDiff.toFixed(1)} lbs vs yesterday
                   </span>
                 )}
                 {/* Workouts needed */}
