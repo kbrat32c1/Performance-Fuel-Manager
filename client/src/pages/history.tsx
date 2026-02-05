@@ -8,8 +8,9 @@ import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays, differenceInDays, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy, Apple } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
 import { getPhaseForDaysUntil } from "@/lib/constants";
 import { TrendChart } from "@/components/dashboard";
@@ -32,6 +33,62 @@ export default function History() {
   const [editExtraAfter, setEditExtraAfter] = useState('');
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
+
+  // Undo support: store recently deleted logs for restoration
+  const deletedLogRef = useRef<{ log: any; afterLog?: any } | null>(null);
+
+  // Handle delete with undo support
+  const handleDeleteWithUndo = (log: any) => {
+    // Store the log data for potential undo (get from current logs)
+    const logToDelete = logs.find(l => l.id === log.id);
+    let afterLogToDelete = null;
+    if (log.type === 'extra-workout' && log.afterId) {
+      afterLogToDelete = logs.find(l => l.id === log.afterId);
+    }
+
+    if (logToDelete) {
+      deletedLogRef.current = { log: logToDelete, afterLog: afterLogToDelete || undefined };
+    }
+
+    // Perform deletion
+    deleteLog(log.id);
+    if (log.type === 'extra-workout' && log.afterId) {
+      deleteLog(log.afterId);
+    }
+
+    // Show undo toast
+    const logLabel = log.type === 'extra-workout' ? 'Extra workout' : getLogTypeLabel(log.type);
+    toast({
+      title: "Deleted",
+      description: `${logLabel} removed`,
+      action: (
+        <ToastAction altText="Undo deletion" onClick={() => {
+          if (deletedLogRef.current) {
+            const { log: restoredLog, afterLog } = deletedLogRef.current;
+            addLog({
+              weight: restoredLog.weight,
+              date: new Date(restoredLog.date),
+              type: restoredLog.type,
+              duration: restoredLog.duration,
+              sleepHours: restoredLog.sleepHours,
+            });
+            if (afterLog) {
+              addLog({
+                weight: afterLog.weight,
+                date: new Date(afterLog.date),
+                type: afterLog.type,
+                duration: afterLog.duration,
+              });
+            }
+            deletedLogRef.current = null;
+            toast({ title: "Restored", description: `${logLabel} has been restored` });
+          }
+        }}>
+          Undo
+        </ToastAction>
+      ),
+    });
+  };
 
   // Current phase for color theming
   const daysUntil = getDaysUntilWeighIn();
@@ -787,12 +844,7 @@ export default function History() {
               {groupedSelectedDateLogs.map((log) => (
                 <SwipeableRow
                   key={log.id}
-                  onDelete={() => {
-                    deleteLog(log.id);
-                    if (log.type === 'extra-workout' && log.afterId) {
-                      deleteLog(log.afterId);
-                    }
-                  }}
+                  onDelete={() => handleDeleteWithUndo(log)}
                   disabled={editingExtraId === log.id}
                 >
                   <Card className={cn("border-muted", log.type === 'extra-workout' && "border-orange-500/30 bg-orange-500/5")}>

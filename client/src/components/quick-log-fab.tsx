@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { hapticSuccess, hapticError, hapticTap } from '@/lib/haptics';
 
 const DURATION_PRESETS = [30, 45, 60, 90, 120] as const;
 const SLEEP_PRESETS = [5, 6, 7, 8, 9] as const;
@@ -323,7 +324,7 @@ export function QuickLogFAB() {
   const needsSleep = selectedType === 'morning';
 
   const [inputError, setInputError] = useState(false);
-  const flashError = () => { setInputError(true); setTimeout(() => setInputError(false), 1500); };
+  const flashError = () => { setInputError(true); hapticError(); setTimeout(() => setInputError(false), 1500); };
 
   const handleSubmit = () => {
     const typeLabel = LOG_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || selectedType;
@@ -361,6 +362,7 @@ export function QuickLogFAB() {
       addLog({ weight: parsedAfter, date: new Date(baseDate.getTime() + 1000), type: 'extra-after', duration: parsedDuration });
 
       const loss = parsedBefore - parsedAfter;
+      hapticSuccess();
       toast({ title: editExtraIds ? 'Extra workout updated' : 'Extra workout logged', description: `${loss > 0 ? '-' : '+'}${Math.abs(loss).toFixed(1)} lbs` });
     } else {
       if (!weight) {
@@ -412,6 +414,7 @@ export function QuickLogFAB() {
         if (selectedType === 'post-practice' && parsedDuration) updates.duration = parsedDuration;
         if (selectedType === 'morning' && parsedSleepHours) updates.sleepHours = parsedSleepHours;
         updateLog(editLogId, updates);
+        hapticSuccess();
         toast({ title: `Updated to ${parsedWeight.toFixed(1)} lbs`, description: `${typeLabel} weigh-in updated` });
       } else {
         // Add new log
@@ -422,6 +425,7 @@ export function QuickLogFAB() {
           ...(selectedType === 'post-practice' && parsedDuration ? { duration: parsedDuration } : {}),
           ...(selectedType === 'morning' && parsedSleepHours ? { sleepHours: parsedSleepHours } : {}),
         });
+        hapticSuccess();
         toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: `${typeLabel} weigh-in saved` });
       }
     }
@@ -460,7 +464,7 @@ export function QuickLogFAB() {
     <>
       {/* Floating Action Button — always visible (works for today and historical dates) */}
       <button
-        onClick={handleOpenFull}
+        onClick={() => { hapticTap(); handleOpenFull(); }}
         className="fixed bottom-[7.5rem] right-5 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(232,80,30,0.4)] flex items-center justify-center active:scale-90 transition-transform"
         aria-label="Log Weight"
       >

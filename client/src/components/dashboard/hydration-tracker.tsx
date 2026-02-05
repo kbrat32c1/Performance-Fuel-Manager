@@ -6,6 +6,7 @@ import { Droplets, Pencil, Trash2, HelpCircle, ChevronRight } from "lucide-react
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
+import { hapticTap, hapticSuccess } from "@/lib/haptics";
 
 interface HydrationTrackerProps {
   hydration: {
@@ -64,6 +65,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const quickAddAmounts = isSipOnly ? [2, 4, 6, 8] : [8, 16, 24, 32];
 
   const handleAddWater = (oz: number) => {
+    hapticTap();
     updateDailyTracking(dateKey, { waterConsumed: tracking.waterConsumed + oz });
   };
 
@@ -80,6 +82,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   };
 
   const handleSaveEdit = () => {
+    hapticSuccess();
     updateDailyTracking(dateKey, { waterConsumed: parseInt(editValue) || 0 });
     setIsEditing(false);
     setEditValue('');

@@ -33,6 +33,7 @@ import { format } from "date-fns";
 import { useStore, type FoodLogEntry } from "@/lib/store";
 import { SPAR_FOODS, type SparFood } from "@/lib/food-data";
 import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
+import { hapticTap, hapticSuccess } from "@/lib/haptics";
 
 // ─── Types ───
 
@@ -460,6 +461,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
   const handleAddSlice = useCallback((food: SparFood, category: SliceCategory) => {
     // Block restricted categories
     if (blockedCategories.includes(category)) return;
+    hapticTap();
     const sliceKey = category === 'protein' ? 'proteinSlices'
       : category === 'carb' ? 'carbSlices'
       : category === 'veg' ? 'vegSlices'

@@ -31,6 +31,7 @@ import {
   getTimeOptions,
   type NotificationPreferences,
 } from "@/lib/notifications";
+import { isHapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
 
 interface SettingsDialogProps {
   profile: any;
@@ -53,6 +54,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [showNerdMode, setShowNerdMode] = useState(false);
+  const [hapticsOn, setHapticsOn] = useState(isHapticsEnabled());
 
   // Reset pending changes when dialog opens
   useEffect(() => {
@@ -495,6 +497,33 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             );
                           })}
                         </div>
+                      </div>
+
+                      {/* Haptic Feedback Toggle */}
+                      <div className="pt-2 border-t border-muted/50">
+                        <button
+                          onClick={() => {
+                            const newVal = !hapticsOn;
+                            setHapticsOn(newVal);
+                            setHapticsEnabled(newVal);
+                          }}
+                          className="flex items-center justify-between w-full py-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-cyan-500" />
+                            <span className="text-xs font-bold">Haptic Feedback</span>
+                          </div>
+                          <div className={cn(
+                            "w-10 h-5 rounded-full transition-colors relative",
+                            hapticsOn ? "bg-cyan-500" : "bg-muted"
+                          )}>
+                            <div className={cn(
+                              "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                              hapticsOn ? "translate-x-5" : "translate-x-0.5"
+                            )} />
+                          </div>
+                        </button>
+                        <p className="text-[10px] text-muted-foreground">Vibrate on key actions (mobile only)</p>
                       </div>
 
                       {/* Nerd Mode - Collapsible */}
