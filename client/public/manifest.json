@@ -27,5 +27,20 @@
       "purpose": "any"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Log Weight",
+      "short_name": "Log",
+      "description": "Quickly log your weight",
+      "url": "/?action=log-weight",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "categories": ["health", "fitness", "sports"]
 }

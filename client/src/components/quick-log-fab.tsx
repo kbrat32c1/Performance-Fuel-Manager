@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Scale, Sun, Moon, CheckCircle2, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock, Trash2 } from 'lucide-react';
+import { Scale, Sun, Moon, CheckCircle2, Check, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,26 +27,64 @@ type LogTypeOption = 'morning' | 'pre-practice' | 'post-practice' | 'before-bed'
 
 const CORE_TYPES: LogTypeOption[] = ['morning', 'pre-practice', 'post-practice', 'before-bed'];
 
-const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; icon: React.ReactNode; color: string; selectedBg: string }[] = [
-  { value: 'morning', label: 'Morning', icon: <Sun className="w-5 h-5" />, color: 'text-yellow-500', selectedBg: 'border-yellow-500 bg-yellow-500/15 ring-1 ring-yellow-500/30' },
-  { value: 'pre-practice', label: 'Pre-Practice', icon: <ArrowDownToLine className="w-5 h-5" />, color: 'text-blue-500', selectedBg: 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/30' },
-  { value: 'post-practice', label: 'Post-Practice', icon: <ArrowUpFromLine className="w-5 h-5" />, color: 'text-green-500', selectedBg: 'border-green-500 bg-green-500/15 ring-1 ring-green-500/30' },
-  { value: 'before-bed', label: 'Before Bed', icon: <Moon className="w-5 h-5" />, color: 'text-purple-500', selectedBg: 'border-purple-500 bg-purple-500/15 ring-1 ring-purple-500/30' },
-  { value: 'extra-workout', label: 'Extra Workout', icon: <Dumbbell className="w-5 h-5" />, color: 'text-orange-500', selectedBg: 'border-orange-500 bg-orange-500/15 ring-1 ring-orange-500/30' },
-  { value: 'check-in', label: 'Check-in', icon: <Scale className="w-5 h-5" />, color: 'text-cyan-500', selectedBg: 'border-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/30' },
+const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; hint: string; icon: React.ReactNode; color: string; selectedBg: string }[] = [
+  { value: 'morning', label: 'Morning', hint: 'First thing after waking', icon: <Sun className="w-5 h-5" />, color: 'text-yellow-500', selectedBg: 'border-yellow-500 bg-yellow-500/15 ring-1 ring-yellow-500/30' },
+  { value: 'pre-practice', label: 'Pre-Practice', hint: 'Before workout, in gear', icon: <ArrowDownToLine className="w-5 h-5" />, color: 'text-blue-500', selectedBg: 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/30' },
+  { value: 'post-practice', label: 'Post-Practice', hint: 'After workout, before rehydrating', icon: <ArrowUpFromLine className="w-5 h-5" />, color: 'text-green-500', selectedBg: 'border-green-500 bg-green-500/15 ring-1 ring-green-500/30' },
+  { value: 'before-bed', label: 'Before Bed', hint: 'Last weigh-in of the day', icon: <Moon className="w-5 h-5" />, color: 'text-purple-500', selectedBg: 'border-purple-500 bg-purple-500/15 ring-1 ring-purple-500/30' },
+  { value: 'extra-workout', label: 'Extra Workout', hint: 'Track additional sessions', icon: <Dumbbell className="w-5 h-5" />, color: 'text-orange-500', selectedBg: 'border-orange-500 bg-orange-500/15 ring-1 ring-orange-500/30' },
+  { value: 'check-in', label: 'Check-in', hint: 'Quick check, not counted', icon: <Scale className="w-5 h-5" />, color: 'text-cyan-500', selectedBg: 'border-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/30' },
 ];
 
+const EXTRA_TYPES: LogTypeOption[] = ['extra-workout', 'check-in'];
+
+const LAST_WEIGHT_TYPE_KEY = 'pfm-last-weight-type';
+const LAST_WEIGHT_TYPE_DATE_KEY = 'pfm-last-weight-type-date';
+
+function getTimeBasedType(): LogTypeOption {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 10) return 'morning';
+  if (hour >= 10 && hour < 14) return 'pre-practice';
+  if (hour >= 14 && hour < 18) return 'post-practice';
+  return 'before-bed';
+}
+
 function getDefaultType(loggedTypes?: Set<string>): LogTypeOption {
+  // First check if user has a stored preference from today
+  try {
+    const storedType = localStorage.getItem(LAST_WEIGHT_TYPE_KEY) as LogTypeOption | null;
+    const storedDate = localStorage.getItem(LAST_WEIGHT_TYPE_DATE_KEY);
+    const today = new Date().toDateString();
+
+    // If user overrode the suggestion today, use their preference
+    if (storedType && storedDate === today && CORE_TYPES.includes(storedType)) {
+      // But only if they haven't already logged this type today
+      if (!loggedTypes?.has(storedType)) {
+        return storedType;
+      }
+    }
+  } catch {
+    // localStorage not available, fall through to time-based
+  }
+
+  // Check for next unlogged type in order
   if (loggedTypes) {
     for (const t of CORE_TYPES) {
       if (!loggedTypes.has(t)) return t;
     }
   }
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 9) return 'morning';
-  if (hour >= 9 && hour < 14) return 'pre-practice';
-  if (hour >= 14 && hour < 17) return 'post-practice';
-  return 'before-bed';
+
+  // Fall back to time-based default
+  return getTimeBasedType();
+}
+
+function saveTypePreference(type: LogTypeOption) {
+  try {
+    localStorage.setItem(LAST_WEIGHT_TYPE_KEY, type);
+    localStorage.setItem(LAST_WEIGHT_TYPE_DATE_KEY, new Date().toDateString());
+  } catch {
+    // localStorage not available
+  }
 }
 
 function getTypeInfo(type: LogTypeOption) {
@@ -176,6 +214,8 @@ export function QuickLogFAB() {
   const [logTime, setLogTime] = useState(getCurrentTimeStr());
   const [directMode, setDirectMode] = useState(false);
   const [showTypeGrid, setShowTypeGrid] = useState(false);
+  const [showExtraTypes, setShowExtraTypes] = useState(false);
+  const [fabSuccess, setFabSuccess] = useState(false);
   // Edit mode state
   const [editLogId, setEditLogId] = useState<string | null>(null);
   const [editExtraIds, setEditExtraIds] = useState<{ beforeId: string; afterId: string | null } | null>(null);
@@ -194,6 +234,47 @@ export function QuickLogFAB() {
   const isHistorical = !!profile?.simulatedDate;
   const targetWeight = calculateTarget();
   const isSparProtocol = profile?.protocol === '5';
+
+  // Onboarding tooltip logic - show if no logs ever, or no logs in 7+ days
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  useEffect(() => {
+    const TOOLTIP_DISMISSED_KEY = 'pfm-fab-tooltip-dismissed';
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+    // Check if tooltip was dismissed recently
+    try {
+      const dismissedAt = localStorage.getItem(TOOLTIP_DISMISSED_KEY);
+      if (dismissedAt) {
+        const dismissedTime = parseInt(dismissedAt, 10);
+        if (Date.now() - dismissedTime < SEVEN_DAYS_MS) {
+          return; // Dismissed within last 7 days
+        }
+      }
+    } catch {
+      // localStorage not available
+    }
+
+    // Show tooltip if no logs, or most recent log is 7+ days old
+    if (logs.length === 0) {
+      setShowTooltip(true);
+    } else {
+      const sorted = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const lastLogTime = new Date(sorted[0].date).getTime();
+      if (Date.now() - lastLogTime > SEVEN_DAYS_MS) {
+        setShowTooltip(true);
+      }
+    }
+  }, [logs]);
+
+  const dismissTooltip = useCallback(() => {
+    setShowTooltip(false);
+    try {
+      localStorage.setItem('pfm-fab-tooltip-dismissed', Date.now().toString());
+    } catch {
+      // localStorage not available
+    }
+  }, []);
 
   const loggedTypes = useMemo(() => {
     const todayLogs = logs.filter(log => {
@@ -231,6 +312,7 @@ export function QuickLogFAB() {
     setOriginalWeight(null);
     setOriginalBeforeWeight(null);
     setOriginalAfterWeight(null);
+    setShowExtraTypes(false);
   }, []);
 
   const handleOpenFull = useCallback(() => {
@@ -314,8 +396,22 @@ export function QuickLogFAB() {
     return () => window.removeEventListener('open-quick-log', handler);
   }, [handleOpenDirect, handleOpenFull, handleOpenEdit, handleOpenEditExtra]);
 
+  // Handle PWA shortcut: ?action=log-weight opens the FAB immediately
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'log-weight') {
+      handleOpenFull();
+      // Clean up the URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [handleOpenFull]);
+
   const handleTypeSelect = useCallback((type: LogTypeOption) => {
     setSelectedType(type);
+    // Save preference if user selects a different type than time-based suggestion
+    if (type !== getTimeBasedType() && CORE_TYPES.includes(type)) {
+      saveTypePreference(type);
+    }
   }, []);
 
   const parsedDuration = duration ? parseInt(duration, 10) : undefined;
@@ -364,6 +460,10 @@ export function QuickLogFAB() {
       const loss = parsedBefore - parsedAfter;
       hapticSuccess();
       toast({ title: editExtraIds ? 'Extra workout updated' : 'Extra workout logged', description: `${loss > 0 ? '-' : '+'}${Math.abs(loss).toFixed(1)} lbs` });
+
+      // Trigger FAB success animation
+      setFabSuccess(true);
+      setTimeout(() => setFabSuccess(false), 1500);
     } else {
       if (!weight) {
         toast({ title: "Enter a weight", description: "Weight field cannot be empty" });
@@ -426,7 +526,21 @@ export function QuickLogFAB() {
           ...(selectedType === 'morning' && parsedSleepHours ? { sleepHours: parsedSleepHours } : {}),
         });
         hapticSuccess();
-        toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: `${typeLabel} weigh-in saved` });
+
+        // Show toast with weight vs target comparison (5 seconds)
+        const weightDiff = parsedWeight - targetWeight;
+        const targetComparison = isSparProtocol
+          ? `${typeLabel} weigh-in saved`
+          : weightDiff <= 0
+            ? `${typeLabel} — on target! ${Math.abs(weightDiff).toFixed(1)} lbs under`
+            : weightDiff <= 2
+              ? `${typeLabel} — ${weightDiff.toFixed(1)} lbs over target`
+              : `${typeLabel} — ${weightDiff.toFixed(1)} lbs over target`;
+        toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: targetComparison });
+
+        // Trigger FAB success animation
+        setFabSuccess(true);
+        setTimeout(() => setFabSuccess(false), 1500);
       }
     }
 
@@ -462,13 +576,50 @@ export function QuickLogFAB() {
 
   return (
     <>
+      {/* Onboarding tooltip - points to FAB */}
+      {showTooltip && !isOpen && (
+        <div className="fixed bottom-[11rem] right-5 z-50 animate-in fade-in slide-in-from-right-2 duration-300">
+          <div className="relative bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg max-w-[180px]">
+            <button
+              onClick={dismissTooltip}
+              className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background text-foreground flex items-center justify-center text-xs shadow-md"
+              aria-label="Dismiss tooltip"
+            >
+              <X className="w-3 h-3" />
+            </button>
+            <p className="text-xs font-medium leading-tight">
+              {logs.length === 0 ? "Tap here to log your first weight!" : "Welcome back! Tap here to log your weight"}
+            </p>
+            {/* Arrow pointing down to FAB */}
+            <div className="absolute -bottom-2 right-6 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-primary" />
+          </div>
+        </div>
+      )}
+
       {/* Floating Action Button — always visible (works for today and historical dates) */}
       <button
-        onClick={() => { hapticTap(); handleOpenFull(); }}
-        className="fixed bottom-[7.5rem] right-5 z-40 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(232,80,30,0.4)] flex items-center justify-center active:scale-90 transition-transform"
+        onClick={() => { hapticTap(); handleOpenFull(); dismissTooltip(); }}
+        className="fixed bottom-[7.5rem] right-5 z-40 flex flex-col items-center gap-1 active:scale-90 transition-transform"
         aria-label="Log Weight"
       >
-        <Scale className="w-5 h-5" />
+        <div className={cn(
+          "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300",
+          fabSuccess
+            ? "bg-green-500 text-white shadow-[0_4px_20px_rgba(34,197,94,0.4)]"
+            : "bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(232,80,30,0.4)]"
+        )}>
+          {fabSuccess ? (
+            <Check className="w-7 h-7 animate-check-bounce" />
+          ) : (
+            <Scale className="w-6 h-6" />
+          )}
+        </div>
+        <span className={cn(
+          "text-[10px] font-semibold bg-background/80 px-1.5 py-0.5 rounded shadow-sm transition-colors duration-300",
+          fabSuccess ? "text-green-500" : "text-primary"
+        )}>
+          {fabSuccess ? "Saved!" : "Log Weight"}
+        </span>
       </button>
 
       {/* Full-screen overlay modal instead of Vaul drawer — no jumping on mobile */}
@@ -515,7 +666,7 @@ export function QuickLogFAB() {
                   )}
                   <button
                     onClick={() => { setIsOpen(false); resetForm(); }}
-                    className="p-2.5 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted text-muted-foreground active:scale-95 transition-transform flex items-center justify-center"
+                    className="p-2.5 min-w-[48px] min-h-[48px] rounded-lg hover:bg-muted text-muted-foreground active:scale-95 transition-transform flex items-center justify-center"
                     aria-label="Close dialog"
                   >
                     <X className="w-5 h-5" />
@@ -525,36 +676,79 @@ export function QuickLogFAB() {
 
               {/* Type Selector Grid — hidden in edit mode */}
               {showTypeGrid && !isEditMode && (
-                <div className="grid grid-cols-3 gap-2 mb-4" role="radiogroup" aria-label="Select weigh-in type">
-                  {LOG_TYPE_OPTIONS.map((opt) => {
-                    const isSelected = selectedType === opt.value;
-                    const isCoreType = CORE_TYPES.includes(opt.value);
-                    const isLogged = isCoreType && loggedTypes.has(opt.value);
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          handleTypeSelect(opt.value);
-                          if (directMode) setShowTypeGrid(false);
-                        }}
-                        className={cn(
-                          "relative flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border text-xs font-medium transition-all",
-                          isSelected
-                            ? `${opt.color} ${opt.selectedBg}`
-                            : "border-border text-muted-foreground active:scale-95"
-                        )}
-                        role="radio"
-                        aria-checked={isSelected}
-                        aria-label={`${opt.label}${isLogged ? ', already logged today' : ''}`}
-                      >
-                        {isLogged && !isSelected && (
-                          <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-green-500" aria-hidden="true" />
-                        )}
-                        <span aria-hidden="true">{opt.icon}</span>
-                        <span className="leading-tight text-center text-[11px]">{opt.label}</span>
-                      </button>
-                    );
-                  })}
+                <div className="mb-4">
+                  {/* Core types - 2x2 grid with hints */}
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Select weigh-in type">
+                    {LOG_TYPE_OPTIONS.filter(opt => CORE_TYPES.includes(opt.value)).map((opt) => {
+                      const isSelected = selectedType === opt.value;
+                      const isLogged = loggedTypes.has(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            handleTypeSelect(opt.value);
+                            if (directMode) setShowTypeGrid(false);
+                          }}
+                          className={cn(
+                            "relative flex flex-col items-center gap-1 px-3 py-3 rounded-xl border text-xs font-medium transition-all min-h-[80px]",
+                            isSelected
+                              ? `${opt.color} ${opt.selectedBg}`
+                              : "border-border text-muted-foreground active:scale-95"
+                          )}
+                          role="radio"
+                          aria-checked={isSelected}
+                          aria-label={`${opt.label}${isLogged ? ', already logged today' : ''}`}
+                        >
+                          {isLogged && !isSelected && (
+                            <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-green-500" aria-hidden="true" />
+                          )}
+                          <span aria-hidden="true">{opt.icon}</span>
+                          <span className="leading-tight text-center text-[11px] font-bold">{opt.label}</span>
+                          <span className="leading-tight text-center text-[9px] text-muted-foreground">{opt.hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* More options toggle */}
+                  <button
+                    onClick={() => setShowExtraTypes(!showExtraTypes)}
+                    className="w-full mt-2 py-2 text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showExtraTypes && "rotate-180")} />
+                    {showExtraTypes ? 'Hide options' : 'More options'}
+                  </button>
+
+                  {/* Extra types - shown when expanded */}
+                  {showExtraTypes && (
+                    <div className="grid grid-cols-2 gap-2 mt-2 animate-in slide-in-from-top-2 duration-200">
+                      {LOG_TYPE_OPTIONS.filter(opt => EXTRA_TYPES.includes(opt.value)).map((opt) => {
+                        const isSelected = selectedType === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => {
+                              handleTypeSelect(opt.value);
+                              if (directMode) setShowTypeGrid(false);
+                            }}
+                            className={cn(
+                              "relative flex flex-col items-center gap-1 px-3 py-3 rounded-xl border text-xs font-medium transition-all min-h-[80px]",
+                              isSelected
+                                ? `${opt.color} ${opt.selectedBg}`
+                                : "border-border text-muted-foreground active:scale-95"
+                            )}
+                            role="radio"
+                            aria-checked={isSelected}
+                            aria-label={opt.label}
+                          >
+                            <span aria-hidden="true">{opt.icon}</span>
+                            <span className="leading-tight text-center text-[11px] font-bold">{opt.label}</span>
+                            <span className="leading-tight text-center text-[9px] text-muted-foreground">{opt.hint}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -722,7 +916,7 @@ export function QuickLogFAB() {
                         key={mins}
                         onClick={() => { setDuration(mins.toString()); setCustomDuration(false); }}
                         className={cn(
-                          "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
+                          "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
                           duration === mins.toString() && !customDuration
                             ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
                             : "border-border text-muted-foreground active:scale-95"
@@ -734,7 +928,7 @@ export function QuickLogFAB() {
                     <button
                       onClick={() => { setCustomDuration(true); setDuration(''); }}
                       className={cn(
-                        "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
+                        "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
                         customDuration
                           ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
                           : "border-border text-muted-foreground active:scale-95"
@@ -751,7 +945,7 @@ export function QuickLogFAB() {
                         value={duration}
                         onChange={(e) => setDuration(e.target.value)}
                         placeholder="Minutes"
-                        className="font-mono text-center h-10 w-24 text-foreground"
+                        className="font-mono text-center h-12 w-24 text-foreground"
                       />
                       <span className="text-xs text-muted-foreground">min</span>
                     </div>
@@ -773,7 +967,7 @@ export function QuickLogFAB() {
                         key={hrs}
                         onClick={() => { setSleepHours(hrs.toString()); setCustomSleep(false); }}
                         className={cn(
-                          "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
+                          "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
                           sleepHours === hrs.toString() && !customSleep
                             ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
                             : "border-border text-muted-foreground active:scale-95"
@@ -785,7 +979,7 @@ export function QuickLogFAB() {
                     <button
                       onClick={() => { setCustomSleep(true); setSleepHours(''); }}
                       className={cn(
-                        "px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium border transition-all",
+                        "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
                         customSleep
                           ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
                           : "border-border text-muted-foreground active:scale-95"
@@ -803,7 +997,7 @@ export function QuickLogFAB() {
                         value={sleepHours}
                         onChange={(e) => setSleepHours(e.target.value)}
                         placeholder="Hours"
-                        className="font-mono text-center h-10 w-24 text-foreground"
+                        className="font-mono text-center h-12 w-24 text-foreground"
                       />
                       <span className="text-xs text-muted-foreground">hrs</span>
                     </div>

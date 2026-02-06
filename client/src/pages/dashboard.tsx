@@ -30,6 +30,7 @@ import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
 import { DashboardTour } from "@/components/dashboard/tour";
 import { DashboardSkeleton } from "@/components/ui/dashboard-skeletons";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPAR PROTOCOL SELECTOR — clickable phase label with protocol switcher popover
@@ -468,79 +469,59 @@ function QuickWeighInCard({
   targetWeight,
   isSparProtocol,
   lastWeight,
+  recentLogs,
+  deleteLog,
 }: {
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
   targetWeight: number;
   isSparProtocol: boolean;
   lastWeight: number | null;
+  recentLogs: Array<{ id: string; weight: number; type: string; date: Date }>;
+  deleteLog: (id: string) => void;
 }) {
-  const [weight, setWeight] = useState('');
-  const [selectedType, setSelectedType] = useState<string>('morning');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const hour = new Date().getHours();
 
-  // Smart default type selection based on time and what's already logged
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (!todayLogs.morning && hour < 12) {
-      setSelectedType('morning');
-    } else if (!todayLogs.prePractice && hour >= 12 && hour < 16) {
-      setSelectedType('pre-practice');
-    } else if (!todayLogs.postPractice && hour >= 14 && hour < 20) {
-      setSelectedType('post-practice');
-    } else if (!todayLogs.beforeBed && hour >= 18) {
-      setSelectedType('before-bed');
-    } else if (!todayLogs.morning) {
-      setSelectedType('morning');
-    } else if (!todayLogs.beforeBed) {
-      setSelectedType('before-bed');
+  // Check if morning weight is missing and it's past 10am
+  const showMorningAlert = !todayLogs.morning && hour >= 10;
+
+  // Get last 3 logs for display
+  const last3Logs = recentLogs.slice(0, 3);
+
+  // Type labels and colors
+  const getTypeInfo = (type: string) => {
+    switch (type) {
+      case 'morning': return { label: 'Morning', icon: <Sun className="w-3.5 h-3.5" />, color: 'text-yellow-500' };
+      case 'pre-practice': return { label: 'Pre-Practice', icon: <ArrowDownToLine className="w-3.5 h-3.5" />, color: 'text-blue-500' };
+      case 'post-practice': return { label: 'Post-Practice', icon: <ArrowUpFromLine className="w-3.5 h-3.5" />, color: 'text-green-500' };
+      case 'before-bed': return { label: 'Before Bed', icon: <Moon className="w-3.5 h-3.5" />, color: 'text-purple-500' };
+      case 'extra-before': return { label: 'Extra (Before)', icon: <Dumbbell className="w-3.5 h-3.5" />, color: 'text-orange-500' };
+      case 'extra-after': return { label: 'Extra (After)', icon: <Dumbbell className="w-3.5 h-3.5" />, color: 'text-orange-500' };
+      case 'check-in': return { label: 'Check-in', icon: <Scale className="w-3.5 h-3.5" />, color: 'text-cyan-500' };
+      default: return { label: type, icon: <Scale className="w-3.5 h-3.5" />, color: 'text-muted-foreground' };
     }
-  }, [todayLogs]);
-
-  // Pre-fill weight from last known weight (for quick adjustment)
-  useEffect(() => {
-    if (lastWeight && !weight) {
-      setWeight(lastWeight.toFixed(1));
-    }
-  }, [lastWeight]);
-
-  const handleSubmit = () => {
-    const weightNum = parseFloat(weight);
-    if (isNaN(weightNum) || weightNum < 50 || weightNum > 500) {
-      toast({
-        title: "Invalid weight",
-        description: "Enter a weight between 50-500 lbs",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    // Dispatch to open the quick-log modal with pre-filled values
-    window.dispatchEvent(new CustomEvent('open-quick-log', {
-      detail: { type: selectedType, prefillWeight: weightNum }
-    }));
-
-    // Reset after a short delay
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setWeight('');
-    }, 500);
   };
 
-  // Quick type buttons
-  const typeOptions = [
-    { type: 'morning', label: 'AM', icon: <Sun className="w-3.5 h-3.5" />, color: 'text-yellow-500', logged: !!todayLogs.morning },
-    { type: 'pre-practice', label: 'PRE', icon: <ArrowDownToLine className="w-3.5 h-3.5" />, color: 'text-blue-500', logged: !!todayLogs.prePractice },
-    { type: 'post-practice', label: 'POST', icon: <ArrowUpFromLine className="w-3.5 h-3.5" />, color: 'text-green-500', logged: !!todayLogs.postPractice },
-    { type: 'before-bed', label: 'BED', icon: <Moon className="w-3.5 h-3.5" />, color: 'text-purple-500', logged: !!todayLogs.beforeBed },
-  ];
+  // Handle edit - opens the FAB in edit mode
+  const handleEdit = (log: typeof last3Logs[0]) => {
+    window.dispatchEvent(new CustomEvent('open-quick-log', {
+      detail: { editLog: log }
+    }));
+  };
 
-  // Calculate comparison to target
-  const weightNum = parseFloat(weight);
-  const diff = !isNaN(weightNum) ? weightNum - targetWeight : null;
+  // Handle delete with undo toast
+  const handleDelete = (log: typeof last3Logs[0]) => {
+    const typeInfo = getTypeInfo(log.type);
+    deleteLog(log.id);
+    toast({
+      title: `${typeInfo.label} deleted`,
+      description: `${log.weight.toFixed(1)} lbs removed`,
+    });
+  };
+
+  // Calculate target diff for most recent log
+  const mostRecentWeight = last3Logs[0]?.weight;
+  const diff = mostRecentWeight && !isSparProtocol ? mostRecentWeight - targetWeight : null;
 
   return (
     <Card className="mb-3 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
@@ -549,7 +530,7 @@ function QuickWeighInCard({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Scale className="w-4 h-4 text-primary" />
-            <span className="text-xs font-bold uppercase tracking-wide">Quick Weigh-In</span>
+            <span className="text-xs font-bold uppercase tracking-wide">Today's Weight</span>
           </div>
           {!isSparProtocol && (
             <span className="text-xs text-muted-foreground">
@@ -558,48 +539,22 @@ function QuickWeighInCard({
           )}
         </div>
 
-        {/* Weight Input */}
-        <div className="flex items-center gap-2 mb-3">
-          <div className="relative flex-1">
-            <input
-              ref={inputRef}
-              type="number"
-              inputMode="decimal"
-              step="0.1"
-              placeholder={lastWeight ? lastWeight.toFixed(1) : "Enter weight"}
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className={cn(
-                "w-full h-12 pl-4 pr-12 rounded-lg border-2 font-mono text-xl font-bold",
-                "bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all",
-                diff !== null && diff <= 0 ? "border-green-500/50" :
-                diff !== null && diff <= 2 ? "border-yellow-500/50" :
-                diff !== null ? "border-red-400/50" : "border-muted"
-              )}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
-              lbs
-            </span>
-          </div>
-          <Button
-            onClick={handleSubmit}
-            disabled={!weight || isSubmitting}
-            className="h-12 px-4"
+        {/* No morning weight alert */}
+        {showMorningAlert && (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: 'morning' } }))}
+            className="w-full mb-3 py-2.5 px-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 flex items-center justify-between active:scale-[0.98] transition-transform"
           >
-            {isSubmitting ? (
-              <span className="animate-spin">⏳</span>
-            ) : (
-              <>
-                <Plus className="w-4 h-4 mr-1" />
-                Log
-              </>
-            )}
-          </Button>
-        </div>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-yellow-500" />
+              <span className="text-xs font-bold text-yellow-500">No morning weight logged</span>
+            </div>
+            <span className="text-xs text-yellow-500/80">Tap to log →</span>
+          </button>
+        )}
 
-        {/* Immediate feedback */}
-        {diff !== null && !isSparProtocol && (
+        {/* Target comparison banner */}
+        {diff !== null && (
           <div className={cn(
             "text-center py-2 px-3 rounded-lg mb-3 text-sm font-bold",
             diff <= 0 ? "bg-green-500/10 text-green-500" :
@@ -609,40 +564,58 @@ function QuickWeighInCard({
             {diff <= 0 ? (
               <>✓ On target{diff < 0 ? ` — ${Math.abs(diff).toFixed(1)} lbs under!` : '!'}</>
             ) : (
-              <>You're {diff.toFixed(1)} lbs over target</>
+              <>{diff.toFixed(1)} lbs over target</>
             )}
           </div>
         )}
 
-        {/* Type selector */}
-        <div className="grid grid-cols-4 gap-1.5">
-          {typeOptions.map((opt) => (
-            <button
-              key={opt.type}
-              onClick={() => setSelectedType(opt.type)}
-              disabled={opt.logged}
-              className={cn(
-                "flex flex-col items-center gap-1 py-2 rounded-lg transition-all text-xs font-bold",
-                selectedType === opt.type && !opt.logged
-                  ? "bg-primary text-primary-foreground ring-2 ring-primary"
-                  : opt.logged
-                    ? "bg-muted/30 text-muted-foreground/50 cursor-not-allowed"
-                    : "bg-muted/50 hover:bg-muted text-muted-foreground"
-              )}
-            >
-              <span className={cn(
-                selectedType === opt.type && !opt.logged ? "text-primary-foreground" : opt.color,
-                opt.logged && "opacity-50"
-              )}>
-                {opt.icon}
-              </span>
-              <span>{opt.label}</span>
-              {opt.logged && (
-                <span className="text-[9px] text-green-500">✓</span>
-              )}
-            </button>
-          ))}
-        </div>
+        {/* Recent weights list - swipe to delete, tap to edit */}
+        {last3Logs.length > 0 ? (
+          <div className="space-y-1.5">
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Recent Weigh-ins</div>
+            {last3Logs.map((log) => {
+              const typeInfo = getTypeInfo(log.type);
+              const logDate = new Date(log.date);
+              const timeStr = format(logDate, 'h:mm a');
+              return (
+                <SwipeableRow
+                  key={log.id}
+                  onDelete={() => handleDelete(log)}
+                >
+                  <button
+                    onClick={() => handleEdit(log)}
+                    className="w-full flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg active:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={typeInfo.color}>{typeInfo.icon}</span>
+                      <div className="text-left">
+                        <div className="text-sm font-bold font-mono">{log.weight.toFixed(1)} lbs</div>
+                        <div className="text-[10px] text-muted-foreground">{typeInfo.label}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">{timeStr}</div>
+                      <div className="text-[9px] text-muted-foreground/60">Tap to edit</div>
+                    </div>
+                  </button>
+                </SwipeableRow>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-4 text-sm text-muted-foreground">
+            No weights logged today
+          </div>
+        )}
+
+        {/* Quick log button */}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log'))}
+          className="w-full mt-3 py-3 px-4 rounded-lg bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform min-h-[48px]"
+        >
+          <Plus className="w-4 h-4" />
+          Log New Weight
+        </button>
       </CardContent>
     </Card>
   );
@@ -1028,6 +1001,17 @@ export default function Dashboard() {
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0],
   [logs, displayDate]);
 
+  // All today's logs sorted by most recent first (for Today's Weight card)
+  const todayLogsArray = useMemo(() => logs
+    .filter(l => {
+      const ld = new Date(l.date);
+      return ld.getFullYear() === displayDate.getFullYear() &&
+        ld.getMonth() === displayDate.getMonth() &&
+        ld.getDate() === displayDate.getDate();
+    })
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+  [logs, displayDate]);
+
   // Yesterday's morning weight for progress comparison
   const yesterdayMorning = useMemo(() => {
     const yesterday = subDays(displayDate, 1);
@@ -1411,13 +1395,15 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Quick Weigh-In Card — prominent weight entry */}
+      {/* Today's Weight Card — view/edit recent weights, log new */}
       {!isViewingHistorical && (
         <QuickWeighInCard
           todayLogs={todayLogs}
           targetWeight={targetWeight}
           isSparProtocol={isSparProtocol}
           lastWeight={mostRecentLog?.weight ?? null}
+          recentLogs={todayLogsArray}
+          deleteLog={deleteLog}
         />
       )}
 

@@ -4,6 +4,8 @@ import { CheckCircle2, Scale, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { LucideIcon } from "lucide-react";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { useToast } from "@/hooks/use-toast";
 
 interface DailyStepProps {
   step: number;
@@ -14,6 +16,7 @@ interface DailyStepProps {
   logType: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed';
   addLog: (log: { weight: number; date: Date; type: string; duration?: number; sleepHours?: number }) => void;
   updateLog: (id: string, updates: { weight?: number; date?: Date; duration?: number; sleepHours?: number }) => void;
+  deleteLog?: (id: string) => void;
   targetWeight: number;
   simulatedDate?: Date | null;
 }
@@ -25,9 +28,11 @@ export function DailyStep({
   icon: Icon,
   logs,
   logType,
+  deleteLog,
   targetWeight,
   simulatedDate
 }: DailyStepProps) {
+  const { toast } = useToast();
   // Check if already logged today (use simulated date if available)
   const today = simulatedDate || new Date();
   const todayLog = logs.find(log => {
@@ -50,7 +55,18 @@ export function DailyStep({
     window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { editLog: todayLog } }));
   };
 
-  return (
+  const handleDelete = () => {
+    if (deleteLog && todayLog?.id) {
+      deleteLog(todayLog.id);
+      toast({
+        title: `${title} deleted`,
+        description: `${todayLog.weight.toFixed(1)} lbs removed`,
+      });
+    }
+  };
+
+  // Wrap completed cards in SwipeableRow for delete gesture
+  const cardContent = (
     <Card className={cn(
       "border-muted transition-all",
       isComplete && "bg-primary/5 border-primary/30"
@@ -110,7 +126,7 @@ export function DailyStep({
                 variant="outline"
                 size="sm"
                 onClick={handleLog}
-                className="h-10 min-w-[120px]"
+                className="h-12 min-w-[120px] min-h-[48px]"
               >
                 <Scale className="w-3 h-3 mr-1" />
                 Log Weight
@@ -137,4 +153,15 @@ export function DailyStep({
       </CardContent>
     </Card>
   );
+
+  // Only wrap in SwipeableRow if logged and delete is available
+  if (isComplete && deleteLog) {
+    return (
+      <SwipeableRow onDelete={handleDelete}>
+        {cardContent}
+      </SwipeableRow>
+    );
+  }
+
+  return cardContent;
 }
