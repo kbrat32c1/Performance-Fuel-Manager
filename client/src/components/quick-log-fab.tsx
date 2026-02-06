@@ -464,6 +464,9 @@ export function QuickLogFAB() {
       // Trigger FAB success animation
       setFabSuccess(true);
       setTimeout(() => setFabSuccess(false), 1500);
+
+      // Dispatch event for AI coach to refresh
+      window.dispatchEvent(new CustomEvent('weight-logged'));
     } else {
       if (!weight) {
         toast({ title: "Enter a weight", description: "Weight field cannot be empty" });
@@ -541,6 +544,9 @@ export function QuickLogFAB() {
         // Trigger FAB success animation
         setFabSuccess(true);
         setTimeout(() => setFabSuccess(false), 1500);
+
+        // Dispatch event for AI coach to refresh
+        window.dispatchEvent(new CustomEvent('weight-logged'));
       }
     }
 

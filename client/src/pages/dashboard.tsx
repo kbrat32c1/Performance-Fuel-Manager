@@ -31,6 +31,7 @@ import { useCelebrations } from "@/hooks/use-celebrations";
 import { DashboardTour } from "@/components/dashboard/tour";
 import { DashboardSkeleton } from "@/components/ui/dashboard-skeletons";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { AiCoachProactive } from "@/components/ai-coach-proactive";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPAR PROTOCOL SELECTOR — clickable phase label with protocol switcher popover
@@ -1758,8 +1759,14 @@ export default function Dashboard() {
         )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* DECISION ZONE — Calmer top section with recommendation */}
-      {/* "What do I do next?" answered immediately               */}
+      {/* AI COACH PROACTIVE — Smart coaching that updates on weight logs */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
+        <AiCoachProactive />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* DECISION ZONE — Weight display + calculated guidance    */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
         <DecisionZone
