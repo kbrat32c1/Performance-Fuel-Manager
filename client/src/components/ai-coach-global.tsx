@@ -83,7 +83,7 @@ export function AiCoachGlobal() {
   const [location] = useLocation();
 
   const store = useStore();
-  const { profile, logs, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus, getDriftMetrics, getDailyTracking, getDailyPriority, getHydrationTarget, calculateTarget, getNutritionMode, getSliceTargets } = store;
+  const { profile, logs, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus, getDriftMetrics, getDailyTracking, getDailyPriority, getHydrationTarget, calculateTarget, getNutritionMode, getSliceTargets, getWeekDescentData, getExtraWorkoutStats } = store;
 
   const daysUntil = getDaysUntilWeighIn();
   const recoveryMode = localStorage.getItem('pwm-comp-mode') || 'idle';
@@ -223,6 +223,101 @@ export function AiCoachGlobal() {
       if (ctx.weighInWeight) {
         ctx.lostWeight = (profile.currentWeight - parseFloat(ctx.weighInWeight)).toFixed(1);
       }
+    }
+
+    // ─── CALCULATED INSIGHTS (DecisionZone-style) ───
+    // These are the smart calculations the AI should use for recommendations
+    try {
+      const descentData = getWeekDescentData();
+      const extraStats = getExtraWorkoutStats();
+      const statusData = getStatus();
+      const currentWeight = parseFloat(ctx.currentWeight) || profile.currentWeight;
+      const targetWeight = profile.targetWeightClass;
+      const weightToLose = Math.max(0, currentWeight - targetWeight);
+
+      // Hours until weigh-in
+      const now = new Date();
+      const hour = now.getHours();
+      let hoursUntilWeighIn: number | null = null;
+      if (daysUntil >= 0) {
+        if (daysUntil === 0) {
+          const weighInHour = 6; // Assume 6am weigh-in
+          hoursUntilWeighIn = hour >= weighInHour ? 0 : weighInHour - hour;
+        } else {
+          const hoursLeftToday = 24 - hour;
+          const fullDays = daysUntil - 1;
+          const hoursOnWeighInDay = 6;
+          hoursUntilWeighIn = hoursLeftToday + (fullDays * 24) + hoursOnWeighInDay;
+        }
+      }
+
+      // Sweat rate (lbs/hr)
+      const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
+
+      // Expected overnight drift
+      const expectedDrift = descentData.avgOvernightDrift ?? null;
+
+      // Expected practice loss
+      const expectedPracticeLoss = descentData.avgPracticeLoss ? Math.abs(descentData.avgPracticeLoss) : null;
+
+      // Calculate fluid allowance
+      let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
+      if (weightToLose > 0 && expectedDrift !== null) {
+        const practiceToday = daysUntil > 0 && expectedPracticeLoss ? expectedPracticeLoss : 0;
+        const naturalLoss = (expectedDrift ?? 0) + practiceToday;
+        const buffer = naturalLoss - weightToLose;
+        if (buffer > 0) {
+          fluidAllowance = { oz: Math.floor(buffer * 16), cutoffTime: hour < 18 ? '6pm' : '8pm' };
+        } else if (buffer <= 0) {
+          fluidAllowance = { oz: 0, cutoffTime: 'now - water restricted' };
+        }
+      }
+
+      // Calculate workout guidance
+      let workoutGuidance: { sessions: number; minutes: number; description: string } | null = null;
+      if (weightToLose > 0 && sweatRate && sweatRate > 0) {
+        const remainingAfterDrift = weightToLose - (expectedDrift ?? 0);
+        if (remainingAfterDrift > 0) {
+          const lossPerSession = sweatRate * 0.75; // 45 min session
+          const sessionsNeeded = Math.ceil(remainingAfterDrift / lossPerSession);
+          const minutesNeeded = Math.ceil((remainingAfterDrift / sweatRate) * 60);
+          workoutGuidance = {
+            sessions: sessionsNeeded,
+            minutes: minutesNeeded,
+            description: sessionsNeeded === 1 ? `One ${minutesNeeded}-min workout` : `${sessionsNeeded} sessions (~${Math.round(minutesNeeded / sessionsNeeded)} min each)`
+          };
+        }
+      }
+
+      // Food guidance based on days out
+      let foodGuidance: { maxLbs: number; lastMealTime: string } | null = null;
+      if (weightToLose <= 0) {
+        foodGuidance = null; // At weight, eat normally
+      } else if (daysUntil <= 1) {
+        foodGuidance = { maxLbs: 0.5, lastMealTime: daysUntil === 0 ? 'after weigh-in' : '6pm' };
+      } else if (daysUntil === 2) {
+        foodGuidance = { maxLbs: 1.5, lastMealTime: '7pm' };
+      } else {
+        foodGuidance = { maxLbs: 2.5, lastMealTime: '8pm' };
+      }
+
+      // Build calculated insights object
+      ctx.calculatedInsights = {
+        hoursUntilWeighIn,
+        weightToLose: weightToLose.toFixed(1),
+        projectedWeight: descentData.projectedSaturday?.toFixed(1) ?? null,
+        isOnTrack: descentData.pace === 'on-track' || descentData.pace === 'ahead',
+        sweatRate: sweatRate?.toFixed(1) ?? null,
+        expectedOvernightDrift: expectedDrift?.toFixed(1) ?? null,
+        expectedPracticeLoss: expectedPracticeLoss?.toFixed(1) ?? null,
+        fluidAllowance,
+        workoutGuidance,
+        foodGuidance,
+        statusRecommendation: statusData.recommendation?.message ?? null,
+        projectionWarning: statusData.projectionWarning ?? null,
+      };
+    } catch (e) {
+      // Fail silently if calculations error
     }
 
     return ctx;

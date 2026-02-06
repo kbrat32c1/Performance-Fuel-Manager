@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
+import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
 
 // ─── API Response Types ───────────────────────────────────────────────────────
 interface USDAFoodNutrient {
@@ -277,7 +278,7 @@ export async function registerRoutes(
     }
   });
 
-  // ─── AI Weight Cutting & Recovery Coach ─────────────────────────────────────
+  // ─── AI Weight Cutting & Recovery Coach (Elite Version) ─────────────────────
   app.post("/api/ai/coach", aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
@@ -295,11 +296,10 @@ export async function registerRoutes(
 
       const ctx = context || {};
 
-      // Build a rich context string from whatever data the client sends
-      // All inputs are sanitized to prevent prompt injection
+      // Build athlete context string (sanitized)
       const contextLines: string[] = [];
 
-      // Athlete profile (sanitized)
+      // Athlete profile
       if (ctx.name) contextLines.push(`Athlete: ${sanitizeForPrompt(ctx.name)}`);
       if (ctx.currentWeight) contextLines.push(`Current weight: ${sanitizeForPrompt(ctx.currentWeight)} lbs`);
       if (ctx.targetWeightClass) contextLines.push(`Target weight class: ${sanitizeForPrompt(ctx.targetWeightClass)} lbs`);
@@ -311,13 +311,13 @@ export async function registerRoutes(
       }
       if (ctx.weightToLose) contextLines.push(`Weight still to cut: ${sanitizeForPrompt(ctx.weightToLose)} lbs`);
 
-      // Protocol
+      // Protocol info
       const protocolNames: Record<string, string> = {
-        '1': 'Sugar Fast / Body Comp (aggressive cut)',
-        '2': 'Fat Loss Focus / Make Weight (standard weekly cut)',
+        '1': 'Body Comp / Emergency Cut (aggressive)',
+        '2': 'Make Weight / Fat Loss Focus (standard weekly)',
         '3': 'Maintain / Hold Weight',
         '4': 'Hypertrophy / Build Phase',
-        '5': 'SPAR Nutrition (portion-based balanced eating)',
+        '5': 'SPAR Nutrition (portion-based)',
       };
       if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || ctx.protocol}`);
       if (ctx.phase) contextLines.push(`Current phase: ${ctx.phase}`);
@@ -331,8 +331,13 @@ export async function registerRoutes(
         contextLines.push(`Today's carb type: ${ctx.todaysFoods.carbsLabel}`);
         contextLines.push(`Today's protein: ${ctx.todaysFoods.proteinLabel}`);
         if (ctx.todaysFoods.avoid?.length > 0) {
-          contextLines.push(`Foods to avoid today: ${ctx.todaysFoods.avoid.slice(0, 5).map((a: { name: string }) => a.name).join(', ')}`);
+          contextLines.push(`Foods to avoid: ${ctx.todaysFoods.avoid.slice(0, 5).map((a: { name: string }) => a.name).join(', ')}`);
         }
+      }
+
+      // Hydration target
+      if (ctx.hydrationTarget) {
+        contextLines.push(`Water target: ${ctx.hydrationTarget.amount} (${ctx.hydrationTarget.type}) - ${ctx.hydrationTarget.note || ''}`);
       }
 
       // Daily tracking
@@ -340,38 +345,30 @@ export async function registerRoutes(
         contextLines.push(`Today's intake — Water: ${ctx.dailyTracking.waterConsumed || 0}oz, Carbs: ${ctx.dailyTracking.carbsConsumed || 0}g, Protein: ${ctx.dailyTracking.proteinConsumed || 0}g`);
       }
 
-      // Recovery/competition context
+      // Historical metrics
+      if (ctx.avgOvernightDrift) contextLines.push(`Avg overnight drift: ${ctx.avgOvernightDrift} lbs`);
+      if (ctx.avgPracticeLoss) contextLines.push(`Avg practice loss: ${ctx.avgPracticeLoss} lbs`);
+
+      // Recovery context
       if (ctx.recoveryMode) {
         contextLines.push(`Recovery mode: ${ctx.recoveryMode === 'weigh-in' ? 'Post weigh-in' : `Between matches (#${ctx.matchNumber || '?'})`}`);
         if (ctx.elapsed) contextLines.push(`Time in recovery: ${Math.floor(ctx.elapsed / 60)} minutes`);
-        if (ctx.recoveryPhase) contextLines.push(`Recovery phase: ${ctx.recoveryPhase} (${ctx.recoveryPriority || ''})`);
         if (ctx.weighInWeight) contextLines.push(`Weigh-in weight: ${ctx.weighInWeight} lbs`);
         if (ctx.lostWeight) contextLines.push(`Weight to recover: ${ctx.lostWeight} lbs`);
       }
 
-      // Page context
-      if (ctx.currentPage) contextLines.push(`Viewing: ${ctx.currentPage} page`);
+      // Build calculated insights string
+      const calculatedInsights = formatInsightsForPrompt(ctx.calculatedInsights);
 
-      const systemPrompt = `You are an expert weight cutting and recovery coach for competitive wrestlers. You have deep knowledge of:
-- Safe weight cutting protocols (water loading, carb manipulation, fructose/glucose timing)
-- Competition day recovery (rehydration, glycogen replenishment, between-match fueling)
-- Sports nutrition (macro timing, food selection, supplement protocols)
-- Wrestling-specific performance optimization
-
-ATHLETE CONTEXT:
-${contextLines.length > 0 ? contextLines.join('\n') : 'No context provided'}
-
-COACHING RULES:
-- Keep answers under 200 words — athletes need quick, actionable advice
-- Be direct and specific with quantities: "eat 30g carbs from rice cakes" not "eat some carbs"
-- Consider the athlete's current phase and timing when giving advice
-- For weight cutting: focus on safe, proven methods. Never recommend dangerous practices
-- For recovery: focus on what to do RIGHT NOW based on timing
-- For nutrition: recommend specific foods with amounts
-- If asked about dangerous practices (extreme dehydration, diuretics, etc.), firmly redirect to safe alternatives and recommend consulting a doctor/athletic trainer
-- Use bullet points or numbered lists for multi-step advice
-- Reference the athlete's specific protocol and targets when relevant
-- If the context suggests they're behind on their cut, acknowledge it and give practical catch-up advice`;
+      // Build the elite coach system prompt with full protocol knowledge
+      const protocol = ctx.protocol || '2';
+      const daysUntilWeighIn = Number(ctx.daysUntilWeighIn) || 0;
+      const systemPrompt = buildEliteCoachPrompt(
+        contextLines.length > 0 ? contextLines.join('\n') : 'No context provided',
+        calculatedInsights,
+        protocol,
+        daysUntilWeighIn
+      );
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -382,7 +379,7 @@ COACHING RULES:
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 500,
+          max_tokens: 600, // Increased for more detailed responses
           system: systemPrompt,
           messages: [{ role: "user", content: sanitizeForPrompt(question.trim()) }],
         }),
