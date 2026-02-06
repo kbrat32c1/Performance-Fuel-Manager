@@ -462,76 +462,27 @@ function WeeklyComplianceCard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// QUICK WEIGH-IN CARD — Prominent weight entry with immediate feedback
+// DECISION ZONE — Calmer, decision-first top section
+// "What do I do next?" answered immediately, reduces cognitive load
 // ═══════════════════════════════════════════════════════════════════════════════
-function QuickWeighInCard({
-  todayLogs,
+function DecisionZone({
+  currentWeight,
   targetWeight,
-  isSparProtocol,
-  lastWeight,
-  recentLogs,
-  deleteLog,
+  statusInfo,
+  todayLogs,
+  daysUntilWeighIn,
 }: {
-  todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
+  currentWeight: number | null;
   targetWeight: number;
-  isSparProtocol: boolean;
-  lastWeight: number | null;
-  recentLogs: Array<{ id: string; weight: number; type: string; date: Date }>;
-  deleteLog: (id: string) => void;
+  statusInfo: { status: string; label: string; contextMessage: string; recommendation?: any };
+  todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
+  daysUntilWeighIn: number;
 }) {
-  const { toast } = useToast();
+  const weightToLose = currentWeight ? currentWeight - targetWeight : 0;
+  const isAtWeight = weightToLose <= 0;
   const hour = new Date().getHours();
 
-  // Count scheduled weigh-ins completed (4 daily: morning, pre, post, bed)
-  const scheduledCount = [
-    todayLogs.morning,
-    todayLogs.prePractice,
-    todayLogs.postPractice,
-    todayLogs.beforeBed
-  ].filter(Boolean).length;
-
-  // Check if morning weight is missing and it's past 10am
-  const showMorningAlert = !todayLogs.morning && hour >= 10;
-
-  // Get last 3 logs for display (filter to today's scheduled types only for clarity)
-  const last3Logs = recentLogs.slice(0, 3);
-
-  // Type labels and colors
-  const getTypeInfo = (type: string) => {
-    switch (type) {
-      case 'morning': return { label: 'Morning', icon: <Sun className="w-3.5 h-3.5" />, color: 'text-yellow-500' };
-      case 'pre-practice': return { label: 'Pre-Practice', icon: <ArrowDownToLine className="w-3.5 h-3.5" />, color: 'text-blue-500' };
-      case 'post-practice': return { label: 'Post-Practice', icon: <ArrowUpFromLine className="w-3.5 h-3.5" />, color: 'text-green-500' };
-      case 'before-bed': return { label: 'Before Bed', icon: <Moon className="w-3.5 h-3.5" />, color: 'text-purple-500' };
-      case 'extra-before': return { label: 'Extra (Before)', icon: <Dumbbell className="w-3.5 h-3.5" />, color: 'text-orange-500' };
-      case 'extra-after': return { label: 'Extra (After)', icon: <Dumbbell className="w-3.5 h-3.5" />, color: 'text-orange-500' };
-      case 'check-in': return { label: 'Check-in', icon: <Scale className="w-3.5 h-3.5" />, color: 'text-cyan-500' };
-      default: return { label: type, icon: <Scale className="w-3.5 h-3.5" />, color: 'text-muted-foreground' };
-    }
-  };
-
-  // Handle edit - opens the FAB in edit mode
-  const handleEdit = (log: typeof last3Logs[0]) => {
-    window.dispatchEvent(new CustomEvent('open-quick-log', {
-      detail: { editLog: log }
-    }));
-  };
-
-  // Handle delete with undo toast
-  const handleDelete = (log: typeof last3Logs[0]) => {
-    const typeInfo = getTypeInfo(log.type);
-    deleteLog(log.id);
-    toast({
-      title: `${typeInfo.label} deleted`,
-      description: `${log.weight.toFixed(1)} lbs removed`,
-    });
-  };
-
-  // Calculate target diff for most recent log
-  const mostRecentWeight = last3Logs[0]?.weight;
-  const diff = mostRecentWeight && !isSparProtocol ? mostRecentWeight - targetWeight : null;
-
-  // Calculate practice loss: PRE weight minus POST weight
+  // Calculate practice loss for display
   const preWeight = todayLogs.prePractice?.weight ?? null;
   const postWeight = todayLogs.postPractice?.weight ?? null;
   const practiceLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
@@ -540,129 +491,210 @@ function QuickWeighInCard({
     ? practiceLoss / (practiceDuration / 60)
     : null;
 
+  // Single status color for entire zone (reduces color overload)
+  const statusColor = statusInfo.status === 'on-track' ? 'green' :
+    statusInfo.status === 'borderline' ? 'yellow' : 'red';
+
+  // Generate smart recommendation based on time of day and status
+  const getRecommendation = (): { text: string; subtext?: string } => {
+    // If they have a specific recommendation from the system, use it
+    if (statusInfo.recommendation?.message) {
+      return { text: statusInfo.recommendation.message };
+    }
+
+    // No morning weight yet
+    if (!todayLogs.morning) {
+      return { text: 'Log morning weight', subtext: 'Before eating or drinking' };
+    }
+
+    // At weight or under
+    if (isAtWeight) {
+      return { text: 'Hold steady', subtext: 'No additional cut needed' };
+    }
+
+    // Based on time of day and status
+    if (hour < 12) {
+      // Morning - normal day ahead
+      if (statusInfo.status === 'on-track') {
+        return { text: 'Follow normal routine', subtext: 'You\'re on pace' };
+      }
+      return { text: 'Extra sweat session recommended', subtext: `${weightToLose.toFixed(1)} lbs to lose` };
+    } else if (hour < 17) {
+      // Afternoon
+      if (statusInfo.status === 'on-track') {
+        return { text: 'Stay the course', subtext: 'Practice will help' };
+      }
+      return { text: 'Maximize practice intensity', subtext: 'Focus on sweat' };
+    } else {
+      // Evening
+      if (statusInfo.status === 'on-track') {
+        return { text: 'Light dinner, early sleep', subtext: 'Overnight drift will help' };
+      }
+      if (statusInfo.status === 'risk') {
+        return { text: 'Light sweat + early sleep', subtext: 'Stop fluids after 8pm' };
+      }
+      return { text: 'Light evening, good sleep', subtext: 'Drift works overnight' };
+    }
+  };
+
+  const recommendation = getRecommendation();
+
   return (
-    <Card className="mb-3 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
-      <CardContent className="p-3">
-        {/* Header with progress indicator */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Scale className="w-4 h-4 text-primary" />
-            <span className="text-xs font-bold uppercase tracking-wide">Today's Weight</span>
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {scheduledCount}/4
-            </span>
-          </div>
-          {!isSparProtocol && (
-            <span className="text-xs text-muted-foreground">
-              Target: <span className="font-mono font-bold text-foreground">{targetWeight}</span> lbs
-            </span>
-          )}
+    <div className="mb-4 space-y-3">
+      {/* Main weight display - large and calm */}
+      <div className="text-center py-2">
+        <div className="flex items-baseline justify-center gap-3 mb-2">
+          <span className="text-5xl font-mono font-bold tracking-tight">
+            {currentWeight ? currentWeight.toFixed(1) : '—'}
+          </span>
+          <span className="text-2xl text-muted-foreground/60">→</span>
+          <span className="text-5xl font-mono font-bold text-primary tracking-tight">
+            {targetWeight}
+          </span>
         </div>
 
-        {/* No morning weight alert */}
-        {showMorningAlert && (
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: 'morning' } }))}
-            className="w-full mb-3 py-2.5 px-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 flex items-center justify-between active:scale-[0.98] transition-transform min-h-[48px]"
-          >
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-500" />
-              <span className="text-xs font-bold text-yellow-500">No morning weight logged</span>
-            </div>
-            <span className="text-xs text-yellow-500/80">Tap to log →</span>
-          </button>
-        )}
-
-        {/* Target comparison banner */}
-        {diff !== null && (
+        {/* Single status indicator - only one color at a time */}
+        {currentWeight && (
           <div className={cn(
-            "text-center py-2 px-3 rounded-lg mb-3 text-sm font-bold",
-            diff <= 0 ? "bg-green-500/10 text-green-500" :
-            diff <= 2 ? "bg-yellow-500/10 text-yellow-500" :
-            "bg-red-500/10 text-red-400"
+            "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold",
+            statusColor === 'green' && "bg-green-500/15 text-green-500",
+            statusColor === 'yellow' && "bg-yellow-500/15 text-yellow-500",
+            statusColor === 'red' && "bg-red-500/15 text-red-400"
           )}>
-            {diff <= 0 ? (
-              <>✓ On target{diff < 0 ? ` — ${Math.abs(diff).toFixed(1)} lbs under!` : '!'}</>
+            {isAtWeight ? (
+              <>✓ AT WEIGHT</>
             ) : (
-              <>{diff.toFixed(1)} lbs over target</>
+              <>{weightToLose.toFixed(1)} lbs remaining</>
             )}
           </div>
         )}
+      </div>
 
-        {/* Practice loss summary - shows when both PRE and POST weights are logged */}
-        {practiceLoss !== null && practiceLoss > 0 && (
-          <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg mb-3 bg-orange-500/10 text-orange-500 text-sm font-bold">
-            <Dumbbell className="w-4 h-4" />
-            <span>
-              Practice: -{practiceLoss.toFixed(1)} lbs
-              {sweatRate !== null && ` • ${sweatRate.toFixed(1)} lbs/hr`}
-            </span>
-          </div>
-        )}
+      {/* Practice loss summary - collapsed inline */}
+      {practiceLoss !== null && practiceLoss > 0 && (
+        <div className="flex items-center justify-center gap-2 text-xs text-orange-500 font-medium">
+          <Dumbbell className="w-3.5 h-3.5" />
+          <span>
+            Today's practice: -{practiceLoss.toFixed(1)} lbs
+            {sweatRate !== null && ` (${sweatRate.toFixed(1)} lbs/hr)`}
+          </span>
+        </div>
+      )}
 
-        {/* Recent weights list - swipe to delete, tap to edit */}
-        {last3Logs.length > 0 ? (
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Recent Weigh-ins</span>
-              <span className="text-[9px] text-muted-foreground/60 italic">← Swipe to delete</span>
-            </div>
-            {last3Logs.map((log) => {
-              const typeInfo = getTypeInfo(log.type);
-              const logDate = new Date(log.date);
-              const timeStr = format(logDate, 'h:mm a');
-              return (
-                <SwipeableRow
-                  key={log.id}
-                  onDelete={() => handleDelete(log)}
-                >
-                  <button
-                    onClick={() => handleEdit(log)}
-                    className="w-full flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg active:bg-muted/50 transition-colors min-h-[48px]"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className={typeInfo.color}>{typeInfo.icon}</span>
-                      <div className="text-left">
-                        <div className="text-sm font-bold font-mono">{log.weight.toFixed(1)} lbs</div>
-                        <div className="text-[10px] text-muted-foreground">{typeInfo.label}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-muted-foreground">{timeStr}</div>
-                      <div className="text-[9px] text-muted-foreground/60">Tap to edit</div>
-                    </div>
-                  </button>
-                </SwipeableRow>
-              );
-            })}
-          </div>
-        ) : (
-          /* Empty state with guidance - FAB is the action, not a duplicate button */
-          <div className="text-center py-6 px-4">
-            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
-              <Scale className="w-6 h-6 text-primary" />
-            </div>
-            <p className="text-sm font-medium text-foreground mb-1">No weights logged today</p>
-            <p className="text-xs text-muted-foreground mb-3">
-              Use the <span className="text-primary font-semibold">Log Weight</span> button below to record your first weigh-in
-            </p>
-            <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground/60">
-              <span className="w-2 h-2 rounded-full bg-yellow-500/50" />
-              <span>Morning</span>
-              <span className="mx-1">→</span>
-              <span className="w-2 h-2 rounded-full bg-blue-500/50" />
-              <span>Pre</span>
-              <span className="mx-1">→</span>
-              <span className="w-2 h-2 rounded-full bg-green-500/50" />
-              <span>Post</span>
-              <span className="mx-1">→</span>
-              <span className="w-2 h-2 rounded-full bg-purple-500/50" />
-              <span>Bed</span>
-            </div>
-          </div>
+      {/* Recommendation - the key insight */}
+      <div className={cn(
+        "rounded-xl p-4 text-center",
+        statusColor === 'green' && "bg-green-500/10 border border-green-500/20",
+        statusColor === 'yellow' && "bg-yellow-500/10 border border-yellow-500/20",
+        statusColor === 'red' && "bg-red-500/10 border border-red-500/20"
+      )}>
+        <p className={cn(
+          "text-base font-bold mb-1",
+          statusColor === 'green' && "text-green-500",
+          statusColor === 'yellow' && "text-yellow-500",
+          statusColor === 'red' && "text-red-400"
+        )}>
+          {recommendation.text}
+        </p>
+        {recommendation.subtext && (
+          <p className="text-xs text-muted-foreground">{recommendation.subtext}</p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TODAY FLOW — Simplified horizontal timeline (AM → PRE → POST → BED)
+// Clean, scannable, tap to log/edit
+// ═══════════════════════════════════════════════════════════════════════════════
+function TodayFlow({
+  todayLogs,
+  onSlotTap,
+}: {
+  todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
+  onSlotTap: (type: string, log: any) => void;
+}) {
+  const slots = [
+    { key: 'morning', label: 'AM', icon: <Sun className="w-4 h-4" />, log: todayLogs.morning, type: 'morning', color: 'yellow' },
+    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-4 h-4" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'blue' },
+    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-4 h-4" />, log: todayLogs.postPractice, type: 'post-practice', color: 'green' },
+    { key: 'bed', label: 'BED', icon: <Moon className="w-4 h-4" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'purple' },
+  ];
+
+  return (
+    <div className="mb-4">
+      <div className="grid grid-cols-4 gap-2">
+        {slots.map((slot, idx) => {
+          const isLogged = !!slot.log;
+          const weight = slot.log?.weight;
+          const time = slot.log ? format(new Date(slot.log.date), 'h:mm') : null;
+
+          return (
+            <button
+              key={slot.key}
+              onClick={() => onSlotTap(slot.type, slot.log)}
+              className={cn(
+                "relative flex flex-col items-center py-3 px-2 rounded-xl transition-all active:scale-95 min-h-[80px]",
+                isLogged
+                  ? `bg-${slot.color}-500/10 border border-${slot.color}-500/30`
+                  : "bg-muted/30 border border-muted/50"
+              )}
+              style={isLogged ? {
+                backgroundColor: slot.color === 'yellow' ? 'rgba(234, 179, 8, 0.1)' :
+                                 slot.color === 'blue' ? 'rgba(59, 130, 246, 0.1)' :
+                                 slot.color === 'green' ? 'rgba(34, 197, 94, 0.1)' :
+                                 'rgba(168, 85, 247, 0.1)',
+                borderColor: slot.color === 'yellow' ? 'rgba(234, 179, 8, 0.3)' :
+                             slot.color === 'blue' ? 'rgba(59, 130, 246, 0.3)' :
+                             slot.color === 'green' ? 'rgba(34, 197, 94, 0.3)' :
+                             'rgba(168, 85, 247, 0.3)'
+              } : {}}
+            >
+              {/* Icon with color */}
+              <span className={cn(
+                "mb-1",
+                isLogged
+                  ? slot.color === 'yellow' ? 'text-yellow-500' :
+                    slot.color === 'blue' ? 'text-blue-500' :
+                    slot.color === 'green' ? 'text-green-500' :
+                    'text-purple-500'
+                  : 'text-muted-foreground/50'
+              )}>
+                {slot.icon}
+              </span>
+
+              {/* Label */}
+              <span className={cn(
+                "text-[10px] font-bold uppercase tracking-wide mb-1",
+                isLogged ? 'text-foreground' : 'text-muted-foreground/60'
+              )}>
+                {slot.label}
+              </span>
+
+              {/* Weight or empty indicator */}
+              {isLogged ? (
+                <span className="text-sm font-mono font-bold">{weight?.toFixed(1)}</span>
+              ) : (
+                <span className="text-xs text-muted-foreground/40">—</span>
+              )}
+
+              {/* Time */}
+              {time && (
+                <span className="text-[9px] text-muted-foreground mt-0.5">{time}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Swipe hint for logged items */}
+      {Object.values(todayLogs).some(Boolean) && (
+        <p className="text-[9px] text-muted-foreground/50 text-center mt-2 italic">
+          Tap to edit
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -1417,16 +1449,15 @@ export default function Dashboard() {
         )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* HERO WEIGHT — Clean elite-style weight display          */}
+      {/* DECISION ZONE — Calmer top section with recommendation */}
+      {/* "What do I do next?" answered immediately               */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
-        <HeroWeight
+        <DecisionZone
           currentWeight={mostRecentLog?.weight ?? todayLogs.morning?.weight ?? null}
           targetWeight={profile.targetWeightClass}
-          timeUntil={getTimeUntilWeighIn()}
-          dailyChange={todayLogs.morning && yesterdayMorning ? todayLogs.morning.weight - yesterdayMorning.weight : null}
-          streak={streak}
-          status={statusInfo.status as 'on-track' | 'borderline' | 'risk' | 'unknown'}
+          statusInfo={statusInfo}
+          todayLogs={todayLogs}
           daysUntilWeighIn={daysUntilWeighIn}
         />
       )}
@@ -1440,63 +1471,65 @@ export default function Dashboard() {
         />
       )}
 
-      {/* Today's Weight Card — view/edit recent weights, log new */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* TODAY FLOW — Simplified horizontal timeline             */}
+      {/* AM → PRE → POST → BED — tap to log/edit                 */}
+      {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && (
-        <QuickWeighInCard
+        <TodayFlow
           todayLogs={todayLogs}
-          targetWeight={targetWeight}
-          isSparProtocol={isSparProtocol}
-          lastWeight={mostRecentLog?.weight ?? null}
-          recentLogs={todayLogsArray}
-          deleteLog={deleteLog}
+          onSlotTap={(type, log) => {
+            if (log) {
+              window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { editLog: log } }));
+            } else {
+              window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+            }
+          }}
         />
       )}
 
       {/* First-time user welcome — zero logs ever */}
       {!isViewingHistorical && logs.length === 0 && (
-        <Card className="mb-2 border-primary/20 bg-primary/5">
+        <Card className="mb-4 border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <h3 className="font-heading uppercase italic text-sm text-primary mb-2">Getting Started</h3>
             <div className="space-y-2 text-xs text-muted-foreground">
               <div className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-px">1</span>
-                <span>Log your <strong className="text-foreground/80">morning weight</strong> right when you wake up — before eating or drinking.</span>
+                <span>Log your <strong className="text-foreground/80">morning weight</strong> right when you wake up</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-px">2</span>
-                <span>Weigh in <strong className="text-foreground/80">before & after practice</strong> to track sweat loss.</span>
+                <span>Weigh in <strong className="text-foreground/80">before & after practice</strong></span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-primary font-bold mt-px">3</span>
-                <span>Log <strong className="text-foreground/80">before bed</strong> to calculate your overnight drift.</span>
+                <span>Log <strong className="text-foreground/80">before bed</strong> for overnight drift</span>
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground/60 mt-3">
-              After 2-3 days, you'll unlock projections, drift patterns, and personalized insights.
-            </p>
           </CardContent>
         </Card>
       )}
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* TODAY'S WEIGH-IN TIMELINE — at-a-glance log status     */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      <TodayTimeline
-        todayLogs={todayLogs}
-        logs={logs}
-        displayDate={displayDate}
-        mostRecentLog={mostRecentLog}
-        targetWeight={targetWeight}
-        weightClass={profile.targetWeightClass}
-        updateLog={updateLog}
-        deleteLog={deleteLog}
-        readOnly={isViewingHistorical}
-        statusInfo={statusInfo}
-        streak={streak}
-        descentData={descentData}
-        isSparProtocol={isSparProtocol}
-        trackPracticeWeighIns={profile.trackPracticeWeighIns}
-      />
+      {/* Historical view: show full TodayTimeline for data exploration */}
+      {isViewingHistorical && (
+        <TodayTimeline
+          todayLogs={todayLogs}
+          logs={logs}
+          displayDate={displayDate}
+          mostRecentLog={mostRecentLog}
+          targetWeight={targetWeight}
+          weightClass={profile.targetWeightClass}
+          updateLog={updateLog}
+          deleteLog={deleteLog}
+          readOnly={isViewingHistorical}
+          statusInfo={statusInfo}
+          streak={streak}
+          descentData={descentData}
+          isSparProtocol={isSparProtocol}
+          trackPracticeWeighIns={profile.trackPracticeWeighIns}
+        />
+      )}
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* NEW USER HINT — unlock stats after logging 2+ days     */}
