@@ -977,23 +977,23 @@ function TodayFlow({
         })}
       </div>
 
-      {/* Rest day toggle + hint */}
-      <div className="flex items-center justify-center gap-3 mt-2">
-        {/* Rest day toggle - only show if no practice logged */}
-        {!hasPracticeLog && (
-          <button
-            onClick={onToggleRestDay}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors",
-              isRestDay
-                ? "text-foreground/70 bg-muted"
-                : "text-muted-foreground/60 hover:text-muted-foreground"
-            )}
-          >
-            <Moon className="w-3 h-3" />
-            {isRestDay ? "Rest day ✓" : "Rest day?"}
-          </button>
-        )}
+      {/* Rest day toggle - always visible, more prominent */}
+      <div className="flex items-center justify-center gap-3 mt-3">
+        <button
+          onClick={onToggleRestDay}
+          disabled={hasPracticeLog}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all border",
+            hasPracticeLog
+              ? "text-muted-foreground/40 border-muted/30 cursor-not-allowed"
+              : isRestDay
+                ? "text-purple-400 bg-purple-500/15 border-purple-500/30"
+                : "text-muted-foreground border-muted/50 hover:border-purple-500/30 hover:text-purple-400"
+          )}
+        >
+          <Moon className="w-4 h-4" />
+          {hasPracticeLog ? "Practice logged" : isRestDay ? "Rest Day ✓" : "No Practice Today?"}
+        </button>
       </div>
     </div>
   );
