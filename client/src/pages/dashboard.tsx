@@ -471,113 +471,237 @@ function DecisionZone({
   statusInfo,
   todayLogs,
   daysUntilWeighIn,
+  descentData,
 }: {
   currentWeight: number | null;
   targetWeight: number;
   statusInfo: { status: string; label: string; contextMessage: string; recommendation?: any };
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
   daysUntilWeighIn: number;
+  descentData: {
+    avgOvernightDrift: number | null;
+    avgDriftRateOzPerHr: number | null;
+    avgPracticeLoss: number | null;
+    avgSweatRateOzPerHr: number | null;
+    projectedSaturday: number | null;
+    targetWeight: number;
+  };
 }) {
   const weightToLose = currentWeight ? currentWeight - targetWeight : 0;
   const isAtWeight = weightToLose <= 0;
   const hour = new Date().getHours();
 
-  // Single status color for entire zone (reduces color overload)
+  // Calculate today's practice loss
+  const preWeight = todayLogs.prePractice?.weight ?? null;
+  const postWeight = todayLogs.postPractice?.weight ?? null;
+  const todayPracticeLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
+
+  // Single status color for entire zone
   const statusColor = statusInfo.status === 'on-track' ? 'green' :
     statusInfo.status === 'borderline' ? 'yellow' : 'red';
 
-  // Generate smart recommendation based on time of day and status
+  // Generate smart, data-driven recommendation using all available data
   const getRecommendation = (): { text: string; subtext?: string } => {
-    // If they have a specific recommendation from the system, use it
-    if (statusInfo.recommendation?.message) {
-      return { text: statusInfo.recommendation.message };
-    }
+    const rec = statusInfo.recommendation;
+    const hasSweatData = descentData.avgSweatRateOzPerHr !== null;
+    const hasDriftData = descentData.avgOvernightDrift !== null;
+    const sweatRate = descentData.avgSweatRateOzPerHr ?? 0;
+    const driftRate = Math.abs(descentData.avgOvernightDrift ?? 0);
+    const projectedWeight = descentData.projectedSaturday;
 
-    // No morning weight yet
+    // Priority 1: No morning weight
     if (!todayLogs.morning) {
-      return { text: 'Log morning weight', subtext: 'Before eating or drinking' };
+      return { text: 'Log morning weight', subtext: 'First thing — before eating or drinking' };
     }
 
-    // At weight or under
+    // Priority 2: At weight or under — don't over-cut
     if (isAtWeight) {
-      return { text: 'Hold steady', subtext: 'No additional cut needed' };
+      if (daysUntilWeighIn === 0) {
+        return { text: 'You made weight ✓', subtext: 'Time to rehydrate and refuel' };
+      }
+      if (daysUntilWeighIn === 1) {
+        return { text: 'Holding at target', subtext: 'Light day — maintain, don\'t cut more' };
+      }
+      return { text: 'On weight — stay consistent', subtext: 'Don\'t over-cut, maintain energy' };
     }
 
-    // Based on time of day and status
-    if (hour < 12) {
-      // Morning - normal day ahead
-      if (statusInfo.status === 'on-track') {
-        return { text: 'Follow normal routine', subtext: 'You\'re on pace' };
+    // Priority 3: Critical situations (use system recommendation)
+    if (rec?.urgency === 'critical') {
+      if (rec.extraWorkoutsNeeded > 0) {
+        return {
+          text: `${rec.extraWorkoutsNeeded} extra session${rec.extraWorkoutsNeeded > 1 ? 's' : ''} needed`,
+          subtext: `${weightToLose.toFixed(1)} lbs to lose in ${daysUntilWeighIn} day${daysUntilWeighIn === 1 ? '' : 's'}`
+        };
       }
-      return { text: 'Extra sweat session recommended', subtext: `${weightToLose.toFixed(1)} lbs to lose` };
-    } else if (hour < 17) {
-      // Afternoon
-      if (statusInfo.status === 'on-track') {
-        return { text: 'Stay the course', subtext: 'Practice will help' };
-      }
-      return { text: 'Maximize practice intensity', subtext: 'Focus on sweat' };
-    } else {
-      // Evening
-      if (statusInfo.status === 'on-track') {
-        return { text: 'Light dinner, early sleep', subtext: 'Overnight drift will help' };
-      }
-      if (statusInfo.status === 'risk') {
-        return { text: 'Light sweat + early sleep', subtext: 'Stop fluids after 8pm' };
-      }
-      return { text: 'Light evening, good sleep', subtext: 'Drift works overnight' };
+      return { text: rec.message };
     }
+
+    // Priority 4: High urgency — specific workout guidance
+    if (rec?.urgency === 'high') {
+      if (rec.extraWorkoutsNeeded > 0 && rec.avgExtraWorkoutLoss) {
+        return {
+          text: `${rec.extraWorkoutsNeeded} session${rec.extraWorkoutsNeeded > 1 ? 's' : ''} will close the gap`,
+          subtext: `~${rec.avgExtraWorkoutLoss.toFixed(1)} lbs per session based on your data`
+        };
+      }
+      if (rec.todayWorkoutsDone > 0) {
+        return {
+          text: `Good work today (-${rec.todayLoss.toFixed(1)} lbs)`,
+          subtext: rec.extraWorkoutsNeeded > 0 ? `${rec.extraWorkoutsNeeded} more session${rec.extraWorkoutsNeeded > 1 ? 's' : ''} to go` : 'Keep pushing'
+        };
+      }
+    }
+
+    // Priority 5: Time-of-day specific guidance with personal data
+
+    // EVENING (after 5pm)
+    if (hour >= 17) {
+      // Check if drift alone will get us there
+      if (hasDriftData && driftRate > 0) {
+        const remainingAfterDrift = weightToLose - driftRate;
+
+        if (remainingAfterDrift <= 0) {
+          return {
+            text: 'Sleep will finish the cut',
+            subtext: `Your ${driftRate.toFixed(1)} lb overnight drift covers it`
+          };
+        }
+
+        if (remainingAfterDrift <= 1.5 && daysUntilWeighIn > 1) {
+          return {
+            text: 'Light dinner, early sleep',
+            subtext: `Drift (${driftRate.toFixed(1)}) + tomorrow = ${weightToLose.toFixed(1)} lbs`
+          };
+        }
+      }
+
+      // Need evening work
+      if (statusInfo.status === 'risk' || weightToLose > 3) {
+        if (hasSweatData) {
+          const neededTime = weightToLose / sweatRate;
+          return {
+            text: 'Evening sweat session needed',
+            subtext: `${neededTime.toFixed(0)} min at your ${sweatRate.toFixed(1)} lbs/hr rate`
+          };
+        }
+        return {
+          text: 'Light sweat + early sleep',
+          subtext: `${weightToLose.toFixed(1)} lbs with ${daysUntilWeighIn} day${daysUntilWeighIn === 1 ? '' : 's'} left`
+        };
+      }
+
+      return { text: 'Light dinner, good sleep', subtext: hasDriftData ? `Drift: ~${driftRate.toFixed(1)} lbs overnight` : 'Overnight drift helps' };
+    }
+
+    // AFTERNOON (12-5pm) — practice time
+    if (hour >= 12) {
+      if (todayPracticeLoss !== null) {
+        // Already practiced today
+        const remaining = weightToLose;
+
+        if (remaining <= driftRate && hasDriftData) {
+          return {
+            text: 'Practice done — drift finishes it',
+            subtext: `${remaining.toFixed(1)} lbs left, drift is ${driftRate.toFixed(1)} lbs`
+          };
+        }
+
+        if (remaining > 2 && hasSweatData) {
+          return {
+            text: 'Consider a second session',
+            subtext: `${remaining.toFixed(1)} lbs left — ${Math.ceil(remaining / (sweatRate * 0.75))} × 45min sessions`
+          };
+        }
+
+        return { text: 'Stay light tonight', subtext: 'Let drift work overnight' };
+      }
+
+      // Haven't practiced yet
+      if (hasSweatData) {
+        const expectedLoss = sweatRate * 1.5;
+        const remaining = weightToLose - expectedLoss;
+        return {
+          text: 'Maximize practice intensity',
+          subtext: `Your ${sweatRate.toFixed(1)} lbs/hr → ${expectedLoss.toFixed(1)} lbs today`
+        };
+      }
+      return { text: 'Push hard at practice', subtext: 'Track PRE/POST to learn your sweat rate' };
+    }
+
+    // MORNING (before noon)
+    if (projectedWeight !== null && projectedWeight <= targetWeight) {
+      return {
+        text: 'On pace — normal day',
+        subtext: `Projected ${projectedWeight.toFixed(1)} lbs at weigh-in`
+      };
+    }
+
+    if (statusInfo.status === 'on-track') {
+      return { text: 'Stay the course', subtext: 'You\'re tracking well' };
+    }
+
+    // Behind schedule in morning
+    if (hasSweatData && weightToLose > 2) {
+      const sessionsNeeded = Math.ceil(weightToLose / (sweatRate * 1.5));
+      return {
+        text: sessionsNeeded === 1 ? 'One hard session today' : `${sessionsNeeded} sessions needed`,
+        subtext: `${weightToLose.toFixed(1)} lbs at ${sweatRate.toFixed(1)} lbs/hr`
+      };
+    }
+
+    if (rec?.message) {
+      return { text: rec.message };
+    }
+
+    return { text: 'Extra effort today', subtext: `${weightToLose.toFixed(1)} lbs to go` };
   };
 
   const recommendation = getRecommendation();
 
   return (
-    <div className="mb-4 space-y-3">
+    <div className="mb-6">
       {/* Main weight display - large and calm */}
-      <div className="text-center py-2">
-        <div className="flex items-baseline justify-center gap-3 mb-2">
+      <div className="text-center py-4">
+        <div className="flex items-baseline justify-center gap-3 mb-3">
           <span className="text-5xl font-mono font-bold tracking-tight">
             {currentWeight ? currentWeight.toFixed(1) : '—'}
           </span>
-          <span className="text-2xl text-muted-foreground/60">→</span>
+          <span className="text-xl text-muted-foreground/40">→</span>
           <span className="text-5xl font-mono font-bold text-primary tracking-tight">
             {targetWeight}
           </span>
         </div>
 
-        {/* Single status indicator - only one color at a time */}
+        {/* Single status pill */}
         {currentWeight && (
           <div className={cn(
             "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold",
-            statusColor === 'green' && "bg-green-500/15 text-green-500",
-            statusColor === 'yellow' && "bg-yellow-500/15 text-yellow-500",
-            statusColor === 'red' && "bg-red-500/15 text-red-400"
+            statusColor === 'green' && "bg-green-500/10 text-green-500",
+            statusColor === 'yellow' && "bg-yellow-500/10 text-yellow-500",
+            statusColor === 'red' && "bg-red-500/10 text-red-400"
           )}>
-            {isAtWeight ? (
-              <>✓ AT WEIGHT</>
-            ) : (
-              <>{weightToLose.toFixed(1)} lbs remaining</>
-            )}
+            {isAtWeight ? '✓ AT WEIGHT' : `${weightToLose.toFixed(1)} lbs to go`}
           </div>
         )}
       </div>
 
-      {/* Recommendation - the key insight */}
+      {/* Recommendation - the single most important insight */}
       <div className={cn(
-        "rounded-xl p-4 text-center",
-        statusColor === 'green' && "bg-green-500/10 border border-green-500/20",
-        statusColor === 'yellow' && "bg-yellow-500/10 border border-yellow-500/20",
-        statusColor === 'red' && "bg-red-500/10 border border-red-500/20"
+        "rounded-xl px-4 py-3 text-center",
+        statusColor === 'green' && "bg-green-500/8",
+        statusColor === 'yellow' && "bg-yellow-500/8",
+        statusColor === 'red' && "bg-red-500/8"
       )}>
         <p className={cn(
-          "text-base font-bold mb-1",
-          statusColor === 'green' && "text-green-500",
-          statusColor === 'yellow' && "text-yellow-500",
+          "text-[15px] font-semibold",
+          statusColor === 'green' && "text-green-400",
+          statusColor === 'yellow' && "text-yellow-400",
           statusColor === 'red' && "text-red-400"
         )}>
           {recommendation.text}
         </p>
         {recommendation.subtext && (
-          <p className="text-xs text-muted-foreground">{recommendation.subtext}</p>
+          <p className="text-xs text-muted-foreground mt-1">{recommendation.subtext}</p>
         )}
       </div>
     </div>
@@ -668,8 +792,19 @@ function TodayFlow({
 
   const gridCols = slots.length === 2 ? 'grid-cols-2' : 'grid-cols-4';
 
+  // Count logged slots for completion indicator
+  const loggedCount = slots.filter(s => s.log).length;
+
   return (
-    <div className="mb-4">
+    <div className="mb-6">
+      {/* Minimal completion indicator */}
+      <div className="flex items-center justify-between mb-2 px-1">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Today</span>
+        <span className="text-[10px] text-muted-foreground">
+          {loggedCount}/{slots.length} logged
+        </span>
+      </div>
+
       <div className={cn("grid gap-2", gridCols)}>
         {slots.map((slot) => {
           const isLogged = !!slot.log;
@@ -685,29 +820,14 @@ function TodayFlow({
               className={cn(
                 "relative flex flex-col items-center py-3 px-2 rounded-xl transition-all active:scale-95 min-h-[80px]",
                 isLogged
-                  ? `bg-${slot.color}-500/10 border border-${slot.color}-500/30`
-                  : "bg-muted/30 border border-muted/50"
+                  ? "bg-muted/60 border border-muted"
+                  : "bg-muted/20 border border-dashed border-muted/50"
               )}
-              style={isLogged ? {
-                backgroundColor: slot.color === 'yellow' ? 'rgba(234, 179, 8, 0.1)' :
-                                 slot.color === 'blue' ? 'rgba(59, 130, 246, 0.1)' :
-                                 slot.color === 'green' ? 'rgba(34, 197, 94, 0.1)' :
-                                 'rgba(168, 85, 247, 0.1)',
-                borderColor: slot.color === 'yellow' ? 'rgba(234, 179, 8, 0.3)' :
-                             slot.color === 'blue' ? 'rgba(59, 130, 246, 0.3)' :
-                             slot.color === 'green' ? 'rgba(34, 197, 94, 0.3)' :
-                             'rgba(168, 85, 247, 0.3)'
-              } : {}}
             >
-              {/* Icon with color */}
+              {/* Icon - muted, not colored */}
               <span className={cn(
                 "mb-1",
-                isLogged
-                  ? slot.color === 'yellow' ? 'text-yellow-500' :
-                    slot.color === 'blue' ? 'text-blue-500' :
-                    slot.color === 'green' ? 'text-green-500' :
-                    'text-purple-500'
-                  : 'text-muted-foreground/50'
+                isLogged ? "text-foreground/70" : "text-muted-foreground/30"
               )}>
                 {slot.icon}
               </span>
@@ -715,25 +835,25 @@ function TodayFlow({
               {/* Label */}
               <span className={cn(
                 "text-[10px] font-bold uppercase tracking-wide mb-1",
-                isLogged ? 'text-foreground' : 'text-muted-foreground/60'
+                isLogged ? 'text-foreground/80' : 'text-muted-foreground/40'
               )}>
                 {slot.label}
               </span>
 
               {/* Weight or empty indicator */}
               {isLogged ? (
-                <span className="text-sm font-mono font-bold">{weight?.toFixed(1)}</span>
+                <span className="text-sm font-mono font-bold text-foreground">{weight?.toFixed(1)}</span>
               ) : (
-                <span className="text-xs text-muted-foreground/40">—</span>
+                <span className="text-xs text-muted-foreground/30">—</span>
               )}
 
-              {/* Practice loss on POST slot */}
+              {/* Practice loss on POST slot - this is the ONE accent color */}
               {showPracticeLoss ? (
-                <span className="text-[9px] text-orange-500 font-bold mt-0.5">
+                <span className="text-[9px] text-primary font-bold mt-0.5">
                   -{practiceLoss.toFixed(1)}{sweatRate ? ` (${sweatRate.toFixed(1)}/hr)` : ''}
                 </span>
               ) : time ? (
-                <span className="text-[9px] text-muted-foreground mt-0.5">{time}</span>
+                <span className="text-[9px] text-muted-foreground/50 mt-0.5">{time}</span>
               ) : null}
             </button>
           );
@@ -747,22 +867,15 @@ function TodayFlow({
           <button
             onClick={onToggleRestDay}
             className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors",
               isRestDay
-                ? "text-purple-500 bg-purple-500/15"
-                : "text-muted-foreground bg-muted/50 hover:bg-muted"
+                ? "text-foreground/70 bg-muted"
+                : "text-muted-foreground/60 hover:text-muted-foreground"
             )}
           >
             <Moon className="w-3 h-3" />
-            {isRestDay ? "Rest day" : "Rest day?"}
+            {isRestDay ? "Rest day ✓" : "Rest day?"}
           </button>
-        )}
-
-        {/* Tap to edit hint */}
-        {Object.values(todayLogs).some(Boolean) && (
-          <span className="text-[9px] text-muted-foreground/50 italic">
-            Tap to edit
-          </span>
         )}
       </div>
     </div>
@@ -1539,6 +1652,7 @@ export default function Dashboard() {
           statusInfo={statusInfo}
           todayLogs={todayLogs}
           daysUntilWeighIn={daysUntilWeighIn}
+          descentData={descentData}
         />
       )}
 
@@ -2541,81 +2655,72 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
     descentData.projectedSaturday <= descentData.targetWeight * 1.01 ? 'text-yellow-500' : 'text-orange-500';
 
   return (
-    <div className="space-y-2 mt-2">
-      <Card data-tour="countdown" className="border-muted overflow-hidden">
+    <div className="mt-4">
+      <Card data-tour="countdown" className="border-muted/50 overflow-hidden bg-muted/10">
         <CardContent className="p-0">
           {/* Collapsed Header - always visible */}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-muted/30 transition-colors"
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors"
           >
+            <span className="text-[11px] text-muted-foreground uppercase tracking-wider">Week Plan</span>
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-primary" />
-              <h4 className="font-bold text-sm uppercase tracking-wide">Week Plan</h4>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={cn("text-[11px] font-bold", projectionColor)}>
+              <span className={cn("text-xs font-medium", projectionColor)}>
                 {getSummaryText()}
               </span>
-              <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
+              <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/50 transition-transform", isExpanded && "rotate-180")} />
             </div>
           </button>
 
           {/* Expanded Content */}
           {isExpanded && (
-            <div className="animate-in slide-in-from-top-2 duration-200">
+            <div className="animate-in slide-in-from-top-2 duration-200 border-t border-muted/30">
 
-          {/* Stats Row */}
+          {/* Stats Row - muted colors, cleaner */}
           {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null || descentData.projectedSaturday !== null) && (
-            <div className="flex items-center justify-around px-3 pb-3">
+            <div className="flex items-center justify-around px-3 py-3">
               <div className="text-center">
-                <span className="text-[10px] text-muted-foreground uppercase block mb-0.5">
+                <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
                   Drift
                   <HelpTip
                     title="Overnight Drift"
                     description="Weight lost while sleeping from breathing and metabolism. The rate (lbs/hr) lets you estimate for any sleep duration. E.g., 0.15 lbs/hr × 8 hrs = 1.2 lbs."
                   />
                 </span>
-                <span className={cn(
-                  "font-mono font-bold text-lg",
-                  descentData.avgOvernightDrift !== null ? "text-cyan-500" : "text-muted-foreground"
-                )}>
+                <span className="font-mono font-bold text-base text-foreground">
                   {descentData.avgOvernightDrift !== null
                     ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}`
                     : '—'}
                 </span>
                 {descentData.avgDriftRateOzPerHr !== null && (
-                  <span className="block text-[10px] font-mono text-cyan-400">
+                  <span className="block text-[9px] font-mono text-muted-foreground">
                     {descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr
                   </span>
                 )}
               </div>
-              <div className="w-px h-8 bg-muted" />
+              <div className="w-px h-8 bg-muted/30" />
               <div className="text-center">
-                <span className="text-[10px] text-muted-foreground uppercase block mb-0.5">
+                <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
                   Practice
                   <HelpTip
                     title="Practice Loss"
                     description="Average weight lost per practice session from sweating. The rate (lbs/hr) lets you estimate for any workout length. E.g., 1.4 lbs/hr × 0.75 hr = 1.05 lbs."
                   />
                 </span>
-                <span className={cn(
-                  "font-mono font-bold text-lg",
-                  descentData.avgPracticeLoss !== null ? "text-orange-500" : "text-muted-foreground"
-                )}>
+                <span className="font-mono font-bold text-base text-foreground">
                   {descentData.avgPracticeLoss !== null
                     ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}`
                     : '—'}
                 </span>
                 {descentData.avgSweatRateOzPerHr !== null && (
-                  <span className="block text-[10px] font-mono text-orange-400">
+                  <span className="block text-[9px] font-mono text-muted-foreground">
                     {descentData.avgSweatRateOzPerHr.toFixed(2)} lbs/hr
                   </span>
                 )}
               </div>
-              <div className="w-px h-8 bg-muted" />
+              <div className="w-px h-8 bg-muted/30" />
               <div className="text-center">
-                <span className="text-[10px] text-muted-foreground uppercase block mb-0.5">
+                <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
                   Projected
                   <HelpTip
                     title="Projected Weigh-In"
