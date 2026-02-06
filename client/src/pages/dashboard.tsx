@@ -490,179 +490,220 @@ function DecisionZone({
   const weightToLose = currentWeight ? currentWeight - targetWeight : 0;
   const isAtWeight = weightToLose <= 0;
   const hour = new Date().getHours();
+  const now = new Date();
 
   // Calculate today's practice loss
   const preWeight = todayLogs.prePractice?.weight ?? null;
   const postWeight = todayLogs.postPractice?.weight ?? null;
   const todayPracticeLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
 
-  // Single status color for entire zone
+  // Personal data
+  const sweatRate = descentData.avgSweatRateOzPerHr ?? null; // lbs/hr
+  const driftRate = descentData.avgOvernightDrift ? Math.abs(descentData.avgOvernightDrift) : null; // lbs/night
+  const driftRatePerHour = descentData.avgDriftRateOzPerHr ? Math.abs(descentData.avgDriftRateOzPerHr) : null;
+  const projectedWeight = descentData.projectedSaturday;
+  const rec = statusInfo.recommendation;
+
+  // Status color
   const statusColor = statusInfo.status === 'on-track' ? 'green' :
     statusInfo.status === 'borderline' ? 'yellow' : 'red';
 
-  // Generate smart, data-driven recommendation using all available data
-  const getRecommendation = (): { text: string; subtext?: string } => {
-    const rec = statusInfo.recommendation;
-    const hasSweatData = descentData.avgSweatRateOzPerHr !== null;
-    const hasDriftData = descentData.avgOvernightDrift !== null;
-    const sweatRate = descentData.avgSweatRateOzPerHr ?? 0;
-    const driftRate = Math.abs(descentData.avgOvernightDrift ?? 0);
-    const projectedWeight = descentData.projectedSaturday;
+  // ═══════════════════════════════════════════════════════════════
+  // ELITE COACH CALCULATIONS
+  // ═══════════════════════════════════════════════════════════════
 
-    // Priority 1: No morning weight
+  // Hours until assumed weigh-in (Saturday 6am if daysUntil > 0, else assume same day 6am)
+  const getHoursUntilWeighIn = (): number | null => {
+    if (daysUntilWeighIn < 0) return null;
+    if (daysUntilWeighIn === 0) {
+      // Competition day - assume weigh-in is at 6am or already passed
+      const weighInHour = 6;
+      if (hour >= weighInHour) return 0;
+      return weighInHour - hour;
+    }
+    // Future day - assume Saturday 6am
+    const hoursLeftToday = 24 - hour;
+    const fullDays = daysUntilWeighIn - 1;
+    const hoursOnWeighInDay = 6; // 6am weigh-in
+    return hoursLeftToday + (fullDays * 24) + hoursOnWeighInDay;
+  };
+
+  const hoursUntilWeighIn = getHoursUntilWeighIn();
+
+  // Calculate expected drift between now and weigh-in
+  const getExpectedDrift = (): number | null => {
+    if (!driftRatePerHour || !hoursUntilWeighIn) return null;
+    // Assume 8 hours sleep per night
+    const nightsRemaining = daysUntilWeighIn;
+    const sleepHours = nightsRemaining * 8;
+    return driftRatePerHour * sleepHours;
+  };
+
+  // Calculate fluid allowance (how much they can drink and still make weight)
+  // 1 oz water ≈ 0.065 lbs, so 16 oz ≈ 1 lb
+  const getFluidAllowance = (): { oz: number; cutoffTime: string } | null => {
+    if (!currentWeight || isAtWeight) return null;
+
+    const expectedDrift = getExpectedDrift() ?? 0;
+    const expectedPracticeLoss = daysUntilWeighIn > 0 && descentData.avgPracticeLoss
+      ? Math.abs(descentData.avgPracticeLoss) * daysUntilWeighIn
+      : 0;
+
+    // Weight that will come off naturally
+    const naturalLoss = expectedDrift + expectedPracticeLoss;
+
+    // Buffer they have (negative means they're behind)
+    const buffer = naturalLoss - weightToLose;
+
+    if (buffer <= 0) {
+      // No fluid allowance - they need to cut
+      return { oz: 0, cutoffTime: 'now' };
+    }
+
+    // Convert buffer to oz (1 lb = 16 oz)
+    const allowanceOz = Math.floor(buffer * 16);
+
+    // Cutoff time calculation
+    let cutoffTime = '6pm';
+    if (daysUntilWeighIn === 0) {
+      cutoffTime = 'passed';
+    } else if (daysUntilWeighIn === 1 && hour >= 12) {
+      cutoffTime = '8pm tonight';
+    } else if (daysUntilWeighIn === 1) {
+      cutoffTime = '6pm tonight';
+    }
+
+    return { oz: Math.max(0, allowanceOz), cutoffTime };
+  };
+
+  // Calculate extra workouts needed
+  const getWorkoutGuidance = (): { sessions: number; minutes: number; description: string } | null => {
+    if (isAtWeight || !sweatRate || sweatRate <= 0) return null;
+
+    const expectedDrift = getExpectedDrift() ?? 0;
+    const remainingAfterDrift = weightToLose - expectedDrift;
+
+    if (remainingAfterDrift <= 0) return null; // Drift covers it
+
+    // Calculate sessions needed (assume 45-60 min sessions)
+    const lossPerSession = sweatRate * 0.75; // 45 min
+    const sessionsNeeded = Math.ceil(remainingAfterDrift / lossPerSession);
+    const minutesNeeded = Math.ceil((remainingAfterDrift / sweatRate) * 60);
+
+    let description = '';
+    if (sessionsNeeded === 1) {
+      description = `${minutesNeeded} min at ${sweatRate.toFixed(1)} lbs/hr`;
+    } else {
+      description = `${sessionsNeeded} × 45 min sessions`;
+    }
+
+    return { sessions: sessionsNeeded, minutes: minutesNeeded, description };
+  };
+
+  // Calculate food guidance (gut content)
+  // Gut content is typically 2-5 lbs, empties in ~24-48 hours
+  const getFoodGuidance = (): { maxLbs: number; lastMealTime: string } | null => {
+    if (isAtWeight) return null;
+
+    // On competition day or day before, be strict
+    if (daysUntilWeighIn <= 1) {
+      return {
+        maxLbs: 0.5, // Very light - low residue only
+        lastMealTime: daysUntilWeighIn === 0 ? 'after weigh-in' : '6pm'
+      };
+    }
+
+    // 2 days out - moderate restriction
+    if (daysUntilWeighIn === 2) {
+      return { maxLbs: 1.5, lastMealTime: '7pm' };
+    }
+
+    // 3+ days - normal eating, just track
+    return { maxLbs: 2.5, lastMealTime: '8pm' };
+  };
+
+  // Main recommendation (primary action)
+  const getMainRecommendation = (): { text: string; subtext?: string; urgent?: boolean } => {
+    // No morning weight
     if (!todayLogs.morning) {
       return { text: 'Log morning weight', subtext: 'First thing — before eating or drinking' };
     }
 
-    // Priority 2: At weight or under — don't over-cut
+    // Made weight
     if (isAtWeight) {
       if (daysUntilWeighIn === 0) {
-        return { text: 'You made weight ✓', subtext: 'Time to rehydrate and refuel' };
+        return { text: 'You made weight ✓', subtext: 'Rehydrate: 20-24 oz/hr with electrolytes' };
       }
-      if (daysUntilWeighIn === 1) {
-        return { text: 'Holding at target', subtext: 'Light day — maintain, don\'t cut more' };
-      }
-      return { text: 'On weight — stay consistent', subtext: 'Don\'t over-cut, maintain energy' };
+      return { text: 'Holding at target', subtext: 'Maintain — don\'t over-cut' };
     }
 
-    // Priority 3: Critical situations (use system recommendation)
+    // Critical from system
     if (rec?.urgency === 'critical') {
-      if (rec.extraWorkoutsNeeded > 0) {
-        return {
-          text: `${rec.extraWorkoutsNeeded} extra session${rec.extraWorkoutsNeeded > 1 ? 's' : ''} needed`,
-          subtext: `${weightToLose.toFixed(1)} lbs to lose in ${daysUntilWeighIn} day${daysUntilWeighIn === 1 ? '' : 's'}`
-        };
-      }
-      return { text: rec.message };
+      return { text: rec.message, urgent: true };
     }
 
-    // Priority 4: High urgency — specific workout guidance
-    if (rec?.urgency === 'high') {
-      if (rec.extraWorkoutsNeeded > 0 && rec.avgExtraWorkoutLoss) {
-        return {
-          text: `${rec.extraWorkoutsNeeded} session${rec.extraWorkoutsNeeded > 1 ? 's' : ''} will close the gap`,
-          subtext: `~${rec.avgExtraWorkoutLoss.toFixed(1)} lbs per session based on your data`
-        };
-      }
-      if (rec.todayWorkoutsDone > 0) {
-        return {
-          text: `Good work today (-${rec.todayLoss.toFixed(1)} lbs)`,
-          subtext: rec.extraWorkoutsNeeded > 0 ? `${rec.extraWorkoutsNeeded} more session${rec.extraWorkoutsNeeded > 1 ? 's' : ''} to go` : 'Keep pushing'
-        };
-      }
+    // Calculate what will happen naturally
+    const expectedDrift = getExpectedDrift() ?? 0;
+    const workout = getWorkoutGuidance();
+    const remainingAfterDrift = weightToLose - expectedDrift;
+
+    // Drift alone covers it
+    if (remainingAfterDrift <= 0 && expectedDrift > 0) {
+      return {
+        text: 'On track — drift covers it',
+        subtext: `${expectedDrift.toFixed(1)} lbs drift > ${weightToLose.toFixed(1)} lbs needed`
+      };
     }
 
-    // Priority 5: Time-of-day specific guidance with personal data
-
-    // EVENING (after 5pm)
-    if (hour >= 17) {
-      // Check if drift alone will get us there
-      if (hasDriftData && driftRate > 0) {
-        const remainingAfterDrift = weightToLose - driftRate;
-
-        if (remainingAfterDrift <= 0) {
-          return {
-            text: 'Sleep will finish the cut',
-            subtext: `Your ${driftRate.toFixed(1)} lb overnight drift covers it`
-          };
-        }
-
-        if (remainingAfterDrift <= 1.5 && daysUntilWeighIn > 1) {
-          return {
-            text: 'Light dinner, early sleep',
-            subtext: `Drift (${driftRate.toFixed(1)}) + tomorrow = ${weightToLose.toFixed(1)} lbs`
-          };
-        }
-      }
-
-      // Need evening work
-      if (statusInfo.status === 'risk' || weightToLose > 3) {
-        if (hasSweatData) {
-          const neededTime = weightToLose / sweatRate;
-          return {
-            text: 'Evening sweat session needed',
-            subtext: `${neededTime.toFixed(0)} min at your ${sweatRate.toFixed(1)} lbs/hr rate`
-          };
-        }
-        return {
-          text: 'Light sweat + early sleep',
-          subtext: `${weightToLose.toFixed(1)} lbs with ${daysUntilWeighIn} day${daysUntilWeighIn === 1 ? '' : 's'} left`
-        };
-      }
-
-      return { text: 'Light dinner, good sleep', subtext: hasDriftData ? `Drift: ~${driftRate.toFixed(1)} lbs overnight` : 'Overnight drift helps' };
-    }
-
-    // AFTERNOON (12-5pm) — practice time
-    if (hour >= 12) {
+    // Close - drift + one practice
+    if (remainingAfterDrift <= 2 && daysUntilWeighIn > 0) {
       if (todayPracticeLoss !== null) {
-        // Already practiced today
-        const remaining = weightToLose;
-
-        if (remaining <= driftRate && hasDriftData) {
-          return {
-            text: 'Practice done — drift finishes it',
-            subtext: `${remaining.toFixed(1)} lbs left, drift is ${driftRate.toFixed(1)} lbs`
-          };
-        }
-
-        if (remaining > 2 && hasSweatData) {
-          return {
-            text: 'Consider a second session',
-            subtext: `${remaining.toFixed(1)} lbs left — ${Math.ceil(remaining / (sweatRate * 0.75))} × 45min sessions`
-          };
-        }
-
-        return { text: 'Stay light tonight', subtext: 'Let drift work overnight' };
-      }
-
-      // Haven't practiced yet
-      if (hasSweatData) {
-        const expectedLoss = sweatRate * 1.5;
-        const remaining = weightToLose - expectedLoss;
         return {
-          text: 'Maximize practice intensity',
-          subtext: `Your ${sweatRate.toFixed(1)} lbs/hr → ${expectedLoss.toFixed(1)} lbs today`
+          text: 'Good session today',
+          subtext: `${remainingAfterDrift.toFixed(1)} lbs left — drift will help`
         };
       }
-      return { text: 'Push hard at practice', subtext: 'Track PRE/POST to learn your sweat rate' };
-    }
-
-    // MORNING (before noon)
-    if (projectedWeight !== null && projectedWeight <= targetWeight) {
       return {
-        text: 'On pace — normal day',
-        subtext: `Projected ${projectedWeight.toFixed(1)} lbs at weigh-in`
+        text: 'One hard practice closes it',
+        subtext: sweatRate ? `Your ${sweatRate.toFixed(1)} lbs/hr rate + overnight drift` : undefined
       };
     }
 
-    if (statusInfo.status === 'on-track') {
-      return { text: 'Stay the course', subtext: 'You\'re tracking well' };
-    }
-
-    // Behind schedule in morning
-    if (hasSweatData && weightToLose > 2) {
-      const sessionsNeeded = Math.ceil(weightToLose / (sweatRate * 1.5));
+    // Need extra work
+    if (workout && workout.sessions > 0) {
+      if (rec?.todayWorkoutsDone > 0 && rec?.todayLoss > 0) {
+        return {
+          text: `Good work today (−${rec.todayLoss.toFixed(1)} lbs)`,
+          subtext: workout.sessions > 0 ? `${workout.sessions} more session${workout.sessions > 1 ? 's' : ''} needed` : 'Keep it up'
+        };
+      }
       return {
-        text: sessionsNeeded === 1 ? 'One hard session today' : `${sessionsNeeded} sessions needed`,
-        subtext: `${weightToLose.toFixed(1)} lbs at ${sweatRate.toFixed(1)} lbs/hr`
+        text: `${workout.sessions} extra session${workout.sessions > 1 ? 's' : ''} needed`,
+        subtext: workout.description,
+        urgent: workout.sessions >= 3
       };
     }
 
-    if (rec?.message) {
-      return { text: rec.message };
-    }
-
-    return { text: 'Extra effort today', subtext: `${weightToLose.toFixed(1)} lbs to go` };
+    // Fallback
+    return {
+      text: `${weightToLose.toFixed(1)} lbs to go`,
+      subtext: daysUntilWeighIn > 0 ? `${daysUntilWeighIn} day${daysUntilWeighIn > 1 ? 's' : ''} until weigh-in` : 'Weigh-in today'
+    };
   };
 
-  const recommendation = getRecommendation();
+  const mainRec = getMainRecommendation();
+  const fluidGuidance = getFluidAllowance();
+  const workoutGuidance = getWorkoutGuidance();
+  const foodGuidance = getFoodGuidance();
+
+  // Should we show the detailed guidance cards?
+  const showDetailedGuidance = currentWeight && !isAtWeight && daysUntilWeighIn >= 0 && daysUntilWeighIn <= 7;
 
   return (
     <div className="mb-6">
-      {/* Main weight display - large and calm */}
-      <div className="text-center py-4">
-        <div className="flex items-baseline justify-center gap-3 mb-3">
+      {/* Main weight display */}
+      <div className="text-center py-3">
+        <div className="flex items-baseline justify-center gap-3 mb-2">
           <span className="text-5xl font-mono font-bold tracking-tight">
             {currentWeight ? currentWeight.toFixed(1) : '—'}
           </span>
@@ -672,7 +713,7 @@ function DecisionZone({
           </span>
         </div>
 
-        {/* Single status pill */}
+        {/* Status pill */}
         {currentWeight && (
           <div className={cn(
             "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold",
@@ -681,29 +722,104 @@ function DecisionZone({
             statusColor === 'red' && "bg-red-500/10 text-red-400"
           )}>
             {isAtWeight ? '✓ AT WEIGHT' : `${weightToLose.toFixed(1)} lbs to go`}
+            {hoursUntilWeighIn !== null && hoursUntilWeighIn > 0 && !isAtWeight && (
+              <span className="text-muted-foreground font-normal">• {hoursUntilWeighIn}h</span>
+            )}
           </div>
         )}
       </div>
 
-      {/* Recommendation - the single most important insight */}
+      {/* Primary recommendation */}
       <div className={cn(
-        "rounded-xl px-4 py-3 text-center",
-        statusColor === 'green' && "bg-green-500/8",
-        statusColor === 'yellow' && "bg-yellow-500/8",
-        statusColor === 'red' && "bg-red-500/8"
+        "rounded-xl px-4 py-3 text-center mb-3",
+        mainRec.urgent ? "bg-red-500/10 border border-red-500/20" :
+        statusColor === 'green' ? "bg-green-500/8" :
+        statusColor === 'yellow' ? "bg-yellow-500/8" :
+        "bg-red-500/8"
       )}>
         <p className={cn(
           "text-[15px] font-semibold",
-          statusColor === 'green' && "text-green-400",
-          statusColor === 'yellow' && "text-yellow-400",
-          statusColor === 'red' && "text-red-400"
+          mainRec.urgent ? "text-red-400" :
+          statusColor === 'green' ? "text-green-400" :
+          statusColor === 'yellow' ? "text-yellow-400" :
+          "text-red-400"
         )}>
-          {recommendation.text}
+          {mainRec.text}
         </p>
-        {recommendation.subtext && (
-          <p className="text-xs text-muted-foreground mt-1">{recommendation.subtext}</p>
+        {mainRec.subtext && (
+          <p className="text-xs text-muted-foreground mt-1">{mainRec.subtext}</p>
         )}
       </div>
+
+      {/* Detailed guidance cards - only show when cutting */}
+      {showDetailedGuidance && (
+        <div className="grid grid-cols-3 gap-2">
+          {/* Fluid guidance */}
+          <div className="bg-muted/20 rounded-lg p-2.5 text-center">
+            <Droplets className="w-4 h-4 mx-auto mb-1 text-cyan-500/70" />
+            <div className="text-xs text-muted-foreground mb-0.5">Fluids</div>
+            {fluidGuidance ? (
+              <>
+                <div className="text-sm font-bold font-mono">
+                  {fluidGuidance.oz > 0 ? `${fluidGuidance.oz} oz` : 'Cut'}
+                </div>
+                <div className="text-[9px] text-muted-foreground">
+                  {fluidGuidance.oz > 0 ? `until ${fluidGuidance.cutoffTime}` : 'Stop now'}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm font-bold text-green-500">OK</div>
+            )}
+          </div>
+
+          {/* Workout guidance */}
+          <div className="bg-muted/20 rounded-lg p-2.5 text-center">
+            <Dumbbell className="w-4 h-4 mx-auto mb-1 text-orange-500/70" />
+            <div className="text-xs text-muted-foreground mb-0.5">Extra Work</div>
+            {workoutGuidance && workoutGuidance.sessions > 0 ? (
+              <>
+                <div className="text-sm font-bold font-mono">
+                  {workoutGuidance.sessions}×
+                </div>
+                <div className="text-[9px] text-muted-foreground">
+                  {workoutGuidance.sessions === 1 ? `${workoutGuidance.minutes} min` : '45 min each'}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm font-bold text-green-500">None</div>
+            )}
+          </div>
+
+          {/* Food guidance */}
+          <div className="bg-muted/20 rounded-lg p-2.5 text-center">
+            <Flame className="w-4 h-4 mx-auto mb-1 text-yellow-500/70" />
+            <div className="text-xs text-muted-foreground mb-0.5">Food</div>
+            {foodGuidance ? (
+              <>
+                <div className="text-sm font-bold font-mono">
+                  {foodGuidance.maxLbs <= 0.5 ? 'Light' : `<${foodGuidance.maxLbs} lb`}
+                </div>
+                <div className="text-[9px] text-muted-foreground">
+                  last by {foodGuidance.lastMealTime}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm font-bold text-green-500">Normal</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sleep/drift insight - show in evening */}
+      {hour >= 17 && driftRate && driftRate > 0 && !isAtWeight && (
+        <div className="mt-3 text-center">
+          <p className="text-[11px] text-muted-foreground">
+            <Moon className="w-3 h-3 inline mr-1 text-purple-400" />
+            Your overnight drift: <span className="font-mono font-bold text-foreground">−{driftRate.toFixed(1)} lbs</span>
+            {driftRatePerHour && <span className="text-muted-foreground/60"> ({driftRatePerHour.toFixed(2)}/hr)</span>}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
