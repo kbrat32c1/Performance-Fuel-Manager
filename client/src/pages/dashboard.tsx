@@ -1312,10 +1312,18 @@ export default function Dashboard() {
         )}
 
         {/* ═══════════════════════════════════════════════════════ */}
-        {/* SIP-ONLY WARNING BANNER — Only when athlete needs fluid restriction */}
-        {/* Shows day before weigh-in IF they still have weight to lose        */}
+        {/* SIP-ONLY WARNING BANNER — Only when projection says fluids must be 0 */}
+        {/* Uses store's projection to check if athlete has any fluid buffer     */}
         {/* ═══════════════════════════════════════════════════════ */}
-        {!isViewingHistorical && daysUntilWeighIn === 1 && profile.protocol !== '5' && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (
+        {!isViewingHistorical && daysUntilWeighIn === 1 && profile.protocol !== '5' && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
+          // Check projection-based fluid buffer — only show if truly no room for fluids
+          try {
+            const descentData = getWeekDescentData();
+            const projected = descentData.projectedSaturday;
+            if (projected !== null && projected <= profile.targetWeightClass) return false; // has margin, don't show
+          } catch {}
+          return true;
+        })() && (
           <SipOnlyBanner onDismiss={() => {
             setSipOnlyDismissed(true);
             sessionStorage.setItem('sipOnlyBannerDismissed', 'true');

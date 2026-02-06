@@ -269,7 +269,7 @@ export function AiCoachProactive() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: "Based on my current situation, what's the ONE most important thing I should know or do right now? Be specific with numbers and timing. Keep it to 2-3 sentences max.",
+          question: "Based on my current situation, what's the most helpful thing I should know right now? Be specific with numbers and timing. Keep it encouraging and brief — 2-3 sentences max.",
           context,
         }),
       });
@@ -404,9 +404,11 @@ export function AiCoachProactive() {
                 {insights.foodGuidance ? (
                   <>
                     <div className="text-sm font-bold font-mono">
-                      {insights.foodGuidance.maxLbs <= 0.5 ? 'Light' : `<${insights.foodGuidance.maxLbs} lb`}
+                      {insights.foodGuidance.maxLbs === 0 ? 'None' : insights.foodGuidance.maxLbs <= 0.5 ? 'Light' : `<${insights.foodGuidance.maxLbs} lb`}
                     </div>
-                    <div className="text-[9px] text-muted-foreground">by {insights.foodGuidance.lastMealTime}</div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {insights.foodGuidance.maxLbs === 0 ? 'until weigh-in' : `by ${insights.foodGuidance.lastMealTime}`}
+                    </div>
                   </>
                 ) : <div className="text-sm font-bold text-green-500">Normal</div>}
               </div>
