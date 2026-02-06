@@ -216,6 +216,7 @@ export function QuickLogFAB() {
   const [showTypeGrid, setShowTypeGrid] = useState(false);
   const [showExtraTypes, setShowExtraTypes] = useState(false);
   const [fabSuccess, setFabSuccess] = useState(false);
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
   // Edit mode state
   const [editLogId, setEditLogId] = useState<string | null>(null);
   const [editExtraIds, setEditExtraIds] = useState<{ beforeId: string; afterId: string | null } | null>(null);
@@ -304,6 +305,8 @@ export function QuickLogFAB() {
     setCustomDuration(false);
     setSleepHours('');
     setConfirmWildcard(false);
+    setInputErrorMsg(null);
+    setShowMoreOptions(false);
     setCustomSleep(false);
     setLogTime(getCurrentTimeStr());
     setEditLogId(null);
@@ -351,6 +354,7 @@ export function QuickLogFAB() {
       setSleepHours(logSleepHours.toString());
       if (!SLEEP_PRESETS.includes(logSleepHours as any)) setCustomSleep(true);
     }
+    setShowMoreOptions(true); // Always show time picker in edit mode
     setDirectMode(true);
     setShowTypeGrid(false);
     setIsOpen(true);
@@ -358,6 +362,7 @@ export function QuickLogFAB() {
 
   const handleOpenEditExtra = useCallback((beforeLog: any, afterLog: any | null) => {
     resetForm();
+    setShowMoreOptions(true); // Always show time picker in edit mode
     setSelectedType('extra-workout');
     setBeforeWeight(beforeLog.weight.toString());
     setOriginalBeforeWeight(beforeLog.weight); // Store original for comparison
@@ -420,7 +425,8 @@ export function QuickLogFAB() {
   const needsSleep = selectedType === 'morning';
 
   const [inputError, setInputError] = useState(false);
-  const flashError = () => { setInputError(true); hapticError(); setTimeout(() => setInputError(false), 1500); };
+  const [inputErrorMsg, setInputErrorMsg] = useState<string | null>(null);
+  const flashError = (msg?: string) => { setInputError(true); setInputErrorMsg(msg || null); hapticError(); setTimeout(() => setInputError(false), 1500); };
 
   const handleSubmit = () => {
     const typeLabel = LOG_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || selectedType;
@@ -428,19 +434,19 @@ export function QuickLogFAB() {
     if (selectedType === 'extra-workout') {
       if (!beforeWeight || !afterWeight) {
         toast({ title: "Both weights required", description: "Enter before and after workout weights" });
-        flashError();
+        flashError("Enter both before and after weights");
         return;
       }
       if (!duration || parseInt(duration, 10) <= 0) {
         toast({ title: "Enter workout duration", description: "Needed to calculate sweat rate per hour" });
-        flashError();
+        flashError("Duration is required");
         return;
       }
       const parsedBefore = parseFloat(beforeWeight);
       const parsedAfter = parseFloat(afterWeight);
       if (isNaN(parsedBefore) || isNaN(parsedAfter)) {
         toast({ title: "Invalid number", description: "Please enter valid weights" });
-        flashError();
+        flashError("Enter valid numbers");
         return;
       }
 
@@ -470,18 +476,18 @@ export function QuickLogFAB() {
     } else {
       if (!weight) {
         toast({ title: "Enter a weight", description: "Weight field cannot be empty" });
-        flashError();
+        flashError("Weight is required");
         return;
       }
       const parsedWeight = parseFloat(weight);
       if (isNaN(parsedWeight)) {
         toast({ title: "Invalid number", description: "Please enter a valid weight" });
-        flashError();
+        flashError("Enter a valid number");
         return;
       }
       if (parsedWeight < 80 || parsedWeight > 350) {
         toast({ title: "Weight out of range", description: "Enter a weight between 80 and 350 lbs" });
-        flashError();
+        flashError("Weight must be 80–350 lbs");
         return;
       }
       // Wildcard weight warning: confirm if 10+ lbs different from most recent log
@@ -498,12 +504,12 @@ export function QuickLogFAB() {
       }
       if (needsDuration && (!duration || parseInt(duration, 10) <= 0)) {
         toast({ title: "Enter workout duration", description: "Needed to calculate loss per hour" });
-        flashError();
+        flashError("Duration is required");
         return;
       }
       if (needsSleep && (!sleepHours || parseFloat(sleepHours) <= 0)) {
         toast({ title: "Enter hours of sleep", description: "Needed to track overnight drift per hour" });
-        flashError();
+        flashError("Sleep hours required");
         return;
       }
 
@@ -840,10 +846,14 @@ export function QuickLogFAB() {
                     inputMode="decimal"
                     step="0.1"
                     value={weight}
-                    onChange={(e) => { setWeight(e.target.value); setConfirmWildcard(false); }}
+                    onChange={(e) => { setWeight(e.target.value); setConfirmWildcard(false); setInputErrorMsg(null); }}
                     placeholder="Enter weight"
+                    aria-invalid={!!inputErrorMsg}
                     className={cn("font-mono text-center text-3xl h-16 text-foreground transition-colors", inputError && "border-destructive ring-1 ring-destructive/50 animate-shake")}
                   />
+                  {inputErrorMsg && (
+                    <p className="text-center text-xs text-destructive font-medium animate-in fade-in duration-200">{inputErrorMsg}</p>
+                  )}
                   {/* Show change from original in edit mode, or diff from target in new log mode */}
                   {isEditMode && originalWeight !== null ? (
                     <p className={cn(
@@ -886,27 +896,41 @@ export function QuickLogFAB() {
                 </div>
               )}
 
+              {/* More Options toggle — collapses time picker for simple logs */}
+              {!showMoreOptions && !needsDuration && !needsSleep && (
+                <button
+                  onClick={() => setShowMoreOptions(true)}
+                  className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Change time ({formatTimeDisplay(logTime)})</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              )}
+
               {/* Time Picker — scrollable wheels */}
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-                    <Label className="text-xs text-muted-foreground">Time</Label>
+              {(showMoreOptions || needsDuration || needsSleep) && (
+                <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                      <Label className="text-xs text-muted-foreground">Time</Label>
+                    </div>
+                    <button
+                      onClick={() => setLogTime(getCurrentTimeStr())}
+                      className={cn(
+                        "px-4 py-2 min-h-[40px] rounded-lg text-sm font-medium border transition-all",
+                        logTime === getCurrentTimeStr()
+                          ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
+                          : "border-border text-muted-foreground active:scale-95"
+                      )}
+                    >
+                      Now
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setLogTime(getCurrentTimeStr())}
-                    className={cn(
-                      "px-4 py-2 min-h-[40px] rounded-lg text-sm font-medium border transition-all",
-                      logTime === getCurrentTimeStr()
-                        ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
-                        : "border-border text-muted-foreground active:scale-95"
-                    )}
-                  >
-                    Now
-                  </button>
+                  <TimeScrollPicker value={logTime} onChange={setLogTime} />
                 </div>
-                <TimeScrollPicker value={logTime} onChange={setLogTime} />
-              </div>
+              )}
 
               {/* Duration Picker — shown for extra-workout and post-practice */}
               {needsDuration && (

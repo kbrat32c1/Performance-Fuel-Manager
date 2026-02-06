@@ -35,6 +35,15 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground overflow-hidden flex flex-col items-center justify-start relative">
+      {/* Skip links for screen readers */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-medium">
+        Skip to main content
+      </a>
+      {showNav && (
+        <a href="#main-nav" className="sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:top-2 focus:left-2 focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:text-sm focus:font-medium">
+          Skip to navigation
+        </a>
+      )}
       <div className={cn("w-full max-w-md flex-1 flex flex-col relative", className)}>
         {/* Safe Area Top Padding */}
         <div className="h-safe-top w-full" />
@@ -43,13 +52,13 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
         {showNav && <CompetitionBanner />}
 
         {/* Main Content */}
-        <main ref={mainRef} className="flex-1 w-full p-4 pb-32 animate-in fade-in duration-500">
+        <main id="main-content" ref={mainRef} className="flex-1 w-full p-4 pb-32 animate-in fade-in duration-500">
           {children}
         </main>
 
         {/* Bottom Nav */}
         {showNav && (
-          <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-center min-h-[64px] pb-safe-bottom max-w-md mx-auto" aria-label="Main navigation">
+          <nav id="main-nav" className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-center min-h-[64px] pb-safe-bottom max-w-md mx-auto" aria-label="Main navigation">
             <NavItem
               icon="LayoutDashboard"
               label="Today"

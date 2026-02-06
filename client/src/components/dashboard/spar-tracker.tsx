@@ -1113,7 +1113,7 @@ export function SparTracker({ readOnly = false, embedded = false, restrictions, 
           )}
 
           {/* Food grid — scrollable container */}
-          <div className="max-h-[280px] overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+          <div className="max-h-[50vh] overflow-y-auto space-y-1 pr-1 scrollbar-thin">
             {activeFoods.map((food, i) => (
               <SparFoodRow
                 key={food.name + i}

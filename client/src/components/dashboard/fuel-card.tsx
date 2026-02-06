@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Utensils, Droplets, ChevronDown, Check, Zap, Salad } from "lucide-react";
+import { Utensils, Droplets, ChevronDown, Check, Zap, Salad, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
@@ -286,15 +287,29 @@ export function FuelCard({
               <span className={cn("text-xs font-bold uppercase tracking-wide", allDone ? "text-green-500" : "text-muted-foreground")}>
                 {isSparProtocol ? 'SPAR Nutrition' : 'Fuel'}
               </span>
-              {/* Mode indicator badge */}
-              <span className={cn(
-                "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase",
-                showSliceTracker
-                  ? "bg-primary/15 text-primary"
-                  : "bg-amber-500/15 text-amber-500"
-              )}>
-                {showSliceTracker ? 'SLICES' : 'GRAMS'}
-              </span>
+              {/* Mode indicator badge with help tooltip */}
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className={cn(
+                      "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-0.5 cursor-help",
+                      showSliceTracker
+                        ? "bg-primary/15 text-primary"
+                        : "bg-amber-500/15 text-amber-500"
+                    )}>
+                      {showSliceTracker ? 'SLICES' : 'GRAMS'}
+                      <HelpCircle className="w-2.5 h-2.5" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[220px] bg-card border border-muted text-foreground">
+                    <p className="text-xs">
+                      {showSliceTracker
+                        ? 'Slices = portion-based tracking (palm, fist, thumb). No calorie counting.'
+                        : 'Grams = calorie-based tracking with specific gram targets.'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             <ChevronDown className={cn(
               "w-4 h-4 text-muted-foreground transition-transform",

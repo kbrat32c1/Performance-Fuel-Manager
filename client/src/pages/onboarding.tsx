@@ -226,11 +226,22 @@ export default function Onboarding() {
             </Button>
           ) : <div className="w-8" />}
 
-          <div className="flex-1 bg-muted h-1 rounded-full overflow-hidden" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={TOTAL_STEPS} aria-label={`Step ${step} of ${TOTAL_STEPS}`}>
-            <div
-              className="bg-primary h-full transition-all duration-500"
-              style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
-            />
+          <div className="flex-1 flex flex-col gap-1">
+            <div className="bg-muted h-1 rounded-full overflow-hidden" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={TOTAL_STEPS} aria-label={`Step ${step} of ${TOTAL_STEPS}`}>
+              <div
+                className="bg-primary h-full transition-all duration-500"
+                style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground text-center font-medium">
+              Step {step} of {TOTAL_STEPS}: {
+                step === 1 ? 'Basics' :
+                step === 2 ? 'Goal' :
+                step === 3 ? (userGoal === 'spar' ? 'Stats' : 'Protocol') :
+                step === 4 ? (userGoal === 'spar' ? 'Goal' : 'Timeline') :
+                'Confirm'
+              }
+            </span>
           </div>
 
           {isRerun ? (

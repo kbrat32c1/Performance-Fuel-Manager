@@ -63,68 +63,122 @@ export function AiCoachProactive() {
   const weightToLose = Math.max(0, currentWeight - targetWeight);
   const isAtWeight = weightToLose <= 0;
 
-  // Calculate hours until weigh-in
+  // Calculate hours until weigh-in using actual weigh-in time
   const hour = new Date().getHours();
+  const [wiH] = (profile.weighInTime || '07:00').split(':').map(Number);
+  const weighInHour = wiH || 7;
   let hoursUntilWeighIn: number | null = null;
   if (daysUntil >= 0) {
     if (daysUntil === 0) {
-      hoursUntilWeighIn = Math.max(0, 6 - hour);
+      hoursUntilWeighIn = Math.max(0, weighInHour - hour);
     } else {
-      hoursUntilWeighIn = (24 - hour) + ((daysUntil - 1) * 24) + 6;
+      hoursUntilWeighIn = (24 - hour) + ((daysUntil - 1) * 24) + weighInHour;
     }
   }
 
+  // Format an hour (0-23) as a readable time string
+  const formatHour = (h: number): string => {
+    const wrapped = ((h % 24) + 24) % 24;
+    if (wrapped === 0) return '12am';
+    if (wrapped === 12) return '12pm';
+    return wrapped > 12 ? `${wrapped - 12}pm` : `${wrapped}am`;
+  };
+
   // Get calculated insights for display (LOCAL - NO API COST)
+  // Uses the store's phase-aware projection system with EMA recency-weighted data.
+  // Loading days (3+ out): projects from morning weight using net daily loss.
+  // Cut days (1-2 out): projects from most recent weigh-in using remaining losses.
   const getInsights = useCallback(() => {
     try {
       const descentData = getWeekDescentData();
       const extraStats = getExtraWorkoutStats();
       const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
       const expectedDrift = descentData.avgOvernightDrift ? Math.abs(descentData.avgOvernightDrift) : null;
-      const expectedPracticeLoss = descentData.avgPracticeLoss ? Math.abs(descentData.avgPracticeLoss) : null;
 
-      // Fluid allowance
-      let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
-      if (weightToLose > 0 && expectedDrift !== null) {
-        const practiceToday = daysUntil > 0 && expectedPracticeLoss ? expectedPracticeLoss : 0;
-        const naturalLoss = expectedDrift + practiceToday;
-        const buffer = naturalLoss - weightToLose;
-        if (buffer > 0) {
-          fluidAllowance = { oz: Math.floor(buffer * 16), cutoffTime: hour < 18 ? '6pm' : '8pm' };
-        } else {
-          fluidAllowance = { oz: 0, cutoffTime: 'now' };
-        }
-      }
+      // Use the store's projection to determine how much is covered naturally
+      // projectedSaturday already accounts for phase-specific drift, practice loss,
+      // loading vs cut days, and EMA recency weighting
+      const projected = descentData.projectedSaturday;
+      const projectedGap = projected !== null ? projected - targetWeight : weightToLose;
 
-      // Workout guidance
+      // Workout guidance — based on what the projection says still needs extra work
       let workoutGuidance: { sessions: number; minutes: number } | null = null;
-      if (weightToLose > 0 && sweatRate && sweatRate > 0) {
-        const remainingAfterDrift = weightToLose - (expectedDrift ?? 0);
-        if (remainingAfterDrift > 0) {
-          const lossPerSession = sweatRate * 0.75;
-          const sessionsNeeded = Math.ceil(remainingAfterDrift / lossPerSession);
-          const minutesNeeded = Math.ceil((remainingAfterDrift / sweatRate) * 60);
-          workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded };
+      if (weightToLose > 0 && projectedGap > 0 && sweatRate && sweatRate > 0) {
+        const lossPerSession = sweatRate * 0.75; // 45 min sessions
+        const sessionsNeeded = Math.ceil(projectedGap / lossPerSession);
+        const minutesNeeded = Math.ceil((projectedGap / sweatRate) * 60);
+        workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded };
+      }
+
+      // Fluid allowance — based on projection buffer
+      let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
+      if (weightToLose > 0) {
+        // Buffer: how much below target is the projection? (positive = margin to spare)
+        const buffer = projected !== null ? targetWeight - projected : -weightToLose;
+
+        if (daysUntil === 0) {
+          // Competition day — no fluids until after weigh-in
+          fluidAllowance = { oz: 0, cutoffTime: 'weigh-in' };
+        } else if (buffer >= 0) {
+          // Projected to make weight — some fluid room
+          const allowanceOz = Math.floor(buffer * 16); // 1 lb ≈ 16 oz
+          let cutoffTime: string;
+          if (daysUntil === 1) {
+            const cutoffH = (weighInHour + 24 - 12) % 24;
+            cutoffTime = formatHour(cutoffH);
+          } else if (daysUntil === 2) {
+            cutoffTime = formatHour(weighInHour + 24 - 8);
+          } else {
+            cutoffTime = 'bedtime';
+          }
+          fluidAllowance = { oz: Math.max(0, allowanceOz), cutoffTime };
+        } else {
+          // Projected over target — need to cut fluids
+          fluidAllowance = { oz: 0, cutoffTime: daysUntil <= 1 ? 'now' : formatHour(weighInHour + 24 - 12) };
         }
       }
 
-      // Food guidance
+      // Food guidance — deficit-aware, using weigh-in time for cutoffs
+      // Gut content is ~2-5 lbs and takes 12-24h to empty
       let foodGuidance: { maxLbs: number; lastMealTime: string } | null = null;
       if (weightToLose > 0) {
-        if (daysUntil <= 1) {
-          foodGuidance = { maxLbs: 0.5, lastMealTime: daysUntil === 0 ? 'after weigh-in' : '6pm' };
+        if (daysUntil === 0) {
+          foodGuidance = { maxLbs: 0, lastMealTime: 'after weigh-in' };
+        } else if (daysUntil === 1) {
+          const cutoffH = (weighInHour + 24 - 12) % 24;
+          if (weightToLose >= 2 || projectedGap > 0.5) {
+            // Tight cut or projection shows we'll miss — no food
+            foodGuidance = { maxLbs: 0, lastMealTime: 'after weigh-in' };
+          } else {
+            foodGuidance = { maxLbs: 0.5, lastMealTime: formatHour(cutoffH) };
+          }
         } else if (daysUntil === 2) {
-          foodGuidance = { maxLbs: 1.5, lastMealTime: '7pm' };
+          if (weightToLose >= 4 || projectedGap > 2) {
+            foodGuidance = { maxLbs: 0.5, lastMealTime: formatHour(weighInHour + 24 - 14) };
+          } else if (weightToLose >= 2 || projectedGap > 0.5) {
+            foodGuidance = { maxLbs: 1.0, lastMealTime: formatHour(weighInHour + 24 - 10) };
+          } else {
+            foodGuidance = { maxLbs: 1.5, lastMealTime: formatHour(weighInHour + 24 - 8) };
+          }
         } else {
-          foodGuidance = { maxLbs: 2.5, lastMealTime: '8pm' };
+          // 3+ days out — eat normally but track
+          if (weightToLose >= 5) {
+            foodGuidance = { maxLbs: 1.5, lastMealTime: formatHour(weighInHour + 24 - 10) };
+          } else {
+            foodGuidance = { maxLbs: 2.5, lastMealTime: formatHour(weighInHour + 24 - 8) };
+          }
         }
       }
 
-      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate };
+      // On track = projection says we make weight without extra sessions
+      const needsExtraWork = workoutGuidance !== null && workoutGuidance.sessions > 0;
+      const isOnTrack = isAtWeight || (projected !== null && projected <= targetWeight && !needsExtraWork);
+
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, isOnTrack, projectedGap };
     } catch {
-      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null };
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, isOnTrack: false, projectedGap: weightToLose };
     }
-  }, [weightToLose, daysUntil, hour, getWeekDescentData, getExtraWorkoutStats]);
+  }, [weightToLose, targetWeight, daysUntil, hour, weighInHour, isAtWeight, getWeekDescentData, getExtraWorkoutStats]);
 
   const insights = getInsights();
 
@@ -196,7 +250,7 @@ export function AiCoachProactive() {
     ctx.calculatedInsights = {
       hoursUntilWeighIn,
       weightToLose: weightToLose.toFixed(1),
-      isOnTrack: isAtWeight || weightToLose < 3,
+      isOnTrack: insights.isOnTrack,
       fluidAllowance: insights.fluidAllowance,
       workoutGuidance: insights.workoutGuidance,
       foodGuidance: insights.foodGuidance,
@@ -276,7 +330,11 @@ export function AiCoachProactive() {
     return null;
   }
 
-  const statusColor = isAtWeight ? 'green' : weightToLose <= 2 ? 'yellow' : 'red';
+  // Status color reflects actual situation, not just the raw deficit number
+  const statusColor = isAtWeight ? 'green' :
+    insights.isOnTrack ? 'green' :
+    (insights.workoutGuidance && insights.workoutGuidance.sessions >= 3) ? 'red' :
+    'yellow';
   const showDetailedGuidance = !isAtWeight && daysUntil >= 0 && daysUntil <= 7;
 
   return (

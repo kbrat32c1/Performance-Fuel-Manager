@@ -1392,6 +1392,7 @@ function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeO
 function ShareWithCoachSection({ userId }: { userId: string }) {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -1409,11 +1410,13 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
   const shareUrl = shareToken ? `${window.location.origin}/coach/${shareToken}` : null;
 
   const enableSharing = async () => {
+    setSaving(true);
     const token = crypto.randomUUID();
     const { error } = await supabase
       .from('profiles')
       .update({ share_token: token })
       .eq('user_id', userId);
+    setSaving(false);
     if (!error) {
       setShareToken(token);
       toast({ title: "Sharing enabled" });
@@ -1421,10 +1424,12 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
   };
 
   const disableSharing = async () => {
+    setSaving(true);
     const { error } = await supabase
       .from('profiles')
       .update({ share_token: null })
       .eq('user_id', userId);
+    setSaving(false);
     if (!error) {
       setShareToken(null);
       toast({ title: "Sharing disabled" });
@@ -1453,9 +1458,9 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
       </Label>
 
       {!shareToken ? (
-        <Button variant="outline" size="sm" onClick={enableSharing} className="w-full h-9 text-xs">
+        <Button variant="outline" size="sm" onClick={enableSharing} disabled={saving} className="w-full h-9 text-xs">
           <Link2 className="w-3.5 h-3.5 mr-2" />
-          Enable Coach Sharing
+          {saving ? 'Enabling...' : 'Enable Coach Sharing'}
         </Button>
       ) : (
         <div className="space-y-2">
@@ -1467,9 +1472,9 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
               {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
             </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={disableSharing} className="w-full h-7 text-[10px] text-destructive hover:text-destructive">
+          <Button variant="ghost" size="sm" onClick={disableSharing} disabled={saving} className="w-full h-7 text-[10px] text-destructive hover:text-destructive">
             <X className="w-3 h-3 mr-1" />
-            Disable Sharing
+            {saving ? 'Disabling...' : 'Disable Sharing'}
           </Button>
         </div>
       )}
