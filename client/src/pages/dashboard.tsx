@@ -1954,7 +1954,7 @@ function TodayTimeline({
       <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
         {/* Completion indicator - small, inline */}
         <div className="flex items-center justify-between px-1 pb-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Weigh-ins</span>
+          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
           <div className="flex items-center gap-1.5">
             <div className="flex gap-0.5">
               {Array.from({ length: activeSlots }).map((_, i) => (
@@ -2017,15 +2017,6 @@ function TodayTimeline({
                     )}>
                       {slot.log.weight.toFixed(1)}
                     </span>
-                    {/* SPAR users don't see target comparison - just the weight */}
-                    {!isSparProtocol && diff !== null && (
-                      <span className={cn(
-                        "text-[10px] font-mono",
-                        diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-red-400"
-                      )}>
-                        {diff <= 0 ? 'on target' : `+${diff.toFixed(1)}`}
-                      </span>
-                    )}
                   </>
                 ) : (
                   <Plus className="w-4 h-4 mt-0.5 text-primary/60" />
@@ -2074,56 +2065,6 @@ function TodayTimeline({
           </div>
         )}
       </div>
-
-      {/* Today's Weight Journey — mini sparkline connecting logged weights */}
-      {completedCount >= 2 && (() => {
-        const points = coreSlots
-          .map((s, i) => s.log ? { x: i, w: s.log.weight, label: s.label, color: s.color } : null)
-          .filter(Boolean) as { x: number; w: number; label: string; color: string }[];
-        if (points.length < 2) return null;
-        const weights = points.map(p => p.w);
-        const minW = Math.min(...weights) - 0.3;
-        const maxW = Math.max(...weights) + 0.3;
-        const range = maxW - minW || 1;
-        const svgW = 280;
-        const svgH = 54;
-        const padX = 16;
-        const padTop = 18;
-        const padBot = 8;
-        const toX = (i: number) => padX + (i / 3) * (svgW - padX * 2);
-        const toY = (w: number) => svgH - padBot - ((w - minW) / range) * (svgH - padTop - padBot);
-        const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.x)},${toY(p.w)}`).join(' ');
-        const totalDrop = points[0].w - points[points.length - 1].w;
-
-        return (
-          <div className="bg-card border border-muted rounded-lg px-3 py-2">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Today's Journey</span>
-              {totalDrop > 0 && (
-                <span className="text-[10px] font-mono font-bold text-primary">-{totalDrop.toFixed(1)} lbs</span>
-              )}
-            </div>
-            <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-12">
-              {/* Target line */}
-              <line
-                x1={padX} y1={toY(targetWeight)} x2={svgW - padX} y2={toY(targetWeight)}
-                stroke="hsl(var(--muted-foreground))" strokeWidth="0.5" strokeDasharray="4 3" opacity={0.3}
-              />
-              {/* Connecting line */}
-              <path d={pathD} fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              {/* Dots + labels */}
-              {points.map((p, i) => (
-                <g key={i}>
-                  <circle cx={toX(p.x)} cy={toY(p.w)} r="4" fill="hsl(var(--background))" stroke="hsl(var(--primary))" strokeWidth="2" />
-                  <text x={toX(p.x)} y={toY(p.w) - 7} textAnchor="middle" className="fill-foreground text-[8px] font-mono font-bold">
-                    {p.w.toFixed(1)}
-                  </text>
-                </g>
-              ))}
-            </svg>
-          </div>
-        );
-      })()}
 
       {/* Extras & Check-ins — collapsible under core slots */}
       {hasExtrasOrCheckIns && (
@@ -2291,14 +2232,6 @@ function HeroWeight({
           </span>
         )}
 
-        {/* Time until */}
-        {timeUntil && (
-          <>
-            <span className="text-muted-foreground/40">·</span>
-            <span className="font-mono text-muted-foreground">{timeUntil}</span>
-          </>
-        )}
-
         {/* Daily change */}
         {dailyChange !== null && (
           <>
@@ -2452,10 +2385,10 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   // Find the weigh-in day for the summary
   const weighInDay = weekPlan.find(d => d.phase === 'Competition') || weekPlan[weekPlan.length - 1];
 
-  // Summary text for collapsed view
+  // Summary text for collapsed view - no days until (shown in phase header)
   const getSummaryText = () => {
     if (descentData.projectedSaturday === null) {
-      return `${daysUntilWeighIn} days to weigh-in`;
+      return 'Log weights to see projection';
     }
     const diff = descentData.projectedSaturday - descentData.targetWeight;
     if (diff <= 0) {
