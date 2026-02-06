@@ -586,14 +586,20 @@ function DecisionZone({
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TODAY FLOW — Simplified horizontal timeline (AM → PRE → POST → BED)
-// Clean, scannable, tap to log/edit
+// Adapts to: practice days (4 slots), rest days (2 slots), competition day
 // ═══════════════════════════════════════════════════════════════════════════════
 function TodayFlow({
   todayLogs,
   onSlotTap,
+  isRestDay,
+  onToggleRestDay,
+  isCompetitionDay,
 }: {
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
   onSlotTap: (type: string, log: any) => void;
+  isRestDay: boolean;
+  onToggleRestDay: () => void;
+  isCompetitionDay: boolean;
 }) {
   // Calculate practice loss for POST slot display
   const preWeight = todayLogs.prePractice?.weight ?? null;
@@ -604,17 +610,68 @@ function TodayFlow({
     ? practiceLoss / (practiceDuration / 60)
     : null;
 
-  const slots = [
+  // Has practice logs? If so, can't be a rest day
+  const hasPracticeLog = !!todayLogs.prePractice || !!todayLogs.postPractice;
+
+  // All possible slots
+  const allSlots = [
     { key: 'morning', label: 'AM', icon: <Sun className="w-4 h-4" />, log: todayLogs.morning, type: 'morning', color: 'yellow' },
     { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-4 h-4" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'blue' },
     { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-4 h-4" />, log: todayLogs.postPractice, type: 'post-practice', color: 'green' },
     { key: 'bed', label: 'BED', icon: <Moon className="w-4 h-4" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'purple' },
   ];
 
+  // Competition day: just show weigh-in slot prominently
+  if (isCompetitionDay) {
+    const morningLog = todayLogs.morning;
+    return (
+      <div className="mb-4">
+        <div className="text-center mb-3">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/15 text-yellow-500 text-xs font-bold uppercase">
+            <Target className="w-3.5 h-3.5" />
+            Competition Day
+          </span>
+        </div>
+        <button
+          onClick={() => onSlotTap('morning', morningLog)}
+          className={cn(
+            "w-full flex flex-col items-center py-6 px-4 rounded-xl transition-all active:scale-95",
+            morningLog
+              ? "bg-yellow-500/10 border-2 border-yellow-500/40"
+              : "bg-muted/30 border-2 border-dashed border-yellow-500/40"
+          )}
+        >
+          <Scale className={cn("w-8 h-8 mb-2", morningLog ? "text-yellow-500" : "text-yellow-500/50")} />
+          <span className="text-sm font-bold uppercase tracking-wide mb-1">
+            {morningLog ? "Weigh-in Logged" : "Log Weigh-in"}
+          </span>
+          {morningLog ? (
+            <span className="text-2xl font-mono font-bold">{morningLog.weight.toFixed(1)} lbs</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">Tap to record official weight</span>
+          )}
+        </button>
+        {morningLog && (
+          <p className="text-[9px] text-muted-foreground/50 text-center mt-2 italic">
+            Tap to edit
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Rest day: only AM + BED
+  // Practice day: all 4 slots
+  const slots = isRestDay && !hasPracticeLog
+    ? allSlots.filter(s => s.key === 'morning' || s.key === 'bed')
+    : allSlots;
+
+  const gridCols = slots.length === 2 ? 'grid-cols-2' : 'grid-cols-4';
+
   return (
     <div className="mb-4">
-      <div className="grid grid-cols-4 gap-2">
-        {slots.map((slot, idx) => {
+      <div className={cn("grid gap-2", gridCols)}>
+        {slots.map((slot) => {
           const isLogged = !!slot.log;
           const weight = slot.log?.weight;
           const time = slot.log ? format(new Date(slot.log.date), 'h:mm') : null;
@@ -683,12 +740,31 @@ function TodayFlow({
         })}
       </div>
 
-      {/* Swipe hint for logged items */}
-      {Object.values(todayLogs).some(Boolean) && (
-        <p className="text-[9px] text-muted-foreground/50 text-center mt-2 italic">
-          Tap to edit
-        </p>
-      )}
+      {/* Rest day toggle + hint */}
+      <div className="flex items-center justify-center gap-3 mt-2">
+        {/* Rest day toggle - only show if no practice logged */}
+        {!hasPracticeLog && (
+          <button
+            onClick={onToggleRestDay}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+              isRestDay
+                ? "text-purple-500 bg-purple-500/15"
+                : "text-muted-foreground bg-muted/50 hover:bg-muted"
+            )}
+          >
+            <Moon className="w-3 h-3" />
+            {isRestDay ? "Rest day" : "Rest day?"}
+          </button>
+        )}
+
+        {/* Tap to edit hint */}
+        {Object.values(todayLogs).some(Boolean) && (
+          <span className="text-[9px] text-muted-foreground/50 italic">
+            Tap to edit
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -1043,6 +1119,15 @@ export default function Dashboard() {
   // Get today's tracking data for status summary
   const dateKey = format(displayDate, 'yyyy-MM-dd');
   const dailyTracking = getDailyTracking(dateKey);
+
+  // Rest day state (synced to Supabase via dailyTracking)
+  const isRestDay = dailyTracking.noPractice ?? false;
+  const toggleRestDay = useCallback(() => {
+    updateDailyTracking(dateKey, { noPractice: !isRestDay });
+  }, [dateKey, isRestDay, updateDailyTracking]);
+
+  // Is today competition day?
+  const isCompetitionDay = daysUntilWeighIn === 0;
 
   // Calculate today's log completion status (memoized — scans full logs array)
   const todayLogs = useMemo(() => {
@@ -1468,7 +1553,7 @@ export default function Dashboard() {
 
       {/* ═══════════════════════════════════════════════════════ */}
       {/* TODAY FLOW — Simplified horizontal timeline             */}
-      {/* AM → PRE → POST → BED — tap to log/edit                 */}
+      {/* AM → PRE → POST → BED — adapts to rest/competition days */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && (
         <TodayFlow
@@ -1480,6 +1565,9 @@ export default function Dashboard() {
               window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
             }
           }}
+          isRestDay={isRestDay}
+          onToggleRestDay={toggleRestDay}
+          isCompetitionDay={isCompetitionDay && !isSparProtocol}
         />
       )}
 
