@@ -101,21 +101,10 @@ export function AiCoachProactive() {
       const projected = descentData.projectedSaturday;
       const projectedGap = projected !== null ? projected - targetWeight : weightToLose;
 
-      // Workout guidance — based on what the projection says still needs extra work
-      let workoutGuidance: { sessions: number; minutes: number } | null = null;
-      if (weightToLose > 0 && projectedGap > 0 && sweatRate && sweatRate > 0) {
-        const lossPerSession = sweatRate * 0.75; // 45 min sessions
-        const sessionsNeeded = Math.ceil(projectedGap / lossPerSession);
-        const minutesNeeded = Math.ceil((projectedGap / sweatRate) * 60);
-        workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded };
-      }
-
       // Fluid allowance — based on projection buffer
       let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
+      const buffer = projected !== null ? targetWeight - projected : -weightToLose;
       if (weightToLose > 0) {
-        // Buffer: how much below target is the projection? (positive = margin to spare)
-        const buffer = projected !== null ? targetWeight - projected : -weightToLose;
-
         if (daysUntil === 0) {
           // Competition day — no fluids until after weigh-in
           fluidAllowance = { oz: 0, cutoffTime: 'weigh-in' };
@@ -147,7 +136,6 @@ export function AiCoachProactive() {
         } else if (daysUntil === 1) {
           const cutoffH = (weighInHour + 24 - 12) % 24;
           if (weightToLose >= 2 || projectedGap > 0.5) {
-            // Tight cut or projection shows we'll miss — no food
             foodGuidance = { maxLbs: 0, lastMealTime: 'after weigh-in' };
           } else {
             foodGuidance = { maxLbs: 0.5, lastMealTime: formatHour(cutoffH) };
@@ -170,13 +158,44 @@ export function AiCoachProactive() {
         }
       }
 
+      // Workout guidance — reframed as OPTION not requirement
+      // Shows what extra work would unlock (fluids/food) so athlete can decide
+      let workoutGuidance: { sessions: number; minutes: number; unlocksOz: number } | null = null;
+      if (weightToLose > 0 && projectedGap > 0 && sweatRate && sweatRate > 0) {
+        const lossPerSession = sweatRate * 0.75; // 45 min sessions
+        const sessionsNeeded = Math.ceil(projectedGap / lossPerSession);
+        const minutesNeeded = Math.ceil((projectedGap / sweatRate) * 60);
+        // What a single 20-min zone 2 session would unlock in fluid oz
+        const singleSessionLoss = sweatRate * (20 / 60); // lbs lost in 20 min
+        const unlocksOz = Math.floor(singleSessionLoss * 16); // convert to oz
+        workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded, unlocksOz };
+      }
+
+      // Tradeoff hint: if food/fluids are restricted, show what a light workout buys you
+      // This is the key insight — present OPTIONS not commands
+      let tradeoffHint: string | null = null;
+      if (daysUntil >= 1 && daysUntil <= 2 && weightToLose > 0 && sweatRate && sweatRate > 0) {
+        if (fluidAllowance && fluidAllowance.oz === 0 && projectedGap > 0) {
+          const mins20loss = sweatRate * (20 / 60); // lbs from 20 min
+          const ozUnlocked = Math.floor(mins20loss * 16);
+          if (ozUnlocked > 0) {
+            tradeoffHint = `20 min light sweat = ~${ozUnlocked} oz fluids`;
+          }
+        } else if (foodGuidance && foodGuidance.maxLbs === 0 && buffer !== undefined && buffer < 0) {
+          const mins30loss = sweatRate * (30 / 60);
+          if (mins30loss >= 0.3) {
+            tradeoffHint = `30 min zone 2 = light snack option`;
+          }
+        }
+      }
+
       // On track = projection says we make weight without extra sessions
       const needsExtraWork = workoutGuidance !== null && workoutGuidance.sessions > 0;
       const isOnTrack = isAtWeight || (projected !== null && projected <= targetWeight && !needsExtraWork);
 
-      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, isOnTrack, projectedGap };
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, isOnTrack, projectedGap, tradeoffHint };
     } catch {
-      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, isOnTrack: false, projectedGap: weightToLose };
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null };
     }
   }, [weightToLose, targetWeight, daysUntil, hour, weighInHour, isAtWeight, getWeekDescentData, getExtraWorkoutStats]);
 
@@ -390,9 +409,13 @@ export function AiCoachProactive() {
                 <div className="text-[10px] text-muted-foreground mb-0.5">Extra Work</div>
                 {insights.workoutGuidance ? (
                   <>
-                    <div className="text-sm font-bold font-mono">{insights.workoutGuidance.sessions}×</div>
+                    <div className="text-sm font-bold font-mono">
+                      {insights.isOnTrack ? 'Optional' : `${insights.workoutGuidance.sessions}×`}
+                    </div>
                     <div className="text-[9px] text-muted-foreground">
-                      {insights.workoutGuidance.sessions === 1 ? `${insights.workoutGuidance.minutes} min` : '45 min each'}
+                      {insights.isOnTrack
+                        ? 'on track'
+                        : insights.workoutGuidance.sessions === 1 ? `${insights.workoutGuidance.minutes} min` : '45 min each'}
                     </div>
                   </>
                 ) : <div className="text-sm font-bold text-green-500">None</div>}
@@ -413,6 +436,16 @@ export function AiCoachProactive() {
                 ) : <div className="text-sm font-bold text-green-500">Normal</div>}
               </div>
             </div>
+
+            {/* Tradeoff hint — shows what a light workout unlocks */}
+            {insights.tradeoffHint && (
+              <div className="mt-2 text-center">
+                <p className="text-[11px] text-orange-400/80 font-medium">
+                  <Dumbbell className="w-3 h-3 inline mr-1" />
+                  {insights.tradeoffHint}
+                </p>
+              </div>
+            )}
 
             {/* Overnight drift - evening only */}
             {hour >= 17 && insights.expectedDrift && insights.expectedDrift > 0 && !isAtWeight && (
