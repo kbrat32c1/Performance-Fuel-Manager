@@ -5,7 +5,7 @@ import { ThemeProvider } from "./lib/theme";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "./components/protected-route";
 import { ErrorBoundary } from "./components/error-boundary";
-import { AiCoachGlobal } from "./components/ai-coach-global";
+// Old floating AI chat removed - replaced by unified AiCoachProactive on dashboard
 import { useNotificationScheduler } from "@/hooks/use-notification-scheduler";
 import { useStore } from "@/lib/store";
 import NotFound from "@/pages/not-found";
@@ -83,7 +83,6 @@ function App() {
             <Toaster />
             <Router />
             <NotificationScheduler />
-            <AiCoachGlobal />
           </StoreProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -1,30 +1,39 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sparkles, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, RefreshCw, Send, ChevronDown, ChevronUp, Droplets, Dumbbell, Flame, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
 
-interface CoachingMessage {
-  text: string;
-  timestamp: number;
-  weightHash: string; // To detect when weights change
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
-// Cache key for localStorage
+interface CoachingCache {
+  text: string;
+  timestamp: number;
+  weightHash: string;
+}
+
 const CACHE_KEY = 'pwm-ai-coach-proactive';
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 /**
- * AI Coach Proactive - Generates coaching message automatically
- * Triggers on: page load, weight log, manual refresh
- * Caches to avoid excessive API calls
+ * Unified AI Coach - Proactive recommendations + chat input
+ * Replaces both DecisionZone and the floating chat widget
  */
 export function AiCoachProactive() {
-  const [message, setMessage] = useState<string | null>(null);
+  const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [showChat, setShowChat] = useState(false);
   const lastFetchRef = useRef<number>(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const store = useStore();
   const {
@@ -45,7 +54,93 @@ export function AiCoachProactive() {
 
   const daysUntil = getDaysUntilWeighIn();
 
-  // Generate a hash of current weight state to detect changes
+  // Get current weight from today's logs
+  const getCurrentWeight = useCallback(() => {
+    const today = new Date();
+    const todayLogs = logs.filter(l => {
+      const ld = new Date(l.date);
+      return ld.getFullYear() === today.getFullYear() &&
+        ld.getMonth() === today.getMonth() &&
+        ld.getDate() === today.getDate();
+    });
+    if (todayLogs.length > 0) {
+      const sorted = [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return sorted[0].weight;
+    }
+    return profile.currentWeight;
+  }, [logs, profile.currentWeight]);
+
+  const currentWeight = getCurrentWeight();
+  const targetWeight = profile.targetWeightClass;
+  const weightToLose = Math.max(0, currentWeight - targetWeight);
+  const isAtWeight = weightToLose <= 0;
+
+  // Calculate hours until weigh-in
+  const hour = new Date().getHours();
+  let hoursUntilWeighIn: number | null = null;
+  if (daysUntil >= 0) {
+    if (daysUntil === 0) {
+      hoursUntilWeighIn = Math.max(0, 6 - hour);
+    } else {
+      hoursUntilWeighIn = (24 - hour) + ((daysUntil - 1) * 24) + 6;
+    }
+  }
+
+  // Get calculated insights for display
+  const getInsights = useCallback(() => {
+    try {
+      const descentData = getWeekDescentData();
+      const extraStats = getExtraWorkoutStats();
+      const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
+      const expectedDrift = descentData.avgOvernightDrift ? Math.abs(descentData.avgOvernightDrift) : null;
+      const expectedPracticeLoss = descentData.avgPracticeLoss ? Math.abs(descentData.avgPracticeLoss) : null;
+
+      // Fluid allowance
+      let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
+      if (weightToLose > 0 && expectedDrift !== null) {
+        const practiceToday = daysUntil > 0 && expectedPracticeLoss ? expectedPracticeLoss : 0;
+        const naturalLoss = expectedDrift + practiceToday;
+        const buffer = naturalLoss - weightToLose;
+        if (buffer > 0) {
+          fluidAllowance = { oz: Math.floor(buffer * 16), cutoffTime: hour < 18 ? '6pm' : '8pm' };
+        } else {
+          fluidAllowance = { oz: 0, cutoffTime: 'now' };
+        }
+      }
+
+      // Workout guidance
+      let workoutGuidance: { sessions: number; minutes: number } | null = null;
+      if (weightToLose > 0 && sweatRate && sweatRate > 0) {
+        const remainingAfterDrift = weightToLose - (expectedDrift ?? 0);
+        if (remainingAfterDrift > 0) {
+          const lossPerSession = sweatRate * 0.75;
+          const sessionsNeeded = Math.ceil(remainingAfterDrift / lossPerSession);
+          const minutesNeeded = Math.ceil((remainingAfterDrift / sweatRate) * 60);
+          workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded };
+        }
+      }
+
+      // Food guidance
+      let foodGuidance: { maxLbs: number; lastMealTime: string } | null = null;
+      if (weightToLose > 0) {
+        if (daysUntil <= 1) {
+          foodGuidance = { maxLbs: 0.5, lastMealTime: daysUntil === 0 ? 'after weigh-in' : '6pm' };
+        } else if (daysUntil === 2) {
+          foodGuidance = { maxLbs: 1.5, lastMealTime: '7pm' };
+        } else {
+          foodGuidance = { maxLbs: 2.5, lastMealTime: '8pm' };
+        }
+      }
+
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift };
+    } catch {
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null };
+    }
+  }, [weightToLose, daysUntil, hour, getWeekDescentData, getExtraWorkoutStats]);
+
+  const insights = getInsights();
+
+  // Weight hash for cache invalidation
   const getWeightHash = useCallback(() => {
     const today = new Date();
     const todayLogs = logs.filter(l => {
@@ -54,21 +149,18 @@ export function AiCoachProactive() {
         ld.getMonth() === today.getMonth() &&
         ld.getDate() === today.getDate();
     });
-    const latestWeight = todayLogs.length > 0
-      ? [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].weight
-      : 0;
-    return `${latestWeight}-${todayLogs.length}-${daysUntil}`;
-  }, [logs, daysUntil]);
+    return `${currentWeight}-${todayLogs.length}-${daysUntil}`;
+  }, [logs, currentWeight, daysUntil]);
 
-  // Build context for AI (same as ai-coach-global.tsx)
+  // Build context for AI
   const buildContext = useCallback(() => {
     const ctx: Record<string, any> = {
       currentPage: '/dashboard',
       name: profile.name,
-      currentWeight: profile.currentWeight,
-      targetWeightClass: profile.targetWeightClass,
+      currentWeight,
+      targetWeightClass: targetWeight,
       daysUntilWeighIn: daysUntil,
-      weightToLose: Math.max(0, profile.currentWeight - profile.targetWeightClass).toFixed(1),
+      weightToLose: weightToLose.toFixed(1),
       protocol: profile.protocol,
       phase: getPhase(),
       status: getStatus().status,
@@ -84,7 +176,6 @@ export function AiCoachProactive() {
       };
     } catch {}
 
-    // Today's weight logs
     try {
       const today = new Date();
       const todayLogs = logs.filter(l => {
@@ -99,9 +190,6 @@ export function AiCoachProactive() {
           weight: l.weight,
           time: new Date(l.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
         }));
-        const sorted = [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        ctx.currentWeight = sorted[0].weight;
-        ctx.weightToLose = Math.max(0, sorted[0].weight - profile.targetWeightClass).toFixed(1);
       }
     } catch {}
 
@@ -129,158 +217,70 @@ export function AiCoachProactive() {
       if (hydration) ctx.hydrationTarget = hydration;
     } catch {}
 
-    // Calculated insights
-    try {
-      const descentData = getWeekDescentData();
-      const extraStats = getExtraWorkoutStats();
-      const statusData = getStatus();
-      const currentWeight = parseFloat(ctx.currentWeight) || profile.currentWeight;
-      const targetWeight = profile.targetWeightClass;
-      const weightToLose = Math.max(0, currentWeight - targetWeight);
-
-      const now = new Date();
-      const hour = now.getHours();
-      let hoursUntilWeighIn: number | null = null;
-      if (daysUntil >= 0) {
-        if (daysUntil === 0) {
-          hoursUntilWeighIn = Math.max(0, 6 - hour);
-        } else {
-          hoursUntilWeighIn = (24 - hour) + ((daysUntil - 1) * 24) + 6;
-        }
-      }
-
-      const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
-      const expectedDrift = descentData.avgOvernightDrift ?? null;
-      const expectedPracticeLoss = descentData.avgPracticeLoss ? Math.abs(descentData.avgPracticeLoss) : null;
-
-      // Fluid allowance
-      let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
-      if (weightToLose > 0 && expectedDrift !== null) {
-        const practiceToday = daysUntil > 0 && expectedPracticeLoss ? expectedPracticeLoss : 0;
-        const naturalLoss = (expectedDrift ?? 0) + practiceToday;
-        const buffer = naturalLoss - weightToLose;
-        if (buffer > 0) {
-          fluidAllowance = { oz: Math.floor(buffer * 16), cutoffTime: hour < 18 ? '6pm' : '8pm' };
-        } else {
-          fluidAllowance = { oz: 0, cutoffTime: 'now - water restricted' };
-        }
-      }
-
-      // Workout guidance
-      let workoutGuidance: { sessions: number; minutes: number; description: string } | null = null;
-      if (weightToLose > 0 && sweatRate && sweatRate > 0) {
-        const remainingAfterDrift = weightToLose - (expectedDrift ?? 0);
-        if (remainingAfterDrift > 0) {
-          const lossPerSession = sweatRate * 0.75;
-          const sessionsNeeded = Math.ceil(remainingAfterDrift / lossPerSession);
-          const minutesNeeded = Math.ceil((remainingAfterDrift / sweatRate) * 60);
-          workoutGuidance = {
-            sessions: sessionsNeeded,
-            minutes: minutesNeeded,
-            description: sessionsNeeded === 1 ? `One ${minutesNeeded}-min workout` : `${sessionsNeeded} sessions`
-          };
-        }
-      }
-
-      // Food guidance
-      let foodGuidance: { maxLbs: number; lastMealTime: string } | null = null;
-      if (weightToLose > 0) {
-        if (daysUntil <= 1) {
-          foodGuidance = { maxLbs: 0.5, lastMealTime: daysUntil === 0 ? 'after weigh-in' : '6pm' };
-        } else if (daysUntil === 2) {
-          foodGuidance = { maxLbs: 1.5, lastMealTime: '7pm' };
-        } else {
-          foodGuidance = { maxLbs: 2.5, lastMealTime: '8pm' };
-        }
-      }
-
-      ctx.calculatedInsights = {
-        hoursUntilWeighIn,
-        weightToLose: weightToLose.toFixed(1),
-        projectedWeight: descentData.projectedSaturday?.toFixed(1) ?? null,
-        isOnTrack: descentData.pace === 'on-track' || descentData.pace === 'ahead',
-        sweatRate: sweatRate?.toFixed(1) ?? null,
-        expectedOvernightDrift: expectedDrift?.toFixed(1) ?? null,
-        expectedPracticeLoss: expectedPracticeLoss?.toFixed(1) ?? null,
-        fluidAllowance,
-        workoutGuidance,
-        foodGuidance,
-        statusRecommendation: statusData.recommendation?.message ?? null,
-        projectionWarning: statusData.projectionWarning ?? null,
-      };
-    } catch {}
+    // Add calculated insights
+    ctx.calculatedInsights = {
+      hoursUntilWeighIn,
+      weightToLose: weightToLose.toFixed(1),
+      isOnTrack: isAtWeight || weightToLose < 3,
+      fluidAllowance: insights.fluidAllowance,
+      workoutGuidance: insights.workoutGuidance,
+      foodGuidance: insights.foodGuidance,
+      expectedOvernightDrift: insights.expectedDrift?.toFixed(1) ?? null,
+    };
 
     return ctx;
-  }, [profile, logs, daysUntil, getPhase, getStatus, getMacroTargets, getTodaysFoods, calculateTarget, getDriftMetrics, getDailyTracking, getHydrationTarget, getWeekDescentData, getExtraWorkoutStats]);
+  }, [profile, logs, currentWeight, targetWeight, daysUntil, weightToLose, isAtWeight, hoursUntilWeighIn, insights, getPhase, getStatus, getMacroTargets, getTodaysFoods, calculateTarget, getDriftMetrics, getDailyTracking, getHydrationTarget]);
 
-  // Fetch AI coaching message
-  const fetchCoaching = useCallback(async (forceRefresh = false) => {
+  // Fetch proactive coaching
+  const fetchProactiveCoaching = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
     const weightHash = getWeightHash();
 
-    // Check cache first
+    // Check cache
     if (!forceRefresh) {
       try {
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
-          const data: CoachingMessage = JSON.parse(cached);
-          // Use cache if: same weight state AND not expired
+          const data: CoachingCache = JSON.parse(cached);
           if (data.weightHash === weightHash && (now - data.timestamp) < CACHE_TTL) {
-            setMessage(data.text);
+            setProactiveMessage(data.text);
             return;
           }
         }
       } catch {}
     }
 
-    // Rate limit: at least 10 seconds between requests
-    if (now - lastFetchRef.current < 10000 && !forceRefresh) {
-      return;
-    }
+    // Rate limit
+    if (now - lastFetchRef.current < 10000 && !forceRefresh) return;
     lastFetchRef.current = now;
 
     setLoading(true);
-    setError(null);
 
     try {
       const context = buildContext();
-
-      // Special proactive prompt - ask for the most important thing right now
-      const proactivePrompt = `Based on my current situation, what's the ONE most important thing I should know or do right now? Be specific with numbers and timing. Keep it to 2-3 sentences max.`;
-
       const res = await fetch("/api/ai/coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: proactivePrompt,
+          question: "Based on my current situation, what's the ONE most important thing I should know or do right now? Be specific with numbers and timing. Keep it to 2-3 sentences max.",
           context,
         }),
       });
 
-      if (!res.ok) {
-        throw new Error("AI unavailable");
-      }
+      if (!res.ok) throw new Error("AI unavailable");
 
       const data = await res.json();
       const text = data.recommendation || "Stay focused on your cut.";
 
-      // Cache the result
-      const cacheData: CoachingMessage = {
-        text,
-        timestamp: now,
-        weightHash,
-      };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-
-      setMessage(text);
-    } catch (err) {
-      setError("Couldn't get AI coaching");
-      // Try to use stale cache as fallback
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ text, timestamp: now, weightHash }));
+      setProactiveMessage(text);
+    } catch {
+      // Use stale cache as fallback
       try {
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
-          const data: CoachingMessage = JSON.parse(cached);
-          setMessage(data.text);
+          const data: CoachingCache = JSON.parse(cached);
+          setProactiveMessage(data.text);
         }
       } catch {}
     } finally {
@@ -288,88 +288,253 @@ export function AiCoachProactive() {
     }
   }, [buildContext, getWeightHash]);
 
-  // Fetch on mount and when weight changes
-  useEffect(() => {
-    fetchCoaching();
-  }, [getWeightHash]); // Re-fetch when weight hash changes
+  // Send chat message
+  const sendMessage = useCallback(async () => {
+    if (!input.trim() || chatLoading) return;
 
-  // Listen for weight log events (custom event dispatched from FAB)
-  useEffect(() => {
-    const handleWeightLogged = () => {
-      // Small delay to let the store update
-      setTimeout(() => fetchCoaching(true), 500);
-    };
-    window.addEventListener('weight-logged', handleWeightLogged);
-    return () => window.removeEventListener('weight-logged', handleWeightLogged);
-  }, [fetchCoaching]);
+    const userMessage = input.trim();
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setInput('');
+    setChatLoading(true);
 
-  // Don't render if no meaningful data
-  if (!profile.currentWeight || !profile.targetWeightClass) {
+    try {
+      const context = buildContext();
+      const res = await fetch("/api/ai/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: userMessage, context }),
+      });
+
+      if (!res.ok) throw new Error("AI unavailable");
+
+      const data = await res.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.recommendation }]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I couldn't process that. Try again?" }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [input, chatLoading, buildContext]);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Fetch on mount and weight changes
+  useEffect(() => {
+    fetchProactiveCoaching();
+  }, [getWeightHash]);
+
+  // Listen for weight log events
+  useEffect(() => {
+    const handler = () => setTimeout(() => fetchProactiveCoaching(true), 500);
+    window.addEventListener('weight-logged', handler);
+    return () => window.removeEventListener('weight-logged', handler);
+  }, [fetchProactiveCoaching]);
+
+  // Don't render for SPAR users or if no profile
+  if (!profile.currentWeight || !profile.targetWeightClass || profile.protocol === '5') {
     return null;
   }
 
-  // SPAR protocol users don't need weight cutting advice
-  if (profile.protocol === '5') {
-    return null;
-  }
+  const statusColor = isAtWeight ? 'green' : weightToLose <= 2 ? 'yellow' : 'red';
+  const showDetailedGuidance = !isAtWeight && daysUntil >= 0 && daysUntil <= 7;
 
   return (
     <div className="mb-4">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full"
-      >
-        <div className={cn(
-          "rounded-xl p-4 transition-all",
-          "bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent",
-          "border border-violet-500/20"
-        )}>
-          {/* Header */}
+      <div className={cn(
+        "rounded-xl overflow-hidden transition-all",
+        "bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent",
+        "border border-violet-500/20"
+      )}>
+        {/* Weight Display Header */}
+        <div className="p-4 pb-2">
+          <div className="text-center">
+            <div className="flex items-baseline justify-center gap-3 mb-2">
+              <span className="text-5xl font-mono font-bold tracking-tight">
+                {currentWeight.toFixed(1)}
+              </span>
+              <span className="text-xl text-muted-foreground/40">→</span>
+              <span className="text-5xl font-mono font-bold text-primary tracking-tight">
+                {targetWeight}
+              </span>
+            </div>
+            <div className={cn(
+              "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold",
+              statusColor === 'green' && "bg-green-500/10 text-green-500",
+              statusColor === 'yellow' && "bg-yellow-500/10 text-yellow-500",
+              statusColor === 'red' && "bg-red-500/10 text-red-400"
+            )}>
+              {isAtWeight ? '✓ AT WEIGHT' : `${weightToLose.toFixed(1)} lbs to go`}
+              {hoursUntilWeighIn !== null && hoursUntilWeighIn > 0 && !isAtWeight && (
+                <span className="text-muted-foreground font-normal">• {hoursUntilWeighIn}h</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* AI Recommendation */}
+        <button onClick={() => setExpanded(!expanded)} className="w-full px-4 py-3 text-left">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                <Sparkles className="w-3 h-3 text-white" />
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                <Sparkles className="w-2.5 h-2.5 text-white" />
               </div>
               <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">AI Coach</span>
             </div>
             <div className="flex items-center gap-2">
               {!loading && (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    fetchCoaching(true);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); fetchProactiveCoaching(true); }}
                   className="p-1 rounded-full hover:bg-violet-500/20 transition-colors"
-                  title="Refresh coaching"
                 >
                   <RefreshCw className="w-3 h-3 text-violet-400" />
                 </button>
               )}
-              {expanded ? (
-                <ChevronUp className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-              )}
+              {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
             </div>
           </div>
 
-          {/* Content */}
           {expanded && (
-            <div className="min-h-[40px]">
+            <div className="min-h-[32px]">
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-                  <span className="text-xs text-muted-foreground">Analyzing your data...</span>
+                  <span className="text-xs text-muted-foreground">Analyzing...</span>
                 </div>
-              ) : error && !message ? (
-                <p className="text-sm text-muted-foreground">{error}</p>
-              ) : message ? (
-                <p className="text-sm text-foreground leading-relaxed">{message}</p>
+              ) : proactiveMessage ? (
+                <p className="text-sm text-foreground leading-relaxed">{proactiveMessage}</p>
               ) : null}
             </div>
           )}
-        </div>
-      </button>
+        </button>
+
+        {/* Quick Stats Grid */}
+        {expanded && showDetailedGuidance && (
+          <div className="px-4 pb-3">
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <Droplets className="w-3.5 h-3.5 mx-auto mb-0.5 text-cyan-500/70" />
+                <div className="text-[10px] text-muted-foreground">Fluids</div>
+                {insights.fluidAllowance ? (
+                  <>
+                    <div className="text-xs font-bold font-mono">
+                      {insights.fluidAllowance.oz > 0 ? `${insights.fluidAllowance.oz} oz` : 'Cut'}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {insights.fluidAllowance.oz > 0 ? `til ${insights.fluidAllowance.cutoffTime}` : 'Stop now'}
+                    </div>
+                  </>
+                ) : <div className="text-xs font-bold text-green-500">OK</div>}
+              </div>
+
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <Dumbbell className="w-3.5 h-3.5 mx-auto mb-0.5 text-orange-500/70" />
+                <div className="text-[10px] text-muted-foreground">Extra Work</div>
+                {insights.workoutGuidance ? (
+                  <>
+                    <div className="text-xs font-bold font-mono">{insights.workoutGuidance.sessions}×</div>
+                    <div className="text-[9px] text-muted-foreground">
+                      {insights.workoutGuidance.sessions === 1 ? `${insights.workoutGuidance.minutes} min` : '45 min each'}
+                    </div>
+                  </>
+                ) : <div className="text-xs font-bold text-green-500">None</div>}
+              </div>
+
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <Flame className="w-3.5 h-3.5 mx-auto mb-0.5 text-yellow-500/70" />
+                <div className="text-[10px] text-muted-foreground">Food</div>
+                {insights.foodGuidance ? (
+                  <>
+                    <div className="text-xs font-bold font-mono">
+                      {insights.foodGuidance.maxLbs <= 0.5 ? 'Light' : `<${insights.foodGuidance.maxLbs} lb`}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground">by {insights.foodGuidance.lastMealTime}</div>
+                  </>
+                ) : <div className="text-xs font-bold text-green-500">Normal</div>}
+              </div>
+            </div>
+
+            {/* Overnight drift insight */}
+            {hour >= 17 && insights.expectedDrift && insights.expectedDrift > 0 && !isAtWeight && (
+              <div className="mt-2 text-center">
+                <p className="text-[10px] text-muted-foreground">
+                  <Moon className="w-3 h-3 inline mr-1 text-purple-400" />
+                  Overnight drift: <span className="font-mono font-bold text-foreground">−{insights.expectedDrift.toFixed(1)} lbs</span>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Chat Toggle */}
+        {expanded && (
+          <div className="px-4 pb-2">
+            <button
+              onClick={() => {
+                setShowChat(!showChat);
+                if (!showChat) setTimeout(() => inputRef.current?.focus(), 100);
+              }}
+              className="w-full py-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              {showChat ? 'Hide chat' : 'Ask a question...'}
+            </button>
+          </div>
+        )}
+
+        {/* Chat Section */}
+        {expanded && showChat && (
+          <div className="border-t border-violet-500/10 px-4 py-3">
+            {/* Messages */}
+            {messages.length > 0 && (
+              <div className="max-h-[200px] overflow-y-auto mb-3 space-y-2">
+                {messages.map((msg, i) => (
+                  <div key={i} className={cn(
+                    "text-sm rounded-lg px-3 py-2",
+                    msg.role === 'user'
+                      ? "bg-primary/10 text-primary ml-8"
+                      : "bg-muted/50 mr-8"
+                  )}>
+                    {msg.content}
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                    Thinking...
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+
+            {/* Input */}
+            <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask anything..."
+                className="flex-1 h-9 text-sm bg-background/50"
+                disabled={chatLoading}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || chatLoading}
+                className={cn(
+                  "h-9 px-3 rounded-lg transition-colors",
+                  input.trim() && !chatLoading
+                    ? "bg-violet-500 text-white hover:bg-violet-600"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

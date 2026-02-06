@@ -1759,24 +1759,11 @@ export default function Dashboard() {
         )}
 
       {/* ═══════════════════════════════════════════════════════ */}
-      {/* AI COACH PROACTIVE — Smart coaching that updates on weight logs */}
+      {/* UNIFIED AI COACH — Weight display + AI recommendations + chat */}
+      {/* Replaces old DecisionZone and floating chat widget            */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
         <AiCoachProactive />
-      )}
-
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* DECISION ZONE — Weight display + calculated guidance    */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      {!isViewingHistorical && !isSparProtocol && daysUntilWeighIn >= 0 && (
-        <DecisionZone
-          currentWeight={mostRecentLog?.weight ?? todayLogs.morning?.weight ?? null}
-          targetWeight={profile.targetWeightClass}
-          statusInfo={statusInfo}
-          todayLogs={todayLogs}
-          daysUntilWeighIn={daysUntilWeighIn}
-          descentData={descentData}
-        />
       )}
 
       {/* Next Cycle Prompt — shows when weigh-in has passed (competition only) */}
