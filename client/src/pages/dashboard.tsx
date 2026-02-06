@@ -479,6 +479,50 @@ function TodayFlow({
   onToggleRestDay: () => void;
   isCompetitionDay: boolean;
 }) {
+  const { logs, profile, deleteLog } = useStore();
+  const { toast } = useToast();
+  const [confirmDeleteCheckIn, setConfirmDeleteCheckIn] = useState<string | null>(null);
+
+  // Extra workouts today (before/after pairs)
+  const extraWorkouts = useMemo(() => {
+    const today = new Date();
+    const todayExtras = logs.filter(l => {
+      const ld = new Date(l.date);
+      return (l.type === 'extra-before' || l.type === 'extra-after') &&
+        ld.getFullYear() === today.getFullYear() &&
+        ld.getMonth() === today.getMonth() &&
+        ld.getDate() === today.getDate();
+    });
+    const befores = todayExtras.filter(l => l.type === 'extra-before').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const usedAfterIds = new Set<string>();
+    const pairs: { before: any; after: any | null; time: Date }[] = [];
+    for (const log of befores) {
+      const after = todayExtras.find(l =>
+        l.type === 'extra-after' &&
+        !usedAfterIds.has(l.id) &&
+        new Date(l.date).getTime() - new Date(log.date).getTime() >= 0 &&
+        new Date(l.date).getTime() - new Date(log.date).getTime() < 3 * 60 * 60 * 1000
+      );
+      if (after) usedAfterIds.add(after.id);
+      pairs.push({ before: log, after: after || null, time: new Date(log.date) });
+    }
+    return pairs;
+  }, [logs]);
+
+  // Check-ins today
+  const todayCheckIns = useMemo(() => {
+    const today = new Date();
+    return logs.filter(log => {
+      const ld = new Date(log.date);
+      return log.type === 'check-in' &&
+        ld.getFullYear() === today.getFullYear() &&
+        ld.getMonth() === today.getMonth() &&
+        ld.getDate() === today.getDate();
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [logs]);
+
+  const hasExtrasOrCheckIns = extraWorkouts.length > 0 || todayCheckIns.length > 0;
+
   // Calculate practice loss for POST slot display
   const preWeight = todayLogs.prePractice?.weight ?? null;
   const postWeight = todayLogs.postPractice?.weight ?? null;
@@ -493,10 +537,10 @@ function TodayFlow({
 
   // All possible slots
   const allSlots = [
-    { key: 'morning', label: 'AM', icon: <Sun className="w-4 h-4" />, log: todayLogs.morning, type: 'morning', color: 'yellow' },
-    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-4 h-4" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'blue' },
-    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-4 h-4" />, log: todayLogs.postPractice, type: 'post-practice', color: 'green' },
-    { key: 'bed', label: 'BED', icon: <Moon className="w-4 h-4" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'purple' },
+    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500' },
+    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500' },
+    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500' },
+    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500' },
   ];
 
   // Competition day: just show weigh-in slot prominently
@@ -548,89 +592,191 @@ function TodayFlow({
 
   // Count logged slots for completion indicator
   const loggedCount = slots.filter(s => s.log).length;
+  const isComplete = loggedCount === slots.length;
+
+  // Find most recent logged slot for highlight
+  const mostRecentSlot = [...slots]
+    .filter(s => s.log)
+    .sort((a, b) => new Date(b.log.date).getTime() - new Date(a.log.date).getTime())[0] ?? null;
 
   return (
-    <div className="mb-6">
-      {/* Minimal completion indicator */}
-      <div className="flex items-center justify-between mb-2 px-1">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Today</span>
-        <span className="text-[10px] text-muted-foreground">
-          {loggedCount}/{slots.length} logged
-        </span>
-      </div>
+    <div className="mb-4">
+      <div className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
+        {/* Header: label + colored dots + count */}
+        <div className="flex items-center justify-between px-1 pb-1">
+          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
+          <div className="flex items-center gap-1.5">
+            <div className="flex gap-0.5">
+              {slots.map((slot) => (
+                <div
+                  key={slot.key}
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full transition-all",
+                    slot.log ? slot.color.replace('text-', 'bg-') : "bg-muted"
+                  )}
+                />
+              ))}
+            </div>
+            <span className={cn(
+              "text-[10px] font-mono",
+              isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
+            )}>
+              {loggedCount}/{slots.length}
+            </span>
+          </div>
+        </div>
 
-      <div className={cn("grid gap-2", gridCols)}>
-        {slots.map((slot) => {
-          const isLogged = !!slot.log;
-          const weight = slot.log?.weight;
-          const time = slot.log ? format(new Date(slot.log.date), 'h:mm') : null;
-          // Show practice loss on POST slot
-          const showPracticeLoss = slot.key === 'post' && practiceLoss !== null && practiceLoss > 0;
+        {/* Slots grid */}
+        <div className={cn("grid gap-1", gridCols)}>
+          {slots.map((slot) => {
+            const isLogged = !!slot.log;
+            const weight = slot.log?.weight;
+            const isMostRecent = mostRecentSlot && slot.log && mostRecentSlot.log.id === slot.log.id;
+            // Show practice loss on POST slot
+            const showPracticeLoss = slot.key === 'post' && practiceLoss !== null && practiceLoss > 0;
 
-          return (
-            <button
-              key={slot.key}
-              onClick={() => onSlotTap(slot.type, slot.log)}
-              className={cn(
-                "relative flex flex-col items-center py-3 px-2 rounded-xl transition-all active:scale-95 min-h-[80px]",
-                isLogged
-                  ? "bg-muted/60 border border-muted"
-                  : "bg-muted/20 border border-dashed border-muted/50"
-              )}
-            >
-              {/* Icon - muted, not colored */}
-              <span className={cn(
-                "mb-1",
-                isLogged ? "text-foreground/70" : "text-muted-foreground/30"
-              )}>
-                {slot.icon}
-              </span>
+            return (
+              <button
+                key={slot.key}
+                onClick={() => onSlotTap(slot.type, slot.log)}
+                className={cn(
+                  "flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-all active:scale-95",
+                  isLogged
+                    ? "hover:bg-muted/50"
+                    : "hover:bg-primary/10 border border-dashed border-primary/30",
+                  isMostRecent && "ring-1 ring-primary/40 bg-primary/5"
+                )}
+              >
+                {/* Icon + colored label inline */}
+                <div className="flex items-center gap-1">
+                  <span className={cn("opacity-70", isLogged ? slot.color : "text-muted-foreground")}>
+                    {slot.icon}
+                  </span>
+                  <span className={cn(
+                    "text-[10px] font-bold uppercase",
+                    isLogged ? slot.color : "text-muted-foreground"
+                  )}>
+                    {slot.label}
+                  </span>
+                </div>
 
-              {/* Label */}
-              <span className={cn(
-                "text-[10px] font-bold uppercase tracking-wide mb-1",
-                isLogged ? 'text-foreground/80' : 'text-muted-foreground/40'
-              )}>
-                {slot.label}
-              </span>
+                {/* Time */}
+                {isLogged && (
+                  <span className="text-[9px] text-muted-foreground font-mono">
+                    {new Date(slot.log.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                )}
 
-              {/* Weight or empty indicator */}
-              {isLogged ? (
-                <span className="text-sm font-mono font-bold text-foreground">{weight?.toFixed(1)}</span>
-              ) : (
-                <span className="text-xs text-muted-foreground/30">—</span>
-              )}
+                {/* Weight or plus icon */}
+                {isLogged ? (
+                  <span className={cn(
+                    "text-[13px] font-mono",
+                    isMostRecent ? "font-bold text-foreground" : "text-foreground"
+                  )}>
+                    {weight?.toFixed(1)}
+                  </span>
+                ) : (
+                  <Plus className="w-4 h-4 mt-0.5 text-primary/60" />
+                )}
 
-              {/* Practice loss on POST slot - this is the ONE accent color */}
-              {showPracticeLoss ? (
-                <span className="text-[9px] text-primary font-bold mt-0.5">
-                  -{practiceLoss.toFixed(1)}{sweatRate ? ` (${sweatRate.toFixed(1)}/hr)` : ''}
-                </span>
-              ) : time ? (
-                <span className="text-[9px] text-muted-foreground/50 mt-0.5">{time}</span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+                {/* Practice loss on POST slot */}
+                {showPracticeLoss && (
+                  <span className="text-[9px] text-primary font-bold">
+                    -{practiceLoss.toFixed(1)}{sweatRate ? ` (${sweatRate.toFixed(1)}/hr)` : ''}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Rest day toggle - always visible, more prominent */}
-      <div className="flex items-center justify-center gap-3 mt-3">
-        <button
-          onClick={onToggleRestDay}
-          disabled={hasPracticeLog}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all border",
-            hasPracticeLog
-              ? "text-muted-foreground/40 border-muted/30 cursor-not-allowed"
-              : isRestDay
-                ? "text-purple-400 bg-purple-500/15 border-purple-500/30"
-                : "text-muted-foreground border-muted/50 hover:border-purple-500/30 hover:text-purple-400"
-          )}
-        >
-          <Moon className="w-4 h-4" />
-          {hasPracticeLog ? "Practice logged" : isRestDay ? "Rest Day ✓" : "No Practice Today?"}
-        </button>
+        {/* Rest day toggle */}
+        <div className="flex items-center justify-center gap-2 py-1">
+          <button
+            onClick={onToggleRestDay}
+            disabled={hasPracticeLog}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+              hasPracticeLog
+                ? "text-muted-foreground/40 cursor-not-allowed"
+                : isRestDay
+                  ? "text-purple-400 bg-purple-500/15"
+                  : "text-muted-foreground bg-muted/50 hover:bg-muted"
+            )}
+          >
+            <Moon className="w-3 h-3" />
+            {hasPracticeLog ? "Practice logged" : isRestDay ? "Rest day ✓" : "No practice today?"}
+          </button>
+        </div>
+
+        {/* Extras & Check-ins — always visible for today */}
+        {hasExtrasOrCheckIns && (
+          <div className="space-y-1.5 pt-1 border-t border-border/30">
+            {extraWorkouts.map((workout, i) => {
+              const loss = workout.after ? workout.before.weight - workout.after.weight : null;
+              return (
+                <button
+                  key={`extra-${i}`}
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('open-quick-log', {
+                      detail: { editExtraWorkout: { before: workout.before, after: workout.after } }
+                    }));
+                  }}
+                  className="w-full flex items-center justify-between bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2 active:scale-[0.98] transition-all"
+                >
+                  <div className="flex items-center gap-2">
+                    <Dumbbell className="w-3 h-3 text-orange-500" />
+                    <span className="text-[11px] font-bold text-orange-500">Extra</span>
+                    <span className="text-[10px] text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-mono text-foreground">
+                      {workout.before.weight} → {workout.after ? workout.after.weight : '…'}
+                    </span>
+                    {loss !== null && loss > 0 && (
+                      <span className="text-[10px] font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
+                    )}
+                    <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
+                  </div>
+                </button>
+              );
+            })}
+            {todayCheckIns.map((ci) => (
+                <div key={ci.id} className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <Scale className="w-3 h-3 text-cyan-500" />
+                    <span className="text-[10px] font-bold text-cyan-500">Weight Check</span>
+                    <span className="text-[9px] text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
+                    {confirmDeleteCheckIn === ci.id ? (
+                      <button
+                        onClick={() => {
+                          deleteLog(ci.id);
+                          setConfirmDeleteCheckIn(null);
+                          toast({ title: "Deleted", description: "Weight check removed" });
+                        }}
+                        className="px-2 py-0.5 rounded bg-destructive/20 text-destructive text-[10px] font-bold animate-pulse"
+                      >
+                        Confirm?
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setConfirmDeleteCheckIn(ci.id);
+                          setTimeout(() => setConfirmDeleteCheckIn(null), 3000);
+                        }}
+                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1355,13 +1501,11 @@ export default function Dashboard() {
                   <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
                     {phaseInfo.label}
                   </span>
-                  {/* Prominent goal badge for cut athletes */}
-                  <span className="px-2 py-0.5 rounded-full bg-primary/20 border border-primary/30 text-primary text-[10px] font-bold font-mono">
-                    {profile.targetWeightClass} lbs
-                  </span>
+                  <span className="text-xs text-muted-foreground">·</span>
+                  <span className="text-xs font-bold font-mono text-primary">{profile.targetWeightClass} lbs</span>
                 </>
               )}
-              <span className="text-xs text-muted-foreground">•</span>
+              <span className="text-xs text-muted-foreground">·</span>
               <span className="text-xs text-muted-foreground">{getProtocolName()}</span>
               {/* Logging streak indicator */}
               {streak > 0 && (
@@ -2079,7 +2223,7 @@ function TodayTimeline({
             <span className="text-[9px] text-muted-foreground uppercase font-bold">
               {extraWorkouts.length > 0 && `${extraWorkouts.length} extra`}
               {extraWorkouts.length > 0 && todayCheckIns.length > 0 && ' · '}
-              {todayCheckIns.length > 0 && `${todayCheckIns.length} check-in`}
+              {todayCheckIns.length > 0 && `${todayCheckIns.length} weight check`}
             </span>
             <ChevronDown className="w-3 h-3 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
@@ -2117,30 +2261,22 @@ function TodayTimeline({
                 </button>
               );
             })}
-            {todayCheckIns.map((ci) => {
-              const diff = ci.weight - targetWeight;
-              return (
+            {todayCheckIns.map((ci) => (
                 <div key={ci.id} className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 rounded-lg px-3 py-1.5">
                   <div className="flex items-center gap-2">
                     <Scale className="w-3 h-3 text-cyan-500" />
-                    <span className="text-[10px] font-bold text-cyan-500">Check-in</span>
+                    <span className="text-[10px] font-bold text-cyan-500">Weight Check</span>
                     <span className="text-[9px] text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
-                    <span className={cn(
-                      "text-[9px] font-mono",
-                      diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-red-400"
-                    )}>
-                      {diff > 0 ? '+' : ''}{diff.toFixed(1)}
-                    </span>
                     {!readOnly && (
                       confirmDeleteCheckIn === ci.id ? (
                         <button
                           onClick={() => {
                             deleteLog(ci.id);
                             setConfirmDeleteCheckIn(null);
-                            toast({ title: "Deleted", description: "Check-in removed" });
+                            toast({ title: "Deleted", description: "Weight check removed" });
                           }}
                           className="px-2 py-0.5 rounded bg-destructive/20 text-destructive text-[10px] font-bold animate-pulse"
                         >
@@ -2160,8 +2296,7 @@ function TodayTimeline({
                     )}
                   </div>
                 </div>
-              );
-            })}
+            ))}
           </div>
         </details>
       )}
@@ -2376,12 +2511,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
     avgDriftRateOzPerHr: number | null;
     avgPracticeLoss: number | null;
     avgSweatRateOzPerHr: number | null;
+    daytimeBmrDrift: number;
     projectedSaturday: number | null;
     targetWeight: number;
   };
   timeUntilWeighIn: string | null;
   daysUntilWeighIn: number;
 }) {
+  const { getExtraWorkoutStats } = useStore();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const weekPlan = getWeeklyPlan();
@@ -2419,7 +2556,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
             onClick={() => setIsExpanded(!isExpanded)}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors"
           >
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wider">Week Plan</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Week Plan</span>
             <div className="flex items-center gap-2">
               <span className={cn("text-xs font-medium", projectionColor)}>
                 {getSummaryText()}
@@ -2432,78 +2569,119 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
           {isExpanded && (
             <div className="animate-in slide-in-from-top-2 duration-200 border-t border-muted/30">
 
-          {/* Stats Row - muted colors, cleaner */}
-          {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null || descentData.projectedSaturday !== null) && (
-            <div className="flex items-center justify-around px-3 py-3">
-              <div className="text-center">
+          {/* Projected Weight — prominent */}
+          {descentData.projectedSaturday !== null && (
+            <div className="flex items-center justify-center gap-2 px-3 pt-3 pb-1">
+              <span className="text-[9px] text-muted-foreground/70 uppercase">
+                Projected
+                <HelpTip
+                  title="Projected Weigh-In"
+                  description={daysUntilWeighIn >= 3
+                    ? "Estimated weigh-in weight based on metabolism, drift, and practice loss. During loading, this is naturally high — most of the drop happens in the final 2 days when you cut water and food."
+                    : "Estimated weight at weigh-in day based on your metabolism, drift, practice loss, and remaining days. Green = on track to make weight."
+                  }
+                />
+              </span>
+              <span className={cn(
+                "font-mono font-bold text-lg",
+                descentData.projectedSaturday <= descentData.targetWeight
+                  ? "text-green-500"
+                  : descentData.projectedSaturday <= descentData.targetWeight * 1.03
+                    ? "text-orange-500"
+                    : "text-red-500"
+              )}>
+                {descentData.projectedSaturday.toFixed(1)} lbs
+              </span>
+              {daysUntilWeighIn >= 3 && descentData.projectedSaturday > descentData.targetWeight && (
+                <span className="text-[9px] text-muted-foreground/60">
+                  drops {format(addDays(new Date(), daysUntilWeighIn - 2), 'EEE')}–{format(addDays(new Date(), daysUntilWeighIn - 1), 'EEE')}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Loss Sources Grid */}
+          {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null) && (() => {
+            const extraStats = getExtraWorkoutStats();
+            const hasExtras = extraStats.totalWorkouts > 0;
+            return (
+            <div className={cn("grid gap-1 text-center px-3 py-2", hasExtras ? "grid-cols-4" : "grid-cols-3")}>
+              <div>
                 <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
-                  Drift
+                  Sleep
                   <HelpTip
                     title="Overnight Drift"
                     description="Weight lost while sleeping from breathing and metabolism. The rate (lbs/hr) lets you estimate for any sleep duration. E.g., 0.15 lbs/hr × 8 hrs = 1.2 lbs."
                   />
                 </span>
-                <span className="font-mono font-bold text-base text-foreground">
+                <span className="font-mono font-bold text-sm text-foreground">
                   {descentData.avgOvernightDrift !== null
                     ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}`
                     : '—'}
                 </span>
                 {descentData.avgDriftRateOzPerHr !== null && (
                   <span className="block text-[9px] font-mono text-muted-foreground">
-                    {descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr
+                    {descentData.avgDriftRateOzPerHr.toFixed(2)}/hr
                   </span>
                 )}
               </div>
-              <div className="w-px h-8 bg-muted/30" />
-              <div className="text-center">
+              <div>
+                <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
+                  Awake
+                  <HelpTip
+                    title="Daytime Metabolism"
+                    description="Estimated weight lost through metabolism during awake non-active hours (not sleeping, not practicing, not working out). Uses your overnight drift rate as a proxy."
+                  />
+                </span>
+                <span className="font-mono font-bold text-sm text-teal-500">
+                  {descentData.daytimeBmrDrift > 0
+                    ? `-${descentData.daytimeBmrDrift.toFixed(1)}`
+                    : '—'}
+                </span>
+              </div>
+              <div>
                 <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
                   Practice
                   <HelpTip
                     title="Practice Loss"
-                    description="Average weight lost per practice session from sweating. The rate (lbs/hr) lets you estimate for any workout length. E.g., 1.4 lbs/hr × 0.75 hr = 1.05 lbs."
+                    description="Average weight lost per practice session from sweating. The rate (lbs/hr) lets you estimate for any workout length."
                   />
                 </span>
-                <span className="font-mono font-bold text-base text-foreground">
+                <span className="font-mono font-bold text-sm text-foreground">
                   {descentData.avgPracticeLoss !== null
                     ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}`
                     : '—'}
                 </span>
                 {descentData.avgSweatRateOzPerHr !== null && (
                   <span className="block text-[9px] font-mono text-muted-foreground">
-                    {descentData.avgSweatRateOzPerHr.toFixed(2)} lbs/hr
+                    {descentData.avgSweatRateOzPerHr.toFixed(2)}/hr
                   </span>
                 )}
               </div>
-              <div className="w-px h-8 bg-muted/30" />
-              <div className="text-center">
-                <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
-                  Projected
-                  <HelpTip
-                    title="Projected Weigh-In"
-                    description={daysUntilWeighIn >= 3
-                      ? "Estimated weigh-in weight based on drift and practice loss. During loading, this is naturally high — most of the drop happens in the final 2 days when you cut water and food."
-                      : "Estimated weight at weigh-in day based on your drift, practice loss, and remaining days. Green = on track to make weight."
-                    }
-                  />
-                </span>
-                <span className={cn(
-                  "font-mono font-bold text-lg",
-                  descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
-                    ? "text-green-500"
-                    : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight * 1.03
-                      ? "text-orange-500"
-                      : descentData.projectedSaturday !== null ? "text-red-500" : "text-muted-foreground"
-                )}>
-                  {descentData.projectedSaturday !== null ? descentData.projectedSaturday.toFixed(1) : '—'}
-                </span>
-                {daysUntilWeighIn >= 3 && descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && (
-                  <span className="block text-[9px] text-muted-foreground/60 mt-0.5">
-                    Loading — big drop comes {format(addDays(new Date(), daysUntilWeighIn - 2), 'EEE')}–{format(addDays(new Date(), daysUntilWeighIn - 1), 'EEE')}
+              {hasExtras && (
+                <div>
+                  <span className="text-[9px] text-muted-foreground/70 uppercase block mb-0.5">
+                    Extras
+                    <HelpTip
+                      title="Extra Workouts"
+                      description="Average weight lost per extra workout session. Uses recent workouts with recency bias."
+                    />
                   </span>
-                )}
-              </div>
+                  <span className="font-mono font-bold text-sm text-orange-400">
+                    {extraStats.avgLoss !== null
+                      ? `-${extraStats.avgLoss.toFixed(1)}`
+                      : '—'}
+                  </span>
+                  {extraStats.avgSweatRateOzPerHr !== null && (
+                    <span className="block text-[9px] font-mono text-orange-400/70">
+                      {extraStats.avgSweatRateOzPerHr.toFixed(2)}/hr
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Phase Timeline — continuous gradient bar */}
           <div className="flex h-1.5 mx-3 rounded-full overflow-hidden mb-3">

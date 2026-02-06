@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sparkles, Send, Droplets, Dumbbell, Flame, Moon, MessageCircle, X } from "lucide-react";
+import { Sparkles, Send, X, Scale, Dumbbell, ChevronRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
@@ -20,6 +20,7 @@ export function AiCoachProactive() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [showAiSection, setShowAiSection] = useState(false);
+  const [insightDismissed, setInsightDismissed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -28,6 +29,7 @@ export function AiCoachProactive() {
     profile,
     logs,
     getDaysUntilWeighIn,
+    getTimeUntilWeighIn,
     getMacroTargets,
     getTodaysFoods,
     getPhase,
@@ -42,8 +44,8 @@ export function AiCoachProactive() {
 
   const daysUntil = getDaysUntilWeighIn();
 
-  // Get current weight from today's logs
-  const getCurrentWeight = useCallback(() => {
+  // Get current weight and latest log type from today's logs
+  const { currentWeight, latestLogType } = (() => {
     const today = new Date();
     const todayLogs = logs.filter(l => {
       const ld = new Date(l.date);
@@ -53,28 +55,18 @@ export function AiCoachProactive() {
     });
     if (todayLogs.length > 0) {
       const sorted = [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return sorted[0].weight;
+      return { currentWeight: sorted[0].weight, latestLogType: sorted[0].type };
     }
-    return profile.currentWeight;
-  }, [logs, profile.currentWeight]);
-
-  const currentWeight = getCurrentWeight();
+    return { currentWeight: profile.currentWeight, latestLogType: null as string | null };
+  })();
   const targetWeight = profile.targetWeightClass;
   const weightToLose = Math.max(0, currentWeight - targetWeight);
   const isAtWeight = weightToLose <= 0;
 
-  // Calculate hours until weigh-in using actual weigh-in time
+  // Calculate weigh-in timing
   const hour = new Date().getHours();
   const [wiH] = (profile.weighInTime || '07:00').split(':').map(Number);
   const weighInHour = wiH || 7;
-  let hoursUntilWeighIn: number | null = null;
-  if (daysUntil >= 0) {
-    if (daysUntil === 0) {
-      hoursUntilWeighIn = Math.max(0, weighInHour - hour);
-    } else {
-      hoursUntilWeighIn = (24 - hour) + ((daysUntil - 1) * 24) + weighInHour;
-    }
-  }
 
   // Format an hour (0-23) as a readable time string
   const formatHour = (h: number): string => {
@@ -92,7 +84,8 @@ export function AiCoachProactive() {
     try {
       const descentData = getWeekDescentData();
       const extraStats = getExtraWorkoutStats();
-      const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
+      // Priority: extra workout sweat rate (actual data) > practice sweat rate > extra avg loss
+      const sweatRate = extraStats.avgSweatRateOzPerHr ?? descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
       const expectedDrift = descentData.avgOvernightDrift ? Math.abs(descentData.avgOvernightDrift) : null;
 
       // Use the store's projection to determine how much is covered naturally
@@ -158,28 +151,22 @@ export function AiCoachProactive() {
         }
       }
 
-      // Dehydration-adjusted sweat rate
-      // Sweat rate drops as dehydration increases — the closer to weight class,
-      // the harder each pound is to lose. Per the Fuel Tanks model:
-      // >3% dehydration = early performance decline, reduced sweat output
-      // >5% = clear performance drop, significantly reduced sweat
-      const dehydrationPct = targetWeight > 0 ? (weightToLose / currentWeight) * 100 : 0;
-      const dehydrationFactor = dehydrationPct > 5 ? 0.6  // severely dehydrated, sweat much harder
-        : dehydrationPct > 3 ? 0.75  // moderately dehydrated
-        : dehydrationPct > 1 ? 0.9   // mildly dehydrated
-        : 1.0;                        // well hydrated
-      const adjustedSweatRate = sweatRate ? sweatRate * dehydrationFactor : null;
+      // Use the athlete's actual sweat rate data directly — no guessed penalties.
+      // Their logged practice/extra workout data already reflects real-world loss rates.
+      const adjustedSweatRate = sweatRate;
 
-      // Workout guidance — reframed as OPTION not requirement
-      // Uses dehydration-adjusted sweat rate + shows what extra work unlocks
-      let workoutGuidance: { sessions: number; minutes: number; unlocksOz: number } | null = null;
+      // Workout guidance — realistic sessions: 30, 45, or 60 min zone 2
+      // Picks session length based on projected gap size
+      let workoutGuidance: { minutes: number; lossLbs: number; unlocksOz: number } | null = null;
       if (weightToLose > 0 && projectedGap > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
-        const lossPerSession = adjustedSweatRate * 0.75; // 45 min sessions
-        const sessionsNeeded = Math.ceil(projectedGap / lossPerSession);
-        const minutesNeeded = Math.ceil((projectedGap / adjustedSweatRate) * 60);
-        const singleSessionLoss = adjustedSweatRate * (20 / 60); // lbs from 20 min zone 2
-        const unlocksOz = Math.floor(singleSessionLoss * 16);
-        workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded, unlocksOz };
+        // Pick session length: small gap = 30 min, medium = 45, large = 60
+        const lossAt30 = adjustedSweatRate * (30 / 60);
+        const sessionMinutes = projectedGap <= lossAt30 * 1.2 ? 30
+          : projectedGap <= adjustedSweatRate * 0.75 ? 45
+          : 60;
+        const sessionLossLbs = adjustedSweatRate * (sessionMinutes / 60);
+        const unlocksOz = Math.floor(sessionLossLbs * 16);
+        workoutGuidance = { minutes: sessionMinutes, lossLbs: sessionLossLbs, unlocksOz };
       }
 
       // Tradeoff hint: if food/fluids are restricted, show what a light workout buys you
@@ -188,10 +175,10 @@ export function AiCoachProactive() {
       let tradeoffHint: string | null = null;
       if (daysUntil >= 1 && daysUntil <= 2 && weightToLose > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
         if (fluidAllowance && fluidAllowance.oz === 0 && projectedGap > 0) {
-          const mins20loss = adjustedSweatRate * (20 / 60);
-          const ozUnlocked = Math.floor(mins20loss * 16);
+          const mins30loss = adjustedSweatRate * (30 / 60);
+          const ozUnlocked = Math.floor(mins30loss * 16);
           if (ozUnlocked > 0) {
-            tradeoffHint = `20 min zone 2 = ~${ozUnlocked} oz fluids (costs glycogen)`;
+            tradeoffHint = `30 min zone 2 = ~${ozUnlocked} oz fluids (costs glycogen)`;
           }
         } else if (foodGuidance && foodGuidance.maxLbs === 0 && buffer < 0) {
           const mins30loss = adjustedSweatRate * (30 / 60);
@@ -201,13 +188,13 @@ export function AiCoachProactive() {
         }
       }
 
-      // On track = projection says we make weight without extra sessions
-      const needsExtraWork = workoutGuidance !== null && workoutGuidance.sessions > 0;
+      // On track = projection says we make weight without extra work
+      const needsExtraWork = workoutGuidance !== null;
       const isOnTrack = isAtWeight || (projected !== null && projected <= targetWeight && !needsExtraWork);
 
-      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, isOnTrack, projectedGap, tradeoffHint };
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, tradeoffHint };
     } catch {
-      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null };
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null };
     }
   }, [weightToLose, targetWeight, daysUntil, hour, weighInHour, isAtWeight, getWeekDescentData, getExtraWorkoutStats]);
 
@@ -282,7 +269,7 @@ export function AiCoachProactive() {
     const dehydrationPct = targetWeight > 0 ? ((currentWeight - targetWeight) / currentWeight) * 100 : 0;
 
     ctx.calculatedInsights = {
-      hoursUntilWeighIn,
+      timeUntilWeighIn: daysUntil >= 0 ? getTimeUntilWeighIn() : null,
       weightToLose: weightToLose.toFixed(1),
       isOnTrack: insights.isOnTrack,
       fluidAllowance: insights.fluidAllowance,
@@ -294,7 +281,7 @@ export function AiCoachProactive() {
     };
 
     return ctx;
-  }, [profile, logs, currentWeight, targetWeight, daysUntil, weightToLose, isAtWeight, hoursUntilWeighIn, insights, getPhase, getStatus, getMacroTargets, getTodaysFoods, calculateTarget, getDriftMetrics, getDailyTracking, getHydrationTarget]);
+  }, [profile, logs, currentWeight, targetWeight, daysUntil, weightToLose, isAtWeight, insights, getPhase, getStatus, getMacroTargets, getTodaysFoods, calculateTarget, getDriftMetrics, getDailyTracking, getHydrationTarget, getTimeUntilWeighIn]);
 
   // Fetch AI advice (only when user requests)
   const fetchAiAdvice = useCallback(async () => {
@@ -366,113 +353,263 @@ export function AiCoachProactive() {
     return null;
   }
 
-  // Status color reflects actual situation, not just the raw deficit number
+  // Status color: green = on track, orange = behind, red = critical
   const statusColor = isAtWeight ? 'green' :
     insights.isOnTrack ? 'green' :
-    (insights.workoutGuidance && insights.workoutGuidance.sessions >= 3) ? 'red' :
-    'yellow';
+    (weightToLose > 3 && daysUntil <= 1) ? 'red' :
+    'orange';
   const showDetailedGuidance = !isAtWeight && daysUntil >= 0 && daysUntil <= 7;
+
+  // Use store's precise countdown (matches Week tab)
+  const timeUntilWeighIn = daysUntil >= 0 ? getTimeUntilWeighIn() : null;
+
+  // ─── Coaching insight ───
+  // Uses PROJECTED GAP (not raw deficit) — metabolism, overnight drift, and practice losses are accounted for.
+  // Returns a React node with inline-highlighted key numbers for visual hierarchy.
+  // No arbitrary directives — only specific, data-driven advice.
+  type CoachingStatus = 'on-track' | 'behind' | 'at-weight';
+
+  const getCoachingInsight = (): { status: CoachingStatus; node: React.ReactNode } | null => {
+    if (isAtWeight) return {
+      status: 'at-weight',
+      node: <>You're at weight. Stay fueled and hydrated for competition.</>,
+    };
+    if (daysUntil < 0) return null;
+
+    const gap = insights.projectedGap;
+    const onTrack = insights.isOnTrack;
+    const fluids = insights.fluidAllowance;
+    const food = insights.foodGuidance;
+    const sweatLbsHr = insights.adjustedSweatRate;
+
+    // Highlighted number span helper
+    const hl = (text: string, color?: string) => (
+      <span className={cn("font-semibold", color || "text-foreground")}>{text}</span>
+    );
+
+    const formatTime = (totalMinutes: number) =>
+      totalMinutes >= 60
+        ? `~${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60 > 0 ? `${totalMinutes % 60}m` : ''}`.trim()
+        : `~${totalMinutes} min`;
+
+    // Mid-day weigh-in context: show "At X.X" prefix for non-routine logs
+    // Skip for morning/before-bed since those are baseline readings the card already shows
+    const isMidDayLog = latestLogType && !['morning', 'before-bed'].includes(latestLogType);
+    const checkPrefix = isMidDayLog ? <>At {hl(currentWeight.toFixed(1))}, </> : null;
+
+    // Competition day
+    if (daysUntil === 0) {
+      if (weightToLose <= 0.5) return {
+        status: 'on-track',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go — almost there. Stay warm and calm until weigh-in.</>,
+      };
+      return {
+        status: 'behind',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Stay warm, keep moving light, and stay calm.</>,
+      };
+    }
+
+    // Day before (cut day)
+    if (daysUntil === 1) {
+      if (onTrack) {
+        if (fluids && fluids.oz > 0) {
+          return {
+            status: 'on-track',
+            node: <>{checkPrefix}On pace — metabolism, drift, and practice cover it. You can sip up to {hl(fluids.oz + ' oz')} before {hl(fluids.cutoffTime)}.</>,
+          };
+        }
+        return {
+          status: 'on-track',
+          node: <>{checkPrefix}On pace — metabolism, drift, and practice should get you there. Let the protocol work.</>,
+        };
+      }
+      if (gap > 0) {
+        const totalMinutes = sweatLbsHr && sweatLbsHr > 0 ? Math.round((gap / sweatLbsHr) * 60) : null;
+        if (totalMinutes) {
+          return {
+            status: 'behind',
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after metabolism, drift, and practice. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed to make weight.</>,
+          };
+        }
+        return {
+          status: 'behind',
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after metabolism, drift, and practice. Extra work needed to make weight.</>,
+        };
+      }
+      return {
+        status: 'on-track',
+        node: <>{checkPrefix}On pace — let the protocol work. Metabolism, drift, and practice should handle it.</>,
+      };
+    }
+
+    // 2 days out (prep day)
+    if (daysUntil === 2) {
+      if (onTrack) {
+        const foodNote = food && food.maxLbs > 0
+          ? <>Keep meals under {hl(food.maxLbs + ' lbs')} by {hl(food.lastMealTime)}.</>
+          : <>Low-fiber meals to let the gut empty.</>;
+        const fluidNote = fluids && fluids.oz > 0
+          ? <> {hl(fluids.oz + ' oz')} fluids OK before {hl(fluids.cutoffTime)}.</>
+          : null;
+        return {
+          status: 'on-track',
+          node: <>{checkPrefix}On pace. {foodNote}{fluidNote}</>,
+        };
+      }
+      if (gap > 0) {
+        const totalMinutes = sweatLbsHr && sweatLbsHr > 0 ? Math.round((gap / sweatLbsHr) * 60) : null;
+        const foodNote = food ? <>Keep food under {hl(food.maxLbs + ' lbs')}.</> : <>Keep meals light.</>;
+        if (totalMinutes) {
+          return {
+            status: 'behind',
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed to make weight. {foodNote}</>,
+          };
+        }
+        return {
+          status: 'behind',
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. {foodNote} Extra work needed to make weight.</>,
+        };
+      }
+      return {
+        status: 'behind',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to cut. Low-fiber meals, sip fluids carefully.</>,
+      };
+    }
+
+    // 3-5 days out (loading phase)
+    if (daysUntil >= 3 && daysUntil <= 5) {
+      if (onTrack) {
+        return {
+          status: 'on-track',
+          node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go with {hl(daysUntil + ' days')} left — on schedule. Eat clean, train normally.</>,
+        };
+      }
+      if (gap > 0) {
+        const totalMinutes = sweatLbsHr && sweatLbsHr > 0 ? Math.round((gap / sweatLbsHr) * 60) : null;
+        if (totalMinutes) {
+          return {
+            status: 'behind',
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work over the next {hl(daysUntil + ' days')} needed to make weight.</>,
+          };
+        }
+        return {
+          status: 'behind',
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. {hl(daysUntil + ' days')} to make weight — tighten up meals and push in practice.</>,
+        };
+      }
+      return {
+        status: 'on-track',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go, {hl(daysUntil + ' days')} out. Stay disciplined with meals.</>,
+      };
+    }
+
+    // 6-7 days out
+    if (daysUntil >= 6) {
+      return {
+        status: 'on-track',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Plenty of time — focus on clean eating and solid practices.</>,
+      };
+    }
+
+    return null;
+  };
+
+  const coachingInsight = showDetailedGuidance ? getCoachingInsight() : null;
+
+  // Determine contextual quick-action based on coaching state
+  const getQuickAction = (): { label: string; icon: 'scale' | 'workout'; type: string } | null => {
+    if (isAtWeight || daysUntil < 0) return null;
+    // If behind (projected gap > 0), offer "Log Workout"
+    if (!insights.isOnTrack && insights.projectedGap > 0) {
+      return { label: 'Log Workout', icon: 'workout', type: 'extra-workout' };
+    }
+    // Otherwise suggest logging weight
+    return { label: 'Log Weight', icon: 'scale', type: 'morning' };
+  };
+
+  const quickAction = coachingInsight ? getQuickAction() : null;
+
+  const handleQuickAction = (type: string) => {
+    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+  };
 
   return (
     <div className="mb-4">
       <div className="rounded-xl overflow-hidden bg-card border border-border">
-        {/* Weight Display Header */}
-        <div className="p-4 pb-3">
+        {/* Weight Display Header — compact */}
+        <div className="px-4 pt-3 pb-2">
           <div className="text-center">
-            <div className="flex items-baseline justify-center gap-3 mb-2">
-              <span className="text-5xl font-mono font-bold tracking-tight">
+            <div className="flex items-baseline justify-center gap-2 mb-1.5">
+              <span className="text-3xl font-mono font-bold tracking-tight">
                 {currentWeight.toFixed(1)}
               </span>
-              <span className="text-xl text-muted-foreground/40">→</span>
-              <span className="text-5xl font-mono font-bold text-primary tracking-tight">
+              <span className="text-base text-muted-foreground/40">→</span>
+              <span className="text-3xl font-mono font-bold text-primary tracking-tight">
                 {targetWeight}
               </span>
             </div>
             <div className={cn(
-              "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold",
+              "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
               statusColor === 'green' && "bg-green-500/10 text-green-500",
-              statusColor === 'yellow' && "bg-yellow-500/10 text-yellow-500",
+              statusColor === 'orange' && "bg-orange-500/10 text-orange-500",
               statusColor === 'red' && "bg-red-500/10 text-red-400"
             )}>
-              {isAtWeight ? '✓ AT WEIGHT' : `${weightToLose.toFixed(1)} lbs to go`}
-              {hoursUntilWeighIn !== null && hoursUntilWeighIn > 0 && !isAtWeight && (
-                <span className="text-muted-foreground font-normal">• {hoursUntilWeighIn}h</span>
+              {isAtWeight ? '✓ AT WEIGHT' : (
+                <>
+                  {insights.isOnTrack ? 'ON TRACK' : 'BEHIND'}
+                  <span className="text-muted-foreground font-normal">•</span>
+                  {`${weightToLose.toFixed(1)} lbs to go`}
+                </>
+              )}
+              {timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME' && !isAtWeight && (
+                <span className="text-muted-foreground font-normal">• {timeUntilWeighIn}</span>
               )}
             </div>
           </div>
         </div>
 
-        {/* Quick Stats Grid - LOCAL CALCULATIONS (FREE) */}
-        {showDetailedGuidance && (
-          <div className="px-4 pb-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-muted/30 rounded-lg p-2.5 text-center">
-                <Droplets className="w-4 h-4 mx-auto mb-1 text-cyan-500/70" />
-                <div className="text-[10px] text-muted-foreground mb-0.5">Fluids</div>
-                {insights.fluidAllowance ? (
-                  <>
-                    <div className="text-sm font-bold font-mono">
-                      {insights.fluidAllowance.oz > 0 ? `${insights.fluidAllowance.oz} oz` : 'Cut'}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground">
-                      {insights.fluidAllowance.oz > 0 ? `until ${insights.fluidAllowance.cutoffTime}` : 'Stop now'}
-                    </div>
-                  </>
-                ) : <div className="text-sm font-bold text-green-500">OK</div>}
+        {/* Daily Insight Card — clean sentence with highlighted numbers */}
+        {coachingInsight && !insightDismissed && (
+          <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/50 bg-muted/30">
+            <div className="flex items-start gap-2 px-3 py-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] text-foreground/70 leading-relaxed">
+                  {coachingInsight.node}
+                </p>
               </div>
-
-              <div className="bg-muted/30 rounded-lg p-2.5 text-center">
-                <Dumbbell className="w-4 h-4 mx-auto mb-1 text-orange-500/70" />
-                <div className="text-[10px] text-muted-foreground mb-0.5">Extra Work</div>
-                {insights.workoutGuidance ? (
-                  <>
-                    <div className="text-sm font-bold font-mono">
-                      {insights.isOnTrack ? 'Optional' : `${insights.workoutGuidance.sessions}×`}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground">
-                      {insights.isOnTrack
-                        ? 'on track'
-                        : insights.workoutGuidance.sessions === 1 ? `${insights.workoutGuidance.minutes} min` : '45 min each'}
-                    </div>
-                  </>
-                ) : <div className="text-sm font-bold text-green-500">None</div>}
-              </div>
-
-              <div className="bg-muted/30 rounded-lg p-2.5 text-center">
-                <Flame className="w-4 h-4 mx-auto mb-1 text-yellow-500/70" />
-                <div className="text-[10px] text-muted-foreground mb-0.5">Food</div>
-                {insights.foodGuidance ? (
-                  <>
-                    <div className="text-sm font-bold font-mono">
-                      {insights.foodGuidance.maxLbs === 0 ? 'None' : insights.foodGuidance.maxLbs <= 0.5 ? 'Light' : `<${insights.foodGuidance.maxLbs} lb`}
-                    </div>
-                    <div className="text-[9px] text-muted-foreground">
-                      {insights.foodGuidance.maxLbs === 0 ? 'until weigh-in' : `by ${insights.foodGuidance.lastMealTime}`}
-                    </div>
-                  </>
-                ) : <div className="text-sm font-bold text-green-500">Normal</div>}
-              </div>
+              <button
+                onClick={() => setInsightDismissed(true)}
+                className="shrink-0 p-1 -mr-1 -mt-0.5 rounded-full text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+                aria-label="Dismiss insight"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-
-            {/* Tradeoff hint — shows what a light workout unlocks */}
-            {insights.tradeoffHint && (
-              <div className="mt-2 text-center">
-                <p className="text-[11px] text-orange-400/80 font-medium">
-                  <Dumbbell className="w-3 h-3 inline mr-1" />
-                  {insights.tradeoffHint}
-                </p>
-              </div>
+            {quickAction && (
+              <button
+                onClick={() => handleQuickAction(quickAction.type)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 border-t border-border/50 text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  {quickAction.icon === 'scale' ? <Scale className="w-3.5 h-3.5" /> : <Dumbbell className="w-3.5 h-3.5" />}
+                  {quickAction.label}
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
             )}
+          </div>
+        )}
 
-            {/* Overnight drift - evening only */}
-            {hour >= 17 && insights.expectedDrift && insights.expectedDrift > 0 && !isAtWeight && (
-              <div className="mt-2 text-center">
-                <p className="text-[11px] text-muted-foreground">
-                  <Moon className="w-3 h-3 inline mr-1 text-purple-400" />
-                  Overnight drift: <span className="font-mono font-bold text-foreground">−{insights.expectedDrift.toFixed(1)} lbs</span>
-                </p>
-              </div>
-            )}
+        {/* Replay insight button — shown when dismissed */}
+        {coachingInsight && insightDismissed && (
+          <div className="px-3 pb-2">
+            <button
+              onClick={() => setInsightDismissed(false)}
+              className="flex items-center gap-1.5 mx-auto text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Show insight
+            </button>
           </div>
         )}
 

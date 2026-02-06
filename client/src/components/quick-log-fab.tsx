@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Scale, Sun, Moon, CheckCircle2, Check, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,7 +34,7 @@ const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; hint: string; ico
   { value: 'post-practice', label: 'Post-Practice', hint: 'After workout, before rehydrating', icon: <ArrowUpFromLine className="w-5 h-5" />, color: 'text-green-500', selectedBg: 'border-green-500 bg-green-500/15 ring-1 ring-green-500/30' },
   { value: 'before-bed', label: 'Before Bed', hint: 'Last weigh-in of the day', icon: <Moon className="w-5 h-5" />, color: 'text-purple-500', selectedBg: 'border-purple-500 bg-purple-500/15 ring-1 ring-purple-500/30' },
   { value: 'extra-workout', label: 'Extra Workout', hint: 'Track additional sessions', icon: <Dumbbell className="w-5 h-5" />, color: 'text-orange-500', selectedBg: 'border-orange-500 bg-orange-500/15 ring-1 ring-orange-500/30' },
-  { value: 'check-in', label: 'Check-in', hint: 'Quick check, not counted', icon: <Scale className="w-5 h-5" />, color: 'text-cyan-500', selectedBg: 'border-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/30' },
+  { value: 'check-in', label: 'Weight Check', hint: 'Quick check, not counted', icon: <Scale className="w-5 h-5" />, color: 'text-cyan-500', selectedBg: 'border-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/30' },
 ];
 
 const EXTRA_TYPES: LogTypeOption[] = ['extra-workout', 'check-in'];
@@ -588,9 +589,9 @@ export function QuickLogFAB() {
 
   return (
     <>
-      {/* Onboarding tooltip - points to centered FAB */}
-      {showTooltip && !isOpen && (
-        <div className="fixed bottom-[9rem] left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {/* Onboarding tooltip — portaled to body so it's not clipped by nav */}
+      {showTooltip && !isOpen && createPortal(
+        <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="relative bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg max-w-[180px]">
             <button
               onClick={dismissTooltip}
@@ -602,40 +603,40 @@ export function QuickLogFAB() {
             <p className="text-xs font-medium leading-tight text-center">
               {logs.length === 0 ? "Tap here to log your first weight!" : "Welcome back! Tap here to log your weight"}
             </p>
-            {/* Arrow pointing down to FAB */}
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-primary" />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Floating Action Button — centered above nav bar */}
+      {/* Center nav button — inline in the nav bar */}
       <button
         onClick={() => { hapticTap(); handleOpenFull(); dismissTooltip(); }}
-        className="fixed bottom-[5rem] left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 active:scale-90 transition-transform"
+        className="flex flex-col items-center active:scale-90 transition-transform pb-1"
         aria-label="Log Weight"
       >
         <div className={cn(
-          "w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300",
+          "w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-all duration-300 border-[3px] border-background",
           fabSuccess
-            ? "bg-green-500 text-white shadow-[0_4px_20px_rgba(34,197,94,0.4)]"
-            : "bg-primary text-primary-foreground shadow-[0_4px_20px_rgba(232,80,30,0.4)]"
+            ? "bg-green-500 text-white shadow-[0_2px_12px_rgba(34,197,94,0.4)]"
+            : "bg-primary text-primary-foreground shadow-[0_2px_12px_rgba(232,80,30,0.35)]"
         )}>
           {fabSuccess ? (
-            <Check className="w-7 h-7 animate-check-bounce" />
+            <Check className="w-6 h-6 animate-check-bounce" />
           ) : (
-            <Scale className="w-6 h-6" />
+            <Plus className="w-6 h-6" strokeWidth={2.5} />
           )}
         </div>
         <span className={cn(
-          "text-[10px] font-semibold bg-background/80 px-1.5 py-0.5 rounded shadow-sm transition-colors duration-300",
+          "text-[10px] font-medium uppercase tracking-wider mt-0.5 transition-colors duration-300",
           fabSuccess ? "text-green-500" : "text-primary"
         )}>
-          {fabSuccess ? "Saved!" : "Log Weight"}
+          {fabSuccess ? "Saved!" : "Log"}
         </span>
       </button>
 
-      {/* Full-screen overlay modal instead of Vaul drawer — no jumping on mobile */}
-      {isOpen && (
+      {/* Full-screen overlay modal — portaled to body so it's not clipped by nav */}
+      {isOpen && createPortal(
         <div className="fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true" aria-labelledby="quick-log-title">
           {/* Backdrop */}
           <div
@@ -1066,7 +1067,8 @@ export function QuickLogFAB() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

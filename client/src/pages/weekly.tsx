@@ -268,19 +268,50 @@ export default function Weekly() {
               </div>
             </div>
 
+            {/* Projected Weight */}
+            {descentData.projectedSaturday !== null && (
+              <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-muted">
+                <span className="text-[10px] text-muted-foreground">Projected</span>
+                <span className={cn(
+                  "font-mono font-bold text-sm",
+                  descentData.projectedSaturday <= descentData.targetWeight
+                    ? "text-green-500"
+                    : descentData.projectedSaturday <= descentData.targetWeight * 1.03
+                      ? "text-orange-500"
+                      : "text-red-500"
+                )}>
+                  {descentData.projectedSaturday.toFixed(1)} lbs
+                </span>
+                {daysUntil >= 3 && descentData.projectedSaturday > descentData.targetWeight && (
+                  <span className="text-[9px] text-muted-foreground/60">
+                    drops {format(addDays(new Date(), daysUntil - 2), 'EEE')}–{format(addDays(new Date(), daysUntil - 1), 'EEE')}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Loss Capacity Breakdown */}
-            {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null) && (
-              <div className="grid grid-cols-3 gap-2 text-center pt-3 mt-3 border-t border-muted">
+            {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null) && (() => {
+              const extraStats = getExtraWorkoutStats();
+              const hasExtras = extraStats.totalWorkouts > 0;
+              return (
+              <div className={cn("grid gap-1 text-center pt-2 mt-2 border-t border-muted", hasExtras ? "grid-cols-4" : "grid-cols-3")}>
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">Drift</span>
+                  <span className="text-[10px] text-muted-foreground block">Sleep</span>
                   <span className={cn("font-mono font-bold text-sm", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
                     {descentData.avgOvernightDrift !== null ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}` : '—'} lbs
                   </span>
                   {descentData.avgDriftRateOzPerHr !== null && (
                     <span className="block text-[9px] font-mono text-cyan-400">
-                      {descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr
+                      {descentData.avgDriftRateOzPerHr.toFixed(2)}/hr
                     </span>
                   )}
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground block">Awake</span>
+                  <span className="font-mono font-bold text-sm text-teal-500">
+                    {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)}` : '—'} lbs
+                  </span>
                 </div>
                 <div>
                   <span className="text-[10px] text-muted-foreground block">Practice</span>
@@ -289,30 +320,26 @@ export default function Weekly() {
                   </span>
                   {descentData.avgSweatRateOzPerHr !== null && (
                     <span className="block text-[9px] font-mono text-orange-400">
-                      {descentData.avgSweatRateOzPerHr.toFixed(2)} lbs/hr
+                      {descentData.avgSweatRateOzPerHr.toFixed(2)}/hr
                     </span>
                   )}
                 </div>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Projected</span>
-                  <span className={cn(
-                    "font-mono font-bold text-sm",
-                    descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight
-                      ? "text-green-500"
-                      : descentData.projectedSaturday !== null && descentData.projectedSaturday <= descentData.targetWeight * 1.03
-                        ? "text-orange-500"
-                        : "text-red-500"
-                  )}>
-                    {descentData.projectedSaturday !== null ? `${descentData.projectedSaturday.toFixed(1)}` : '—'} lbs
-                  </span>
-                  {daysUntil >= 3 && descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && (
-                    <span className="block text-[9px] text-muted-foreground/60">
-                      drops {format(addDays(new Date(), daysUntil - 2), 'EEE')}–{format(addDays(new Date(), daysUntil - 1), 'EEE')}
+                {hasExtras && (
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Extras</span>
+                    <span className="font-mono font-bold text-sm text-orange-400">
+                      {extraStats.avgLoss !== null ? `-${extraStats.avgLoss.toFixed(1)}` : '—'} lbs
                     </span>
-                  )}
-                </div>
+                    {extraStats.avgSweatRateOzPerHr !== null && (
+                      <span className="block text-[9px] font-mono text-orange-400/70">
+                        {extraStats.avgSweatRateOzPerHr.toFixed(2)}/hr
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+              );
+            })()}
 
             {/* Gross loss capacity note */}
             {descentData.grossDailyLoss !== null && (
@@ -320,26 +347,6 @@ export default function Weekly() {
                 Loss capacity: <span className="text-green-500 font-mono font-bold">-{descentData.grossDailyLoss.toFixed(1)} lbs/day</span>
               </div>
             )}
-
-            {/* Extra workout stats */}
-            {(() => {
-              const extraStats = getExtraWorkoutStats();
-              if (extraStats.totalWorkouts === 0) return null;
-              return (
-                <div className="text-[9px] text-muted-foreground text-center mt-1">
-                  <Dumbbell className="w-3 h-3 inline mr-1 text-orange-500" />
-                  Extra workouts done: <span className="text-orange-500 font-mono font-bold">{extraStats.totalWorkouts}</span>
-                  {extraStats.avgLoss && (
-                    <span className="ml-1">(avg: -{extraStats.avgLoss.toFixed(1)} lbs each)</span>
-                  )}
-                  {descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && extraStats.avgLoss && extraStats.avgLoss > 0 && (
-                    <span className="ml-1 text-red-400">
-                      • Need ~{Math.max(0, Math.ceil((descentData.projectedSaturday - descentData.targetWeight) / extraStats.avgLoss))} more
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
 
             {/* Progress Message — projection-aware */}
             {descentData.totalLost !== null && descentData.currentWeight && (() => {

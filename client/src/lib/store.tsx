@@ -262,7 +262,7 @@ interface StoreContextType {
       avgExtraWorkoutLoss: number | null;
     };
   };
-  getExtraWorkoutStats: () => { avgLoss: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number };
+  getExtraWorkoutStats: () => { avgLoss: number | null; avgSweatRateOzPerHr: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number };
   getDailyPriority: () => { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string };
   getWeekDescentData: () => {
     startWeight: number | null;
@@ -2720,13 +2720,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Reverse so newest is first for EMA (recency bias)
+    workoutLosses.reverse();
+    sweatRates.reverse();
+
     return {
-      avgLoss: workoutLosses.length > 0
-        ? workoutLosses.reduce((a, b) => a + b, 0) / workoutLosses.length
-        : null,
-      avgSweatRateOzPerHr: sweatRates.length > 0
-        ? sweatRates.reduce((a, b) => a + b, 0) / sweatRates.length
-        : null,
+      avgLoss: computeEMA(workoutLosses),
+      avgSweatRateOzPerHr: computeEMA(sweatRates),
       totalWorkouts: workoutLosses.length,
       todayWorkouts,
       todayLoss
@@ -3228,6 +3228,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const avgSweatRateOzPerHr = computeEMA(practiceSweatRates);
     const avgDriftRateOzPerHr = computeEMA(driftRates);
 
+    // === Daytime BMR drift for cut days ===
+    // On cut days, athletes lose weight through BMR even while awake and not practicing.
+    // This is separate from overnight drift (already tracked) and practice sweat (already tracked).
+    // awake BMR hours = 24 - sleep - practice - extra workouts
+    // We use the overnight drift rate (lbs/hr) as a proxy for daytime metabolic rate.
+    let daytimeBmrDrift = 0;
+    if (avgDriftRateOzPerHr !== null && avgDriftRateOzPerHr > 0) {
+      // Estimate sleep hours from morning logs (EMA-weighted)
+      const sleepHoursData: number[] = [];
+      for (const log of sortedLogs) {
+        if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
+          sleepHoursData.push(log.sleepHours);
+          if (sleepHoursData.length >= 5) break; // enough for EMA
+        }
+      }
+      const avgSleepHours = sleepHoursData.length > 0 ? (computeEMA(sleepHoursData) || 8) : 8;
+
+      // Estimate practice duration from post-practice logs (EMA-weighted)
+      const practiceDurations: number[] = [];
+      for (const log of sortedLogs) {
+        if (log.type === 'post-practice' && log.duration && log.duration > 0) {
+          practiceDurations.push(log.duration / 60); // convert min to hours
+          if (practiceDurations.length >= 5) break;
+        }
+      }
+      const avgPracticeHours = practiceDurations.length > 0 ? (computeEMA(practiceDurations) || 2) : 2;
+
+      // Estimate extra workout duration from today's logs
+      const todayExtraMinutes = allTodayLogs
+        .filter(l => (l.type === 'extra-after' || l.type === 'post-practice') && l.type === 'extra-after' && l.duration && l.duration > 0)
+        .reduce((sum, l) => sum + (l.duration || 0), 0);
+      const todayExtraHours = todayExtraMinutes / 60;
+
+      // Awake non-active hours: 24 minus sleep, practice, and extra workouts
+      const awakeNonActiveHours = Math.max(0, 24 - avgSleepHours - avgPracticeHours - todayExtraHours);
+      daytimeBmrDrift = awakeNonActiveHours * avgDriftRateOzPerHr;
+    }
+
     // Gross daily loss capacity = overnight drift + practice loss
     // Now phase-aware: loading days use loading drift, cut days use cut drift
     // Use absolute values since these represent weight LOST (always positive capacity)
@@ -3275,23 +3313,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (currentWeight) {
           // CUT DAY (or no morning weight): start from most recent weigh-in
           // Apply only remaining losses based on what's already happened
+          // Includes daytime BMR drift — metabolic loss during awake non-active hours
           projected = currentWeight;
           const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
           let todayRemainingLoss = 0;
 
           if (lastLogType) {
             if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
-              todayRemainingLoss = practice + todayDrift;
+              todayRemainingLoss = practice + todayDrift + daytimeBmrDrift;
             } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-              todayRemainingLoss = todayDrift;
+              todayRemainingLoss = todayDrift + daytimeBmrDrift;
             } else if (lastLogType === 'extra-after') {
-              todayRemainingLoss = practice + todayDrift;
+              todayRemainingLoss = practice + todayDrift + daytimeBmrDrift;
             } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
               const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-              todayRemainingLoss = hasPracticeLog ? todayDrift : (practice + todayDrift);
+              todayRemainingLoss = hasPracticeLog ? (todayDrift + daytimeBmrDrift) : (practice + todayDrift + daytimeBmrDrift);
             }
           } else {
-            todayRemainingLoss = practice + todayDrift;
+            todayRemainingLoss = practice + todayDrift + daytimeBmrDrift;
           }
           projected -= todayRemainingLoss;
         } else if (latestMorningWeight) {
@@ -3310,8 +3349,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
               projected -= loadingLoss;
             } else {
-              // Future cut day: use cut-specific drift + practice (no eating back)
-              const cutDayGross = cutDrift + practice;
+              // Future cut day: drift + practice + daytime BMR (no eating back — all losses stick)
+              const cutDayGross = cutDrift + practice + daytimeBmrDrift;
               if (cutDayGross > 0) {
                 projected -= cutDayGross;
               } else if (hasGrossData) {
@@ -3361,6 +3400,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       avgCutDrift,       // EMA-weighted cut-day drift (Thu-Fri)
       avgPracticeLoss,   // EMA-weighted practice loss
       avgSweatRateOzPerHr, // EMA-weighted sweat rate
+      daytimeBmrDrift,    // Estimated metabolic loss during awake non-active hours (cut days)
       projectedSaturday, // Phase-aware projection
       pace,
       morningWeights
@@ -3493,6 +3533,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const hasGrossData = grossCapacity !== null && grossCapacity > 0;
     const hasNetData = netDailyLoss !== null;
 
+    // Daytime BMR drift for cut days (mirrors getWeekDescentData logic)
+    const avgHistoryDriftRate = computeEMA(historyDriftRates);
+    let historyDaytimeBmr = 0;
+    if (avgHistoryDriftRate !== null && avgHistoryDriftRate > 0) {
+      const sleepData: number[] = [];
+      for (const log of sortedLogs) {
+        if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
+          sleepData.push(log.sleepHours);
+          if (sleepData.length >= 5) break;
+        }
+      }
+      const avgSleep = sleepData.length > 0 ? (computeEMA(sleepData) || 8) : 8;
+      const pracDurations: number[] = [];
+      for (const log of sortedLogs) {
+        if (log.type === 'post-practice' && log.duration && log.duration > 0) {
+          pracDurations.push(log.duration / 60);
+          if (pracDurations.length >= 5) break;
+        }
+      }
+      const avgPracHrs = pracDurations.length > 0 ? (computeEMA(pracDurations) || 2) : 2;
+      const awakeNonActive = Math.max(0, 24 - avgSleep - avgPracHrs);
+      historyDaytimeBmr = awakeNonActive * avgHistoryDriftRate;
+    }
+
     // Hybrid projection (mirrors getWeekDescentData logic)
     // Loading days: project from morning weight (mid-day dips are temporary — athlete eats back)
     // Cut days: project from most recent weigh-in (losses stick — no eating back)
@@ -3519,27 +3583,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const todayLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
         projected -= todayLoss;
       } else if (mostRecentWeight) {
-        // Cut day: start from most recent weigh-in, apply remaining losses
+        // Cut day: start from most recent weigh-in, apply remaining losses + daytime BMR
         projected = mostRecentWeight;
         const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
         let todayRemainingLoss = 0;
 
         if (lastLogType) {
           if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
-            todayRemainingLoss = practice + drift;
+            todayRemainingLoss = practice + drift + historyDaytimeBmr;
           } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-            todayRemainingLoss = drift;
+            todayRemainingLoss = drift + historyDaytimeBmr;
           } else if (lastLogType === 'extra-after') {
-            // Extra workouts are ADDITIONAL to normal practice+drift.
-            // Practice hasn't happened yet, so still count practice + drift as remaining.
-            todayRemainingLoss = practice + drift;
+            todayRemainingLoss = practice + drift + historyDaytimeBmr;
           } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
-            // Check if practice has actually happened by looking for a post-practice log
             const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-            todayRemainingLoss = hasPracticeLog ? drift : (practice + drift);
+            todayRemainingLoss = hasPracticeLog ? (drift + historyDaytimeBmr) : (practice + drift + historyDaytimeBmr);
           }
         } else {
-          todayRemainingLoss = practice + drift;
+          todayRemainingLoss = practice + drift + historyDaytimeBmr;
         }
         projected -= todayRemainingLoss;
       } else if (latestMorningWeight) {
@@ -3556,8 +3617,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const loadingLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
             projected -= loadingLoss;
           } else {
+            // Future cut day: gross capacity + daytime BMR drift
             if (hasGrossData) {
-              projected -= grossCapacity!;
+              projected -= (grossCapacity! + historyDaytimeBmr);
             } else if (hasNetData) {
               projected -= netDailyLoss! * 2.5;
             }

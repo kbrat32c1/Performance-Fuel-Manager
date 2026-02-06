@@ -58,7 +58,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
 
         {/* Bottom Nav */}
         {showNav && (
-          <nav id="main-nav" className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-center min-h-[64px] pb-safe-bottom max-w-md mx-auto" aria-label="Main navigation">
+          <nav id="main-nav" className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border flex justify-around items-end min-h-[64px] pb-safe-bottom max-w-md mx-auto overflow-visible" aria-label="Main navigation">
             <NavItem
               icon="LayoutDashboard"
               label="Today"
@@ -71,6 +71,10 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
               active={location === '/weekly'}
               onClick={() => setLocation('/weekly')}
             />
+            {/* Center Log button — raised above nav */}
+            <div className="relative flex items-end justify-center" style={{ marginTop: '-20px' }}>
+              <QuickLogFAB />
+            </div>
             <NavItem
               icon="History"
               label="History"
@@ -87,7 +91,6 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
             />
           </nav>
         )}
-        {showNav && <QuickLogFAB />}
         {showNav && <KeyboardShortcutsHelp />}
       </div>
     </div>
