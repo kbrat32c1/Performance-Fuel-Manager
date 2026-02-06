@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Sparkles, RefreshCw, Send, ChevronDown, ChevronUp, Droplets, Dumbbell, Flame, Moon } from "lucide-react";
+import { Sparkles, Send, Droplets, Dumbbell, Flame, Moon, MessageCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
@@ -10,28 +10,16 @@ interface Message {
   content: string;
 }
 
-interface CoachingCache {
-  text: string;
-  timestamp: number;
-  weightHash: string;
-}
-
-const CACHE_KEY = 'pwm-ai-coach-proactive';
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
 /**
- * Unified AI Coach - Proactive recommendations + chat input
- * Replaces both DecisionZone and the floating chat widget
+ * Unified AI Coach - Calculated guidance (free) + AI chat (opt-in)
+ * Shows weight, local calculations, and optional AI advice
  */
 export function AiCoachProactive() {
-  const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
+  const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [expanded, setExpanded] = useState(true);
-  const [showChat, setShowChat] = useState(false);
-  const lastFetchRef = useRef<number>(0);
+  const [showAiSection, setShowAiSection] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -86,7 +74,7 @@ export function AiCoachProactive() {
     }
   }
 
-  // Get calculated insights for display
+  // Get calculated insights for display (LOCAL - NO API COST)
   const getInsights = useCallback(() => {
     try {
       const descentData = getWeekDescentData();
@@ -132,27 +120,15 @@ export function AiCoachProactive() {
         }
       }
 
-      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift };
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate };
     } catch {
-      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null };
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null };
     }
   }, [weightToLose, daysUntil, hour, getWeekDescentData, getExtraWorkoutStats]);
 
   const insights = getInsights();
 
-  // Weight hash for cache invalidation
-  const getWeightHash = useCallback(() => {
-    const today = new Date();
-    const todayLogs = logs.filter(l => {
-      const ld = new Date(l.date);
-      return ld.getFullYear() === today.getFullYear() &&
-        ld.getMonth() === today.getMonth() &&
-        ld.getDate() === today.getDate();
-    });
-    return `${currentWeight}-${todayLogs.length}-${daysUntil}`;
-  }, [logs, currentWeight, daysUntil]);
-
-  // Build context for AI
+  // Build context for AI (only used when user asks)
   const buildContext = useCallback(() => {
     const ctx: Record<string, any> = {
       currentPage: '/dashboard',
@@ -217,7 +193,6 @@ export function AiCoachProactive() {
       if (hydration) ctx.hydrationTarget = hydration;
     } catch {}
 
-    // Add calculated insights
     ctx.calculatedInsights = {
       hoursUntilWeighIn,
       weightToLose: weightToLose.toFixed(1),
@@ -231,31 +206,9 @@ export function AiCoachProactive() {
     return ctx;
   }, [profile, logs, currentWeight, targetWeight, daysUntil, weightToLose, isAtWeight, hoursUntilWeighIn, insights, getPhase, getStatus, getMacroTargets, getTodaysFoods, calculateTarget, getDriftMetrics, getDailyTracking, getHydrationTarget]);
 
-  // Fetch proactive coaching
-  const fetchProactiveCoaching = useCallback(async (forceRefresh = false) => {
-    const now = Date.now();
-    const weightHash = getWeightHash();
-
-    // Check cache
-    if (!forceRefresh) {
-      try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const data: CoachingCache = JSON.parse(cached);
-          if (data.weightHash === weightHash && (now - data.timestamp) < CACHE_TTL) {
-            setProactiveMessage(data.text);
-            return;
-          }
-        }
-      } catch {}
-    }
-
-    // Rate limit
-    if (now - lastFetchRef.current < 10000 && !forceRefresh) return;
-    lastFetchRef.current = now;
-
+  // Fetch AI advice (only when user requests)
+  const fetchAiAdvice = useCallback(async () => {
     setLoading(true);
-
     try {
       const context = buildContext();
       const res = await fetch("/api/ai/coach", {
@@ -270,32 +223,22 @@ export function AiCoachProactive() {
       if (!res.ok) throw new Error("AI unavailable");
 
       const data = await res.json();
-      const text = data.recommendation || "Stay focused on your cut.";
-
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ text, timestamp: now, weightHash }));
-      setProactiveMessage(text);
+      setAiMessage(data.recommendation || "Stay focused on your cut.");
     } catch {
-      // Use stale cache as fallback
-      try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const data: CoachingCache = JSON.parse(cached);
-          setProactiveMessage(data.text);
-        }
-      } catch {}
+      setAiMessage("Couldn't get AI advice right now. Try again later.");
     } finally {
       setLoading(false);
     }
-  }, [buildContext, getWeightHash]);
+  }, [buildContext]);
 
   // Send chat message
   const sendMessage = useCallback(async () => {
-    if (!input.trim() || chatLoading) return;
+    if (!input.trim() || loading) return;
 
     const userMessage = input.trim();
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setInput('');
-    setChatLoading(true);
+    setLoading(true);
 
     try {
       const context = buildContext();
@@ -312,26 +255,21 @@ export function AiCoachProactive() {
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I couldn't process that. Try again?" }]);
     } finally {
-      setChatLoading(false);
+      setLoading(false);
     }
-  }, [input, chatLoading, buildContext]);
+  }, [input, loading, buildContext]);
 
   // Auto-scroll chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Fetch on mount and weight changes
+  // Focus input when opening AI section
   useEffect(() => {
-    fetchProactiveCoaching();
-  }, [getWeightHash]);
-
-  // Listen for weight log events
-  useEffect(() => {
-    const handler = () => setTimeout(() => fetchProactiveCoaching(true), 500);
-    window.addEventListener('weight-logged', handler);
-    return () => window.removeEventListener('weight-logged', handler);
-  }, [fetchProactiveCoaching]);
+    if (showAiSection && !aiMessage) {
+      inputRef.current?.focus();
+    }
+  }, [showAiSection, aiMessage]);
 
   // Don't render for SPAR users or if no profile
   if (!profile.currentWeight || !profile.targetWeightClass || profile.protocol === '5') {
@@ -343,13 +281,9 @@ export function AiCoachProactive() {
 
   return (
     <div className="mb-4">
-      <div className={cn(
-        "rounded-xl overflow-hidden transition-all",
-        "bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-transparent",
-        "border border-violet-500/20"
-      )}>
+      <div className="rounded-xl overflow-hidden bg-card border border-border">
         {/* Weight Display Header */}
-        <div className="p-4 pb-2">
+        <div className="p-4 pb-3">
           <div className="text-center">
             <div className="flex items-baseline justify-center gap-3 mb-2">
               <span className="text-5xl font-mono font-bold tracking-tight">
@@ -374,92 +308,56 @@ export function AiCoachProactive() {
           </div>
         </div>
 
-        {/* AI Recommendation */}
-        <button onClick={() => setExpanded(!expanded)} className="w-full px-4 py-3 text-left">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                <Sparkles className="w-2.5 h-2.5 text-white" />
-              </div>
-              <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">AI Coach</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {!loading && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); fetchProactiveCoaching(true); }}
-                  className="p-1 rounded-full hover:bg-violet-500/20 transition-colors"
-                >
-                  <RefreshCw className="w-3 h-3 text-violet-400" />
-                </button>
-              )}
-              {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-            </div>
-          </div>
-
-          {expanded && (
-            <div className="min-h-[32px]">
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-                  <span className="text-xs text-muted-foreground">Analyzing...</span>
-                </div>
-              ) : proactiveMessage ? (
-                <p className="text-sm text-foreground leading-relaxed">{proactiveMessage}</p>
-              ) : null}
-            </div>
-          )}
-        </button>
-
-        {/* Quick Stats Grid */}
-        {expanded && showDetailedGuidance && (
+        {/* Quick Stats Grid - LOCAL CALCULATIONS (FREE) */}
+        {showDetailedGuidance && (
           <div className="px-4 pb-3">
             <div className="grid grid-cols-3 gap-2">
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <Droplets className="w-3.5 h-3.5 mx-auto mb-0.5 text-cyan-500/70" />
-                <div className="text-[10px] text-muted-foreground">Fluids</div>
+              <div className="bg-muted/30 rounded-lg p-2.5 text-center">
+                <Droplets className="w-4 h-4 mx-auto mb-1 text-cyan-500/70" />
+                <div className="text-[10px] text-muted-foreground mb-0.5">Fluids</div>
                 {insights.fluidAllowance ? (
                   <>
-                    <div className="text-xs font-bold font-mono">
+                    <div className="text-sm font-bold font-mono">
                       {insights.fluidAllowance.oz > 0 ? `${insights.fluidAllowance.oz} oz` : 'Cut'}
                     </div>
                     <div className="text-[9px] text-muted-foreground">
-                      {insights.fluidAllowance.oz > 0 ? `til ${insights.fluidAllowance.cutoffTime}` : 'Stop now'}
+                      {insights.fluidAllowance.oz > 0 ? `until ${insights.fluidAllowance.cutoffTime}` : 'Stop now'}
                     </div>
                   </>
-                ) : <div className="text-xs font-bold text-green-500">OK</div>}
+                ) : <div className="text-sm font-bold text-green-500">OK</div>}
               </div>
 
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <Dumbbell className="w-3.5 h-3.5 mx-auto mb-0.5 text-orange-500/70" />
-                <div className="text-[10px] text-muted-foreground">Extra Work</div>
+              <div className="bg-muted/30 rounded-lg p-2.5 text-center">
+                <Dumbbell className="w-4 h-4 mx-auto mb-1 text-orange-500/70" />
+                <div className="text-[10px] text-muted-foreground mb-0.5">Extra Work</div>
                 {insights.workoutGuidance ? (
                   <>
-                    <div className="text-xs font-bold font-mono">{insights.workoutGuidance.sessions}×</div>
+                    <div className="text-sm font-bold font-mono">{insights.workoutGuidance.sessions}×</div>
                     <div className="text-[9px] text-muted-foreground">
                       {insights.workoutGuidance.sessions === 1 ? `${insights.workoutGuidance.minutes} min` : '45 min each'}
                     </div>
                   </>
-                ) : <div className="text-xs font-bold text-green-500">None</div>}
+                ) : <div className="text-sm font-bold text-green-500">None</div>}
               </div>
 
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <Flame className="w-3.5 h-3.5 mx-auto mb-0.5 text-yellow-500/70" />
-                <div className="text-[10px] text-muted-foreground">Food</div>
+              <div className="bg-muted/30 rounded-lg p-2.5 text-center">
+                <Flame className="w-4 h-4 mx-auto mb-1 text-yellow-500/70" />
+                <div className="text-[10px] text-muted-foreground mb-0.5">Food</div>
                 {insights.foodGuidance ? (
                   <>
-                    <div className="text-xs font-bold font-mono">
+                    <div className="text-sm font-bold font-mono">
                       {insights.foodGuidance.maxLbs <= 0.5 ? 'Light' : `<${insights.foodGuidance.maxLbs} lb`}
                     </div>
                     <div className="text-[9px] text-muted-foreground">by {insights.foodGuidance.lastMealTime}</div>
                   </>
-                ) : <div className="text-xs font-bold text-green-500">Normal</div>}
+                ) : <div className="text-sm font-bold text-green-500">Normal</div>}
               </div>
             </div>
 
-            {/* Overnight drift insight */}
+            {/* Overnight drift - evening only */}
             {hour >= 17 && insights.expectedDrift && insights.expectedDrift > 0 && !isAtWeight && (
               <div className="mt-2 text-center">
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   <Moon className="w-3 h-3 inline mr-1 text-purple-400" />
                   Overnight drift: <span className="font-mono font-bold text-foreground">−{insights.expectedDrift.toFixed(1)} lbs</span>
                 </p>
@@ -468,70 +366,112 @@ export function AiCoachProactive() {
           </div>
         )}
 
-        {/* Chat Toggle */}
-        {expanded && (
-          <div className="px-4 pb-2">
-            <button
-              onClick={() => {
-                setShowChat(!showChat);
-                if (!showChat) setTimeout(() => inputRef.current?.focus(), 100);
-              }}
-              className="w-full py-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
-            >
-              {showChat ? 'Hide chat' : 'Ask a question...'}
-            </button>
-          </div>
-        )}
-
-        {/* Chat Section */}
-        {expanded && showChat && (
-          <div className="border-t border-violet-500/10 px-4 py-3">
-            {/* Messages */}
-            {messages.length > 0 && (
-              <div className="max-h-[200px] overflow-y-auto mb-3 space-y-2">
-                {messages.map((msg, i) => (
-                  <div key={i} className={cn(
-                    "text-sm rounded-lg px-3 py-2",
-                    msg.role === 'user'
-                      ? "bg-primary/10 text-primary ml-8"
-                      : "bg-muted/50 mr-8"
-                  )}>
-                    {msg.content}
-                  </div>
-                ))}
-                {chatLoading && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
-                    Thinking...
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
+        {/* AI Section Toggle */}
+        {!showAiSection ? (
+          <button
+            onClick={() => setShowAiSection(true)}
+            className="w-full px-4 py-3 border-t border-border flex items-center justify-center gap-2 text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/5 transition-colors"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Ask AI Coach</span>
+          </button>
+        ) : (
+          <div className="border-t border-border">
+            {/* AI Header */}
+            <div className="px-4 py-2 flex items-center justify-between bg-violet-500/5">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <Sparkles className="w-2.5 h-2.5 text-white" />
+                </div>
+                <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">AI Coach</span>
               </div>
-            )}
-
-            {/* Input */}
-            <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything..."
-                className="flex-1 h-9 text-sm bg-background/50"
-                disabled={chatLoading}
-              />
               <button
-                type="submit"
-                disabled={!input.trim() || chatLoading}
-                className={cn(
-                  "h-9 px-3 rounded-lg transition-colors",
-                  input.trim() && !chatLoading
-                    ? "bg-violet-500 text-white hover:bg-violet-600"
-                    : "bg-muted text-muted-foreground"
-                )}
+                onClick={() => { setShowAiSection(false); setMessages([]); setAiMessage(null); }}
+                className="p-1 rounded-full hover:bg-violet-500/20 transition-colors"
               >
-                <Send className="w-4 h-4" />
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
-            </form>
+            </div>
+
+            {/* AI Content */}
+            <div className="px-4 py-3">
+              {/* Quick AI advice button */}
+              {!aiMessage && messages.length === 0 && (
+                <button
+                  onClick={fetchAiAdvice}
+                  disabled={loading}
+                  className={cn(
+                    "w-full py-2.5 rounded-lg text-sm font-medium mb-3 transition-colors",
+                    loading
+                      ? "bg-violet-500/20 text-violet-300"
+                      : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
+                  )}
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                      Analyzing...
+                    </span>
+                  ) : (
+                    "Get AI advice for right now"
+                  )}
+                </button>
+              )}
+
+              {/* AI quick advice response */}
+              {aiMessage && messages.length === 0 && (
+                <div className="mb-3 p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                  <p className="text-sm text-foreground leading-relaxed">{aiMessage}</p>
+                </div>
+              )}
+
+              {/* Chat messages */}
+              {messages.length > 0 && (
+                <div className="max-h-[200px] overflow-y-auto mb-3 space-y-2">
+                  {messages.map((msg, i) => (
+                    <div key={i} className={cn(
+                      "text-sm rounded-lg px-3 py-2",
+                      msg.role === 'user'
+                        ? "bg-primary/10 text-primary ml-8"
+                        : "bg-muted/50 mr-8"
+                    )}>
+                      {msg.content}
+                    </div>
+                  ))}
+                  {loading && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                      Thinking...
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+
+              {/* Chat input */}
+              <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
+                <Input
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask a question..."
+                  className="flex-1 h-9 text-sm"
+                  disabled={loading}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || loading}
+                  className={cn(
+                    "h-9 px-3 rounded-lg transition-colors",
+                    input.trim() && !loading
+                      ? "bg-violet-500 text-white hover:bg-violet-600"
+                      : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </div>
