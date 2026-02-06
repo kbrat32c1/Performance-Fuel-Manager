@@ -1724,6 +1724,17 @@ function TodayTimeline({
     ? morningWeight - latestWeight
     : null;
 
+  // Calculate practice loss: PRE weight minus POST weight
+  const preWeight = todayLogs.prePractice?.weight ?? null;
+  const postWeight = todayLogs.postPractice?.weight ?? null;
+  const practiceLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
+
+  // Calculate sweat rate if duration is logged (lbs per hour)
+  const practiceDuration = todayLogs.postPractice?.duration; // minutes
+  const sweatRate = (practiceLoss && practiceDuration && practiceDuration > 0)
+    ? practiceLoss / (practiceDuration / 60)
+    : null;
+
   // Completion count for daily weigh-ins
   // - SPAR users with trackPracticeWeighIns=false: always 2 (AM/BED)
   // - SPAR users with trackPracticeWeighIns=true: 4 on practice days, 2 on rest days
@@ -1822,6 +1833,25 @@ function TodayTimeline({
             );
           })}
         </div>
+
+        {/* Practice Loss Summary — shows when both PRE and POST are logged */}
+        {practiceLoss !== null && practiceLoss > 0 && (
+          <div className="flex items-center justify-center gap-2 py-2 mx-1 mt-1 bg-gradient-to-r from-blue-500/5 via-green-500/10 to-blue-500/5 rounded-lg border border-green-500/20">
+            <TrendingDown className="w-3.5 h-3.5 text-green-500" />
+            <span className="text-[11px] font-bold text-green-500">
+              Practice: -{practiceLoss.toFixed(1)} lbs
+            </span>
+            {sweatRate !== null && (
+              <>
+                <span className="text-muted-foreground/40">•</span>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {sweatRate.toFixed(1)} lbs/hr
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Practice toggle - for competition users only */}
         {!isSparProtocol && (
           <div className="flex items-center justify-center gap-2 py-1.5">
