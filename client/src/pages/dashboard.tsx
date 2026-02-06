@@ -482,10 +482,18 @@ function QuickWeighInCard({
   const { toast } = useToast();
   const hour = new Date().getHours();
 
+  // Count scheduled weigh-ins completed (4 daily: morning, pre, post, bed)
+  const scheduledCount = [
+    todayLogs.morning,
+    todayLogs.prePractice,
+    todayLogs.postPractice,
+    todayLogs.beforeBed
+  ].filter(Boolean).length;
+
   // Check if morning weight is missing and it's past 10am
   const showMorningAlert = !todayLogs.morning && hour >= 10;
 
-  // Get last 3 logs for display
+  // Get last 3 logs for display (filter to today's scheduled types only for clarity)
   const last3Logs = recentLogs.slice(0, 3);
 
   // Type labels and colors
@@ -526,11 +534,14 @@ function QuickWeighInCard({
   return (
     <Card className="mb-3 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
       <CardContent className="p-3">
-        {/* Header */}
+        {/* Header with progress indicator */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Scale className="w-4 h-4 text-primary" />
             <span className="text-xs font-bold uppercase tracking-wide">Today's Weight</span>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {scheduledCount}/4
+            </span>
           </div>
           {!isSparProtocol && (
             <span className="text-xs text-muted-foreground">
@@ -543,7 +554,7 @@ function QuickWeighInCard({
         {showMorningAlert && (
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: 'morning' } }))}
-            className="w-full mb-3 py-2.5 px-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 flex items-center justify-between active:scale-[0.98] transition-transform"
+            className="w-full mb-3 py-2.5 px-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 flex items-center justify-between active:scale-[0.98] transition-transform min-h-[48px]"
           >
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-yellow-500" />
@@ -572,7 +583,10 @@ function QuickWeighInCard({
         {/* Recent weights list - swipe to delete, tap to edit */}
         {last3Logs.length > 0 ? (
           <div className="space-y-1.5">
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wide mb-2">Recent Weigh-ins</div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">Recent Weigh-ins</span>
+              <span className="text-[9px] text-muted-foreground/60 italic">← Swipe to delete</span>
+            </div>
             {last3Logs.map((log) => {
               const typeInfo = getTypeInfo(log.type);
               const logDate = new Date(log.date);
@@ -584,7 +598,7 @@ function QuickWeighInCard({
                 >
                   <button
                     onClick={() => handleEdit(log)}
-                    className="w-full flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg active:bg-muted/50 transition-colors"
+                    className="w-full flex items-center justify-between py-2.5 px-3 bg-muted/30 rounded-lg active:bg-muted/50 transition-colors min-h-[48px]"
                   >
                     <div className="flex items-center gap-2.5">
                       <span className={typeInfo.color}>{typeInfo.icon}</span>
@@ -603,19 +617,30 @@ function QuickWeighInCard({
             })}
           </div>
         ) : (
-          <div className="text-center py-4 text-sm text-muted-foreground">
-            No weights logged today
+          /* Empty state with guidance - FAB is the action, not a duplicate button */
+          <div className="text-center py-6 px-4">
+            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-primary/10 flex items-center justify-center">
+              <Scale className="w-6 h-6 text-primary" />
+            </div>
+            <p className="text-sm font-medium text-foreground mb-1">No weights logged today</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Use the <span className="text-primary font-semibold">Log Weight</span> button below to record your first weigh-in
+            </p>
+            <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground/60">
+              <span className="w-2 h-2 rounded-full bg-yellow-500/50" />
+              <span>Morning</span>
+              <span className="mx-1">→</span>
+              <span className="w-2 h-2 rounded-full bg-blue-500/50" />
+              <span>Pre</span>
+              <span className="mx-1">→</span>
+              <span className="w-2 h-2 rounded-full bg-green-500/50" />
+              <span>Post</span>
+              <span className="mx-1">→</span>
+              <span className="w-2 h-2 rounded-full bg-purple-500/50" />
+              <span>Bed</span>
+            </div>
           </div>
         )}
-
-        {/* Quick log button */}
-        <button
-          onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log'))}
-          className="w-full mt-3 py-3 px-4 rounded-lg bg-primary text-primary-foreground font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-transform min-h-[48px]"
-        >
-          <Plus className="w-4 h-4" />
-          Log New Weight
-        </button>
       </CardContent>
     </Card>
   );
