@@ -576,9 +576,9 @@ export function QuickLogFAB() {
 
   return (
     <>
-      {/* Onboarding tooltip - points to FAB */}
+      {/* Onboarding tooltip - points to centered FAB */}
       {showTooltip && !isOpen && (
-        <div className="fixed bottom-[11rem] right-5 z-50 animate-in fade-in slide-in-from-right-2 duration-300">
+        <div className="fixed bottom-[9rem] left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="relative bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg max-w-[180px]">
             <button
               onClick={dismissTooltip}
@@ -587,19 +587,19 @@ export function QuickLogFAB() {
             >
               <X className="w-3 h-3" />
             </button>
-            <p className="text-xs font-medium leading-tight">
+            <p className="text-xs font-medium leading-tight text-center">
               {logs.length === 0 ? "Tap here to log your first weight!" : "Welcome back! Tap here to log your weight"}
             </p>
             {/* Arrow pointing down to FAB */}
-            <div className="absolute -bottom-2 right-6 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-primary" />
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-primary" />
           </div>
         </div>
       )}
 
-      {/* Floating Action Button — always visible (works for today and historical dates) */}
+      {/* Floating Action Button — centered above nav bar */}
       <button
         onClick={() => { hapticTap(); handleOpenFull(); dismissTooltip(); }}
-        className="fixed bottom-[7.5rem] right-5 z-40 flex flex-col items-center gap-1 active:scale-90 transition-transform"
+        className="fixed bottom-[5rem] left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 active:scale-90 transition-transform"
         aria-label="Log Weight"
       >
         <div className={cn(

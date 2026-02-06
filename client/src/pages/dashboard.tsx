@@ -482,15 +482,6 @@ function DecisionZone({
   const isAtWeight = weightToLose <= 0;
   const hour = new Date().getHours();
 
-  // Calculate practice loss for display
-  const preWeight = todayLogs.prePractice?.weight ?? null;
-  const postWeight = todayLogs.postPractice?.weight ?? null;
-  const practiceLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
-  const practiceDuration = todayLogs.postPractice?.duration ?? null;
-  const sweatRate = (practiceLoss && practiceDuration && practiceDuration > 0)
-    ? practiceLoss / (practiceDuration / 60)
-    : null;
-
   // Single status color for entire zone (reduces color overload)
   const statusColor = statusInfo.status === 'on-track' ? 'green' :
     statusInfo.status === 'borderline' ? 'yellow' : 'red';
@@ -570,17 +561,6 @@ function DecisionZone({
         )}
       </div>
 
-      {/* Practice loss summary - collapsed inline */}
-      {practiceLoss !== null && practiceLoss > 0 && (
-        <div className="flex items-center justify-center gap-2 text-xs text-orange-500 font-medium">
-          <Dumbbell className="w-3.5 h-3.5" />
-          <span>
-            Today's practice: -{practiceLoss.toFixed(1)} lbs
-            {sweatRate !== null && ` (${sweatRate.toFixed(1)} lbs/hr)`}
-          </span>
-        </div>
-      )}
-
       {/* Recommendation - the key insight */}
       <div className={cn(
         "rounded-xl p-4 text-center",
@@ -615,6 +595,15 @@ function TodayFlow({
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any };
   onSlotTap: (type: string, log: any) => void;
 }) {
+  // Calculate practice loss for POST slot display
+  const preWeight = todayLogs.prePractice?.weight ?? null;
+  const postWeight = todayLogs.postPractice?.weight ?? null;
+  const practiceLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
+  const practiceDuration = todayLogs.postPractice?.duration ?? null;
+  const sweatRate = (practiceLoss && practiceDuration && practiceDuration > 0)
+    ? practiceLoss / (practiceDuration / 60)
+    : null;
+
   const slots = [
     { key: 'morning', label: 'AM', icon: <Sun className="w-4 h-4" />, log: todayLogs.morning, type: 'morning', color: 'yellow' },
     { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-4 h-4" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'blue' },
@@ -629,6 +618,8 @@ function TodayFlow({
           const isLogged = !!slot.log;
           const weight = slot.log?.weight;
           const time = slot.log ? format(new Date(slot.log.date), 'h:mm') : null;
+          // Show practice loss on POST slot
+          const showPracticeLoss = slot.key === 'post' && practiceLoss !== null && practiceLoss > 0;
 
           return (
             <button
@@ -679,10 +670,14 @@ function TodayFlow({
                 <span className="text-xs text-muted-foreground/40">—</span>
               )}
 
-              {/* Time */}
-              {time && (
+              {/* Practice loss on POST slot */}
+              {showPracticeLoss ? (
+                <span className="text-[9px] text-orange-500 font-bold mt-0.5">
+                  -{practiceLoss.toFixed(1)}{sweatRate ? ` (${sweatRate.toFixed(1)}/hr)` : ''}
+                </span>
+              ) : time ? (
                 <span className="text-[9px] text-muted-foreground mt-0.5">{time}</span>
-              )}
+              ) : null}
             </button>
           );
         })}
