@@ -158,33 +158,45 @@ export function AiCoachProactive() {
         }
       }
 
+      // Dehydration-adjusted sweat rate
+      // Sweat rate drops as dehydration increases — the closer to weight class,
+      // the harder each pound is to lose. Per the Fuel Tanks model:
+      // >3% dehydration = early performance decline, reduced sweat output
+      // >5% = clear performance drop, significantly reduced sweat
+      const dehydrationPct = targetWeight > 0 ? (weightToLose / currentWeight) * 100 : 0;
+      const dehydrationFactor = dehydrationPct > 5 ? 0.6  // severely dehydrated, sweat much harder
+        : dehydrationPct > 3 ? 0.75  // moderately dehydrated
+        : dehydrationPct > 1 ? 0.9   // mildly dehydrated
+        : 1.0;                        // well hydrated
+      const adjustedSweatRate = sweatRate ? sweatRate * dehydrationFactor : null;
+
       // Workout guidance — reframed as OPTION not requirement
-      // Shows what extra work would unlock (fluids/food) so athlete can decide
+      // Uses dehydration-adjusted sweat rate + shows what extra work unlocks
       let workoutGuidance: { sessions: number; minutes: number; unlocksOz: number } | null = null;
-      if (weightToLose > 0 && projectedGap > 0 && sweatRate && sweatRate > 0) {
-        const lossPerSession = sweatRate * 0.75; // 45 min sessions
+      if (weightToLose > 0 && projectedGap > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
+        const lossPerSession = adjustedSweatRate * 0.75; // 45 min sessions
         const sessionsNeeded = Math.ceil(projectedGap / lossPerSession);
-        const minutesNeeded = Math.ceil((projectedGap / sweatRate) * 60);
-        // What a single 20-min zone 2 session would unlock in fluid oz
-        const singleSessionLoss = sweatRate * (20 / 60); // lbs lost in 20 min
-        const unlocksOz = Math.floor(singleSessionLoss * 16); // convert to oz
+        const minutesNeeded = Math.ceil((projectedGap / adjustedSweatRate) * 60);
+        const singleSessionLoss = adjustedSweatRate * (20 / 60); // lbs from 20 min zone 2
+        const unlocksOz = Math.floor(singleSessionLoss * 16);
         workoutGuidance = { sessions: sessionsNeeded, minutes: minutesNeeded, unlocksOz };
       }
 
       // Tradeoff hint: if food/fluids are restricted, show what a light workout buys you
-      // This is the key insight — present OPTIONS not commands
+      // Includes the COST — glycogen takes 4-6h to refill 70-80%, and extra work
+      // this close to competition depletes the glycogen tank
       let tradeoffHint: string | null = null;
-      if (daysUntil >= 1 && daysUntil <= 2 && weightToLose > 0 && sweatRate && sweatRate > 0) {
+      if (daysUntil >= 1 && daysUntil <= 2 && weightToLose > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
         if (fluidAllowance && fluidAllowance.oz === 0 && projectedGap > 0) {
-          const mins20loss = sweatRate * (20 / 60); // lbs from 20 min
+          const mins20loss = adjustedSweatRate * (20 / 60);
           const ozUnlocked = Math.floor(mins20loss * 16);
           if (ozUnlocked > 0) {
-            tradeoffHint = `20 min light sweat = ~${ozUnlocked} oz fluids`;
+            tradeoffHint = `20 min zone 2 = ~${ozUnlocked} oz fluids (costs glycogen)`;
           }
-        } else if (foodGuidance && foodGuidance.maxLbs === 0 && buffer !== undefined && buffer < 0) {
-          const mins30loss = sweatRate * (30 / 60);
+        } else if (foodGuidance && foodGuidance.maxLbs === 0 && buffer < 0) {
+          const mins30loss = adjustedSweatRate * (30 / 60);
           if (mins30loss >= 0.3) {
-            tradeoffHint = `30 min zone 2 = light snack option`;
+            tradeoffHint = `30 min zone 2 = light snack option (4-6h to refuel)`;
           }
         }
       }
@@ -266,6 +278,9 @@ export function AiCoachProactive() {
       if (hydration) ctx.hydrationTarget = hydration;
     } catch {}
 
+    // Dehydration level for AI context
+    const dehydrationPct = targetWeight > 0 ? ((currentWeight - targetWeight) / currentWeight) * 100 : 0;
+
     ctx.calculatedInsights = {
       hoursUntilWeighIn,
       weightToLose: weightToLose.toFixed(1),
@@ -274,6 +289,8 @@ export function AiCoachProactive() {
       workoutGuidance: insights.workoutGuidance,
       foodGuidance: insights.foodGuidance,
       expectedOvernightDrift: insights.expectedDrift?.toFixed(1) ?? null,
+      dehydrationPct: dehydrationPct.toFixed(1),
+      tradeoffHint: insights.tradeoffHint,
     };
 
     return ctx;
