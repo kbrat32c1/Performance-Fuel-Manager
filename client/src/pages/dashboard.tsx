@@ -531,6 +531,15 @@ function QuickWeighInCard({
   const mostRecentWeight = last3Logs[0]?.weight;
   const diff = mostRecentWeight && !isSparProtocol ? mostRecentWeight - targetWeight : null;
 
+  // Calculate practice loss: PRE weight minus POST weight
+  const preWeight = todayLogs.prePractice?.weight ?? null;
+  const postWeight = todayLogs.postPractice?.weight ?? null;
+  const practiceLoss = (preWeight && postWeight) ? preWeight - postWeight : null;
+  const practiceDuration = todayLogs.postPractice?.duration ?? null;
+  const sweatRate = (practiceLoss && practiceDuration && practiceDuration > 0)
+    ? practiceLoss / (practiceDuration / 60)
+    : null;
+
   return (
     <Card className="mb-3 border-primary/30 bg-gradient-to-br from-primary/5 to-transparent overflow-hidden">
       <CardContent className="p-3">
@@ -577,6 +586,17 @@ function QuickWeighInCard({
             ) : (
               <>{diff.toFixed(1)} lbs over target</>
             )}
+          </div>
+        )}
+
+        {/* Practice loss summary - shows when both PRE and POST weights are logged */}
+        {practiceLoss !== null && practiceLoss > 0 && (
+          <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg mb-3 bg-orange-500/10 text-orange-500 text-sm font-bold">
+            <Dumbbell className="w-4 h-4" />
+            <span>
+              Practice: -{practiceLoss.toFixed(1)} lbs
+              {sweatRate !== null && ` • ${sweatRate.toFixed(1)} lbs/hr`}
+            </span>
           </div>
         )}
 
