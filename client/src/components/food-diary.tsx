@@ -339,12 +339,12 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                       const isEditing = editingId === entry.id;
                       const isMoving = movingId === entry.id;
                       const currentSection = entry.mealSection || inferMealSection(entry.timestamp);
+                      const sliceN = entry.sliceCount ?? 0;
                       const displayAmount = isSpar
-                        ? `${entry.sliceCount || 1}`
+                        ? (sliceN > 0 ? `${sliceN}` : '')
                         : `${entry.amount || 0}g`;
-                      const sliceN = entry.sliceCount || 1;
                       const displayUnit = isSpar
-                        ? (entry.sliceType === 'protein' ? (sliceN === 1 ? 'palm' : 'palms') : entry.sliceType === 'carb' ? (sliceN === 1 ? 'fist' : 'fists') : entry.sliceType === 'veg' ? (sliceN === 1 ? 'fist' : 'fists') : entry.sliceType === 'fruit' ? 'pc' : (sliceN === 1 ? 'thumb' : 'thumbs'))
+                        ? (sliceN === 0 ? 'tracked' : (sliceN === 1 ? 'slice' : 'slices'))
                         : (entry.macroType === 'carbs' ? 'C' : 'P');
 
                       return (

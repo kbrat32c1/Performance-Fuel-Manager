@@ -54,7 +54,6 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   const macros = getMacroTargets();
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
-  const isSparProtocol = profile.protocol === '5' || profile.protocol === '6';
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
 
@@ -137,7 +136,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     if (showSliceTracker) {
       // Determine slice type
       const cat = opts?.sliceType || (protein > 0 && carbs === 0 ? 'protein' : 'carb');
-      const sliceCount = opts?.sliceCount || 1;
+      const sliceCount = opts?.sliceCount ?? 1;
       const sliceKey = cat === 'protein' ? 'proteinSlices'
         : cat === 'carb' ? 'carbSlices'
         : cat === 'veg' ? 'vegSlices'
@@ -210,6 +209,23 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           category: opts?.category || 'custom',
         });
       }
+
+      // If both macros are 0 (e.g. black coffee), still log the food for tracking
+      if (carbs === 0 && protein === 0) {
+        entries.push({
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name,
+          timestamp: new Date().toISOString(),
+          mode: 'sugar',
+          mealSection: activeMeal,
+          macroType: 'carbs',
+          amount: 0,
+          gramAmount: 0,
+          category: opts?.category || 'custom',
+          ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}),
+        });
+      }
+
       updates.foodLog = [...existingLog, ...entries];
     }
 
@@ -228,21 +244,40 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
 
   // ─── FatSecret food add ───
-  const handleFSAdd = useCallback((food: FatSecretFood, serving: FatSecretServing) => {
-    const carbs = Math.round(serving.carbs);
-    const protein = Math.round(serving.protein);
+  const handleFSAdd = useCallback((food: FatSecretFood, serving: FatSecretServing, qty: number = 1) => {
+    const carbs = Math.round(serving.carbs * qty);
+    const protein = Math.round(serving.protein * qty);
     const brandLabel = food.brand ? ` (${food.brand})` : '';
-    const foodName = `${formatUSDAName(food.name)}${brandLabel} — ${serving.description}`;
+    const qtyLabel = qty !== 1 ? ` ×${qty % 1 === 0 ? qty : qty.toFixed(1)}` : '';
+    const foodName = `${formatUSDAName(food.name)}${brandLabel} — ${serving.description}${qtyLabel}`;
+
+    // Calculate slice type and count from actual macros
+    // Determine which macro dominates — only count as protein if meaningfully high
+    const sliceType: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat' =
+      (food.sparCategory as 'protein' | 'carb' | 'veg' | 'fruit' | 'fat') || (protein >= 10 && protein > carbs ? 'protein' : 'carb');
+
+    let sliceCount = 0;
+    if (sliceType === 'protein') {
+      sliceCount = Math.round(protein / 25);  // 1 palm ≈ 25g protein
+    } else if (sliceType === 'carb') {
+      sliceCount = Math.round(carbs / 26);     // 1 fist ≈ 26g carbs
+    } else if (sliceType === 'veg' || sliceType === 'fruit' || sliceType === 'fat') {
+      sliceCount = Math.round(qty);             // 1 serving = 1 slice
+    }
+    // Keep sliceCount at 0 for negligible-macro foods (coffee, water, etc.)
+    // — they still get logged for tracking but don't count as a SPAR portion
 
     logFoodEntry(foodName, carbs, protein, {
       category: 'fatsecret',
-      sliceType: food.sparCategory as any || (protein > carbs ? 'protein' : 'carb'),
+      sliceType,
+      sliceCount,
     });
     addToRecents(food, serving);
     setSelectedFS(null);
     setSelectedFSServing(null);
     const mealLabel = MEAL_OPTIONS.find(m => m.id === activeMeal)?.label || activeMeal;
-    toast({ title: `✓ Added to ${mealLabel}`, description: formatUSDAName(food.name) });
+    const qtyDesc = qty !== 1 ? ` (${qty % 1 === 0 ? qty : qty.toFixed(1)}×)` : '';
+    toast({ title: `✓ Added to ${mealLabel}`, description: `${formatUSDAName(food.name)}${qtyDesc}` });
   }, [logFoodEntry, addToRecents, setSelectedFS, setSelectedFSServing, toast, activeMeal]);
 
   // ─── Recent food quick-add ───
@@ -285,7 +320,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     for (const food of validFoods) {
       const carbs = Math.round(food.carbs || 0);
       const protein = Math.round(food.protein || 0);
-      const sliceCount = food.sliceCount || 1;
+      const sliceCount = food.sliceCount ?? 1;
       const cat = food.sparCategory || (protein > 0 && carbs === 0 ? 'protein' : 'carb');
 
       if (showSliceTracker) {
@@ -476,7 +511,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       </div>
 
       {/* ── Search bar (full width, clean) ── */}
-      <div className="px-4 py-3 space-y-3 shrink-0">
+      <div className="px-4 py-2 space-y-2 shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <input
@@ -523,7 +558,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       </div>
 
       {/* ── Main content (scrollable) ── */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
 
         {/* Loading state */}
         {isSearching && isLoading && (
@@ -546,8 +581,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           <>
             {/* Database results */}
             {fsResults.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide">Database Results</p>
+              <div className="divide-y divide-muted/15">
+                <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide pb-1">Database Results</p>
                 {fsResults.slice(0, 15).map(food => (
                   <FSFoodRow
                     key={food.id}
@@ -567,7 +602,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                       }
                     }}
                     onServingChange={setSelectedFSServing}
-                    onAdd={() => selectedFSServing && handleFSAdd(food, selectedFSServing)}
+                    onAdd={(qty: number) => selectedFSServing && handleFSAdd(food, selectedFSServing, qty)}
                     onToggleFav={() => toggleFavorite(food.name)}
                   />
                 ))}
@@ -826,24 +861,41 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
   flashed: boolean | undefined;
   onToggle: () => void;
   onServingChange: (s: FatSecretServing) => void;
-  onAdd: () => void;
+  onAdd: (qty: number) => void;
   onToggleFav: () => void;
 }) {
+  const [qty, setQty] = useState(1);
   const activeServing = isExpanded && selectedServing ? selectedServing : (food.servings.find(s => s.isDefault) || food.servings[0]);
+
+  // Reset qty when collapsing or changing food
+  useEffect(() => { if (!isExpanded) setQty(1); }, [isExpanded]);
+
+  const totalCal = activeServing ? Math.round(activeServing.calories * qty) : 0;
+  const totalCarbs = activeServing ? Math.round(activeServing.carbs * qty) : 0;
+  const totalProtein = activeServing ? Math.round(activeServing.protein * qty) : 0;
+  const totalFat = activeServing ? Math.round(activeServing.fat * qty) : 0;
 
   return (
     <div className={cn(
-      "rounded-xl border transition-all overflow-hidden",
-      isExpanded ? "border-primary/30 bg-primary/5" : "border-transparent hover:bg-muted/10",
+      "rounded-lg transition-all overflow-hidden",
+      isExpanded ? "border border-primary/30 bg-primary/5" : "border border-transparent hover:bg-muted/10",
       flashed && "bg-green-500/10 border-green-500/30"
     )}>
       {/* Name row */}
-      <button onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-left">
+      <button onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-1.5 text-left">
         <div className="flex-1 min-w-0">
-          <p className="text-[12px] font-medium truncate">{formatUSDAName(food.name)}</p>
+          <p className="text-[13px] font-semibold truncate">{formatUSDAName(food.name)}</p>
           <p className="text-[10px] text-muted-foreground/60 truncate">
             {food.brand && <span>{food.brand} · </span>}
-            {activeServing ? `${Math.round(activeServing.calories)} cal · ${Math.round(activeServing.carbs)}C ${Math.round(activeServing.protein)}P` : `${food.calories} cal`}
+            {activeServing ? (
+              <>
+                <span className="text-muted-foreground/80">{activeServing.description}</span>
+                {' · '}
+                {Math.round(activeServing.calories)} cal
+                {activeServing.carbs > 0 && ` · ${Math.round(activeServing.carbs)}C`}
+                {activeServing.protein > 0 && ` ${Math.round(activeServing.protein)}P`}
+              </>
+            ) : `${food.calories} cal`}
           </p>
         </div>
         <button
@@ -855,39 +907,60 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
         {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />}
       </button>
 
-      {/* Expanded: serving selection + add */}
+      {/* Expanded: serving selection + quantity + add */}
       {isExpanded && selectedServing && (
         <div className="px-3 pb-3 space-y-2 border-t border-muted/20 pt-2">
-          {/* Serving selector */}
-          {food.servings.length > 1 && (
-            <select
-              value={selectedServing.id}
-              onChange={(e) => {
-                const s = food.servings.find(sv => sv.id === e.target.value);
-                if (s) onServingChange(s);
-              }}
-              className="w-full py-2 px-3 rounded-lg bg-muted/20 border border-muted/30 text-[12px] font-medium"
-            >
-              {food.servings.map(s => (
-                <option key={s.id} value={s.id}>{s.description}</option>
-              ))}
-            </select>
-          )}
+          {/* Serving selector + quantity row */}
+          <div className="flex items-center gap-2">
+            {food.servings.length > 1 ? (
+              <select
+                value={selectedServing.id}
+                onChange={(e) => {
+                  const s = food.servings.find(sv => sv.id === e.target.value);
+                  if (s) onServingChange(s);
+                }}
+                className="flex-1 py-2 px-3 rounded-lg bg-muted/20 border border-muted/30 text-[12px] font-medium min-w-0"
+              >
+                {food.servings.map(s => (
+                  <option key={s.id} value={s.id}>{s.description}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="flex-1 text-[12px] font-medium text-muted-foreground truncate">{selectedServing.description}</span>
+            )}
 
-          {/* Macro breakdown */}
+            {/* Quantity stepper */}
+            <div className="flex items-center gap-0 shrink-0 border border-muted/30 rounded-lg overflow-hidden">
+              <button
+                onClick={(e) => { e.stopPropagation(); setQty(q => Math.max(0.5, q - (q <= 1 ? 0.5 : 1))); hapticTap(); }}
+                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
+              >
+                −
+              </button>
+              <span className="w-8 text-center text-[13px] font-bold tabular-nums">{qty % 1 === 0 ? qty : qty.toFixed(1)}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setQty(q => q + (q < 1 ? 0.5 : 1)); hapticTap(); }}
+                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Macro breakdown (multiplied by qty) */}
           <div className="flex items-center gap-3 text-[10px] font-mono">
-            <span className="text-muted-foreground">{Math.round(selectedServing.calories)} cal</span>
-            <span className="text-amber-500">{Math.round(selectedServing.carbs)}g C</span>
-            <span className="text-orange-500">{Math.round(selectedServing.protein)}g P</span>
-            <span className="text-muted-foreground/60">{Math.round(selectedServing.fat)}g F</span>
+            <span className="text-muted-foreground">{totalCal} cal</span>
+            <span className="text-amber-500">{totalCarbs}g C</span>
+            <span className="text-orange-500">{totalProtein}g P</span>
+            <span className="text-muted-foreground/60">{totalFat}g F</span>
           </div>
 
           {/* Add button */}
           <button
-            onClick={(e) => { e.stopPropagation(); onAdd(); }}
+            onClick={(e) => { e.stopPropagation(); onAdd(qty); }}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-[12px] font-bold active:scale-[0.98] transition-all"
           >
-            Add Food
+            Add{qty !== 1 ? ` ${qty % 1 === 0 ? qty : qty.toFixed(1)} ×` : ''} {formatUSDAName(food.name)}
           </button>
         </div>
       )}

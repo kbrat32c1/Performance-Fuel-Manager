@@ -331,12 +331,12 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
           const accent = getEntryAccent(entry);
           const isSpar = entry.mode === 'spar';
           const isEditing = editingId === entry.id;
+          const sliceN = entry.sliceCount ?? 0;
           const displayAmount = isSpar
-            ? `+${entry.sliceCount || 1}`
+            ? (sliceN > 0 ? `+${sliceN}` : '')
             : `${entry.amount || 0}g`;
-          const sliceN = entry.sliceCount || 1;
           const displayUnit = isSpar
-            ? (entry.sliceType === 'protein' ? (sliceN === 1 ? 'palm' : 'palms') : entry.sliceType === 'carb' ? (sliceN === 1 ? 'fist' : 'fists') : entry.sliceType === 'veg' ? (sliceN === 1 ? 'fist' : 'fists') : entry.sliceType === 'fruit' ? 'pc' : (sliceN === 1 ? 'thumb' : 'thumbs'))
+            ? (sliceN === 0 ? 'tracked' : (sliceN === 1 ? 'slice' : 'slices'))
             : (entry.macroType === 'carbs' ? 'C' : 'P');
 
           return (
