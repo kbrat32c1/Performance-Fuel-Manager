@@ -98,7 +98,7 @@ export const PHASE_STYLES: Record<string, PhaseStyle> = {
 
 const DEFAULT_PHASE = PHASE_STYLES.Load;
 
-/** Get phase style by phase name (Load, Prep, Cut, Compete, Recover, Train) */
+/** Get phase style by phase name (Train, Load, Cut, Compete, Recover) */
 export function getPhaseStyle(phase: string): PhaseStyle {
   return PHASE_STYLES[phase] || DEFAULT_PHASE;
 }

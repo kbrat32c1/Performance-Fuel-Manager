@@ -54,7 +54,8 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const [editValue, setEditValue] = useState('');
   const [confirmingReset, setConfirmingReset] = useState(false);
 
-  // SPAR users don't do weight cuts, so hide water loading explanations
+  // SPAR General users don't do weight cuts, so hide water loading explanations
+  // Note: SPAR Competition (P6) DOES use water loading — handled by store
   const isSparProtocol = profile.protocol === '5';
 
   const progress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;

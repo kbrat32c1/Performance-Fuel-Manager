@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { addDays, subDays, differenceInDays, getDay, parseISO, format, startOfDay } from 'date-fns';
-import { supabase } from './supabase';
+import { supabase, type UserFoodsJson, type MacroCustomFood, type MacroCustomMeal, type SparCustomFood, type SparCustomMealData } from './supabase';
 import { useAuth } from './auth';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -18,7 +18,6 @@ import {
   getWeightValidationError,
 } from './constants';
 import { SUGAR_FOODS } from './food-data';
-import { calculateSliceTargets, SPAR_MACRO_PROTOCOLS, type ActivityLevel, type Gender, type SparMacroProtocol, type CustomMacros } from './spar-calculator';
 import {
   calculateSparSlicesV2,
   type Goal as SparV2Goal,
@@ -29,6 +28,8 @@ import {
   type SparV2Input,
   type SparV2Output,
 } from './spar-calculator-v2';
+import { getCompetitionCalorieAdjustment } from './spar-competition-adjuster';
+import { computeCutScore, type CutScoreInput } from './cut-score';
 
 // ─── Supabase Database Row Types ───────────────────────────────────────────
 interface SupabaseDailyTrackingRow {
@@ -54,12 +55,13 @@ interface SupabaseWeightLogRow {
 }
 
 // Types
-export type Protocol = '1' | '2' | '3' | '4' | '5';
-// 1: Sugar Fast / Body Comp Phase (Extreme fat loss)
-// 2: Fat Loss Focus / Make Weight Phase (In-Season weekly cut)
-// 3: Maintain / Hold Weight Phase (At walk-around weight)
-// 4: Hypertrophy / Build Phase (Off-season muscle gain)
-// 5: SPAR Nutrition (Clean eating — slice-based portion counting)
+export type Protocol = '1' | '2' | '3' | '4' | '5' | '6';
+// 1: Extreme Cut Phase (12%+ above class, multi-day depletion)
+// 2: Rapid Cut Phase (7-12% above class, short-term glycogen + water manipulation)
+// 3: Optimal Cut Phase (Within 6-7% of class, glycogen management, performance protected)
+// 4: Gain Phase (Off-season, performance and strength focus)
+// 5: SPAR Nutrition (Balanced eating — slice-based portion counting)
+// 6: SPAR Competition (SPAR nutrition + competition water loading & cycle timing)
 
 export type Status = 'on-track' | 'borderline' | 'risk';
 
@@ -87,14 +89,11 @@ export interface AthleteProfile {
   status: Status;
   simulatedDate: Date | null;
   hasCompletedOnboarding?: boolean;
-  // SPAR Nutrition profile fields (v1 - legacy)
+  // SPAR Nutrition profile fields
   heightInches?: number;
   age?: number;
   gender?: 'male' | 'female';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
-  weeklyGoal?: 'cut' | 'maintain' | 'build'; // DEPRECATED: Now derived from sparMacroProtocol
-  sparMacroProtocol?: SparMacroProtocol; // Unified protocol (includes both macros AND calorie strategy)
-  customMacros?: CustomMacros; // Custom C/P/F percentages + calorie adjustment when sparMacroProtocol === 'custom'
   nutritionPreference: 'spar' | 'sugar'; // slices or grams
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
 
@@ -114,13 +113,15 @@ export interface AthleteProfile {
   // Weight tracking for smart features
   lastCalcWeight?: number; // Weight used for last slice calculation
   lastCheckInDate?: string; // ISO date of last check-in prompt
+  weighInCleared?: boolean; // True when user has no active weigh-in date
+  nextCyclePromptDismissed?: boolean; // True when user dismissed the post-comp prompt (one-time)
 }
 
 export interface WeightLog {
   id: string;
   date: Date;
   weight: number;
-  type: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-before' | 'extra-after' | 'check-in';
+  type: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-before' | 'extra-after' | 'check-in' | 'weigh-in';
   urineColor?: number; // 1-8
   notes?: string;
   duration?: number; // workout duration in minutes (stored on post-practice and extra-after logs)
@@ -133,12 +134,25 @@ export interface WaterLog {
   amount: number; // in oz
 }
 
+// Meal section for FatSecret-style diary grouping
+export type MealSection = 'breakfast' | 'lunch' | 'dinner' | 'snacks';
+
+/** Infer meal section from a timestamp based on hour of day */
+export function inferMealSection(timestamp: string): MealSection {
+  const hour = new Date(timestamp).getHours();
+  if (hour >= 5 && hour < 11) return 'breakfast';
+  if (hour >= 11 && hour < 14) return 'lunch';
+  if (hour >= 17 && hour < 21) return 'dinner';
+  return 'snacks';
+}
+
 // Unified food log entry — works for both SPAR and Sugar modes
 export interface FoodLogEntry {
   id: string;
   name: string;
   timestamp: string; // ISO string
   mode: 'spar' | 'sugar';
+  mealSection?: MealSection;   // FatSecret-style meal grouping (auto-inferred if missing)
   // SPAR mode fields (v2 adds 'fruit' and 'fat')
   sliceType?: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat';
   sliceCount?: number;         // usually 1, but could be 0.5 or 2
@@ -167,6 +181,23 @@ export interface DailyTracking {
   foodLog?: FoodLogEntry[];          // persisted food log
 }
 
+// Synced user foods data — mirrors UserFoodsJson but with client-friendly types
+export interface UserFoodsData {
+  customFoods: MacroCustomFood[];       // MacroTracker custom foods
+  customMeals: MacroCustomMeal[];       // MacroTracker custom meals
+  sparCustomFoods: SparCustomFood[];    // SparTracker custom foods
+  sparCustomMeals: SparCustomMealData[];// SparTracker custom meals
+  favorites: string[];                  // Composite keys like "spar:Chicken Breast"
+}
+
+const defaultUserFoods: UserFoodsData = {
+  customFoods: [],
+  customMeals: [],
+  sparCustomFoods: [],
+  sparCustomMeals: [],
+  favorites: [],
+};
+
 export interface DayPlan {
   day: string;
   dayNum: number;
@@ -188,8 +219,10 @@ interface StoreContextType {
   fuelTanks: FuelTanks;
   logs: WeightLog[];
   dailyTracking: DailyTracking[];
+  userFoods: UserFoodsData;
   isLoading: boolean;
   updateProfile: (updates: Partial<AthleteProfile>) => void;
+  updateUserFoods: (updates: Partial<UserFoodsData>) => void;
   addLog: (log: Omit<WeightLog, 'id'>) => void;
   updateLog: (id: string, updates: Partial<WeightLog>) => void;
   deleteLog: (id: string) => void;
@@ -218,7 +251,6 @@ interface StoreContextType {
     fruit: number;
     fat: number;
     totalCalories: number;
-    macroProtocol?: SparMacroProtocol;
     bmr?: number;
     tdee?: number;
     activityLevel?: string;
@@ -278,10 +310,83 @@ interface StoreContextType {
     avgCutDrift: number | null;
     avgPracticeLoss: number | null;
     avgSweatRateOzPerHr: number | null;
+    daytimeBmrDrift: number;         // Estimated metabolic loss during awake non-active hours
+    emaSleepHours: number;           // EMA-weighted average sleep hours per night
+    emaPracticeHours: number;        // EMA-weighted average practice duration in hours
+    todayRemainingComponents: { sleep: number; practice: number } | null; // Individual components of today's remaining loss
     projectedSaturday: number | null; // Phase-aware projection
     pace: 'ahead' | 'on-track' | 'behind' | null;
     morningWeights: Array<{ day: string; weight: number; date: Date }>;
+    // Recent raw data for detail cards (newest first, up to 5)
+    recentDrifts: number[];           // Last 5 overnight drift values (lbs)
+    recentDriftRates: number[];       // Last 5 drift rates (lbs/hr)
+    recentSleepHours: number[];       // Last 5 sleep durations (hours)
+    recentPracticeLosses: number[];   // Last 5 practice losses (lbs)
+    recentPracticeSweatRates: number[]; // Last 5 practice sweat rates (lbs/hr)
+    recentPracticeDurations: number[]; // Last 5 practice durations (hours)
+    // Trend direction for each metric ('up' = improving/losing more, 'down' = declining, 'stable')
+    trends: {
+      drift: 'up' | 'down' | 'stable';
+      practice: 'up' | 'down' | 'stable';
+      driftRate: 'up' | 'down' | 'stable';
+      sweatRate: 'up' | 'down' | 'stable';
+    };
+    // Confidence: how many data points back each projection metric
+    confidence: {
+      driftSamples: number;
+      practiceSamples: number;
+      level: 'high' | 'medium' | 'low' | 'none';
+    };
+    // Monte Carlo make-weight probability
+    makeWeightProb: {
+      probability: number;         // 0-100
+      worstCase: number;           // 90th percentile — worst realistic outcome
+      median: number;              // 50th percentile — most likely outcome
+      includesExtraWork: boolean;  // true if extra workout was factored in
+    } | null;
+    // Today's progress: how much lost so far vs expected
+    todayProgress: {
+      lostSoFar: number;
+      expectedTotal: number;
+      pctComplete: number;
+    } | null;
+    // Logging streak
+    loggingStreak: number;         // consecutive days with at least 1 log
+    todayCoreLogged: number;       // how many of core types logged today
+    todayCoreTotal: number;        // expected core types (3 on comp day, 4 otherwise)
+    // Week-over-week comparison
+    weekOverWeek: {
+      thisWeekAvgDrift: number | null;
+      lastWeekAvgDrift: number | null;
+      thisWeekAvgPractice: number | null;
+      lastWeekAvgPractice: number | null;
+    } | null;
+    // All weigh-ins this week for velocity sparkline (oldest first)
+    weekWeighIns: Array<{ day: string; weight: number; type: string }>;
+    // Personal records
+    personalRecords: {
+      bestDrift: number | null;         // biggest single-night drift
+      bestPracticeLoss: number | null;  // biggest single practice loss
+      bestDriftRate: number | null;     // highest lbs/hr while sleeping
+      bestSweatRate: number | null;     // highest practice sweat rate
+      totalLostThisWeek: number | null; // total weight lost this comp week
+    };
+    // Time-to-target: when they'll hit weight class based on current drift rate
+    timeToTarget: {
+      etaHours: number | null;         // hours from now to hit target
+      etaTime: string | null;          // formatted time (e.g. "4:30 AM")
+      lbsRemaining: number;            // how much left to lose
+      ratePerHour: number | null;      // current loss rate lbs/hr
+    } | null;
+    // Historical fallback (all-time EMA) — for display when cycle has no data yet
+    historicalDrift: number | null;
+    historicalDriftRate: number | null;
+    historicalPracticeLoss: number | null;
+    historicalSweatRate: number | null;
+    cycleHasOwnDriftData: boolean;
+    cycleHasOwnPracticeData: boolean;
   };
+  hasTodayMorningWeight: () => boolean;
   getFoodLists: () => {
     highFructose: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
     balanced: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
@@ -337,6 +442,7 @@ interface StoreContextType {
     worstCategory: string;
     insight: string;
   };
+  getCutScore: () => import('./cut-score').CutScoreResult;
 }
 
 /**
@@ -365,7 +471,7 @@ const defaultProfile: AthleteProfile = {
   weighInTime: '07:00', // Default 7 AM weigh-in
   matchDate: addDays(new Date(), 5),
   dashboardMode: 'pro',
-  protocol: '2', // Default to Make Weight Phase
+  protocol: '2', // Default to Rapid Cut Phase
   status: 'on-track',
   simulatedDate: null,
   hasCompletedOnboarding: false,
@@ -389,7 +495,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<AthleteProfile>(defaultProfile);
   const [fuelTanks, setFuelTanks] = useState<FuelTanks>(defaultTanks);
   const [logs, setLogs] = useState<WeightLog[]>([]);
-  const [dailyTracking, setDailyTracking] = useState<DailyTracking[]>([]);
+  const [dailyTracking, setDailyTracking] = useState<DailyTracking[]>(() => {
+    // Restore from localStorage cache immediately so food data is visible before Supabase loads
+    try {
+      const cached = localStorage.getItem('pwm-daily-tracking-cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [userFoods, setUserFoods] = useState<UserFoodsData>(defaultUserFoods);
 
   // Check if there's localStorage data that could be migrated
   const hasLocalStorageData = useCallback(() => {
@@ -467,12 +584,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           age: profileData.age || undefined,
           gender: profileData.gender as 'male' | 'female' | undefined,
           activityLevel: profileData.activity_level as AthleteProfile['activityLevel'],
-          weeklyGoal: profileData.weekly_goal as AthleteProfile['weeklyGoal'],
           nutritionPreference: (profileData.nutrition_preference === 'sugar' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
           trackPracticeWeighIns: profileData.track_practice_weigh_ins || false,
-          // SPAR macro protocol fields (v1)
-          sparMacroProtocol: profileData.spar_macro_protocol as SparMacroProtocol || undefined,
-          customMacros: profileData.custom_macros ? (typeof profileData.custom_macros === 'string' ? JSON.parse(profileData.custom_macros) : profileData.custom_macros) : undefined,
           targetWeight: profileData.target_weight || undefined,
           // SPAR v2 fields
           sparV2: profileData.spar_v2 || false,
@@ -488,12 +601,80 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           customCarbPercent: profileData.custom_carb_percent || undefined,
           lastCalcWeight: profileData.last_calc_weight || undefined,
           lastCheckInDate: profileData.last_check_in_date || undefined,
+          // UI state flags stored in localStorage (no Supabase column)
+          weighInCleared: (() => { try { return JSON.parse(localStorage.getItem('pwm-weigh-in-cleared') || 'false'); } catch { return false; } })(),
+          nextCyclePromptDismissed: (() => { try { return JSON.parse(localStorage.getItem('pwm-next-cycle-dismissed') || 'false'); } catch { return false; } })(),
         });
+        // Load user_foods from the same profile row
+        const uf = (profileData.user_foods && typeof profileData.user_foods === 'object')
+          ? profileData.user_foods as UserFoodsJson
+          : null;
+
+        const loadedUserFoods: UserFoodsData = {
+          customFoods: uf?.custom_foods || [],
+          customMeals: uf?.custom_meals || [],
+          sparCustomFoods: uf?.spar_custom_foods || [],
+          sparCustomMeals: uf?.spar_custom_meals || [],
+          favorites: uf?.favorites || [],
+        };
+
+        // Auto-migrate localStorage user foods if Supabase is empty
+        const hasNoSupabaseFoods = loadedUserFoods.customFoods.length === 0
+          && loadedUserFoods.customMeals.length === 0
+          && loadedUserFoods.sparCustomFoods.length === 0
+          && loadedUserFoods.sparCustomMeals.length === 0
+          && loadedUserFoods.favorites.length === 0;
+
+        if (hasNoSupabaseFoods && typeof window !== 'undefined') {
+          try {
+            const lsCF = localStorage.getItem('pwm-custom-foods');
+            const lsCM = localStorage.getItem('pwm-custom-meals');
+            const lsSCF = localStorage.getItem('pwm-spar-custom-foods');
+            const lsSCM = localStorage.getItem('pwm-spar-custom-meals');
+            const lsFav = localStorage.getItem('pwm-favorites');
+
+            const migrated: UserFoodsData = {
+              customFoods: lsCF ? JSON.parse(lsCF) : [],
+              customMeals: lsCM ? JSON.parse(lsCM) : [],
+              sparCustomFoods: lsSCF ? JSON.parse(lsSCF) : [],
+              sparCustomMeals: lsSCM ? JSON.parse(lsSCM) : [],
+              favorites: lsFav ? JSON.parse(lsFav) : [],
+            };
+
+            const hasLocalData = migrated.customFoods.length > 0
+              || migrated.customMeals.length > 0
+              || migrated.sparCustomFoods.length > 0
+              || migrated.sparCustomMeals.length > 0
+              || migrated.favorites.length > 0;
+
+            if (hasLocalData) {
+              console.log('Migrating user foods from localStorage to Supabase...');
+              const payload: UserFoodsJson = {
+                custom_foods: migrated.customFoods,
+                custom_meals: migrated.customMeals,
+                spar_custom_foods: migrated.sparCustomFoods,
+                spar_custom_meals: migrated.sparCustomMeals,
+                favorites: migrated.favorites,
+              };
+              await supabase.from('profiles').update({ user_foods: payload }).eq('user_id', user!.id);
+              setUserFoods(migrated);
+              console.log('User foods migration complete');
+            } else {
+              setUserFoods(loadedUserFoods);
+            }
+          } catch (e) {
+            console.warn('User foods localStorage migration failed:', e);
+            setUserFoods(loadedUserFoods);
+          }
+        } else {
+          setUserFoods(loadedUserFoods);
+        }
       } else {
         // No profile found - user needs to complete onboarding
         setProfile(defaultProfile);
         setLogs([]);
         setDailyTracking([]);
+        setUserFoods(defaultUserFoods);
       }
 
       // Load weight logs
@@ -533,7 +714,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id);
 
       if (trackingData && !trackingError) {
-        setDailyTracking(trackingData.map((t: SupabaseDailyTrackingRow) => ({
+        const mapped = trackingData.map((t: SupabaseDailyTrackingRow) => ({
           date: t.date,
           waterConsumed: t.water_consumed || 0,
           carbsConsumed: t.carbs_consumed || 0,
@@ -546,7 +727,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           fatSlices: t.fat_slices || 0,
           nutritionMode: t.nutrition_mode || undefined,
           foodLog: t.food_log || [],
-        })));
+        }));
+        setDailyTracking(mapped);
+        // Update localStorage cache with authoritative Supabase data
+        try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(mapped)); } catch {}
       }
     } catch (error) {
       console.error('Error loading from Supabase:', error);
@@ -660,6 +844,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setProfile(defaultProfile);
       setLogs([]);
       setDailyTracking([]);
+      setUserFoods(defaultUserFoods);
       setIsLoading(false);
     }
   }, [user, loadFromSupabase]);
@@ -713,7 +898,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           age: newProfile.age || null,
           gender: newProfile.gender || null,
           activity_level: newProfile.activityLevel || null,
-          weekly_goal: newProfile.weeklyGoal || null,
         };
 
         // SPAR v2 fields
@@ -738,9 +922,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           nutrition_preference: newProfile.nutritionPreference || 'spar',
           target_weight: newProfile.targetWeight || null,
           track_practice_weigh_ins: newProfile.trackPracticeWeighIns || false,
-          spar_macro_protocol: newProfile.sparMacroProtocol || null,
-          custom_macros: newProfile.customMacros ? JSON.stringify(newProfile.customMacros) : null,
         };
+
+        // Store UI state flags in localStorage (no Supabase column needed)
+        try {
+          localStorage.setItem('pwm-weigh-in-cleared', JSON.stringify(newProfile.weighInCleared || false));
+          localStorage.setItem('pwm-next-cycle-dismissed', JSON.stringify(newProfile.nextCyclePromptDismissed || false));
+        } catch {};
 
         // Try with all fields first (including v2)
         let profilePayload = { ...corePayload, ...sparFields, ...sparV2Fields, ...optionalFields };
@@ -769,6 +957,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error('Error saving profile:', error);
         toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+      }
+    }
+  };
+
+  // Save user foods (custom foods, meals, favorites) to Supabase
+  const updateUserFoods = async (updates: Partial<UserFoodsData>) => {
+    const newUserFoods = { ...userFoods, ...updates };
+    setUserFoods(newUserFoods); // Optimistic update
+
+    // Also persist to localStorage as fallback for non-auth / offline
+    try {
+      localStorage.setItem('pwm-custom-foods', JSON.stringify(newUserFoods.customFoods));
+      localStorage.setItem('pwm-custom-meals', JSON.stringify(newUserFoods.customMeals));
+      localStorage.setItem('pwm-spar-custom-foods', JSON.stringify(newUserFoods.sparCustomFoods));
+      localStorage.setItem('pwm-spar-custom-meals', JSON.stringify(newUserFoods.sparCustomMeals));
+      localStorage.setItem('pwm-favorites', JSON.stringify(newUserFoods.favorites));
+    } catch { /* localStorage unavailable */ }
+
+    if (user) {
+      try {
+        const payload: UserFoodsJson = {
+          custom_foods: newUserFoods.customFoods,
+          custom_meals: newUserFoods.customMeals,
+          spar_custom_foods: newUserFoods.sparCustomFoods,
+          spar_custom_meals: newUserFoods.sparCustomMeals,
+          favorites: newUserFoods.favorites,
+        };
+
+        const { error } = await supabase.from('profiles').update({
+          user_foods: payload,
+        }).eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error saving user foods:', error.message);
+          // Don't show toast for every food save — too noisy
+        }
+      } catch (error) {
+        console.error('Error saving user foods:', error);
       }
     }
   };
@@ -1038,10 +1264,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     setDailyTracking(prev => {
       const found = prev.find(d => d.date === date);
+      let next: DailyTracking[];
       if (found) {
-        return prev.map(d => d.date === date ? { ...d, ...updates } : d);
+        next = prev.map(d => d.date === date ? { ...d, ...updates } : d);
+      } else {
+        next = [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, ...updates }];
       }
-      return [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, ...updates }];
+      // Persist to localStorage as offline fallback
+      try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(next)); } catch {}
+      return next;
     });
 
     if (user) {
@@ -1080,11 +1311,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
             if (fallbackError) {
               setDailyTracking(previousTracking);
+              try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(previousTracking)); } catch {}
               console.error('Error updating daily tracking (fallback):', fallbackError);
               toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
             }
           } else {
             setDailyTracking(previousTracking);
+            try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(previousTracking)); } catch {}
             console.error('Error updating daily tracking:', error);
             toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
           }
@@ -1092,6 +1325,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         // Rollback on exception
         setDailyTracking(previousTracking);
+        try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(previousTracking)); } catch {}
         console.error('Error updating daily tracking:', error);
         toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
       }
@@ -1103,6 +1337,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setFuelTanks(defaultTanks);
     setLogs([]);
     setDailyTracking([]);
+    setUserFoods(defaultUserFoods);
 
     if (user) {
       try {
@@ -1119,6 +1354,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           protocol: 2,
           simulated_date: null,
           weigh_in_date: fiveDaysOut.toISOString().split('T')[0],
+          user_foods: {},
         }).eq('user_id', user.id);
       } catch (error) {
         console.error('Error resetting data:', error);
@@ -1160,22 +1396,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const protocol = profile.protocol;
     const daysUntil = getDaysUntilWeighIn();
 
-    // Protocol 4 (Build Phase) - no cutting, stay at weight class
+    // Protocol 4 (Gain Phase) - no cutting, stay at weight class
     if (protocol === '4') {
       return w;
     }
 
-    // Protocol 3 (Hold Weight) & Protocol 5 (SPAR) - maintain near walk-around, no water loading
-    // SPAR is clean eating / portion counting, not aggressive cutting
-    if (protocol === '3' || protocol === '5') {
-      if (daysUntil < 0) return Math.round(w * 1.05); // Recovery
+    // Protocol 5 (SPAR General) - no water loading, flat weight targets
+    if (protocol === '5') {
       if (daysUntil === 0) return w; // Competition
-      if (daysUntil === 1) return Math.round(w * 1.03); // Day before
-      if (daysUntil === 2) return Math.round(w * 1.04); // 2 days out
-      return Math.round(w * 1.05); // 3+ days out - maintain walk-around
+      return Math.round(w * getWeightMultiplier(daysUntil));
     }
 
-    // Protocols 1 & 2 (Body Comp & Make Weight) - use centralized calculation
+    // Protocols 1, 2, 3, & 6 - use centralized calculation (includes water loading)
     // This includes water loading bonus during water loading days for consistency
     const targetCalc = calculateTargetWeight(w, daysUntil, protocol);
     // Return water-loaded target if applicable, otherwise base
@@ -1259,14 +1491,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Helper: Get days until weigh-in (used throughout for protocol timing)
   // Uses startOfDay to avoid timezone/time-of-day issues with differenceInDays
-  const getDaysUntilWeighIn = (): number => {
+  // Returns 999 when no active weigh-in date (weighInCleared)
+  // Memoized — this is called by nearly every other getter
+  const daysUntilWeighInMemo = useMemo(() => {
+    if (profile.weighInCleared) return 999;
     const today = startOfDay(profile.simulatedDate || new Date());
     const weighIn = startOfDay(profile.weighInDate);
     return differenceInDays(weighIn, today);
-  };
+  }, [profile.weighInCleared, profile.simulatedDate, profile.weighInDate]);
+  const getDaysUntilWeighIn = useCallback((): number => daysUntilWeighInMemo, [daysUntilWeighInMemo]);
 
   // Helper: Get formatted time until weigh-in at 30-min granularity
   const getTimeUntilWeighIn = (): string => {
+    if (profile.weighInCleared) return '';
     const now = profile.simulatedDate || new Date();
     const weighIn = new Date(profile.weighInDate);
     const [h, m] = (profile.weighInTime || '07:00').split(':').map(Number);
@@ -1344,9 +1581,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getHydrationTarget = () => {
     const daysUntilWeighIn = getDaysUntilWeighIn();
 
-    // SPAR Protocol (5) uses regular hydration - no competition water loading/restriction
-    if (profile.protocol === PROTOCOLS.SPAR) {
-      const morningLogs = logs.filter(l => l.type === 'morning');
+    // SPAR General (5) uses regular hydration - no competition water loading/restriction
+    // Note: SPAR Competition (6) falls through to competition water loading below
+    if (profile.protocol === '5') {
+      const morningLogs = logs.filter(l => l.type === 'morning' || l.type === 'weigh-in');
       const mostRecentMorning = morningLogs.length > 0
         ? [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
         : null;
@@ -1382,17 +1620,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Hydration target for any daysUntil value (used by getWeeklyPlan for consistency)
   const getHydrationForDaysUntil = (daysUntil: number): { amount: string; targetOz: number; type: string } => {
-    // Use the most recent MORNING weight for oz/lb scaling (most stable daily body mass reference).
-    // Falls back to most recent log of any type, then walk-around estimate.
-    const morningLogs = logs.filter(l => l.type === 'morning');
-    const mostRecentMorning = morningLogs.length > 0
-      ? [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
-      : null;
-    const athleteWeight = mostRecentMorning
-      ? mostRecentMorning.weight
-      : logs.length > 0
+    // Use walk-around weight for hydration scaling.
+    // During training phase (6+ days out), most recent log of any type is best
+    // (morning weights from cut week are too low for walk-around scaling).
+    // During comp week, morning weight is more representative.
+    let athleteWeight: number;
+    if (daysUntil > 5) {
+      // Training phase: use most recent log (closer to walk-around)
+      athleteWeight = logs.length > 0
         ? [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].weight
         : Math.round(profile.targetWeightClass * 1.07);
+    } else {
+      // Comp week: use morning weight for more accurate scaling
+      const morningLogs = logs.filter(l => l.type === 'morning' || l.type === 'weigh-in');
+      const mostRecentMorning = morningLogs.length > 0
+        ? [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+        : null;
+      athleteWeight = mostRecentMorning
+        ? mostRecentMorning.weight
+        : logs.length > 0
+          ? [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].weight
+          : Math.round(profile.targetWeightClass * 1.07);
+    }
 
     const targetOz = getWaterTargetOz(daysUntil, athleteWeight);
     const amount = getWaterTargetGallons(daysUntil, athleteWeight);
@@ -1414,10 +1663,56 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // ─── SPAR Slice Targets ───
-  // Protocol 5: BMR → TDEE → macro-protocol-based slice split
+  // Protocol 5/6: BMR → TDEE → macro-protocol-based slice split
   // Protocols 1-4: Derive slices from their gram-based macro targets
   const getSliceTargets = () => {
     const protocol = profile.protocol;
+
+    // Protocol 6 (SPAR Competition): SPAR v2 calculator with competition calorie override
+    if (protocol === '6') {
+      const daysUntil = getDaysUntilWeighIn();
+      const compAdj = getCompetitionCalorieAdjustment({
+        currentWeight: profile.currentWeight || profile.targetWeightClass,
+        targetWeightClass: profile.targetWeightClass,
+        daysUntilWeighIn: daysUntil,
+      });
+
+      const v2Input: SparV2Input = {
+        sex: (profile.gender || 'male') as 'male' | 'female',
+        age: profile.age || 16,
+        heightInches: profile.heightInches || 66,
+        weightLbs: profile.currentWeight || profile.targetWeightClass,
+        trainingSessions: profile.trainingSessions || '3-4',
+        workdayActivity: profile.workdayActivity || 'mostly_sitting',
+        goal: compAdj.sparGoal,
+        goalIntensity: compAdj.goalIntensity,
+        calorieOverride: compAdj.calorieAdjustment,
+        // Nerd mode options
+        bodyFatPercent: profile.bodyFatPercent,
+        customProteinPerLb: profile.customProteinPerLb,
+        customFatPercent: profile.customFatPercent,
+        customCarbPercent: profile.customCarbPercent,
+      };
+
+      const v2Result = calculateSparSlicesV2(v2Input);
+      return {
+        protein: v2Result.proteinPalms,
+        carb: v2Result.carbFists,
+        veg: v2Result.vegFists,
+        fruit: v2Result.fruitPieces,
+        fat: v2Result.fatThumbs,
+        totalCalories: v2Result.totalSliceCalories,
+        bmr: v2Result.bmr,
+        tdee: v2Result.tdee,
+        calorieAdjustment: v2Result.calorieAdjustment,
+        isV2: true,
+        proteinGrams: v2Result.proteinGrams,
+        carbGramsTotal: v2Result.carbGramsTotal,
+        fatGrams: v2Result.fatGrams,
+        proteinPerLb: v2Result.proteinPerLb,
+        competitionReason: compAdj.reason,
+      };
+    }
 
     // Protocols 1-4: Convert gram targets into slices
     // This uses the existing getMacroTargets() which already knows the protocol + day
@@ -1431,11 +1726,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const carbSlices = macroTargets.carbs.max > 0
         ? Math.max(1, Math.round(macroTargets.carbs.max / 26))
         : 0;
-      // Veg: when protein is allowed, suggest 2-3 veg servings; when restricted, 0
-      const vegSlices = macroTargets.protein.max === 0 ? 0 : Math.max(2, Math.round(carbSlices * 0.4));
-      // Estimate total calories
-      const totalCal = (proteinSlices * 110) + (carbSlices * 120) + (vegSlices * 50);
-      return { protein: proteinSlices, carb: carbSlices, veg: vegSlices, fruit: 0, fat: 0, totalCalories: totalCal, isV2: false };
+      // Protocols 1-4 are Sugar Diet (macro/gram-based) — only protein & carb rings
+      // Veg/fruit/fat rings are NOT shown; those are SPAR v2 (Protocol 5) only
+      const vegSlices = 0;
+      const fruitSlices = 0;
+      const fatSlices = 0;
+      const totalCal = (proteinSlices * 110) + (carbSlices * 120);
+      return { protein: proteinSlices, carb: carbSlices, veg: vegSlices, fruit: fruitSlices, fat: fatSlices, totalCalories: totalCal, isV2: false };
     }
 
     // Protocol 5: Check if using v2 calculator
@@ -1480,31 +1777,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // Protocol 5 v1: Use legacy SPAR calculator (3 slice types)
-    // The macro protocol now includes BOTH the C/P/F split AND the calorie adjustment
-    const weight = profile.currentWeight || profile.targetWeightClass;
-    const heightInches = profile.heightInches || 66; // default 5'6"
-    const age = profile.age || 16;
-    const gender = (profile.gender || 'male') as Gender;
-    const activityLevel = (profile.activityLevel || 'active') as ActivityLevel;
-    const macroProtocol = (profile.sparMacroProtocol || 'maintenance') as SparMacroProtocol;
-    const customMacros = profile.customMacros;
-
-    const sparResult = calculateSliceTargets(weight, heightInches, age, gender, activityLevel, macroProtocol, customMacros);
+    // Protocol 5 legacy fallback: use v2 calculator with defaults
+    // (All P5 users should have v2 data, but handle edge cases gracefully)
+    const fallbackInput: SparV2Input = {
+      sex: (profile.gender || 'male') as 'male' | 'female',
+      age: profile.age || 16,
+      heightInches: profile.heightInches || 66,
+      weightLbs: profile.currentWeight || profile.targetWeightClass,
+      trainingSessions: profile.trainingSessions || '3-4',
+      workdayActivity: profile.workdayActivity || 'mostly_sitting',
+      goal: profile.sparGoal || 'maintain',
+      goalIntensity: profile.goalIntensity,
+      maintainPriority: profile.maintainPriority,
+      goalWeightLbs: profile.goalWeightLbs,
+      bodyFatPercent: profile.bodyFatPercent,
+      customProteinPerLb: profile.customProteinPerLb,
+      customFatPercent: profile.customFatPercent,
+      customCarbPercent: profile.customCarbPercent,
+    };
+    const fallbackResult = calculateSparSlicesV2(fallbackInput);
     return {
-      protein: sparResult.protein,
-      carb: sparResult.carb,
-      veg: sparResult.veg,
-      fruit: 0, // v1 doesn't have fruit
-      fat: 0,   // v1 doesn't have fat
-      totalCalories: sparResult.totalCalories,
-      macroProtocol: sparResult.macroProtocol,
-      // Include BMR/TDEE for display in SPAR tracker
-      bmr: sparResult.bmr,
-      tdee: sparResult.tdee,
-      activityLevel,
-      calorieAdjustment: sparResult.calorieAdjustment,
-      isV2: false,
+      protein: fallbackResult.proteinPalms,
+      carb: fallbackResult.carbFists,
+      veg: fallbackResult.vegFists,
+      fruit: fallbackResult.fruitPieces,
+      fat: fallbackResult.fatThumbs,
+      totalCalories: fallbackResult.totalSliceCalories,
+      bmr: fallbackResult.bmr,
+      tdee: fallbackResult.tdee,
+      calorieAdjustment: fallbackResult.calorieAdjustment,
+      isV2: true,
+      proteinGrams: fallbackResult.proteinGrams,
+      carbGramsTotal: fallbackResult.carbGramsTotal,
+      fatGrams: fallbackResult.fatGrams,
+      proteinPerLb: fallbackResult.proteinPerLb,
     };
   };
 
@@ -1577,7 +1883,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Get base targets from protocol, then apply weight adjustment
     const getBaseTargets = (): { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string } => {
 
-    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
+    // Protocol 1: Extreme Cut (AGGRESSIVE)
     // Extended 0 protein period, maximum FGF21 activation
     if (protocol === '1') {
       // Recovery: day after competition (1.4g/lb full recovery)
@@ -1620,7 +1926,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
+    // Protocol 2: Rapid Cut (STANDARD weekly cut)
     if (protocol === '2') {
       // Recovery: day after competition (1.4g/lb recovery refeed)
       if (daysUntilWeighIn < 0) {
@@ -1670,7 +1976,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // Protocol 3: Maintain / Hold Weight Phase
+    // Protocol 3: Optimal Cut Phase
     if (protocol === '3') {
       // Recovery: day after competition (1.4g/lb)
       if (daysUntilWeighIn < 0) {
@@ -1720,7 +2026,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       };
     }
 
-    // Protocol 4: Hypertrophy / Build Phase (Off-season)
+    // Protocol 4: Gain Phase (Off-season)
     if (protocol === '4') {
       // Recovery: day after competition (1.6g/lb max protein)
       if (daysUntilWeighIn < 0) {
@@ -1758,7 +2064,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return {
         carbs: { min: 350, max: 600 },
         protein: { min: 125, max: 150 },
-        ratio: "Build Phase"
+        ratio: "Gain Phase"
       };
     }
 
@@ -1802,7 +2108,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let carbsLabel = "Balanced Carbs";
     let proteinLabel = "Standard Protein";
 
-    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE - extended no protein)
+    // Protocol 1: Extreme Cut (AGGRESSIVE - extended no protein)
     if (protocol === '1') {
       if (daysUntil >= 2 && daysUntil <= 5) {
         // 5-2 days out: High fructose, NO protein (max FGF21)
@@ -1851,7 +2157,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         proteinLabel = "Standard Protein";
       }
     }
-    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD weekly cut)
+    // Protocol 2: Rapid Cut (STANDARD weekly cut)
     else if (protocol === '2') {
       if (daysUntil >= 4 && daysUntil <= 5) {
         // 5-4 days out: High fructose, NO protein
@@ -1913,7 +2219,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         proteinLabel = "Standard Protein";
       }
     }
-    // Protocol 3: Hold Weight
+    // Protocol 3: Optimal Cut
     else if (protocol === '3') {
       if (daysUntil === 5) {
         // 5 days out: Fructose heavy, 25g protein (collagen)
@@ -1966,7 +2272,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         proteinLabel = "Standard Protein";
       }
     }
-    // Protocol 4: Build Phase
+    // Protocol 4: Gain Phase
     else if (protocol === '4') {
       if (daysUntil === 0) {
         // Competition day
@@ -2008,7 +2314,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const protocol = profile.protocol;
     const daysUntil = getDaysUntilWeighIn();
 
-    // Protocol 1: Body Comp / Emergency Cut (AGGRESSIVE)
+    // Protocol 1: Extreme Cut (AGGRESSIVE)
     if (protocol === '1') {
       // 5-2 days out: 0g protein (max FGF21)
       if (daysUntil >= 2 && daysUntil <= 5) {
@@ -2052,7 +2358,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Protocol 2: Make Weight / Fat Loss Focus (STANDARD)
+    // Protocol 2: Rapid Cut (STANDARD)
     if (protocol === '2') {
       // 5-4 days out: 0g protein
       if (daysUntil >= 4 && daysUntil <= 5) {
@@ -2216,23 +2522,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let warning = undefined;
 
     if (protocol === '1') {
-       title = "Today's Mission: Body Comp";
+       title = "Today's Mission: Extreme Cut";
        actions.push(`Hit Protein Target: ${fuel.protein || '0g'}`);
        actions.push(`Hit Carb Target: ${fuel.carbs || 'High'}`);
        if (phase === 'metabolic') actions.push("Maximize Fat Burning (Strict No Protein)");
        if (phase === 'performance-prep') actions.push("Reintroduce Protein Evening (0.2g/lb)");
     } else if (protocol === '2') {
-       title = "Today's Mission: Make Weight";
+       title = "Today's Mission: Rapid Cut";
        actions.push(`Hit Protein Target: ${fuel.protein}`);
        actions.push(`Hit Carb Target: ${fuel.carbs}`);
        if (phase === 'metabolic') actions.push("Maximize Fat Burning (Keep Protein Low)");
        if (phase === 'transition') actions.push("Switch to Glucose/Starch + Seafood");
     } else if (protocol === '3') {
-       title = "Today's Mission: Hold Weight";
+       title = "Today's Mission: Optimal Cut";
        actions.push("Focus on Performance & Recovery");
        actions.push(`Hit Protein Target: ${fuel.protein}`);
     } else if (protocol === '4') {
-       title = "Today's Mission: Build";
+       title = "Today's Mission: Gain";
        actions.push("Focus on Muscle Growth & Weight Gain");
        actions.push(`Hit Protein Target: ${fuel.protein}`);
        actions.push(`Hit Carb Target: ${fuel.carbs}`);
@@ -2345,9 +2651,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const getPhaseForDays = (daysUntil: number): string => {
       if (daysUntil < 0) return 'Recover';
       if (daysUntil === 0) return 'Compete';
-      if (daysUntil === 1) return 'Cut';
-      if (daysUntil === 2) return 'Prep';
-      if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
+      if (daysUntil <= 2) return 'Cut';
+      if (daysUntil <= 5) return 'Load';
       return 'Train';
     };
 
@@ -2356,7 +2661,115 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return checkWaterLoadingDay(daysUntil, protocol);
     };
 
-    // Protocol 4 (Build Phase) - No weight cutting, maintain/gain weight
+    // Protocol 5 (SPAR Nutrition) — Clean eating, no weight cutting
+    // No water loading, no phases. Standard hydration. Slice-based nutrition.
+    if (protocol === '5') {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const sparWeight = profile.targetWeight || profile.targetWeightClass;
+
+      // Standard hydration for SPAR: ~0.55 oz/lb body weight
+      const athleteW = profile.currentWeight || Math.round(sparWeight * 1.07);
+      const sparWaterOz = Math.round(athleteW * 0.55);
+      const sparGallons = sparWaterOz / 128;
+      const sparRounded = Math.round(sparGallons * 4) / 4;
+      const sparWaterStr = `${sparRounded.toFixed(sparRounded % 1 === 0 ? 1 : 2)} gal`;
+
+      // Get slice targets for nutrition display
+      const sparSlices = getSliceTargets();
+
+      const sparDays: DayPlan[] = dateRange.map((date, i) => {
+        const dayNum = getDay(date);
+        const daysUntil = differenceInDays(weighIn, date);
+
+        let phase = 'Train';
+        if (daysUntil < 0) phase = 'Recover';
+        else if (daysUntil === 0) phase = 'Compete';
+        else if (daysUntil === 1) phase = 'Light';
+
+        return {
+          day: dayNames[dayNum],
+          dayNum,
+          date,
+          phase,
+          weightTarget: sparWeight,
+          water: {
+            amount: daysUntil === 0 ? 'Rehydrate' : sparWaterStr,
+            targetOz: sparWaterOz,
+            type: daysUntil === 0 ? 'Rehydrate' : 'Regular',
+          },
+          carbs: { min: sparSlices.carbGramsTotal || 0, max: sparSlices.carbGramsTotal || 0 },
+          protein: { min: sparSlices.proteinGrams || 0, max: sparSlices.proteinGrams || 0 },
+          isToday: i === 0,
+          isTomorrow: i === 1,
+        };
+      });
+      return applyWeightAdjustmentToToday(sparDays);
+    }
+
+    // Protocol 6 (SPAR Competition) — SPAR portions + competition water loading
+    // Same timeline as P1-P4 but with SPAR slice-based nutrition that auto-adjusts
+    if (protocol === '6') {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+      const sparCompDays: DayPlan[] = dateRange.map((date, i) => {
+        const dayNum = getDay(date);
+        const daysUntil = differenceInDays(weighIn, date);
+        const phase = getPhaseForDays(daysUntil);
+
+        // Get competition-adjusted calorie info for this day
+        const compAdj = getCompetitionCalorieAdjustment({
+          currentWeight: profile.currentWeight || profile.targetWeightClass,
+          targetWeightClass: profile.targetWeightClass,
+          daysUntilWeighIn: daysUntil,
+        });
+
+        // Build SPAR input with competition calorie override for this specific day
+        const dayV2Input: SparV2Input = {
+          sex: (profile.gender || 'male') as 'male' | 'female',
+          age: profile.age || 16,
+          heightInches: profile.heightInches || 66,
+          weightLbs: profile.currentWeight || profile.targetWeightClass,
+          trainingSessions: profile.trainingSessions || '3-4',
+          workdayActivity: profile.workdayActivity || 'mostly_sitting',
+          goal: compAdj.sparGoal,
+          goalIntensity: compAdj.goalIntensity,
+          calorieOverride: compAdj.calorieAdjustment,
+          bodyFatPercent: profile.bodyFatPercent,
+          customProteinPerLb: profile.customProteinPerLb,
+          customFatPercent: profile.customFatPercent,
+          customCarbPercent: profile.customCarbPercent,
+        };
+        const daySlices = calculateSparSlicesV2(dayV2Input);
+
+        // Use competition water loading (same as P1-P4)
+        const waterData = getHydrationForDaysUntil(daysUntil);
+
+        // Weight target uses competition calculation with water loading
+        const targetCalc = calculateTargetWeight(w, daysUntil, protocol);
+        const weightTarget = targetCalc.withWaterLoad || targetCalc.base;
+
+        return {
+          day: dayNames[dayNum],
+          dayNum,
+          date,
+          phase,
+          weightTarget,
+          water: {
+            amount: waterData.amount,
+            targetOz: waterData.targetOz,
+            type: waterData.type,
+          },
+          carbs: { min: daySlices.carbGramsTotal, max: daySlices.carbGramsTotal },
+          protein: { min: daySlices.proteinGrams, max: daySlices.proteinGrams },
+          isToday: i === 0,
+          isTomorrow: i === 1,
+          isWaterLoading: isWaterLoadingForDays(daysUntil),
+        };
+      });
+      return applyWeightAdjustmentToToday(sparCompDays);
+    }
+
+    // Protocol 4 (Gain Phase) - No weight cutting, maintain/gain weight
     // Uses days-until-weigh-in for competition/recovery timing
     if (protocol === '4') {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -2414,8 +2827,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return applyWeightAdjustmentToToday(buildDays);
     }
 
-    // Protocol 3 (Hold Weight) - Minimal cutting, maintain walk-around weight
-    // Uses days-until-weigh-in for competition timing
+    // Protocol 3 (Optimal Cut) - Maintenance-level nutrition WITH water loading
+    // P3 wrestlers are at walk-around weight (~6-7% above competition weight),
+    // so they still need water manipulation to make weight safely on Saturday.
+    // Uses centralized hydration (getHydrationForDaysUntil) and water loading schedule.
+    // Macros stay maintenance-level per the FGF21 P3 table (different from P1/P2's aggressive carb changes).
     if (protocol === '3') {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -2423,56 +2839,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const dayNum = getDay(date);
         const daysUntil = differenceInDays(weighIn, date);
 
-        // Protocol 3 uses slightly different multipliers - less aggressive cut
-        // 3+ days out: 1.05 (5% over), 2 days: 1.04, 1 day: 1.03, competition: weight class
-        const holdMultiplier = daysUntil <= 0 ? 1.0
-          : daysUntil === 1 ? 1.03
-          : daysUntil === 2 ? 1.04
-          : 1.05;
-        const holdTarget = daysUntil === 0 ? w : Math.round(w * holdMultiplier);
+        // Use centralized weight calculation (now includes water loading bonus for P3)
+        const targetCalc = calculateTargetWeight(w, daysUntil, protocol);
+        const baseWeight = Math.round(w * getWeightMultiplier(daysUntil));
 
-        // Default maintenance values
-        let phase = 'Maintain';
-        let weightTarget = holdTarget; // Morning target (primary data point)
+        // Use centralized hydration target (water loading on days 5-4-3, restriction on 2, sips on 1)
+        const hydration = getHydrationForDaysUntil(daysUntil);
+
+        // Use centralized weight: if water loading day, use range max; otherwise base
+        const weightTarget = targetCalc.range ? targetCalc.range.max
+          : daysUntil === 0 ? w // Competition day: must hit weight class
+          : baseWeight;
+
+        // Default values — P3 maintenance-level macros
+        let phase = getPhaseForDays(daysUntil);
         let carbs = { min: 300, max: 450 };
         let protein = { min: 75, max: 75 };
-        let water = {
-          amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-          targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
-          type: 'Regular'
-        };
+        let water = { amount: hydration.amount, targetOz: hydration.targetOz, type: hydration.type };
+        let waterLoadingNote: string | undefined;
+        let isCriticalCheckpoint = false;
 
         if (daysUntil < 0) {
           // Recovery day
-          phase = 'Recover';
           protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
+          waterLoadingNote = 'Recovery day - return to walk-around weight with protein refeed';
         } else if (daysUntil === 0) {
           // Competition day
-          phase = 'Compete';
           carbs = { min: 200, max: 400 };
           protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
-          water = {
-            amount: 'Rehydrate',
-            targetOz: galToOz(1.0),
-            type: 'Rehydrate'
-          };
         } else if (daysUntil === 1) {
-          // Day before - prep with lower water
-          phase = 'Prep';
+          // Day before competition - sips only
           protein = { min: 100, max: 100 };
-          water = {
-            amount: isHeavy ? '1.0 gal' : isMedium ? '0.75 gal' : '0.5 gal',
-            targetOz: galToOz(isHeavy ? 1.0 : isMedium ? 0.75 : 0.5),
-            type: 'Regular'
-          };
+          isCriticalCheckpoint = true;
+          waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
         } else if (daysUntil === 2) {
-          // 2 days out - prep
-          phase = 'Prep';
+          // 2 days out - water restriction day
           protein = { min: 100, max: 100 };
-        } else if (daysUntil >= 5) {
-          // 5+ days out - lower protein maintenance
+          waterLoadingNote = `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.`;
+        } else if (daysUntil === 3) {
+          // Last load day
           protein = { min: 25, max: 25 };
+          waterLoadingNote = `Last load day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Water restriction starts tomorrow.`;
+        } else if (daysUntil === 4) {
+          // Peak water loading day
+          protein = { min: 0, max: 0 };
+          waterLoadingNote = `Peak loading day - heaviest day is normal (+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs)`;
+        } else if (daysUntil === 5) {
+          // First water loading day
+          protein = { min: 0, max: 0 };
+          waterLoadingNote = `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight`;
         }
+        // 6+ days out stays at defaults (maintenance)
 
         return {
           day: dayNames[dayNum],
@@ -2484,13 +2901,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           carbs,
           protein,
           isToday: i === 0,
-          isTomorrow: i === 1
+          isTomorrow: i === 1,
+          waterLoadingNote,
+          isCriticalCheckpoint
         };
       });
       return applyWeightAdjustmentToToday(holdDays);
     }
 
-    // Protocols 1 & 2 (Body Comp & Make Weight) - Full cutting protocol
+    // Protocols 1 & 2 (Extreme Cut & Rapid Cut) - Full cutting protocol
     // Uses days-until-weigh-in for all timing:
     // 5 days out: Water loading starts (walk-around + water bonus)
     // 4 days out: Peak water loading
@@ -2759,7 +3178,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const today = startOfDay(profile.simulatedDate || new Date());
     const todayStr = format(today, 'yyyy-MM-dd');
     const todayMorningLog = logs.find(l =>
-      format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr && l.type === 'morning'
+      format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr && (l.type === 'morning' || l.type === 'weigh-in')
     );
     const morningWeight = todayMorningLog?.weight || 0;
 
@@ -2767,16 +3186,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const allTodayStatusLogs = logs.filter(l =>
       format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr
     ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const currentWeight = allTodayStatusLogs.length > 0 ? allTodayStatusLogs[0].weight : morningWeight;
+    const latestWeight = allTodayStatusLogs.length > 0 ? allTodayStatusLogs[0].weight : morningWeight;
 
-    if (morningWeight === 0 && currentWeight === 0) {
+    // During training phase (6+ days out), use morning weight for status — before-bed
+    // weight is inflated from food/water intake and isn't representative of actual progress.
+    // During comp week, use latest weight for real-time tracking.
+    const daysUntilStatus = getDaysUntilWeighIn();
+    const currentWeight = (daysUntilStatus > 5 && morningWeight > 0) ? morningWeight : latestWeight;
+
+    if (morningWeight === 0 && latestWeight === 0) {
       return { status: 'on-track', label: 'LOG WEIGHT', color: 'text-muted-foreground', bgColor: 'bg-muted/30', contextMessage: 'Log morning weight' };
     }
 
     // calculateTarget() already includes water loading for protocols 1 & 2
     // So we DON'T add water bonus again - just compare directly to the target
     const target = calculateTarget();
-    // Use current weight (most recent weigh-in) for diff so status updates throughout the day
+    // Use current weight for diff so status updates throughout the day
     const diff = currentWeight - target;
     // Whether projection shows making weight (within 0.5 lb tolerance)
     const projectedToMakeWeight = descentData.projectedSaturday !== null && descentData.daysRemaining > 0
@@ -2851,11 +3276,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           : `${projectedOver.toFixed(1)} lbs over.${estimateNote}`;
 
         // Protocol-aware switch advice
-        const isAlreadyBodyComp = profile.protocol === '1';
-        const protocolAdvice = isAlreadyBodyComp
+        const isAlreadyExtremeCut = profile.protocol === '1';
+        const protocolAdvice = isAlreadyExtremeCut
           ? 'Maximize extra workouts and water cut.'
-          : 'Switch to Body Comp protocol.';
-        const protocolAdviceHigh = isAlreadyBodyComp
+          : 'Switch to Extreme Cut protocol.';
+        const protocolAdviceHigh = isAlreadyExtremeCut
           ? 'Increase workout intensity.'
           : 'Consider switching protocols.';
 
@@ -2867,7 +3292,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `DANGER: ${projectedOver.toFixed(1)} lbs over with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left. Consider moving up a weight class.`,
               urgency: 'critical',
-              switchProtocol: !isAlreadyBodyComp
+              switchProtocol: !isAlreadyExtremeCut
             };
           } else {
             recommendation = {
@@ -2875,7 +3300,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `${workoutStr} ${protocolAdvice}`,
               urgency: 'critical',
-              switchProtocol: !isAlreadyBodyComp
+              switchProtocol: !isAlreadyExtremeCut
             };
           }
         } else if (projectedOver > 2) {
@@ -2886,13 +3311,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `${workoutStr} ${protocolAdviceHigh}`,
               urgency: 'high',
-              switchProtocol: !isAlreadyBodyComp
+              switchProtocol: !isAlreadyExtremeCut
             };
           } else {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} ${isAlreadyBodyComp ? 'Stay the course.' : 'OR switch protocol.'}`,
+              message: `${workoutStr} ${isAlreadyExtremeCut ? 'Stay the course.' : 'OR switch protocol.'}`,
               urgency: 'high',
               switchProtocol: false
             };
@@ -2953,6 +3378,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { status: 'risk', label: 'AT RISK', color: 'text-destructive', bgColor: 'bg-destructive/20', contextMessage, waterLoadingNote: `+${diff.toFixed(1)} lbs above target`, projectionWarning, recommendation };
     }
 
+    // ── Training phase (6+ days out): wider tolerance ──
+    // Being 5-10 lbs over target is EXPECTED during training — the cut hasn't started yet.
+    // Walk-around weight is naturally higher. Don't alarm the athlete.
+    const daysUntil = getDaysUntilWeighIn();
+    const isTrainingPhase = daysUntil > 5;
+
+    if (isTrainingPhase) {
+      // During training, compare to walk-around weight (target × 1.07)
+      // If within ~3 lbs of walk-around, they're fine
+      const walkAroundTarget = profile.targetWeightClass * 1.07;
+      const walkAroundDiff = currentWeight - walkAroundTarget;
+
+      if (walkAroundDiff <= 2) {
+        // At or near walk-around weight — holding well
+        return { status: 'on-track', label: 'HOLDING', color: 'text-green-500', bgColor: 'bg-green-500/20', contextMessage };
+      }
+      if (walkAroundDiff <= 5) {
+        // A bit above walk-around but still manageable with time
+        return { status: 'borderline', label: 'MONITOR', color: 'text-yellow-500', bgColor: 'bg-yellow-500/20', contextMessage };
+      }
+      // Well above walk-around even for training — flag it
+      return { status: 'risk', label: 'HIGH', color: 'text-orange-500', bgColor: 'bg-orange-500/20', contextMessage, projectionWarning, recommendation };
+    }
+
+    // ── Comp week (0-5 days out): original precision logic ──
     // Non water-loading days — factor projection into status level
     if (diff <= 1) {
       // Close to target — downgrade if projection shows missing weight
@@ -2995,8 +3445,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return undefined;
     };
 
-    // Protocol 5 (SPAR — Simple as Pie for Achievable Results)
-    if (protocol === '5') {
+    // SPAR Nutrition protocols (5 = General, 6 = Competition)
+    if (protocol === '5' || protocol === '6') {
       const sliceTargets = getSliceTargets();
       const todayStr = format(startOfDay(profile.simulatedDate || new Date()), 'yyyy-MM-dd');
       const tracking = getDailyTracking(todayStr);
@@ -3012,6 +3462,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (daysUntilWeighIn < 0) {
         return { priority: "RECOVERY — eat clean, hit your slices, rebuild", subtext: buildSubtext(), urgency: 'normal', icon: 'heart' };
       }
+      // P6 competition-specific priorities
+      if (protocol === '6') {
+        if (daysUntilWeighIn === 1) {
+          return { priority: "WATER CUT — minimal portions, sip only", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
+        }
+        if (daysUntilWeighIn === 2) {
+          return { priority: "WATER CUT — light portions, restrict water", subtext: buildSubtext(), urgency: 'high', icon: 'droplet' };
+        }
+        if (daysUntilWeighIn <= 5) {
+          const note = sliceTargets.competitionReason ? ` (${sliceTargets.competitionReason})` : '';
+          if (totalLogged === 0) {
+            return { priority: `WATER LOAD — hit ${totalTarget} slices${note}`, subtext: 'Peak hydration today. Tap Fuel to start tracking.', urgency: 'normal', icon: 'droplet', actionType: 'check-food' };
+          }
+        }
+      }
       if (totalLogged === 0) {
         return { priority: `Hit your ${totalTarget} slices today — ${sliceTargets.protein}P / ${sliceTargets.carb}C / ${sliceTargets.veg}V`, subtext: 'No slices logged yet. Tap Fuel to start tracking.', urgency: 'normal', icon: 'apple', actionType: 'check-food' };
       }
@@ -3022,7 +3487,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { priority: `${remaining} slices left — ${Math.max(0, sliceTargets.protein - pLogged)}P / ${Math.max(0, sliceTargets.carb - cLogged)}C / ${Math.max(0, sliceTargets.veg - vLogged)}V`, subtext: buildSubtext(), urgency: 'normal', icon: 'apple', actionType: 'check-food' };
     }
 
-    // Protocol 4 (Build Phase) - different priorities
+    // Protocol 4 (Gain Phase) - different priorities
     if (protocol === '4') {
       if (daysUntilWeighIn < 0) {
         return { priority: "FULL RECOVERY - 1.6g/lb protein, high carbs, repair muscle tissue", subtext: buildSubtext(), urgency: 'high', icon: 'bed' };
@@ -3078,37 +3543,72 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const daysRemaining = Math.max(0, differenceInDays(startOfDay(profile.weighInDate), today));
 
     const morningWeights: Array<{ day: string; weight: number; date: Date }> = [];
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    // Get the Monday of the current competition week (week containing weigh-in)
-    // Competition week runs Mon-Sat with weigh-in on Saturday
-    const weighInDate = new Date(profile.weighInDate);
-    const weekStartMonday = new Date(weighInDate);
-    // Go back to Monday of weigh-in week
-    const weighInDayOfWeek = weighInDate.getDay(); // 0=Sun, 6=Sat
-    const daysBackToMonday = weighInDayOfWeek === 0 ? 6 : weighInDayOfWeek - 1;
-    weekStartMonday.setDate(weighInDate.getDate() - daysBackToMonday);
-    weekStartMonday.setHours(0, 0, 0, 0);
+    // ═══ CYCLE START — anchored to weigh-in date, not day of week ═══
+    // The cycle starts the day after the last competition, or N days before weigh-in.
+    // No Monday dependency — competitions can be on any day.
+    const todayHasWeighIn = logs.some(l => {
+      const ld = new Date(l.date);
+      return l.type === 'weigh-in' &&
+        ld.getFullYear() === today.getFullYear() &&
+        ld.getMonth() === today.getMonth() &&
+        ld.getDate() === today.getDate();
+    });
+    const effectiveWeighInDate = todayHasWeighIn ? new Date(today) : new Date(profile.weighInDate);
 
-    // Collect morning weights from Monday through today (or through Saturday of comp week)
-    for (let i = 0; i < 7; i++) {
-      const checkDate = new Date(weekStartMonday);
-      checkDate.setDate(weekStartMonday.getDate() + i);
+    let cycleStart: Date;
+    // Find the most recent weigh-in BEFORE today to mark end of previous cycle
+    const lastCompWeighIn = [...logs]
+      .filter(l => l.type === 'weigh-in' && startOfDay(new Date(l.date)).getTime() < today.getTime())
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
-      // Don't look for future dates
+    if (lastCompWeighIn) {
+      // Start from the day after the last competition
+      cycleStart = new Date(startOfDay(new Date(lastCompWeighIn.date)));
+      cycleStart.setDate(cycleStart.getDate() + 1);
+      cycleStart.setHours(0, 0, 0, 0);
+    } else {
+      // No previous competition — use weigh-in date minus 6 days or today minus 6 days
+      const wiMinus6 = new Date(startOfDay(effectiveWeighInDate));
+      wiMinus6.setDate(wiMinus6.getDate() - 6);
+      const todayMinus6 = new Date(today);
+      todayMinus6.setDate(today.getDate() - 6);
+      cycleStart = new Date(Math.max(wiMinus6.getTime(), todayMinus6.getTime()));
+      cycleStart.setHours(0, 0, 0, 0);
+    }
+
+    // Clamp: never look back more than 13 days (avoid stale data contamination)
+    const maxLookback = new Date(today);
+    maxLookback.setDate(today.getDate() - 13);
+    maxLookback.setHours(0, 0, 0, 0);
+    if (cycleStart.getTime() < maxLookback.getTime()) {
+      cycleStart = maxLookback;
+    }
+    // Must be <= today
+    if (cycleStart.getTime() > today.getTime()) {
+      cycleStart = new Date(today);
+    }
+
+    // Collect morning weights from cycle start through today
+    const cycleDays = differenceInDays(today, cycleStart) + 1;
+    const weighInDateStart = startOfDay(effectiveWeighInDate);
+    for (let i = 0; i < cycleDays; i++) {
+      const checkDate = new Date(cycleStart);
+      checkDate.setDate(cycleStart.getDate() + i);
       if (checkDate > today) break;
 
       const morningLog = logs.find(log => {
         const logDate = new Date(log.date);
-        return log.type === 'morning' &&
+        return (log.type === 'morning' || log.type === 'weigh-in') &&
           logDate.getFullYear() === checkDate.getFullYear() &&
           logDate.getMonth() === checkDate.getMonth() &&
           logDate.getDate() === checkDate.getDate();
       });
 
       if (morningLog) {
+        const daysOut = differenceInDays(weighInDateStart, checkDate);
         morningWeights.push({
-          day: dayNames[checkDate.getDay()],
+          day: daysOut > 0 ? `${daysOut}d` : daysOut === 0 ? 'WI' : 'R',
           weight: morningLog.weight,
           date: new Date(checkDate)
         });
@@ -3126,9 +3626,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return format(startOfDay(logDate), 'yyyy-MM-dd') === todayStr;
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Get the most recent weigh-in today, or fall back to latest morning weight
+    // Check if this day has an official weigh-in log (competition day indicator)
+    const officialWeighInLog = allTodayLogs.find(l => l.type === 'weigh-in');
+    const isCompDay = daysRemaining === 0 || !!officialWeighInLog;
+
+    // On competition day, use the official weigh-in weight (not BED rehydration weight)
+    // During training phase (6+ days out), use morning weight — before-bed weight is
+    // inflated from food/water and isn't representative of actual progress.
+    // During comp week, use latest weight for real-time projection updates.
     const mostRecentWeighIn = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
-    const currentWeight = mostRecentWeighIn;
+    const todayMorningLog = allTodayLogs.find(l => l.type === 'morning');
+    const todayMorningWeight = todayMorningLog?.weight ?? null;
+    const isTrainingPhaseForWeight = daysRemaining > 5;
+    const currentWeight = (isCompDay && officialWeighInLog)
+      ? officialWeighInLog.weight
+      : (isTrainingPhaseForWeight && todayMorningWeight !== null)
+        ? todayMorningWeight
+        : mostRecentWeighIn;
 
     // Total lost: start weight to current (most recent weigh-in of any type)
     const totalLost = startWeight && currentWeight ? startWeight - currentWeight : null;
@@ -3143,18 +3657,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Calculate gross loss capacity from drift and practice metrics
-    // This shows how much weight you CAN lose when you stop eating/drinking
-    // Use ALL logs — EMA (alpha=0.4) naturally fades old data so recent points dominate.
-    // No hard cutoff: preserves useful baseline early in a cycle when few new data points exist.
-    const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
+    // Only use THIS cycle's data. Previous cycles may reflect a completely different
+    // body state (dehydrated, bad cut, different approach). Each cycle is its own context.
+    // Early in the cycle with few data points, we fall back to historical data for display.
+    const sortedLogs = [...logs]
+      .filter(l => l.date.getTime() >= cycleStart.getTime())
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
 
     // === Phase-aware overnight drift with EMA recency weighting ===
-    // Separate loading-day drifts (Mon-Wed, 3+ days out) from cut-day drifts (Thu-Fri, 1-2 days out)
+    // Separate loading-day drifts (3+ days out) from cut-day drifts (1-2 days out)
     // because athletes lose significantly less overnight as they get closer to weight class.
     // EMA (alpha=0.4) gives ~40% weight to most recent, ~24% to next, ~14% to next, etc.
 
-    const loadingDrifts: number[] = []; // 3+ days out (Mon-Wed nights)
-    const cutDrifts: number[] = [];     // 1-2 days out (Thu-Fri nights)
+    const loadingDrifts: number[] = []; // 3+ days out
+    const cutDrifts: number[] = [];     // 1-2 days out
     const allDrifts: number[] = [];     // all drifts for overall average
     const driftRates: number[] = [];    // lbs/hr drift rates (when sleep hours available)
 
@@ -3167,15 +3683,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const drift = prev.weight - current.weight;
           allDrifts.push(drift);
 
-          // Calculate drift rate (lbs/hr)
-          // Use explicit sleepHours if available, otherwise estimate from log timestamps
-          if (drift > 0) {
-            const sleepHrs = current.sleepHours && current.sleepHours > 0
-              ? current.sleepHours
-              : hoursDiff; // fallback: time between bed/post-practice log and morning log
-            if (sleepHrs > 0) {
-              const ozPerHr = drift / sleepHrs;
-              driftRates.push(ozPerHr);
+          // Calculate overnight drift rate (lbs/hr)
+          // Only use before-bed → morning pairs where we can isolate the overnight period.
+          // IMPORTANT: Use the timestamp gap (hoursDiff) instead of reported sleepHours.
+          // sleepHours only captures actual sleep, but the weigh-in gap includes awake time
+          // before falling asleep. Using sleepHours inflates the rate because the numerator
+          // (total weight lost overnight) includes awake drift that the denominator misses.
+          // hoursDiff = actual elapsed time between before-bed and morning weigh-ins.
+          if (drift > 0 && prev.type === 'before-bed') {
+            if (hoursDiff > 0) {
+              const lbsPerHr = drift / hoursDiff;
+              driftRates.push(lbsPerHr);
             }
           }
 
@@ -3228,42 +3746,59 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const avgSweatRateOzPerHr = computeEMA(practiceSweatRates);
     const avgDriftRateOzPerHr = computeEMA(driftRates);
 
+    // === EMA averages for sleep & practice hours ===
+    // These are used for daytime BMR drift, projection breakdown, and displayed as stats.
+    const sleepHoursData: number[] = [];
+    for (const log of sortedLogs) {
+      if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
+        sleepHoursData.push(log.sleepHours);
+        if (sleepHoursData.length >= 5) break;
+      }
+    }
+    const emaSleepHours = sleepHoursData.length > 0 ? (computeEMA(sleepHoursData) || 8) : 8;
+
+    const practiceDurations: number[] = [];
+    for (const log of sortedLogs) {
+      if (log.type === 'post-practice' && log.duration && log.duration > 0) {
+        practiceDurations.push(log.duration / 60); // convert min to hours
+        if (practiceDurations.length >= 5) break;
+      }
+    }
+    const emaPracticeHours = practiceDurations.length > 0 ? (computeEMA(practiceDurations) || 2) : 2;
+
     // === Daytime BMR drift for cut days ===
     // On cut days, athletes lose weight through BMR even while awake and not practicing.
     // This is separate from overnight drift (already tracked) and practice sweat (already tracked).
     // awake BMR hours = 24 - sleep - practice - extra workouts
     // We use the overnight drift rate (lbs/hr) as a proxy for daytime metabolic rate.
-    let daytimeBmrDrift = 0;
+    //
+    // For TODAY: use actual logged sleep hours and actual practice duration (if logged).
+    // For FUTURE days: use EMA averages since those haven't happened yet.
+    let daytimeBmrDrift = 0;       // today's drift (uses actual data where available)
+    let futureDaytimeBmrDrift = 0; // future cut day drift (uses EMA averages)
     if (avgDriftRateOzPerHr !== null && avgDriftRateOzPerHr > 0) {
-      // Estimate sleep hours from morning logs (EMA-weighted)
-      const sleepHoursData: number[] = [];
-      for (const log of sortedLogs) {
-        if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
-          sleepHoursData.push(log.sleepHours);
-          if (sleepHoursData.length >= 5) break; // enough for EMA
-        }
-      }
-      const avgSleepHours = sleepHoursData.length > 0 ? (computeEMA(sleepHoursData) || 8) : 8;
+      // Future cut day drift (all EMA, no extras since we can't predict those)
+      const futureAwakeHours = Math.max(0, 24 - emaSleepHours - emaPracticeHours);
+      futureDaytimeBmrDrift = futureAwakeHours * avgDriftRateOzPerHr;
 
-      // Estimate practice duration from post-practice logs (EMA-weighted)
-      const practiceDurations: number[] = [];
-      for (const log of sortedLogs) {
-        if (log.type === 'post-practice' && log.duration && log.duration > 0) {
-          practiceDurations.push(log.duration / 60); // convert min to hours
-          if (practiceDurations.length >= 5) break;
-        }
-      }
-      const avgPracticeHours = practiceDurations.length > 0 ? (computeEMA(practiceDurations) || 2) : 2;
+      // --- Today's drift: use actual logged data where available ---
+      // Sleep: use today's morning log sleepHours if available, else EMA
+      const todayMorningLog = allTodayLogs.find(l => l.type === 'morning' && l.sleepHours && l.sleepHours > 0);
+      const todaySleepHours = todayMorningLog ? todayMorningLog.sleepHours! : emaSleepHours;
 
-      // Estimate extra workout duration from today's logs
+      // Practice: use today's post-practice duration if already logged, else EMA
+      const todayPracticeLog = allTodayLogs.find(l => l.type === 'post-practice' && l.duration && l.duration > 0);
+      const todayPracticeHours = todayPracticeLog ? todayPracticeLog.duration! / 60 : emaPracticeHours;
+
+      // Extra workouts: always actual from today's logs
       const todayExtraMinutes = allTodayLogs
-        .filter(l => (l.type === 'extra-after' || l.type === 'post-practice') && l.type === 'extra-after' && l.duration && l.duration > 0)
+        .filter(l => l.type === 'extra-after' && l.duration && l.duration > 0)
         .reduce((sum, l) => sum + (l.duration || 0), 0);
       const todayExtraHours = todayExtraMinutes / 60;
 
-      // Awake non-active hours: 24 minus sleep, practice, and extra workouts
-      const awakeNonActiveHours = Math.max(0, 24 - avgSleepHours - avgPracticeHours - todayExtraHours);
-      daytimeBmrDrift = awakeNonActiveHours * avgDriftRateOzPerHr;
+      // Today's awake non-active hours
+      const todayAwakeHours = Math.max(0, 24 - todaySleepHours - todayPracticeHours - todayExtraHours);
+      daytimeBmrDrift = todayAwakeHours * avgDriftRateOzPerHr;
     }
 
     // Gross daily loss capacity = overnight drift + practice loss
@@ -3290,6 +3825,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     //   Post-practice 142 → overnight drift → tomorrow morning ≈ 142 - 1.8 = 140.2
     //   This is the real-time approach — updates with every weigh-in.
     let projectedSaturday: number | null = null;
+    // Track individual components of today's remaining loss for breakdown display
+    let todayRemainingComponents: { sleep: number; practice: number } | null = null;
 
     if (daysRemaining > 0) {
       const hasDriftData = avgOvernightDrift !== null && Math.abs(avgOvernightDrift!) > 0;
@@ -3313,25 +3850,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (currentWeight) {
           // CUT DAY (or no morning weight): start from most recent weigh-in
           // Apply only remaining losses based on what's already happened
-          // Includes daytime BMR drift — metabolic loss during awake non-active hours
+          // Projection uses sleep drift + practice only (conservative, measurable).
+          // Daytime BMR drift is shown as informational but NOT included in projections
+          // because the overnight drift rate is too noisy to reliably extrapolate across 16+ awake hours.
           projected = currentWeight;
           const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
           let todayRemainingLoss = 0;
+          let remainingSleep = 0;
+          let remainingPractice = 0;
 
           if (lastLogType) {
-            if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
-              todayRemainingLoss = practice + todayDrift + daytimeBmrDrift;
+            if (lastLogType === 'morning' || lastLogType === 'weigh-in' || lastLogType === 'pre-practice') {
+              remainingSleep = todayDrift;
+              remainingPractice = practice;
+              todayRemainingLoss = practice + todayDrift;
             } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-              todayRemainingLoss = todayDrift + daytimeBmrDrift;
+              remainingSleep = todayDrift;
+              remainingPractice = 0;
+              todayRemainingLoss = todayDrift;
             } else if (lastLogType === 'extra-after') {
-              todayRemainingLoss = practice + todayDrift + daytimeBmrDrift;
+              // Extra workout done — check if regular practice already happened today
+              const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
+              remainingSleep = todayDrift;
+              remainingPractice = hasPracticeLog ? 0 : practice;
+              todayRemainingLoss = hasPracticeLog ? todayDrift : (practice + todayDrift);
             } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
               const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-              todayRemainingLoss = hasPracticeLog ? (todayDrift + daytimeBmrDrift) : (practice + todayDrift + daytimeBmrDrift);
+              remainingSleep = todayDrift;
+              remainingPractice = hasPracticeLog ? 0 : practice;
+              todayRemainingLoss = hasPracticeLog ? todayDrift : (practice + todayDrift);
             }
           } else {
-            todayRemainingLoss = practice + todayDrift + daytimeBmrDrift;
+            remainingSleep = todayDrift;
+            remainingPractice = practice;
+            todayRemainingLoss = practice + todayDrift;
           }
+          todayRemainingComponents = { sleep: remainingSleep, practice: remainingPractice };
           projected -= todayRemainingLoss;
         } else if (latestMorningWeight) {
           projected = latestMorningWeight;
@@ -3349,8 +3903,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
               projected -= loadingLoss;
             } else {
-              // Future cut day: drift + practice + daytime BMR (no eating back — all losses stick)
-              const cutDayGross = cutDrift + practice + daytimeBmrDrift;
+              // Future cut day: drift + practice only (conservative — daytime BMR excluded from projections)
+              const cutDayGross = cutDrift + practice;
               if (cutDayGross > 0) {
                 projected -= cutDayGross;
               } else if (hasGrossData) {
@@ -3373,17 +3927,489 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     let pace: 'ahead' | 'on-track' | 'behind' | null = null;
     if (currentWeight && targetWeight) {
-      // calculateTarget() already includes water loading for protocols 1 & 2
-      // So we don't need to add it again here
-      const effectiveTarget = calculateTarget();
-      const diff = currentWeight - effectiveTarget;
+      const daysUntil = getDaysUntilWeighIn();
+      const isTraining = daysUntil > 5;
 
-      // Small tolerance for measurement variance (1.5 lbs)
-      const tolerance = 1.5;
+      if (isTraining) {
+        // Training phase: compare to walk-around weight, not daily target
+        // Being 5-10 lbs above target weight class is expected
+        const walkAround = profile.targetWeightClass * 1.07;
+        const walkDiff = currentWeight - walkAround;
 
-      if (diff <= -1) pace = 'ahead';
-      else if (diff <= tolerance) pace = 'on-track';
-      else pace = 'behind';
+        if (walkDiff <= 0) pace = 'ahead';
+        else if (walkDiff <= 3) pace = 'on-track';
+        else pace = 'behind';  // Only "behind" if well above walk-around
+      } else {
+        // Comp week: precise tracking against daily target
+        // calculateTarget() already includes water loading for protocols 1 & 2
+        const effectiveTarget = calculateTarget();
+        const diff = currentWeight - effectiveTarget;
+
+        // Small tolerance for measurement variance (1.5 lbs)
+        const tolerance = 1.5;
+
+        if (diff <= -1) pace = 'ahead';
+        else if (diff <= tolerance) pace = 'on-track';
+        else pace = 'behind';
+      }
+    }
+
+    // ═══ TREND ARROWS: compare recent 2 vs previous 2 ═══
+    const computeTrend = (arr: number[]): 'up' | 'down' | 'stable' => {
+      if (arr.length < 3) return 'stable';
+      // arr is newest-first; recent = avg of [0,1], previous = avg of [2,3]
+      const recent = (arr[0] + arr[1]) / 2;
+      const prev = arr.length >= 4 ? (arr[2] + arr[3]) / 2 : arr[2];
+      const pctChange = (recent - prev) / Math.max(Math.abs(prev), 0.01);
+      if (pctChange > 0.08) return 'up';   // >8% increase = trending up (more loss)
+      if (pctChange < -0.08) return 'down'; // >8% decrease = trending down (less loss)
+      return 'stable';
+    };
+    const trends = {
+      drift: computeTrend(allDrifts),
+      practice: computeTrend(practiceLosses),
+      driftRate: computeTrend(driftRates),
+      sweatRate: computeTrend(practiceSweatRates),
+    };
+
+    // ═══ CONFIDENCE: based on data point counts ═══
+    const driftSamples = allDrifts.length;
+    const practiceSamples = practiceLosses.length;
+    const minSamples = Math.min(driftSamples, practiceSamples);
+    const confidenceLevel: 'high' | 'medium' | 'low' | 'none' =
+      minSamples >= 5 ? 'high' : minSamples >= 3 ? 'medium' : minSamples >= 1 ? 'low' : 'none';
+    const confidence = { driftSamples, practiceSamples, level: confidenceLevel };
+
+    // ═══ MONTE CARLO MAKE-WEIGHT PROBABILITY ═══
+    // Runs 2000 simulations using actual variance in drift & practice data.
+    // Uses the SAME phase-specific means as the deterministic projection.
+    // When the projection says the athlete is BEHIND, the Monte Carlo includes the
+    // recommended extra workout (using sweat rate × time needed) so the probability
+    // answers "how likely to make weight IF you do the recommended work?"
+    // This prevents showing 0% next to "38 min of extra work needed" — contradictory UX.
+    let makeWeightProb: { probability: number; worstCase: number; median: number; includesExtraWork: boolean } | null = null;
+    if (projectedSaturday !== null && currentWeight && daysRemaining > 0 && allDrifts.length >= 1) {
+      // EMA-weighted standard deviation: recent data points contribute more to variance,
+      // matching how the mean is calculated. Alpha=0.4 same as computeEMA.
+      const emaStdDev = (arr: number[], emaMean: number): number => {
+        if (arr.length < 2) return 0;
+        const alpha = 0.4;
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (let i = 0; i < arr.length; i++) {
+          const w = Math.pow(1 - alpha, i); // newest first: i=0 gets weight 1, i=1 gets 0.6, etc.
+          weightedSum += w * (arr[i] - emaMean) ** 2;
+          totalWeight += w;
+        }
+        return Math.sqrt(weightedSum / totalWeight);
+      };
+      // Cap std dev at a fraction of the mean to keep variance realistic.
+      // 25% cap means a 1.3 lb mean drift has max std of 0.325 —
+      // so 95% of draws fall in ~0.65 to ~1.95 lbs (reasonable night-to-night range).
+      const cappedStd = (rawStd: number, mean: number, maxFrac = 0.25): number => {
+        const cap = Math.abs(mean) * maxFrac;
+        return Math.min(rawStd, Math.max(cap, 0.05));
+      };
+      // Seeded PRNG (mulberry32) — deterministic results for same inputs, no flickering
+      let seed = Math.round(
+        (currentWeight || 0) * 1000 +
+        (targetWeight || 0) * 100 +
+        daysRemaining * 10 +
+        allDrifts.length +
+        practiceLosses.length
+      );
+      const seededRandom = (): number => {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      };
+      // Box-Muller transform for normal random (using seeded PRNG)
+      const randn = (): number => {
+        let u = 0, v = 0;
+        while (u === 0) u = seededRandom();
+        while (v === 0) v = seededRandom();
+        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      };
+
+      // Phase-specific means (matching deterministic projection)
+      // When we have <2 phase-specific samples, use 20% of the mean as default std dev
+      // instead of falling back to allDrifts — allDrifts mixes loading + cut phases
+      // and the wildly different values inflate variance unrealistically.
+      const cutDriftMean = cutDrift;
+      const cutDriftStd = cappedStd(
+        cutDrifts.length >= 2 ? emaStdDev(cutDrifts, cutDriftMean) : cutDriftMean * 0.2,
+        cutDriftMean
+      );
+      const loadDriftMean = loadingDrift;
+      const loadDriftStd = cappedStd(
+        loadingDrifts.length >= 2 ? emaStdDev(loadingDrifts, loadDriftMean) : loadDriftMean * 0.2,
+        loadDriftMean
+      );
+      const practiceMean = practice;
+      const practiceStd = cappedStd(
+        practiceLosses.length >= 2 ? emaStdDev(practiceLosses, practiceMean) : 0,
+        practiceMean
+      );
+      const netDailyMean = dailyAvgLoss || 0;
+
+      // Simulate a loss value: normal distribution around the mean.
+      // Only floor at 0 — you can't gain weight from sleeping or working out.
+      // The capped std dev (25% of mean) already prevents wild draws.
+      // No asymmetric floor: draws below the mean are just as valid as draws above.
+      const simLoss = (mean: number, std: number): number => {
+        const draw = mean + randn() * std;
+        return Math.max(0, draw);
+      };
+
+      const SIMS = 2000;
+      const results: number[] = [];
+      const isLoadingToday = daysRemaining >= 3;
+
+      // If the deterministic projection says they're behind, include the recommended
+      // extra workout in the simulation. No buffers — exact gap coverage.
+      // The Monte Carlo gives the honest probability of making weight with the plan.
+      const sweatRate = avgSweatRateOzPerHr; // lbs/hr (name is legacy)
+      let extraWorkoutMean = 0;
+      let extraWorkoutStd = 0;
+      if (projectedSaturday > targetWeight && sweatRate && sweatRate > 0) {
+        const gap = projectedSaturday - targetWeight;
+        const minutesNeeded = Math.round((gap / sweatRate) * 60);
+        const cappedMinutes = Math.min(minutesNeeded, 60);
+        extraWorkoutMean = sweatRate * (cappedMinutes / 60);
+        extraWorkoutStd = cappedStd(extraWorkoutMean * 0.15, extraWorkoutMean);
+      }
+
+      for (let s = 0; s < SIMS; s++) {
+        let w: number;
+
+        // Step 1: Today — use same remaining-component logic as projection
+        if (isLoadingToday && latestMorningWeight) {
+          w = latestMorningWeight;
+          w -= netDailyMean > 0 ? simLoss(netDailyMean, loadDriftStd) : 0;
+        } else if (currentWeight && todayRemainingComponents) {
+          w = currentWeight;
+          if (todayRemainingComponents.sleep > 0) {
+            w -= simLoss(todayRemainingComponents.sleep, cutDriftStd);
+          }
+          if (todayRemainingComponents.practice > 0) {
+            w -= simLoss(todayRemainingComponents.practice, practiceStd);
+          }
+        } else if (currentWeight) {
+          w = currentWeight;
+        } else {
+          w = latestMorningWeight || 0;
+        }
+
+        // Step 1b: Extra workout — included when projection says behind
+        if (extraWorkoutMean > 0) {
+          w -= simLoss(extraWorkoutMean, extraWorkoutStd);
+        }
+
+        // Step 2: Future full days
+        for (let d = daysRemaining - 1; d > 0; d--) {
+          if (d >= 3) {
+            w -= netDailyMean > 0
+              ? simLoss(netDailyMean, loadDriftStd)
+              : simLoss(loadDriftMean * 0.2, loadDriftStd * 0.3);
+          } else {
+            w -= simLoss(cutDriftMean, cutDriftStd);
+            w -= simLoss(practiceMean, practiceStd);
+          }
+        }
+        results.push(w);
+      }
+
+      results.sort((a, b) => a - b);
+      const madeWeight = results.filter(r => r <= targetWeight).length;
+      let rawProb = Math.round((madeWeight / SIMS) * 100);
+
+      // No artificial floors — let the Monte Carlo speak honestly.
+      // The simulation already uses EMA-weighted means and capped variance,
+      // so the probability reflects the real data.
+
+      makeWeightProb = {
+        probability: rawProb,
+        worstCase: results[Math.floor(SIMS * 0.90)],
+        median: results[Math.floor(SIMS * 0.5)],
+        includesExtraWork: extraWorkoutMean > 0,
+      };
+    }
+
+    // ═══ TODAY'S PROGRESS ═══
+    let todayProgress: { lostSoFar: number; expectedTotal: number; pctComplete: number } | null = null;
+    if (allTodayLogs.length > 0 && latestMorningWeight) {
+      const morningLog = allTodayLogs.find(l => l.type === 'morning' || l.type === 'weigh-in');
+      const morningW = morningLog?.weight || latestMorningWeight;
+      const latestW = allTodayLogs[0].weight;
+      const lostSoFar = Math.max(0, morningW - latestW);
+      // Expected total for today = drift + practice (if cut day) or net daily (if loading)
+      const isLoadingToday = daysRemaining >= 3;
+      const expectedTotal = isLoadingToday
+        ? (dailyAvgLoss || 0)
+        : ((avgOvernightDrift || 0) + (avgPracticeLoss || 0));
+      const pctComplete = expectedTotal > 0 ? Math.min(100, Math.round((lostSoFar / expectedTotal) * 100)) : 0;
+      todayProgress = { lostSoFar, expectedTotal, pctComplete };
+    }
+
+    // ═══ LOGGING STREAK ═══
+    let loggingStreak = 0;
+    {
+      const todayDate = startOfDay(profile.simulatedDate || new Date());
+      for (let d = 0; d < 60; d++) { // check up to 60 days back
+        const checkDate = new Date(todayDate);
+        checkDate.setDate(todayDate.getDate() - d);
+        const hasLog = logs.some(l => {
+          const ld = startOfDay(new Date(l.date));
+          return ld.getTime() === checkDate.getTime();
+        });
+        if (hasLog) loggingStreak++;
+        else break;
+      }
+    }
+    const isCompetitionDayForCore = daysRemaining === 0 || !!officialWeighInLog;
+    // Determine if practice weigh-ins should count today
+    const todayTrack = getDailyTracking(todayStr);
+    const isRestDay = todayTrack.noPractice ?? false;
+    const isSpar = profile.protocol === '5' || profile.protocol === '6';
+    const hasPracticeLogs = allTodayLogs.some(l => l.type === 'pre-practice' || l.type === 'post-practice');
+    const shouldCountPractice = isSpar
+      ? (profile.trackPracticeWeighIns && !isRestDay) || hasPracticeLogs
+      : (!isRestDay || hasPracticeLogs);
+    const todayCoreTypes = isCompetitionDayForCore
+      ? ['morning', 'weigh-in', 'before-bed']   // comp day: AM, Official, BED
+      : shouldCountPractice
+        ? ['morning', 'pre-practice', 'post-practice', 'before-bed']  // practice day: 4
+        : ['morning', 'before-bed'];  // rest day or SPAR without practice tracking: 2
+    const todayCoreLogged = todayCoreTypes
+      .filter(t => allTodayLogs.some(l => l.type === t || (t === 'morning' && l.type === 'weigh-in'))).length;
+    const todayCoreTotal = todayCoreTypes.length;
+
+    // ═══ WEEK-OVER-WEEK COMPARISON ═══
+    let weekOverWeek: { thisWeekAvgDrift: number | null; lastWeekAvgDrift: number | null; thisWeekAvgPractice: number | null; lastWeekAvgPractice: number | null } | null = null;
+    {
+      const todayDate = startOfDay(profile.simulatedDate || new Date());
+      const dayOfWeek = todayDate.getDay(); // 0=Sun
+      const thisWeekStart = new Date(todayDate);
+      thisWeekStart.setDate(todayDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Monday
+      const lastWeekStart = new Date(thisWeekStart);
+      lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+      const lastWeekEnd = new Date(thisWeekStart);
+
+      const isInRange = (date: Date, start: Date, end: Date) => {
+        const d = startOfDay(new Date(date));
+        return d >= start && d < end;
+      };
+
+      // Split drifts by week (use the morning log date as the reference)
+      const thisWeekDrifts: number[] = [];
+      const lastWeekDrifts: number[] = [];
+      const thisWeekPractice: number[] = [];
+      const lastWeekPractice: number[] = [];
+
+      for (let i = 0; i < sortedLogs.length - 1; i++) {
+        const current = sortedLogs[i];
+        const prev = sortedLogs[i + 1];
+        // Overnight drift
+        if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
+          const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
+          if (hoursDiff > 4 && hoursDiff < 16) {
+            const drift = prev.weight - current.weight;
+            if (isInRange(current.date, thisWeekStart, new Date(todayDate.getTime() + 86400000))) {
+              thisWeekDrifts.push(drift);
+            } else if (isInRange(current.date, lastWeekStart, lastWeekEnd)) {
+              lastWeekDrifts.push(drift);
+            }
+          }
+        }
+        // Practice loss
+        if (current.type === 'post-practice' && prev.type === 'pre-practice') {
+          const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
+          if (hoursDiff < 6) {
+            const loss = prev.weight - current.weight;
+            if (isInRange(current.date, thisWeekStart, new Date(todayDate.getTime() + 86400000))) {
+              thisWeekPractice.push(loss);
+            } else if (isInRange(current.date, lastWeekStart, lastWeekEnd)) {
+              lastWeekPractice.push(loss);
+            }
+          }
+        }
+      }
+
+      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
+      weekOverWeek = {
+        thisWeekAvgDrift: avg(thisWeekDrifts),
+        lastWeekAvgDrift: avg(lastWeekDrifts),
+        thisWeekAvgPractice: avg(thisWeekPractice),
+        lastWeekAvgPractice: avg(lastWeekPractice),
+      };
+    }
+
+    // ═══ CYCLE WEIGH-INS (for velocity sparkline) ═══
+    // All weigh-ins this cycle, oldest first, for plotting the descent curve
+    const weekWeighIns: Array<{ day: string; weight: number; type: string }> = [];
+    {
+      // Collect the first weigh-in of each day this cycle (morning preferred)
+      for (let i = 0; i < cycleDays; i++) {
+        const checkDate = new Date(cycleStart);
+        checkDate.setDate(cycleStart.getDate() + i);
+        if (checkDate > today) break;
+
+        const dayLogs = logs.filter(l => {
+          const ld = startOfDay(new Date(l.date));
+          return ld.getTime() === checkDate.getTime();
+        }).sort((a, b) => {
+          // Prefer morning, then earliest
+          const typePriority = (t: string) => t === 'weigh-in' ? 0 : t === 'morning' ? 0 : t === 'pre-practice' ? 1 : 2;
+          const pa = typePriority(a.type), pb = typePriority(b.type);
+          return pa !== pb ? pa - pb : new Date(a.date).getTime() - new Date(b.date).getTime();
+        });
+
+        if (dayLogs.length > 0) {
+          const daysOut = differenceInDays(weighInDateStart, checkDate);
+          weekWeighIns.push({
+            day: daysOut > 0 ? `${daysOut}d` : daysOut === 0 ? 'WI' : 'R',
+            weight: dayLogs[0].weight,
+            type: dayLogs[0].type,
+          });
+        }
+      }
+    }
+
+    // ═══ PERSONAL RECORDS ═══
+    const personalRecords = {
+      bestDrift: allDrifts.length > 0 ? Math.max(...allDrifts) : null,
+      bestPracticeLoss: practiceLosses.length > 0 ? Math.max(...practiceLosses) : null,
+      bestDriftRate: driftRates.length > 0 ? Math.max(...driftRates) : null,
+      bestSweatRate: practiceSweatRates.length > 0 ? Math.max(...practiceSweatRates) : null,
+      totalLostThisWeek: weekWeighIns.length >= 2
+        ? weekWeighIns[0].weight - weekWeighIns[weekWeighIns.length - 1].weight
+        : null,
+    };
+
+    // ═══ TIME-TO-TARGET COUNTDOWN ═══
+    // Based on drift rate (lbs/hr), estimate when they'll hit target weight
+    let timeToTarget: { etaHours: number | null; etaTime: string | null; lbsRemaining: number; ratePerHour: number | null } | null = null;
+    if (currentWeight && currentWeight > targetWeight) {
+      const lbsRemaining = currentWeight - targetWeight;
+      // Use drift rate as the passive loss rate; if practice is still expected, factor it in
+      const driftRatePerHr = avgDriftRateOzPerHr; // lbs/hr while sleeping
+      const remainingComp = todayRemainingComponents;
+
+      if (driftRatePerHr && driftRatePerHr > 0) {
+        // Estimate: remaining practice loss happens instantly (during practice),
+        // then drift rate covers the rest over time
+        const practiceRemaining = remainingComp ? remainingComp.practice : 0;
+        const afterPractice = lbsRemaining - practiceRemaining;
+
+        if (afterPractice <= 0) {
+          // Practice alone will get them there
+          timeToTarget = { etaHours: 0, etaTime: 'After practice', lbsRemaining, ratePerHour: driftRatePerHr };
+        } else {
+          const hoursNeeded = afterPractice / driftRatePerHr;
+          const now = profile.simulatedDate || new Date();
+          const etaDate = new Date(now.getTime() + hoursNeeded * 3600000);
+          const hours = etaDate.getHours();
+          const minutes = etaDate.getMinutes();
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const h12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+          const etaTime = `${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+          timeToTarget = { etaHours: hoursNeeded, etaTime, lbsRemaining, ratePerHour: driftRatePerHr };
+        }
+      } else {
+        timeToTarget = { etaHours: null, etaTime: null, lbsRemaining, ratePerHour: null };
+      }
+    }
+
+    // ═══ HISTORICAL FALLBACK — for display when cycle has no data yet ═══
+    // When the current cycle is fresh (no drift/practice pairs), compute from ALL logs
+    // so the Cut Lab shows historical physiology instead of being empty.
+    // NOT used for projections — only for display.
+    const cycleHasOwnDriftData = allDrifts.length > 0;
+    const cycleHasOwnPracticeData = practiceLosses.length > 0;
+
+    let historicalDrift: number | null = null;
+    let historicalDriftRate: number | null = null;
+    let historicalPracticeLoss: number | null = null;
+    let historicalSweatRate: number | null = null;
+    let historicalRecentDrifts: number[] = [];
+    let historicalRecentPracticeLosses: number[] = [];
+    let historicalRecentSweatRates: number[] = [];
+    let historicalRecentDriftRates: number[] = [];
+    let historicalRecentSleepHours: number[] = [];
+
+    if (!cycleHasOwnDriftData || !cycleHasOwnPracticeData) {
+      // Compute from ALL logs (no cycle filter)
+      const allSortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
+      const histDrifts: number[] = [];
+      const histDriftRates: number[] = [];
+      const histPracticeLosses: number[] = [];
+      const histSweatRates: number[] = [];
+      const histSleepHours: number[] = [];
+
+      // Overnight drifts from all history
+      for (let i = 0; i < allSortedLogs.length - 1; i++) {
+        const morning = allSortedLogs[i];
+        const prev = allSortedLogs[i + 1];
+        if ((morning.type === 'morning' || morning.type === 'weigh-in') &&
+            (prev.type === 'before-bed' || prev.type === 'post-practice')) {
+          const hoursDiff = (morning.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
+          if (hoursDiff >= 4 && hoursDiff <= 16) {
+            const drift = prev.weight - morning.weight;
+            if (drift > 0 && drift < 8) {
+              histDrifts.push(drift);
+              if (morning.sleepHours && morning.sleepHours > 0) {
+                histDriftRates.push(drift / morning.sleepHours);
+              }
+            }
+          }
+        }
+        if (histDrifts.length >= 10) break;
+      }
+
+      // Practice losses from all history
+      for (let i = 0; i < allSortedLogs.length - 1; i++) {
+        const post = allSortedLogs[i];
+        const pre = allSortedLogs[i + 1];
+        if (post.type === 'post-practice' && pre.type === 'pre-practice') {
+          const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
+          if (hoursDiff < 6) {
+            const loss = pre.weight - post.weight;
+            histPracticeLosses.push(loss);
+            if (loss > 0) {
+              const hrs = post.duration && post.duration > 0 ? post.duration / 60 : (hoursDiff >= 0.25 ? hoursDiff : null);
+              if (hrs !== null && hrs > 0) {
+                const rate = loss / hrs;
+                if (rate <= 6) histSweatRates.push(rate);
+              }
+            }
+          }
+        }
+        if (histPracticeLosses.length >= 10) break;
+      }
+
+      // Sleep hours from all history
+      for (const log of allSortedLogs) {
+        if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
+          histSleepHours.push(log.sleepHours);
+          if (histSleepHours.length >= 5) break;
+        }
+      }
+
+      if (!cycleHasOwnDriftData && histDrifts.length > 0) {
+        historicalDrift = computeEMA(histDrifts);
+        historicalDriftRate = computeEMA(histDriftRates);
+        historicalRecentDrifts = histDrifts.slice(0, 5);
+        historicalRecentDriftRates = histDriftRates.slice(0, 5);
+        historicalRecentSleepHours = histSleepHours;
+      }
+      if (!cycleHasOwnPracticeData && histPracticeLosses.length > 0) {
+        historicalPracticeLoss = computeEMA(histPracticeLosses);
+        historicalSweatRate = computeEMA(histSweatRates);
+        historicalRecentPracticeLosses = histPracticeLosses.slice(0, 5);
+        historicalRecentSweatRates = histSweatRates.slice(0, 5);
+      }
     }
 
     return {
@@ -3392,19 +4418,57 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       targetWeight,
       daysRemaining,
       totalLost,
-      dailyAvgLoss, // Net (morning-to-morning)
-      grossDailyLoss, // Gross capacity (drift + practice)
-      avgOvernightDrift, // EMA-weighted overall drift
-      avgDriftRateOzPerHr, // EMA-weighted drift rate (oz/hr while sleeping)
-      avgLoadingDrift,   // EMA-weighted loading-day drift (Mon-Wed)
-      avgCutDrift,       // EMA-weighted cut-day drift (Thu-Fri)
-      avgPracticeLoss,   // EMA-weighted practice loss
-      avgSweatRateOzPerHr, // EMA-weighted sweat rate
-      daytimeBmrDrift,    // Estimated metabolic loss during awake non-active hours (cut days)
-      projectedSaturday, // Phase-aware projection
+      dailyAvgLoss,
+      grossDailyLoss,
+      avgOvernightDrift,
+      avgDriftRateOzPerHr,
+      avgLoadingDrift,
+      avgCutDrift,
+      avgPracticeLoss,
+      avgSweatRateOzPerHr,
+      daytimeBmrDrift,
+      emaSleepHours,
+      emaPracticeHours,
+      todayRemainingComponents,
+      projectedSaturday,
       pace,
-      morningWeights
+      morningWeights,
+      recentDrifts: allDrifts.length > 0 ? allDrifts.slice(0, 5) : historicalRecentDrifts,
+      recentDriftRates: driftRates.length > 0 ? driftRates.slice(0, 5) : historicalRecentDriftRates,
+      recentSleepHours: sleepHoursData.length > 0 ? sleepHoursData.slice(0, 5) : historicalRecentSleepHours,
+      recentPracticeLosses: practiceLosses.length > 0 ? practiceLosses.slice(0, 5) : historicalRecentPracticeLosses,
+      recentPracticeSweatRates: practiceSweatRates.length > 0 ? practiceSweatRates.slice(0, 5) : historicalRecentSweatRates,
+      recentPracticeDurations: practiceDurations.slice(0, 5),
+      trends,
+      confidence,
+      makeWeightProb,
+      todayProgress,
+      loggingStreak,
+      todayCoreLogged,
+      todayCoreTotal,
+      weekOverWeek,
+      weekWeighIns,
+      personalRecords,
+      timeToTarget,
+      // Historical fallback fields
+      historicalDrift,
+      historicalDriftRate,
+      historicalPracticeLoss,
+      historicalSweatRate,
+      cycleHasOwnDriftData,
+      cycleHasOwnPracticeData,
     };
+  };
+
+  // Check if today has a morning weight logged — used to gate Cut Score display
+  const hasTodayMorningWeight = (): boolean => {
+    const today = startOfDay(profile.simulatedDate || new Date());
+    const todayStr = format(today, 'yyyy-MM-dd');
+    return logs.some(l => {
+      const logDate = new Date(l.date);
+      return (l.type === 'morning' || l.type === 'weigh-in') &&
+        format(startOfDay(logDate), 'yyyy-MM-dd') === todayStr;
+    });
   };
 
   // Uses daysUntilWeighIn for all timing to support any weigh-in day
@@ -3416,8 +4480,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Get all logs sorted by date (newest first)
     const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
 
-    // Separate morning weights by week
-    const morningLogs = sortedLogs.filter(l => l.type === 'morning');
+    // Separate morning weights by week (include official weigh-ins)
+    const morningLogs = sortedLogs.filter(l => l.type === 'morning' || l.type === 'weigh-in');
 
     // Calculate overnight drift (morning weight - previous night's weight)
     const overnightDrifts: number[] = [];
@@ -3431,13 +4495,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (hoursDiff > 4 && hoursDiff < 16) {
           const drift = prev.weight - current.weight;
           overnightDrifts.push(drift);
-          if (drift > 0) {
-            const sleepHrs = current.sleepHours && current.sleepHours > 0
-              ? current.sleepHours
-              : hoursDiff;
-            if (sleepHrs > 0) {
-              const ozPerHr = drift / sleepHrs;
-              historyDriftRates.push(ozPerHr);
+          // Overnight drift rate — only from before-bed → morning pairs (mirrors getWeekDescentData)
+          // Use timestamp gap (hoursDiff) not sleepHours to avoid inflated rates
+          if (drift > 0 && prev.type === 'before-bed') {
+            if (hoursDiff > 0) {
+              const lbsPerHr = drift / hoursDiff;
+              historyDriftRates.push(lbsPerHr);
             }
           }
         }
@@ -3588,19 +4651,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
         let todayRemainingLoss = 0;
 
+        // Projection uses sleep drift + practice only (daytime BMR excluded — too noisy)
         if (lastLogType) {
-          if (lastLogType === 'morning' || lastLogType === 'pre-practice') {
-            todayRemainingLoss = practice + drift + historyDaytimeBmr;
+          if (lastLogType === 'morning' || lastLogType === 'weigh-in' || lastLogType === 'pre-practice') {
+            todayRemainingLoss = practice + drift;
           } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-            todayRemainingLoss = drift + historyDaytimeBmr;
+            todayRemainingLoss = drift;
           } else if (lastLogType === 'extra-after') {
-            todayRemainingLoss = practice + drift + historyDaytimeBmr;
+            todayRemainingLoss = practice + drift;
           } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
             const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-            todayRemainingLoss = hasPracticeLog ? (drift + historyDaytimeBmr) : (practice + drift + historyDaytimeBmr);
+            todayRemainingLoss = hasPracticeLog ? drift : (practice + drift);
           }
         } else {
-          todayRemainingLoss = practice + drift + historyDaytimeBmr;
+          todayRemainingLoss = practice + drift;
         }
         projected -= todayRemainingLoss;
       } else if (latestMorningWeight) {
@@ -3617,9 +4681,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const loadingLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
             projected -= loadingLoss;
           } else {
-            // Future cut day: gross capacity + daytime BMR drift
+            // Future cut day: gross capacity only (daytime BMR excluded from projections)
             if (hasGrossData) {
-              projected -= (grossCapacity! + historyDaytimeBmr);
+              projected -= grossCapacity!;
             } else if (hasNetData) {
               projected -= netDailyLoss! * 2.5;
             }
@@ -3662,7 +4726,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Get last 5 morning weights
     const morningLogs = logs
-      .filter(l => l.type === 'morning')
+      .filter(l => l.type === 'morning' || l.type === 'weigh-in')
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 5);
 
@@ -3891,52 +4955,121 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // ═══ CUT SCORE ═══
+  // Maps store data → CutScoreInput → computeCutScore()
+  const getCutScore = () => {
+    const descentData = getWeekDescentData();
+    const daysUntil = getDaysUntilWeighIn();
+    const hydration = getHydrationTarget();
+
+    // Get today's food tracking
+    const todayStr = format(profile.simulatedDate || new Date(), 'yyyy-MM-dd');
+    const todayFood = getDailyTracking(todayStr);
+    const sliceTargets = getSliceTargets();
+
+    // Total food servings: sum of all slice types logged today
+    const foodServingsLogged = (todayFood.proteinSlices || 0) +
+                                (todayFood.carbSlices || 0) +
+                                (todayFood.vegSlices || 0) +
+                                (todayFood.fruitSlices || 0) +
+                                (todayFood.fatSlices || 0);
+
+    // Total food servings target: sum of all slice targets
+    const foodServingsTarget = (sliceTargets.protein || 0) +
+                                (sliceTargets.carb || 0) +
+                                (sliceTargets.veg || 0) +
+                                (sliceTargets.fruit || 0) +
+                                (sliceTargets.fat || 0);
+
+    const input: CutScoreInput = {
+      // Weight pillar
+      projectedSaturday: descentData.projectedSaturday,
+      targetWeight: descentData.targetWeight,
+      currentWeight: descentData.currentWeight,
+      grossDailyLoss: descentData.grossDailyLoss,
+      daysRemaining: daysUntil,
+
+      // Recovery pillar — basic tier
+      recentSleepHours: descentData.recentSleepHours,
+      avgOvernightDrift: descentData.avgOvernightDrift,
+      // Enhanced/Premium tiers — future (fields are optional, omitted = undefined)
+
+      // Protocol pillar — basic tier
+      foodServingsLogged,
+      foodServingsTarget,
+      waterConsumedOz: todayFood.waterConsumed || 0,
+      waterTargetOz: hydration.targetOz || 0,
+    };
+
+    return computeCutScore(input);
+  };
+
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  // Only re-creates when actual state or function references change
+  const contextValue = useMemo(() => ({
+    profile,
+    fuelTanks,
+    logs,
+    dailyTracking,
+    userFoods,
+    isLoading,
+    updateProfile,
+    updateUserFoods,
+    addLog,
+    updateLog,
+    deleteLog,
+    updateDailyTracking,
+    getDailyTracking,
+    resetData,
+    clearLogs,
+    migrateLocalStorageToSupabase,
+    hasLocalStorageData,
+    calculateTarget,
+    getWaterLoadBonus,
+    isWaterLoadingDay,
+    getDaysUntilWeighIn,
+    getDaysUntilForDay,
+    getTimeUntilWeighIn,
+    getPhase,
+    getTodaysFocus,
+    getHydrationTarget,
+    getMacroTargets,
+    getFuelingGuide,
+    getNutritionMode,
+    getSliceTargets,
+    getRehydrationPlan,
+    getCheckpoints,
+    getWeeklyPlan,
+    getTomorrowPlan,
+    getNextTarget,
+    getDriftMetrics,
+    getExtraWorkoutStats,
+    getStatus,
+    getDailyPriority,
+    getWeekDescentData,
+    hasTodayMorningWeight,
+    getFoodLists,
+    getTodaysFoods,
+    getHistoryInsights,
+    getAdaptiveAdjustment,
+    getWeeklyCompliance,
+    getCutScore
+  }), [profile, fuelTanks, logs, dailyTracking, userFoods, isLoading,
+       updateProfile, updateUserFoods, addLog, updateLog, deleteLog,
+       updateDailyTracking, getDailyTracking, resetData, clearLogs,
+       migrateLocalStorageToSupabase, hasLocalStorageData,
+       calculateTarget, getWaterLoadBonus, isWaterLoadingDay,
+       getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn,
+       getPhase, getTodaysFocus, getHydrationTarget, getMacroTargets,
+       getFuelingGuide, getNutritionMode, getSliceTargets,
+       getRehydrationPlan, getCheckpoints, getWeeklyPlan, getTomorrowPlan,
+       getNextTarget, getDriftMetrics, getExtraWorkoutStats, getStatus,
+       getDailyPriority, getWeekDescentData, hasTodayMorningWeight,
+       getFoodLists, getTodaysFoods, getHistoryInsights,
+       getAdaptiveAdjustment, getWeeklyCompliance, getCutScore]);
+
   return (
-    <StoreContext.Provider value={{
-      profile,
-      fuelTanks,
-      logs,
-      dailyTracking,
-      isLoading,
-      updateProfile,
-      addLog,
-      updateLog,
-      deleteLog,
-      updateDailyTracking,
-      getDailyTracking,
-      resetData,
-      clearLogs,
-      migrateLocalStorageToSupabase,
-      hasLocalStorageData,
-      calculateTarget,
-      getWaterLoadBonus,
-      isWaterLoadingDay,
-      getDaysUntilWeighIn,
-      getDaysUntilForDay,
-      getTimeUntilWeighIn,
-      getPhase,
-      getTodaysFocus,
-      getHydrationTarget,
-      getMacroTargets,
-      getFuelingGuide,
-      getNutritionMode,
-      getSliceTargets,
-      getRehydrationPlan,
-      getCheckpoints,
-      getWeeklyPlan,
-      getTomorrowPlan,
-      getNextTarget,
-      getDriftMetrics,
-      getExtraWorkoutStats,
-      getStatus,
-      getDailyPriority,
-      getWeekDescentData,
-      getFoodLists,
-      getTodaysFoods,
-      getHistoryInsights,
-      getAdaptiveAdjustment,
-      getWeeklyCompliance
-    }}>
+    <StoreContext.Provider value={contextValue}>
       {children}
     </StoreContext.Provider>
   );

@@ -9,7 +9,7 @@
 
 export const PROTOCOL_KNOWLEDGE = {
   '1': {
-    name: 'Body Comp / Emergency Cut',
+    name: 'Extreme Cut',
     description: 'Aggressive protocol with extended zero-protein for maximum FGF21 activation and fat oxidation',
     schedule: {
       '6+': {
@@ -50,7 +50,7 @@ export const PROTOCOL_KNOWLEDGE = {
     }
   },
   '2': {
-    name: 'Make Weight / Fat Loss Focus',
+    name: 'Rapid Cut',
     description: 'Standard weekly cut with strategic fructose/glucose switching',
     schedule: {
       '6+': {
@@ -105,7 +105,7 @@ export const PROTOCOL_KNOWLEDGE = {
     }
   },
   '3': {
-    name: 'Maintain / Hold Weight',
+    name: 'Optimal Cut',
     description: 'Minimal manipulation for athletes close to weight class',
     schedule: {
       '6+': { phase: 'Maintenance', carbs: '300-450g', protein: '100g', water: '0.5 oz/lb', key: 'Regular eating' },
@@ -117,7 +117,7 @@ export const PROTOCOL_KNOWLEDGE = {
     }
   },
   '4': {
-    name: 'Hypertrophy / Build Phase',
+    name: 'Gain',
     description: 'Off-season building with high protein',
     schedule: {
       '6+': { phase: 'Build', carbs: '350-600g', protein: '125-150g', water: '0.5 oz/lb', key: 'High calories for growth' },
@@ -294,9 +294,9 @@ This is critical. Calculate:
 - If severely weak: abort cut, move up weight class
 
 ### "I'm behind on my cut, should I switch protocols?"
-Consider switching to Body Comp (Protocol 1) if:
+Consider switching to Extreme Cut (Protocol 1) if:
 - 4+ lbs over with 3+ days left
-- Not on Body Comp already
+- Not on Extreme Cut already
 - Willing to do zero protein
 
 ### "What should I eat right now?"
@@ -390,7 +390,8 @@ ${SAFETY_RULES}
  */
 export function getRelevantKnowledge(protocol: string, daysUntilWeighIn: number): string {
   const proto = PROTOCOL_KNOWLEDGE[protocol as keyof typeof PROTOCOL_KNOWLEDGE] as { name: string; description: string; schedule?: Record<string, any> };
-  if (!proto || protocol === '5' || !proto.schedule) {
+  if (!proto || protocol === '5' || protocol === '6' || !proto.schedule) {
+    if (protocol === '6') return 'Using SPAR Competition - portion-based eating with competition water loading and auto-adjusting calorie targets based on walk-around weight.';
     return 'Using SPAR Nutrition - portion-based eating without competition cutting protocols.';
   }
 

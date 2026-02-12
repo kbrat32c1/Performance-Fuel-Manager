@@ -49,10 +49,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (ctx.weightToLose) contextLines.push(`Weight still to cut: ${sanitizeForPrompt(ctx.weightToLose)} lbs`);
 
     const protocolNames: Record<string, string> = {
-      '1': 'Sugar Fast / Body Comp (aggressive cut)',
-      '2': 'Fat Loss Focus / Make Weight (standard weekly cut)',
-      '3': 'Maintain / Hold Weight',
-      '4': 'Hypertrophy / Build Phase',
+      '1': 'Extreme Cut (aggressive cut)',
+      '2': 'Rapid Cut (standard weekly cut)',
+      '3': 'Optimal Cut',
+      '4': 'Gain Phase',
       '5': 'SPAR Nutrition (portion-based balanced eating)',
     };
     if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || sanitizeForPrompt(ctx.protocol)}`);
@@ -104,22 +104,22 @@ ${contextLines.length > 0 ? contextLines.join('\n') : 'No context provided'}
 ═══ SPAR PROTOCOL: COMPLETE METHODOLOGY ═══
 
 THE 5 PROTOCOLS:
-• Protocol 1 – Body Comp / Emergency Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used when athlete is significantly over weight class (>7%).
-• Protocol 2 – Make Weight / Fat Loss Focus (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol.
-• Protocol 3 – Maintain / Hold Weight: Athlete is near weight class. Moderate protein throughout. Less aggressive carb/protein manipulation.
-• Protocol 4 – Hypertrophy / Build Phase: Off-season muscle building. High protein (125-150g), high carbs (350-600g). Glucose emphasis.
+• Protocol 1 – Extreme Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used when athlete is 12%+ over weight class.
+• Protocol 2 – Rapid Cut (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol. 7-12% above class.
+• Protocol 3 – Optimal Cut: Athlete is within 6-7% of weight class (at walk-around weight). Moderate protein throughout. Glycogen management, performance protected.
+• Protocol 4 – Gain Phase: Off-season muscle building. High protein (125-150g), high carbs (350-600g). Glucose emphasis.
 • Protocol 5 – SPAR Nutrition (Simple as Pie for Achievable Results): Portion-based balanced eating using "slices" — palm-sized protein (~110 cal), fist-sized carbs (~120 cal), fist-sized veggies (~50 cal). Uses BMR → TDEE → calorie split (35% protein, 40% carb, 25% veg). No aggressive water/food cutting. Focus on sustainable body composition through portion control. Targets calculated from height, weight, age, activity level, and weekly goal (cut/maintain/build).
 
 ═══ WEEKLY NUTRITION PHASES (days until weigh-in) ═══
 
-PROTOCOL 1 (Body Comp):
+PROTOCOL 1 (Extreme Cut):
 • 6+ days out: Maintenance (300-450g carbs, 75-100g protein)
 • 5-2 days out: FRUCTOSE ONLY, ZERO protein (250-400g carbs, 0g protein). Max FGF21 activation for fat burning. Avoid ALL protein — it blocks fat oxidation via insulin/mTOR pathways
 • 1 day out: Fructose + MCT oil, evening-only collagen protein at 0.2g/lb body weight. GDF15 peak
 • Competition day: Protein refeed 1.0g/lb, low carb 150-300g
 • Recovery: Full recovery — 300-450g carbs, 1.4g/lb protein
 
-PROTOCOL 2 (Make Weight — STANDARD):
+PROTOCOL 2 (Rapid Cut — STANDARD):
 • 6+ days out: Maintenance (300-450g carbs, 75-100g protein)
 • 5-4 days out: FRUCTOSE HEAVY (60:40 ratio), ZERO protein (325-450g carbs, 0g protein). Protein blocks fat burning
 • 3 days out: Fructose heavy, add 25g collagen + leucine at dinner only (325-450g carbs)
@@ -128,7 +128,7 @@ PROTOCOL 2 (Make Weight — STANDARD):
 • Competition day: Fast carbs between matches. 0.5g/lb protein post-weigh-in. NO protein until wrestling is OVER
 • Recovery: Full recovery — 300-450g carbs, 1.4g/lb protein
 
-PROTOCOL 3 (Hold Weight):
+PROTOCOL 3 (Optimal Cut):
 • 6+ days out: Maintenance (300-450g carbs, 100g protein)
 • 5 days out: Fructose heavy, 25g protein
 • 3-4 days out: Mixed fructose/glucose, 75g protein
@@ -136,7 +136,7 @@ PROTOCOL 3 (Hold Weight):
 • Competition day: 0.5g/lb protein
 • Recovery: 1.4g/lb protein
 
-PROTOCOL 4 (Build):
+PROTOCOL 4 (Gain):
 • 6+ days out: Build phase (350-600g carbs, 125-150g protein)
 • 5 days out: Balanced carbs, 100g protein
 • 1-4 days out: Glucose emphasis, 125g protein

@@ -5,6 +5,150 @@
  * Sugar System foods sourced from "FGF21_Sugar_System_FINAL_13" PDF (pages 17-18).
  */
 
+// ─── FOOD NAME FORMATTER ───
+
+/**
+ * Format a USDA/database food description into a clean, readable name.
+ *
+ * USDA names are verbose, comma-separated descriptions. This formatter
+ * strips noise, reorders parts, and produces FatSecret-quality names.
+ *
+ * Examples:
+ *   "Beverages, coffee, brewed, breakfast blend" → "Coffee, Brewed"
+ *   "Beverages, coffee, instant, chicory" → "Coffee, Instant Chicory"
+ *   "SILK Coffee, soymilk" → "Silk Coffee Soymilk"
+ *   "Chicken, breast, boneless, skinless, raw" → "Chicken Breast"
+ *   "Apples, fuji, with skin, raw" → "Apples, Fuji"
+ *   "Eggs, Grade A, Large, egg whole" → "Eggs, Whole"
+ *   "Alcoholic beverage, liqueur, coffee, 53 proof" → "Coffee Liqueur"
+ */
+
+const USDA_NOISE_WORDS = new Set([
+  'raw', 'cooked', 'uncooked', 'unprepared', 'prepared', 'frozen',
+  'with skin', 'without skin', 'with bone', 'without bone',
+  'separable lean only', 'separable lean and fat',
+  'choice', 'select', 'prime', 'all grades',
+  'grade a', 'large', 'medium', 'small',
+  'sulfured', 'unsulfured',
+  'not fortified', 'fortified',
+  'shelf stable', 'refrigerated',
+  'commercially prepared', 'restaurant-prepared',
+  'from concentrate', 'not from concentrate',
+  'unenriched', 'enriched',
+  'dry form', 'dry', 'powder',
+]);
+
+const USDA_TRIM_PATTERNS = [
+  /trimmed to \d+"? fat/i,
+  /\d+% lean.*$/i,
+  /heated.*$/i,
+  /unheated.*$/i,
+  /^nfs$/i,
+  /^extra lean$/i,
+  /^\d+ proof$/i,
+  /^0% moisture$/i,
+  /\d+% moisture/i,
+  /^ns as to/i,
+  /^plain$/i,
+];
+
+/** Leading category words to drop (the specific food follows after comma) */
+const USDA_CATEGORY_PREFIXES = new Set([
+  'beverages', 'alcoholic beverage', 'alcoholic beverages',
+  'cereals', 'cereal grains and pasta',
+  'dairy and egg products',
+  'fats and oils',
+  'spices and herbs',
+  'soups, sauces, and gravies',
+  'snacks',
+  'sweets',
+  'restaurant foods',
+  'fast foods',
+  'meals, entrees, and side dishes',
+  'legumes and legume products',
+  'nut and seed products',
+  'finfish and shellfish products',
+  'poultry products',
+  'pork products',
+  'beef products',
+  'lamb, veal, and game products',
+  'sausages and luncheon meats',
+  'baked products',
+  'baby foods',
+  'american indian/alaska native foods',
+]);
+
+export function formatUSDAName(description: string, maxLength = 45): string {
+  if (!description) return '';
+
+  // If the name is already clean (FatSecret-style, no comma or short), return it
+  if (!description.includes(',') && description.length <= maxLength) {
+    return titleCase(description);
+  }
+
+  // Split by comma, clean up each part
+  let parts = description.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return '';
+
+  // Strip leading USDA category prefix (e.g., "Beverages, coffee..." → "coffee...")
+  if (parts.length > 1 && USDA_CATEGORY_PREFIXES.has(parts[0].toLowerCase())) {
+    parts = parts.slice(1);
+  }
+
+  // Filter out noise words and patterns
+  const meaningful = parts.filter(part => {
+    const lower = part.toLowerCase();
+    if (USDA_NOISE_WORDS.has(lower)) return false;
+    if (USDA_TRIM_PATTERNS.some(p => p.test(lower))) return false;
+    return true;
+  });
+
+  // If everything got filtered, keep at least the first part
+  if (meaningful.length === 0) meaningful.push(parts[0]);
+
+  // Remove redundancy: if later parts repeat the root of part 1
+  const firstRoot = meaningful[0].split(/\s+/)[0].toLowerCase().replace(/s$/, '');
+  const deduplicated = [meaningful[0]];
+  for (let i = 1; i < meaningful.length; i++) {
+    const words = meaningful[i].split(/\s+/).filter(w => {
+      const wLower = w.toLowerCase().replace(/s$/, '');
+      return wLower !== firstRoot;
+    });
+    if (words.length > 0) {
+      deduplicated.push(words.join(' '));
+    }
+  }
+
+  // Join: first part is the main name, rest are descriptors
+  // Use comma after first part for readability: "Coffee, Brewed Breakfast Blend"
+  let formatted: string;
+  if (deduplicated.length === 1) {
+    formatted = titleCase(deduplicated[0]);
+  } else {
+    formatted = titleCase(deduplicated[0]) + ', ' + titleCase(deduplicated.slice(1).join(' '));
+  }
+
+  // Truncate if too long, at word boundary
+  if (formatted.length > maxLength) {
+    const truncated = formatted.substring(0, maxLength);
+    const lastSpace = truncated.lastIndexOf(' ');
+    // Don't end on a comma
+    let result = lastSpace > 10 ? truncated.substring(0, lastSpace) : truncated;
+    if (result.endsWith(',')) result = result.slice(0, -1);
+    return result;
+  }
+
+  return formatted;
+}
+
+function titleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/\b\w/g, l => l.toUpperCase())
+    .replace(/'S\b/g, "'s")
+    .trim();
+}
+
 // ─── SPAR FOOD TYPES ───
 
 export interface SparFood {
@@ -368,3 +512,238 @@ export const SUGAR_FOODS = {
     },
   ] as FuelTank[],
 };
+
+// ─── Sugar Diet food validation ───
+// Builds a normalized lookup set of all allowed Sugar Diet food names (carbs + protein)
+// for checking if a logged food is "on protocol"
+
+let _sugarDietFoodNames: string[] = [];
+function buildSugarDietLookup(): string[] {
+  if (_sugarDietFoodNames.length > 0) return _sugarDietFoodNames;
+  const nameSet = new Map<string, boolean>();
+  const allCarbs = ([] as Array<{name: string}>).concat(
+    SUGAR_FOODS.highFructose,
+    SUGAR_FOODS.highGlucose,
+    SUGAR_FOODS.balanced,
+    SUGAR_FOODS.zeroFiber,
+  );
+  allCarbs.forEach(f => nameSet.set(f.name.toLowerCase(), true));
+  SUGAR_FOODS.protein.forEach(f => {
+    if (f.protein > 0) nameSet.set(f.name.toLowerCase(), true);
+  });
+  SUGAR_FOODS.recovery.forEach(f => nameSet.set(f.name.toLowerCase(), true));
+  SUGAR_FOODS.tournament.forEach(f => nameSet.set(f.name.toLowerCase(), true));
+  SUGAR_FOODS.supplements.forEach(f => nameSet.set(f.name.toLowerCase(), true));
+
+  _sugarDietFoodNames = Array.from(nameSet.keys());
+  return _sugarDietFoodNames;
+}
+
+/**
+ * Checks if a food name matches any food in the Sugar Diet lists.
+ * Uses fuzzy matching — checks if the food name contains any Sugar Diet food name,
+ * or if any Sugar Diet food name contains the food name (minimum 4 chars for substring match).
+ */
+export function checkSugarDietFood(foodName: string): {
+  isOnProtocol: boolean;
+  matchedFood?: string;
+} {
+  const lookup = buildSugarDietLookup();
+  // Strip emoji prefixes and common logging prefixes
+  const normalized = foodName.toLowerCase()
+    .replace(/[^\w\s()/<>+\-.,]/g, '')
+    .replace(/^[\s]+/, '')
+    .trim();
+
+  // Direct match
+  if (lookup.indexOf(normalized) !== -1) {
+    return { isOnProtocol: true, matchedFood: normalized };
+  }
+
+  // Fuzzy: check if food name contains a Sugar Diet food, or vice versa
+  for (let i = 0; i < lookup.length; i++) {
+    const sugarFood = lookup[i];
+    if (sugarFood.length < 4) continue;
+    if (normalized.includes(sugarFood) || (normalized.length >= 4 && sugarFood.includes(normalized))) {
+      return { isOnProtocol: true, matchedFood: sugarFood };
+    }
+  }
+
+  // Also check common category keywords that indicate Sugar Diet compliance
+  const onProtocolKeywords = ['rice', 'potato', 'honey', 'juice', 'collagen', 'leucine', 'gummy', 'dextrose', 'maltodextrin', 'agave', 'mango', 'watermelon', 'banana', 'grape', 'apple', 'pear', 'blueberr', 'rice cake', 'sourdough', 'egg white', 'shrimp', 'scallop', 'white fish', 'whey', 'sugar', 'electrolyte'];
+  for (let i = 0; i < onProtocolKeywords.length; i++) {
+    if (normalized.includes(onProtocolKeywords[i])) {
+      return { isOnProtocol: true, matchedFood: onProtocolKeywords[i] };
+    }
+  }
+
+  return { isOnProtocol: false };
+}
+
+// ─── Phase-Aware Fuel Guide ───
+// Returns today's food coaching info based on protocol phase and days until weigh-in
+
+export interface FuelGuideResult {
+  carbType: 'fructose' | 'glucose' | 'mixed' | 'any';
+  proteinStatus: 'blocked' | 'collagen-only' | 'collagen+seafood' | 'full' | 'recovery';
+  proteinTip: string;
+  eatCarbs: SugarCarbFood[];
+  eatProtein: SugarProteinFood[];
+  avoidFoods: AvoidFood[];
+  avoidSummary: string;
+  mealGuide: {
+    morning: string;
+    afternoon: string;
+    evening: string;
+  };
+  tournamentFoods?: TournamentFood[];
+  recoveryFoods?: RecoveryFood[];
+}
+
+/**
+ * Get today's fuel coaching guide based on protocol phase.
+ * Only meaningful for Protocols 1-4. Protocol 5 uses SPAR system.
+ */
+export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): FuelGuideResult {
+  // Recovery (post-competition)
+  if (daysUntilWeighIn < 0) {
+    return {
+      carbType: 'any',
+      proteinStatus: 'recovery',
+      proteinTip: 'All proteins allowed — full recovery',
+      eatCarbs: [...SUGAR_FOODS.balanced],
+      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday'),
+      avoidFoods: [],
+      avoidSummary: '',
+      mealGuide: {
+        morning: 'Eat freely — all foods allowed',
+        afternoon: 'Full meals — rebuild glycogen & protein',
+        evening: 'Recovery feast — no restrictions',
+      },
+      recoveryFoods: [...SUGAR_FOODS.recovery],
+    };
+  }
+
+  // Competition day
+  if (daysUntilWeighIn === 0) {
+    return {
+      carbType: 'glucose',
+      proteinStatus: 'blocked',
+      proteinTip: 'No protein until wrestling is done',
+      eatCarbs: [],
+      eatProtein: [SUGAR_FOODS.protein.find(f => f.timing === 'Competition')!],
+      avoidFoods: filterAvoidFoods(0),
+      avoidSummary: 'No large meals between matches',
+      mealGuide: {
+        morning: 'Post-weigh-in: fast carbs to refuel',
+        afternoon: 'Between matches: small carbs + electrolytes',
+        evening: 'Post-competition: full protein recovery',
+      },
+      tournamentFoods: [...SUGAR_FOODS.tournament],
+    };
+  }
+
+  // Performance days (1-2 days out)
+  if (daysUntilWeighIn <= 2) {
+    return {
+      carbType: 'glucose',
+      proteinStatus: 'collagen+seafood',
+      proteinTip: 'Collagen + leucine, egg whites, seafood only',
+      eatCarbs: [...SUGAR_FOODS.highGlucose],
+      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Thu-Fri' || f.timing === 'Mon-Fri' || f.timing === 'Wed-Fri'),
+      avoidFoods: filterAvoidFoods(daysUntilWeighIn),
+      avoidSummary: 'No fiber, no dairy, no fatty meats',
+      mealGuide: {
+        morning: 'Glucose carbs — rice, potatoes, rice cakes',
+        afternoon: 'Glucose carbs + egg whites or seafood',
+        evening: 'White fish/shrimp + rice or potatoes',
+      },
+    };
+  }
+
+  // Transition day (3 days out)
+  if (daysUntilWeighIn === 3) {
+    return {
+      carbType: 'fructose',
+      proteinStatus: 'collagen-only',
+      proteinTip: 'Collagen + leucine at dinner only',
+      eatCarbs: [...SUGAR_FOODS.highFructose],
+      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Mon-Fri'),
+      avoidFoods: filterAvoidFoods(3),
+      avoidSummary: 'No dairy, no protein except collagen PM',
+      mealGuide: {
+        morning: 'Fructose carbs — juice, fruit, honey',
+        afternoon: 'Continue fructose, stay hydrated',
+        evening: 'Collagen + leucine shake, then fructose',
+      },
+    };
+  }
+
+  // Cut days (4-5 days out)
+  if (daysUntilWeighIn <= 5) {
+    return {
+      carbType: 'fructose',
+      proteinStatus: 'blocked',
+      proteinTip: 'Zero protein — FGF21 fat burning active',
+      eatCarbs: [...SUGAR_FOODS.highFructose],
+      eatProtein: [],
+      avoidFoods: filterAvoidFoods(daysUntilWeighIn),
+      avoidSummary: 'No protein, no dairy, no fiber',
+      mealGuide: {
+        morning: 'Fructose carbs — juice, fruit, honey',
+        afternoon: 'Continue fructose, stay hydrated',
+        evening: 'Fructose carbs only, no protein',
+      },
+    };
+  }
+
+  // Maintenance (6+ days out)
+  return {
+    carbType: 'mixed',
+    proteinStatus: 'full',
+    proteinTip: 'All proteins allowed',
+    eatCarbs: [...SUGAR_FOODS.balanced],
+    eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday' || f.timing === 'Mon-Fri'),
+    avoidFoods: filterAvoidFoods(daysUntilWeighIn),
+    avoidSummary: 'Avoid fatty/fried foods and alcohol',
+    mealGuide: {
+      morning: 'Balanced carbs + moderate protein',
+      afternoon: 'Mixed carbs, lean protein',
+      evening: 'Full meals — all macros allowed',
+    },
+  };
+}
+
+/**
+ * Filter the avoid list based on days until weigh-in.
+ * Parses "(Mon-Wed)" and "(Thu-Fri)" suffixes from food names.
+ */
+function filterAvoidFoods(daysUntilWeighIn: number): AvoidFood[] {
+  if (daysUntilWeighIn < 0) return []; // Recovery: nothing to avoid
+
+  return SUGAR_FOODS.avoid.filter(food => {
+    const name = food.name;
+    const hasMonWed = name.includes('(Mon-Wed)');
+    const hasThuFri = name.includes('(Thu-Fri)');
+
+    if (hasMonWed) {
+      // Show during cut phase (3+ days out)
+      return daysUntilWeighIn >= 3;
+    }
+    if (hasThuFri) {
+      // Show during performance phase (1-2 days out)
+      return daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2;
+    }
+    // Items without day suffix (fatty meats, fried, alcohol, dairy during cut)
+    if (name.includes('(during cut)')) {
+      return daysUntilWeighIn >= 1 && daysUntilWeighIn <= 5;
+    }
+    // General items — show during active week (1-5 days), and maintenance just fatty/fried/alcohol
+    if (daysUntilWeighIn >= 6) {
+      // Maintenance: only show generally unhealthy items
+      return name.includes('Fatty') || name.includes('Fried') || name.includes('Alcohol');
+    }
+    // Active week: show all non-day-specific items
+    return daysUntilWeighIn >= 1 && daysUntilWeighIn <= 5;
+  });
+}

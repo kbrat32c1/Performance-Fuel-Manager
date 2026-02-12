@@ -194,10 +194,10 @@ describe('Wrestling Constants', () => {
 
   describe('PROTOCOLS', () => {
     it('contains all five protocols', () => {
-      expect(PROTOCOLS.BODY_COMP).toBe('1');
-      expect(PROTOCOLS.MAKE_WEIGHT).toBe('2');
-      expect(PROTOCOLS.HOLD_WEIGHT).toBe('3');
-      expect(PROTOCOLS.BUILD).toBe('4');
+      expect(PROTOCOLS.EXTREME_CUT).toBe('1');
+      expect(PROTOCOLS.RAPID_CUT).toBe('2');
+      expect(PROTOCOLS.OPTIMAL_CUT).toBe('3');
+      expect(PROTOCOLS.GAIN).toBe('4');
       expect(PROTOCOLS.SPAR).toBe('5');
     });
 

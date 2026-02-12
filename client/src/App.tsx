@@ -4,7 +4,7 @@ import { StoreProvider } from "./lib/store";
 import { ThemeProvider } from "./lib/theme";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "./components/protected-route";
-import { ErrorBoundary } from "./components/error-boundary";
+import { ErrorBoundary, PageErrorBoundary } from "./components/error-boundary";
 // Old floating AI chat removed - replaced by unified AiCoachProactive on dashboard
 import { useNotificationScheduler } from "@/hooks/use-notification-scheduler";
 import { useStore } from "@/lib/store";
@@ -15,7 +15,10 @@ import Recovery from "@/pages/recovery";
 import Landing from "@/pages/landing";
 import Weekly from "@/pages/weekly";
 import History from "@/pages/history";
+import Fuel from "@/pages/fuel";
+import Food from "@/pages/food";
 import CoachView from "@/pages/coach-view";
+import Reports from "@/pages/reports";
 
 function Router() {
   return (
@@ -24,27 +27,58 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/onboarding">
         <ProtectedRoute>
-          <Onboarding />
+          <PageErrorBoundary pageName="Onboarding">
+            <Onboarding />
+          </PageErrorBoundary>
         </ProtectedRoute>
       </Route>
       <Route path="/dashboard">
         <ProtectedRoute>
-          <Dashboard />
+          <PageErrorBoundary pageName="Dashboard">
+            <Dashboard />
+          </PageErrorBoundary>
         </ProtectedRoute>
       </Route>
       <Route path="/weekly">
         <ProtectedRoute>
-          <Weekly />
+          <PageErrorBoundary pageName="Weekly">
+            <Weekly />
+          </PageErrorBoundary>
         </ProtectedRoute>
       </Route>
       <Route path="/history">
         <ProtectedRoute>
-          <History />
+          <PageErrorBoundary pageName="History">
+            <History />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/reports">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Reports">
+            <Reports />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/fuel">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Fuel">
+            <Fuel />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/food">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Food">
+            <Food />
+          </PageErrorBoundary>
         </ProtectedRoute>
       </Route>
       <Route path="/recovery">
         <ProtectedRoute>
-          <Recovery />
+          <PageErrorBoundary pageName="Recovery">
+            <Recovery />
+          </PageErrorBoundary>
         </ProtectedRoute>
       </Route>
       <Route component={NotFound} />

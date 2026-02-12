@@ -94,35 +94,45 @@ export type WeightClass = typeof WEIGHT_CLASSES[number];
 
 // Protocol identifiers
 export const PROTOCOLS = {
-  BODY_COMP: '1',
-  MAKE_WEIGHT: '2',
-  HOLD_WEIGHT: '3',
-  BUILD: '4',
+  EXTREME_CUT: '1',
+  RAPID_CUT: '2',
+  OPTIMAL_CUT: '3',
+  GAIN: '4',
   SPAR: '5',
+  SPAR_COMPETITION: '6',
 } as const;
 
 export type Protocol = typeof PROTOCOLS[keyof typeof PROTOCOLS];
 
 // Protocol display names
 export const PROTOCOL_NAMES: Record<Protocol, string> = {
-  [PROTOCOLS.BODY_COMP]: 'Body Comp Phase',
-  [PROTOCOLS.MAKE_WEIGHT]: 'Make Weight Phase',
-  [PROTOCOLS.HOLD_WEIGHT]: 'Hold Weight Phase',
-  [PROTOCOLS.BUILD]: 'Build Phase',
+  [PROTOCOLS.EXTREME_CUT]: 'Extreme Cut Phase',
+  [PROTOCOLS.RAPID_CUT]: 'Rapid Cut Phase',
+  [PROTOCOLS.OPTIMAL_CUT]: 'Optimal Cut Phase',
+  [PROTOCOLS.GAIN]: 'Gain Phase',
   [PROTOCOLS.SPAR]: 'SPAR Nutrition',
+  [PROTOCOLS.SPAR_COMPETITION]: 'SPAR Competition',
 };
 
 // Protocol short names for compact displays
 export const PROTOCOL_SHORT_NAMES: Record<Protocol, string> = {
-  [PROTOCOLS.BODY_COMP]: 'Body Comp',
-  [PROTOCOLS.MAKE_WEIGHT]: 'Make Weight',
-  [PROTOCOLS.HOLD_WEIGHT]: 'Hold Weight',
-  [PROTOCOLS.BUILD]: 'Build',
+  [PROTOCOLS.EXTREME_CUT]: 'Extreme Cut',
+  [PROTOCOLS.RAPID_CUT]: 'Rapid Cut',
+  [PROTOCOLS.OPTIMAL_CUT]: 'Optimal Cut',
+  [PROTOCOLS.GAIN]: 'Gain',
   [PROTOCOLS.SPAR]: 'SPAR',
+  [PROTOCOLS.SPAR_COMPETITION]: 'SPAR Comp',
 };
 
 // Nutrition mode type — slices (spar) or grams (sugar)
 export type NutritionMode = 'spar' | 'sugar';
+
+// ── Protocol classification helpers ──────────────────────────────────────────
+// Use these throughout the codebase instead of scattered protocol === '5' checks
+/** SPAR-style nutrition (portion/slice tracking): Protocol 5 (general) or 6 (competition) */
+export const isSparNutrition = (p: string): boolean => p === '5' || p === '6';
+/** Competition protocol (weigh-in date, water loading, competition cycle): everything except SPAR General */
+export const isCompetitionProtocol = (p: string): boolean => p !== '5';
 
 // Activity levels for SPAR calculator
 export const ACTIVITY_LEVELS = {
@@ -179,7 +189,7 @@ export const WEIGHT_MULTIPLIERS = {
   THURSDAY_TARGET_MIN: 1.03,
 
   // Daily targets by protocol
-  HOLD_WEIGHT_DAILY: 1.03, // 3% over competition weight all day
+  OPTIMAL_CUT_DAILY: 1.03, // 3% over competition weight all day
 } as const;
 
 // Water loading adjustments by weight category
@@ -202,8 +212,8 @@ export const WEIGHT_CATEGORY_THRESHOLDS = {
 
 // Safety thresholds
 export const SAFETY_THRESHOLDS = {
-  // Percentage over competition weight that triggers Body Comp recommendation
-  BODY_COMP_TRIGGER: 7,
+  // Percentage over competition weight that triggers Extreme Cut recommendation
+  EXTREME_CUT_TRIGGER: 12,
 
   // Dangerous cut: losing more than 5% in less than these days
   DANGEROUS_CUT_PERCENT: 5,
@@ -222,29 +232,30 @@ export const STATUS_THRESHOLDS = {
 
 // Macro ratios by protocol (displayed as strings)
 export const MACRO_RATIOS: Record<Protocol, string> = {
-  [PROTOCOLS.BODY_COMP]: '40/40/20',
-  [PROTOCOLS.MAKE_WEIGHT]: '35/40/25',
-  [PROTOCOLS.HOLD_WEIGHT]: '40/35/25',
-  [PROTOCOLS.BUILD]: '45/30/25',
+  [PROTOCOLS.EXTREME_CUT]: '40/40/20',
+  [PROTOCOLS.RAPID_CUT]: '35/40/25',
+  [PROTOCOLS.OPTIMAL_CUT]: '40/35/25',
+  [PROTOCOLS.GAIN]: '45/30/25',
   [PROTOCOLS.SPAR]: '35/40/25',
+  [PROTOCOLS.SPAR_COMPETITION]: '40/35/25',
 };
 
 // Protein targets (grams per lb of body weight)
 export const PROTEIN_TARGETS = {
-  BODY_COMP_MIN: 1.0,
-  BODY_COMP_MAX: 1.2,
-  MAKE_WEIGHT_MIN: 0.9,
-  MAKE_WEIGHT_MAX: 1.1,
-  HOLD_WEIGHT_MIN: 0.8,
-  HOLD_WEIGHT_MAX: 1.0,
-  BUILD_MIN: 1.0,
-  BUILD_MAX: 1.2,
+  EXTREME_CUT_MIN: 1.0,
+  EXTREME_CUT_MAX: 1.2,
+  RAPID_CUT_MIN: 0.9,
+  RAPID_CUT_MAX: 1.1,
+  OPTIMAL_CUT_MIN: 0.8,
+  OPTIMAL_CUT_MAX: 1.0,
+  GAIN_MIN: 1.0,
+  GAIN_MAX: 1.2,
 } as const;
 
 // Carb targets by protocol and day
 export const CARB_TARGETS = {
-  // Body Comp Phase - low carb
-  BODY_COMP: {
+  // Extreme Cut Phase - low carb
+  EXTREME_CUT: {
     METABOLIC_MIN: 50,
     METABOLIC_MAX: 75,
     TRANSITION_MIN: 30,
@@ -252,8 +263,8 @@ export const CARB_TARGETS = {
     PERFORMANCE_MIN: 20,
     PERFORMANCE_MAX: 40,
   },
-  // Make Weight Phase
-  MAKE_WEIGHT: {
+  // Rapid Cut Phase
+  RAPID_CUT: {
     METABOLIC_MIN: 75,
     METABOLIC_MAX: 125,
     TRANSITION_MIN: 50,
@@ -261,8 +272,8 @@ export const CARB_TARGETS = {
     PERFORMANCE_MIN: 30,
     PERFORMANCE_MAX: 50,
   },
-  // Hold Weight Phase
-  HOLD_WEIGHT: {
+  // Optimal Cut Phase
+  OPTIMAL_CUT: {
     METABOLIC_MIN: 125,
     METABOLIC_MAX: 175,
     TRANSITION_MIN: 100,
@@ -270,8 +281,8 @@ export const CARB_TARGETS = {
     PERFORMANCE_MIN: 75,
     PERFORMANCE_MAX: 100,
   },
-  // Build Phase
-  BUILD: {
+  // Gain Phase
+  GAIN: {
     MIN: 200,
     MAX: 300,
   },
@@ -291,7 +302,8 @@ export const CARB_TARGETS = {
  * Days indexed by daysUntilWeighIn (5=Mon, 4=Tue, 3=Wed, 2=Thu, 1=Fri, 0=Sat).
  */
 export const WATER_OZ_PER_LB = {
-  5: 1.2,   // Mon: Baseline loading ≈80 ml/kg (~1.0-1.5 gal depending on size)
+  6: 0.7,   // Training phase: Normal hydration ≈47 ml/kg (~0.5-0.75 gal for most athletes)
+  5: 1.2,   // Mon comp week: Baseline loading ≈80 ml/kg (~1.0-1.5 gal depending on size)
   4: 1.5,   // Tue: Peak loading ≈100 ml/kg — maximize diuresis
   3: 1.5,   // Wed: Peak loading ≈100 ml/kg — peak hydration
   2: 0.3,   // Thu: Sharp restriction ≈20 ml/kg — ADH still suppressed, high urine output continues
@@ -307,6 +319,7 @@ export const WATER_OZ_PER_LB = {
  * SAFETY: Never eliminate sodium completely — causes dangerous imbalances.
  */
 export const SODIUM_MG_BY_DAY = {
+  6: { target: 3000, label: 'Normal', color: 'text-primary' },
   5: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
   4: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
   3: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
@@ -325,7 +338,7 @@ export const MAX_WATER_LOADING_OZ = 320;
 
 export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
   if (daysUntil === 0) return 0; // Weigh-in day — rehydrate after
-  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
+  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
   const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
   const raw = Math.round(ozPerLb * weightLbs);
   // Cap loading days (ozPerLb > 0.5) to prevent unsafe volumes for heavyweights
@@ -338,7 +351,7 @@ export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
  */
 export function getWaterTargetGallons(daysUntil: number, weightLbs: number): string {
   if (daysUntil === 0) return 'Rehydrate';
-  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
+  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
   const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
   if (ozPerLb <= 0.1) return 'Sips only';
   let totalOz = ozPerLb * weightLbs;
@@ -354,7 +367,7 @@ export function getWaterTargetGallons(daysUntil: number, weightLbs: number): str
  * Get sodium info for a given day.
  */
 export function getSodiumTarget(daysUntil: number) {
-  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 5);
+  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
   return SODIUM_MG_BY_DAY[key as keyof typeof SODIUM_MG_BY_DAY] ?? SODIUM_MG_BY_DAY[-1];
 }
 
@@ -389,6 +402,7 @@ export const LOG_TYPES = {
   EXTRA_BEFORE: 'extra-before',
   EXTRA_AFTER: 'extra-after',
   CHECK_IN: 'check-in',
+  WEIGH_IN: 'weigh-in',
 } as const;
 
 export type LogType = typeof LOG_TYPES[keyof typeof LOG_TYPES];
@@ -410,6 +424,7 @@ export const LOG_TIMES = {
   [LOG_TYPES.EXTRA_BEFORE]: 18,
   [LOG_TYPES.EXTRA_AFTER]: 18,
   [LOG_TYPES.CHECK_IN]: 12,
+  [LOG_TYPES.WEIGH_IN]: 10,
 } as const;
 
 // Rehydration calculations
@@ -514,7 +529,7 @@ export function getWeightMultiplier(daysUntil: number): number {
  * Check if a given day is a water loading day
  */
 export function isWaterLoadingDay(daysUntil: number, protocol: string): boolean {
-  if (protocol !== PROTOCOLS.BODY_COMP && protocol !== PROTOCOLS.MAKE_WEIGHT) {
+  if (protocol !== PROTOCOLS.EXTREME_CUT && protocol !== PROTOCOLS.RAPID_CUT && protocol !== PROTOCOLS.OPTIMAL_CUT) {
     return false;
   }
   return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3);
@@ -576,8 +591,7 @@ export function formatWeightTarget(
 export function getPhaseForDaysUntil(daysUntil: number): string {
   if (daysUntil < 0) return 'Recover';
   if (daysUntil === 0) return 'Compete';
-  if (daysUntil === 1) return 'Cut';
-  if (daysUntil === 2) return 'Prep';
-  if (daysUntil >= 3 && daysUntil <= 5) return 'Load';
+  if (daysUntil <= 2) return 'Cut';
+  if (daysUntil <= 5) return 'Load';
   return 'Train';
 }

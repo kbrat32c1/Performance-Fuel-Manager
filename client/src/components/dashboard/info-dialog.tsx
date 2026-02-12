@@ -88,10 +88,10 @@ export function InfoDialog() {
           <div className="space-y-2 border-t border-muted pt-4">
             <h4 className="font-bold">The Protocols:</h4>
             <ul className="space-y-2 text-muted-foreground text-xs">
-              <li><strong className="text-destructive">Body Comp:</strong> Aggressive fat loss (2-4 weeks max)</li>
-              <li><strong className="text-primary">Make Weight:</strong> Weekly competition cut</li>
-              <li><strong className="text-primary">Hold Weight:</strong> Maintain at walk-around weight</li>
-              <li><strong className="text-primary">Build:</strong> Off-season muscle gain</li>
+              <li><strong className="text-destructive">Extreme Cut:</strong> 12%+ above class. Multi-day depletion, strict oversight required.</li>
+              <li><strong className="text-primary">Rapid Cut:</strong> 7-12% above class. Short-term glycogen + water manipulation.</li>
+              <li><strong className="text-primary">Optimal Cut:</strong> Within 6-7% of class. Glycogen management, performance protected.</li>
+              <li><strong className="text-primary">Gain:</strong> Off-season. Performance and strength focus.</li>
             </ul>
           </div>
 

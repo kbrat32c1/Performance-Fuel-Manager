@@ -20,7 +20,7 @@ export function WeightChart() {
     
     // Find log for this day
     // We prioritize morning logs for the trend line
-    const log = logs.find(l => format(new Date(l.date), 'yyyy-MM-dd') === dateStr && l.type === 'morning') 
+    const log = logs.find(l => format(new Date(l.date), 'yyyy-MM-dd') === dateStr && (l.type === 'morning' || l.type === 'weigh-in'))
              || logs.find(l => format(new Date(l.date), 'yyyy-MM-dd') === dateStr);
              
     // Calculate Target Line for this specific day

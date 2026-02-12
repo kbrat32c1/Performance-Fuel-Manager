@@ -6,8 +6,8 @@
 
 // ─── PROTOCOL KNOWLEDGE ─────────────────────────────────────────────────────
 
-const PROTOCOL_1_BODY_COMP = `
-## PROTOCOL 1: Body Comp / Emergency Cut
+const PROTOCOL_1_EXTREME_CUT = `
+## PROTOCOL 1: Extreme Cut
 Aggressive protocol with extended zero-protein for maximum FGF21 activation.
 
 ### 6+ Days Out (Metabolic/Maintenance):
@@ -41,8 +41,8 @@ Aggressive protocol with extended zero-protein for maximum FGF21 activation.
 - Key: Eat everything. Repair muscle. Sleep 9+ hours.
 `;
 
-const PROTOCOL_2_MAKE_WEIGHT = `
-## PROTOCOL 2: Make Weight / Fat Loss Focus
+const PROTOCOL_2_RAPID_CUT = `
+## PROTOCOL 2: Rapid Cut
 Standard weekly cut with strategic fructose/glucose switching.
 
 ### 6+ Days Out (Maintenance):
@@ -88,8 +88,8 @@ Standard weekly cut with strategic fructose/glucose switching.
 - Key: Full recovery eating
 `;
 
-const PROTOCOL_3_HOLD = `
-## PROTOCOL 3: Maintain / Hold Weight
+const PROTOCOL_3_OPTIMAL_CUT = `
+## PROTOCOL 3: Optimal Cut
 Minimal manipulation for athletes close to weight class.
 
 ### 6+ Days Out: Maintenance eating (300-450g carbs, 100g protein)
@@ -100,8 +100,8 @@ Minimal manipulation for athletes close to weight class.
 ### Recovery: Full recovery (1.4g/lb protein)
 `;
 
-const PROTOCOL_4_BUILD = `
-## PROTOCOL 4: Hypertrophy / Build Phase
+const PROTOCOL_4_GAIN = `
+## PROTOCOL 4: Gain Phase
 Off-season building with maximum protein.
 
 ### 6+ Days Out: Build phase (350-600g carbs, 125-150g protein)
@@ -281,16 +281,16 @@ export function buildEliteCoachPrompt(
   let protocolKnowledge = '';
   switch (protocol) {
     case '1':
-      protocolKnowledge = PROTOCOL_1_BODY_COMP;
+      protocolKnowledge = PROTOCOL_1_EXTREME_CUT;
       break;
     case '2':
-      protocolKnowledge = PROTOCOL_2_MAKE_WEIGHT;
+      protocolKnowledge = PROTOCOL_2_RAPID_CUT;
       break;
     case '3':
-      protocolKnowledge = PROTOCOL_3_HOLD;
+      protocolKnowledge = PROTOCOL_3_OPTIMAL_CUT;
       break;
     case '4':
-      protocolKnowledge = PROTOCOL_4_BUILD;
+      protocolKnowledge = PROTOCOL_4_GAIN;
       break;
     default:
       protocolKnowledge = 'Using SPAR Nutrition - portion-based eating without competition protocols.';

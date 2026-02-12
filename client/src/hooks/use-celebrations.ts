@@ -64,8 +64,8 @@ export function useCelebrations() {
     // Get today's morning log
     const morningLog = todayLogs.find(l => l.type === 'morning');
 
-    // 1. MADE WEIGHT — morning weigh-in on competition day ≤ target weight class
-    if (daysUntil === 0 && newestLog.type === 'morning' && newestLog.weight <= targetWeightClass) {
+    // 1. MADE WEIGHT — official weigh-in on competition day ≤ target weight class
+    if (daysUntil === 0 && (newestLog.type === 'weigh-in' || newestLog.type === 'morning') && newestLog.weight <= targetWeightClass) {
       trigger({
         type: 'made-weight',
         emoji: '🏆',
@@ -77,10 +77,10 @@ export function useCelebrations() {
     }
 
     // 2. NEW WEEKLY LOW — morning weight is lowest of the week
-    if (newestLog.type === 'morning') {
+    if (newestLog.type === 'morning' || newestLog.type === 'weigh-in') {
       const weekAgo = subDays(today, 7);
       const weekMornings = logs.filter(l => {
-        if (l.type !== 'morning') return false;
+        if (l.type !== 'morning' && l.type !== 'weigh-in') return false;
         const logDate = new Date(l.date);
         return logDate >= weekAgo && format(startOfDay(logDate), 'yyyy-MM-dd') !== todayStr;
       });
@@ -102,10 +102,10 @@ export function useCelebrations() {
     }
 
     // 3. BIG DROP — morning weight dropped 1.5+ lbs from yesterday morning
-    if (newestLog.type === 'morning') {
+    if (newestLog.type === 'morning' || newestLog.type === 'weigh-in') {
       const yesterdayStr = format(subDays(today, 1), 'yyyy-MM-dd');
       const yesterdayMorning = logs.find(l =>
-        l.type === 'morning' && format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === yesterdayStr
+        (l.type === 'morning' || l.type === 'weigh-in') && format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === yesterdayStr
       );
       if (yesterdayMorning) {
         const drop = yesterdayMorning.weight - newestLog.weight;
@@ -122,14 +122,14 @@ export function useCelebrations() {
       }
     }
 
-    // 4. LOGGING STREAK milestones — only on morning weigh-in
-    if (newestLog.type === 'morning') {
+    // 4. LOGGING STREAK milestones — only on morning/weigh-in
+    if (newestLog.type === 'morning' || newestLog.type === 'weigh-in') {
       let streak = 0;
       for (let i = 0; i < 365; i++) {
         const checkDate = subDays(today, i);
         const checkStr = format(checkDate, 'yyyy-MM-dd');
         const hasMorning = logs.some(l =>
-          l.type === 'morning' && format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === checkStr
+          (l.type === 'morning' || l.type === 'weigh-in') && format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === checkStr
         );
         if (hasMorning) {
           streak++;
@@ -174,6 +174,8 @@ export function useCelebrations() {
       ? ['morning', 'before-bed']
       : ['morning', 'pre-practice', 'post-practice', 'before-bed'];
     const loggedTypes = new Set(todayLogs.map(l => l.type));
+    // weigh-in counts as morning for completion check
+    if (loggedTypes.has('weigh-in' as any)) loggedTypes.add('morning' as any);
     const allLogged = requiredTypes.every(t => loggedTypes.has(t as any));
     if (allLogged) {
       trigger({

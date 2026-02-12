@@ -68,8 +68,65 @@ export interface DbProfile {
   activity_level: string | null;
   weekly_goal: string | null;
   nutrition_preference: string | null;
+  user_foods: UserFoodsJson | null;
   created_at: string;
   updated_at: string;
+}
+
+// Shape of the user_foods JSONB column
+export interface UserFoodsJson {
+  custom_foods?: MacroCustomFood[];
+  custom_meals?: MacroCustomMeal[];
+  spar_custom_foods?: SparCustomFood[];
+  spar_custom_meals?: SparCustomMealData[];
+  favorites?: string[];
+}
+
+// MacroTracker custom food shape
+export interface MacroCustomFood {
+  id: string;
+  name: string;
+  carbs: number;
+  protein: number;
+  serving: string;
+}
+
+// MacroTracker custom meal shape
+export interface MacroCustomMealItem {
+  name: string;
+  carbs: number;
+  protein: number;
+  liquidOz?: number;
+}
+export interface MacroCustomMeal {
+  id: string;
+  name: string;
+  items: MacroCustomMealItem[];
+  totalCarbs: number;
+  totalProtein: number;
+  totalWater: number;
+}
+
+// SparTracker custom food shape
+export interface SparCustomFood {
+  id: string;
+  name: string;
+  serving: string;
+  calories: number;
+  category: string; // SliceCategory
+  icon: string;
+}
+
+// SparTracker custom meal shape
+export interface SparCustomMealData {
+  id: string;
+  name: string;
+  items: Array<{ name: string; category: string; slices: number }>;
+  totalProtein: number;
+  totalCarb: number;
+  totalVeg: number;
+  totalFruit: number;
+  totalFat: number;
 }
 
 export interface DbWeightLog {

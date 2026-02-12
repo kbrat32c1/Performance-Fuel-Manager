@@ -1,8 +1,7 @@
 export { DailyStep } from './daily-step';
 export { FuelCard } from './fuel-card';
 export { HydrationTracker } from './hydration-tracker';
-export { MacroTracker } from './macro-tracker';
-export { SparTracker } from './spar-tracker';
+// MacroTracker and SparTracker removed — food logging consolidated into AddFoodFlow
 export { SettingsDialog } from './settings-dialog';
 export { InfoDialog } from './info-dialog';
 export { WeekOverview } from './week-overview';

@@ -8,10 +8,10 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceL
 import { getWaterTargetOz, getWeightMultiplier, getPhaseForDaysUntil } from "@/lib/constants";
 
 const PROTOCOL_LABELS: Record<string, string> = {
-  '1': 'Body Comp',
-  '2': 'Make Weight',
-  '3': 'Hold Weight',
-  '4': 'Build',
+  '1': 'Extreme Cut',
+  '2': 'Rapid Cut',
+  '3': 'Optimal Cut',
+  '4': 'Gain',
   '5': 'SPAR Nutrition',
 };
 
@@ -182,7 +182,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
   // Morning weights for chart
   const chartData = useMemo(() =>
     logs
-      .filter(l => l.type === 'morning')
+      .filter(l => l.type === 'morning' || l.type === 'weigh-in')
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .map(l => ({ date: format(new Date(l.date), 'M/d'), weight: l.weight })),
     [logs]
@@ -242,7 +242,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
   // Projected Saturday weight
   const projectedWeight = useMemo(() => {
     if (!avgDriftLoss && !avgPracticeLoss) return null;
-    const latestMorning = sortedLogs.find(l => l.type === 'morning');
+    const latestMorning = sortedLogs.find(l => l.type === 'morning' || l.type === 'weigh-in');
     if (!latestMorning) return null;
     const daysLeft = Math.max(0, daysUntilWeighIn);
     if (daysLeft === 0) return latestMorning.weight;
@@ -285,7 +285,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
 
       // Find morning weight for this day
       const morningLog = logs.find(l =>
-        l.type === 'morning' && format(new Date(l.date), 'yyyy-MM-dd') === dStr
+        (l.type === 'morning' || l.type === 'weigh-in') && format(new Date(l.date), 'yyyy-MM-dd') === dStr
       );
 
       days.push({

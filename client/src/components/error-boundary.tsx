@@ -102,3 +102,76 @@ export function useErrorHandler() {
     });
   }, []);
 }
+
+/**
+ * PageErrorBoundary — Lighter error boundary for individual pages/sections.
+ * Shows an inline error card instead of taking over the full screen,
+ * so navigation (bottom nav, header) stays functional.
+ */
+interface PageErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class PageErrorBoundary extends React.Component<
+  { children: React.ReactNode; pageName?: string },
+  PageErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode; pageName?: string }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): PageErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error(`[${this.props.pageName || 'Page'}] Error:`, error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="px-4 py-8">
+          <Card className="border-destructive/20 bg-destructive/5">
+            <CardContent className="p-4 text-center space-y-3">
+              <AlertTriangle className="w-8 h-8 text-destructive mx-auto" />
+              <div>
+                <h3 className="font-bold text-sm">
+                  {this.props.pageName || 'This section'} hit a snag
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Try refreshing, or navigate to a different page.
+                </p>
+              </div>
+              {process.env.NODE_ENV === 'development' && this.state.error && (
+                <p className="text-[10px] font-mono text-destructive/70 break-all text-left bg-muted/30 rounded p-2">
+                  {this.state.error.message}
+                </p>
+              )}
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => this.setState({ hasError: false, error: null })}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Retry
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => { window.location.href = '/dashboard'; }}
+                >
+                  <Home className="w-3 h-3 mr-1" />
+                  Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}

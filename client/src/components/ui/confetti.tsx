@@ -108,7 +108,7 @@ interface CelebrationBannerProps {
 export function CelebrationBanner({ show, emoji, title, subtitle, onDismiss }: CelebrationBannerProps) {
   useEffect(() => {
     if (show) {
-      const timer = setTimeout(onDismiss, 4000);
+      const timer = setTimeout(onDismiss, 8000);
       return () => clearTimeout(timer);
     }
   }, [show, onDismiss]);
@@ -117,20 +117,24 @@ export function CelebrationBanner({ show, emoji, title, subtitle, onDismiss }: C
     <AnimatePresence>
       {show && (
         <motion.div
-          initial={{ y: -80, opacity: 0, scale: 0.95 }}
+          initial={{ y: -100, opacity: 0, scale: 0.9 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
-          exit={{ y: -80, opacity: 0, scale: 0.95 }}
-          transition={{ type: "spring", damping: 20, stiffness: 300 }}
-          className="fixed top-4 left-4 right-4 z-[99] mx-auto max-w-md"
+          exit={{ y: -100, opacity: 0, scale: 0.9 }}
+          transition={{ type: "spring", damping: 18, stiffness: 250 }}
+          className="fixed top-0 left-0 right-0 z-[99]"
           onClick={onDismiss}
         >
-          <div className="bg-card border border-primary/30 rounded-xl shadow-lg shadow-primary/10 px-4 py-3 flex items-center gap-3">
-            <span className="text-2xl">{emoji}</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-foreground">{title}</p>
-              {subtitle && (
-                <p className="text-[11px] text-muted-foreground">{subtitle}</p>
-              )}
+          {/* Full-width banner with safe area padding */}
+          <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-5 pt-[max(env(safe-area-inset-top),16px)] pb-4 shadow-xl shadow-green-900/30">
+            <div className="flex items-center gap-3 max-w-md mx-auto">
+              <span className="text-3xl">{emoji}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-base font-black text-white tracking-wide">{title}</p>
+                {subtitle && (
+                  <p className="text-xs text-white/80 font-medium">{subtitle}</p>
+                )}
+              </div>
+              <span className="text-white/50 text-xs">tap to dismiss</span>
             </div>
           </div>
         </motion.div>

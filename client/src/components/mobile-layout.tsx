@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { useStore } from "@/lib/store";
 import { QuickLogFAB } from "@/components/quick-log-fab";
+import { AddFoodSheet } from "@/components/add-food-sheet";
 import { CompetitionBanner, useCompetitionActive } from "@/components/competition-banner";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { KeyboardShortcutsHelp } from "@/components/keyboard-shortcuts-help";
@@ -18,6 +19,10 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
   const { profile, getDaysUntilWeighIn } = useStore();
   const mainRef = useRef<HTMLElement>(null);
   const compState = useCompetitionActive();
+
+  // Hide Week tab for non-competition protocols (4=Gain, 5=SPAR General)
+  const protocol = profile?.protocol || '5';
+  const isCompetitionProtocol = protocol !== '4' && protocol !== '5';
 
   // Enable keyboard shortcuts for navigation
   useKeyboardShortcuts({ enabled: showNav });
@@ -65,21 +70,30 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
               active={location === '/dashboard'}
               onClick={() => setLocation('/dashboard')}
             />
-            <NavItem
-              icon="Calendar"
-              label="Week"
-              active={location === '/weekly'}
-              onClick={() => setLocation('/weekly')}
-            />
+            {isCompetitionProtocol ? (
+              <NavItem
+                icon="Calendar"
+                label="Week"
+                active={location === '/weekly'}
+                onClick={() => setLocation('/weekly')}
+              />
+            ) : (
+              <NavItem
+                icon="BarChart3"
+                label="Reports"
+                active={location === '/reports'}
+                onClick={() => setLocation('/reports')}
+              />
+            )}
             {/* Center Log button — raised above nav */}
             <div className="relative flex items-end justify-center" style={{ marginTop: '-20px' }}>
               <QuickLogFAB />
             </div>
             <NavItem
-              icon="History"
-              label="History"
-              active={location === '/history'}
-              onClick={() => setLocation('/history')}
+              icon="Utensils"
+              label="Food"
+              active={location === '/food'}
+              onClick={() => setLocation('/food')}
             />
             <NavItem
               icon="Activity"
@@ -92,12 +106,13 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
           </nav>
         )}
         {showNav && <KeyboardShortcutsHelp />}
+        {showNav && <AddFoodSheet />}
       </div>
     </div>
   );
 }
 
-import { LayoutDashboard, Activity, Calendar, Settings, History } from "lucide-react";
+import { LayoutDashboard, Activity, Calendar, Settings, History, Utensils, BarChart3 } from "lucide-react";
 
 interface NavItemProps {
   icon: string;
@@ -110,7 +125,7 @@ interface NavItemProps {
 }
 
 function NavItem({ icon, label, active, onClick, primary, highlighted, badge }: NavItemProps) {
-  const Icon = { LayoutDashboard, Activity, Calendar, Settings, History }[icon as string] || Settings;
+  const Icon = { LayoutDashboard, Activity, Calendar, Settings, History, Utensils, BarChart3 }[icon as string] || Settings;
 
   return (
     <button

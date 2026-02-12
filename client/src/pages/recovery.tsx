@@ -293,7 +293,7 @@ export default function Recovery() {
   // Use most recent morning weight as the "before" weight for rehydration calculation
   // Falls back to currentWeight if no morning logs exist
   const walkAroundWeight = useMemo(() => {
-    const morningLogs = logs.filter(l => l.type === 'morning');
+    const morningLogs = logs.filter(l => l.type === 'morning' || l.type === 'weigh-in');
     if (morningLogs.length > 0) {
       const sorted = [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       return sorted[0].weight;
@@ -690,8 +690,69 @@ export default function Recovery() {
     });
   };
 
+  // ─── Protocol check ────────────────────────────────────────────────────────
+  const isSparGeneral = profile.protocol === '5';
+
   // ─── IDLE STATE ────────────────────────────────────────────────────────────
   if (mode === 'idle') {
+    // SPAR General (Protocol 5) users — show info page instead of competition recovery
+    if (isSparGeneral) {
+      return (
+        <MobileLayout>
+          <div className="flex flex-col min-h-[70vh] px-4">
+            <div className="flex-1 flex flex-col items-center justify-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-2xl scale-150" />
+                <div className="relative bg-cyan-500/10 border-2 border-cyan-500/30 rounded-full p-5">
+                  <Trophy className="w-10 h-10 text-cyan-500" />
+                </div>
+              </div>
+
+              <div className="text-center space-y-2">
+                <h1 className="text-2xl font-heading font-black italic uppercase text-cyan-500">
+                  Competition Day
+                </h1>
+                <p className="text-muted-foreground text-sm max-w-[280px] mx-auto leading-relaxed">
+                  This tool guides you through post weigh-in recovery, fueling, and between-match nutrition on competition day.
+                </p>
+              </div>
+
+              <div className="w-full max-w-xs space-y-3">
+                <div className="bg-muted/20 border border-muted rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-bold text-foreground">You're on SPAR Nutrition (General)</p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    This mode is for everyday eating without a competition schedule. To use competition day recovery, switch to <span className="font-bold text-foreground">SPAR Competition</span> in Settings and set a weigh-in date.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground text-center tracking-wider">What you get with SPAR Competition</p>
+                  {[
+                    { icon: <Scale className="w-3.5 h-3.5" />, text: 'Auto water loading & cut schedule', color: 'text-cyan-500' },
+                    { icon: <Utensils className="w-3.5 h-3.5" />, text: 'Calorie targets adjust to weigh-in', color: 'text-primary' },
+                    { icon: <Swords className="w-3.5 h-3.5" />, text: 'Competition day recovery protocol', color: 'text-orange-500' },
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-muted/20 rounded-lg px-3 py-2">
+                      <span className={step.color}>{step.icon}</span>
+                      <span className="text-xs text-muted-foreground">{step.text}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'profile' } }))}
+                  className="w-full h-11 text-sm font-bold rounded-xl"
+                >
+                  Open Settings
+                </Button>
+              </div>
+            </div>
+          </div>
+        </MobileLayout>
+      );
+    }
+
     return (
       <MobileLayout>
         <div className="flex flex-col min-h-[70vh] px-4">

@@ -6,6 +6,10 @@
     { "source": "/api/foods/search", "destination": "/api/foods/search" },
     { "source": "/api/foods/off-search", "destination": "/api/foods/off-search" },
     { "source": "/api/foods/off-barcode", "destination": "/api/foods/off-barcode" },
+    { "source": "/api/foods/fatsecret-search", "destination": "/api/foods/fatsecret-search" },
+    { "source": "/api/foods/fatsecret-autocomplete", "destination": "/api/foods/fatsecret-autocomplete" },
+    { "source": "/api/foods/photo-analysis", "destination": "/api/foods/photo-analysis" },
+    { "source": "/api/foods/voice-parse", "destination": "/api/foods/voice-parse" },
     { "source": "/api/ai/coach", "destination": "/api/ai/coach" },
     { "source": "/api/share/:token", "destination": "/api/share/[token]" },
     { "source": "/(.*)", "destination": "/" }

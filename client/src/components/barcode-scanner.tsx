@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Camera, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface BarcodeScannerProps {
   open: boolean;
@@ -13,6 +14,7 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
   const scannerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
+  const [useNative, setUseNative] = useState(false);
   const scannedRef = useRef(false);
 
   const stopCamera = useCallback(() => {
@@ -39,6 +41,7 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
     if (!open) {
       stopCamera();
       scannedRef.current = false;
+      setUseNative(false);
       setError(null);
       setStarting(true);
       return;
@@ -63,6 +66,7 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
             videoRef.current.srcObject = stream;
             await videoRef.current.play();
           }
+          setUseNative(true);
           setStarting(false);
 
           // @ts-ignore - BarcodeDetector is not in all TS libs yet
@@ -84,7 +88,9 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
           requestAnimationFrame(scan);
           return;
         } catch (e: any) {
-          // Fall through to html5-qrcode
+          // Clean up any started stream before falling through
+          setUseNative(false);
+          stopCamera();
           console.log('Native BarcodeDetector failed, trying html5-qrcode:', e.message);
         }
       }
@@ -115,7 +121,13 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
       } catch (e: any) {
         if (!cancelled) {
           console.error('Barcode scanner error:', e);
-          setError(e.message || 'Camera access denied. Please allow camera access and try again.');
+          stopCamera();
+          // Provide helpful error messages for common issues
+          let msg = e.message || 'Camera access denied. Please allow camera access and try again.';
+          if (msg.includes('MIME') || msg.includes('text/html')) {
+            msg = 'Scanner failed to load. Please close and try again, or clear the app cache in your browser settings.';
+          }
+          setError(msg);
           setStarting(false);
         }
       }
@@ -132,50 +144,62 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10">
+    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+      {/* Header — with safe-area padding for iOS notch */}
+      <div className="flex items-center justify-between p-4 z-10 bg-gradient-to-b from-black/80 to-transparent" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2 text-white">
           <Camera className="w-5 h-5" />
           <span className="text-sm font-medium">Scan Barcode</span>
         </div>
         <button
           onClick={() => { stopCamera(); onClose(); }}
-          className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 active:scale-95 transition-all"
+          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 active:scale-95 transition-all"
         >
-          <X className="w-4 h-4 text-white" />
+          <X className="w-5 h-5 text-white" />
         </button>
       </div>
 
-      {/* Camera viewfinder */}
-      <div className="relative w-full max-w-sm aspect-[4/3]">
-        {/* Native BarcodeDetector uses video element */}
+      {/* Camera viewfinder — full screen */}
+      <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-black">
+        {/* Native BarcodeDetector uses this video element */}
         <video
           ref={videoRef}
-          className="w-full h-full object-cover rounded-xl"
+          className={cn(
+            "w-full h-full object-cover",
+            !useNative && !starting && "hidden"
+          )}
           playsInline
           muted
           autoPlay
         />
-        {/* html5-qrcode renders into this div */}
-        <div id="barcode-scanner-region" className="absolute inset-0 rounded-xl overflow-hidden" />
+        {/* html5-qrcode renders its own video into this div */}
+        <div
+          id="barcode-scanner-region"
+          className={cn(
+            "absolute inset-0 overflow-hidden",
+            useNative && "hidden"
+          )}
+        />
 
-        {/* Scan line overlay */}
+        {/* Scan target overlay */}
         {!starting && !error && (
-          <div className="absolute inset-0 pointer-events-none">
-            {/* Corners */}
-            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-emerald-400 rounded-tl" />
-            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-emerald-400 rounded-tr" />
-            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-emerald-400 rounded-bl" />
-            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-emerald-400 rounded-br" />
-            {/* Scanning line animation */}
-            <div className="absolute left-4 right-4 h-0.5 bg-emerald-400/80 animate-pulse" style={{ top: '50%' }} />
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+            {/* Target box */}
+            <div className="relative w-72 h-40">
+              {/* Corners */}
+              <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-emerald-400 rounded-tl" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-emerald-400 rounded-tr" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-emerald-400 rounded-bl" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-emerald-400 rounded-br" />
+              {/* Scanning line animation */}
+              <div className="absolute left-2 right-2 h-0.5 bg-emerald-400/80 animate-pulse" style={{ top: '50%' }} />
+            </div>
           </div>
         )}
 
         {/* Loading state */}
         {starting && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-xl">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
             <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mb-2" />
             <span className="text-sm text-white/80">Starting camera...</span>
           </div>
@@ -183,12 +207,12 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
 
         {/* Error state */}
         {error && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 rounded-xl p-4">
-            <Camera className="w-8 h-8 text-red-400 mb-2" />
-            <p className="text-sm text-red-400 text-center">{error}</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 p-8">
+            <Camera className="w-10 h-10 text-red-400 mb-3" />
+            <p className="text-sm text-red-400 text-center mb-4">{error}</p>
             <button
               onClick={() => { stopCamera(); onClose(); }}
-              className="mt-3 px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20"
+              className="px-6 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/20"
             >
               Close
             </button>
@@ -198,9 +222,11 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
 
       {/* Instructions */}
       {!starting && !error && (
-        <p className="text-white/60 text-sm mt-4 text-center px-4">
-          Point camera at a barcode on any food package
-        </p>
+        <div className="bg-gradient-to-t from-black/80 to-transparent p-6" style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}>
+          <p className="text-white/60 text-sm text-center">
+            Point camera at a barcode on any food package
+          </p>
+        </div>
       )}
     </div>
   );

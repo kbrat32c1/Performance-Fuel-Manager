@@ -9,10 +9,10 @@ interface WeekOverviewProps {
 }
 
 export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const weekPlan = getWeeklyPlan();
 
-  const selectedDayData = selectedDay !== null ? weekPlan.find(d => d.dayNum === selectedDay) : null;
+  const selectedDayData = selectedIdx !== null ? weekPlan[selectedIdx] ?? null : null;
 
   return (
     <div className="space-y-3 mt-4">
@@ -30,9 +30,9 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
 
           {/* Phase Timeline Bar */}
           <div className="flex h-2">
-            {weekPlan.map((day) => (
+            {weekPlan.map((day, idx) => (
               <div
-                key={day.day}
+                key={`bar-${idx}`}
                 className={cn(
                   "flex-1",
                   getPhaseStyle(day.phase).bg || 'bg-muted',
@@ -44,14 +44,14 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
 
           {/* Day Cards Grid */}
           <div className="grid grid-cols-7 gap-0.5 p-2 bg-muted/20">
-            {weekPlan.map((day) => {
+            {weekPlan.map((day, idx) => {
               const colors = getPhaseStyle(day.phase);
-              const isSelected = selectedDay === day.dayNum;
+              const isSelected = selectedIdx === idx;
 
               return (
                 <button
-                  key={day.day}
-                  onClick={() => setSelectedDay(isSelected ? null : day.dayNum)}
+                  key={`${day.day}-${idx}`}
+                  onClick={() => setSelectedIdx(isSelected ? null : idx)}
                   className={cn(
                     "flex flex-col items-center p-1.5 rounded-lg transition-all text-center min-h-[72px]",
                     day.isToday && "ring-2 ring-primary",
@@ -130,7 +130,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                   </span>
                 </div>
                 <button
-                  onClick={() => setSelectedDay(null)}
+                  onClick={() => setSelectedIdx(null)}
                   className="text-muted-foreground hover:text-foreground p-1"
                 >
                   <ChevronRight className="w-5 h-5 rotate-90" />
@@ -206,13 +206,11 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                 <p className="text-xs text-muted-foreground">
                   {selectedDayData.waterLoadingNote || (
                     <>
-                      {selectedDayData.phase === 'Load' && "Water loading phase - drink consistently throughout the day to trigger natural diuresis."}
-                      {selectedDayData.phase === 'Prep' && "Prep day - zero fiber, full water. Last day of normal drinking before the cut."}
-                      {selectedDayData.phase === 'Cut' && "Cutting phase - sip only. Follow protocol strictly. Monitor weight drift carefully."}
-                      {selectedDayData.phase === 'Compete' && "Competition day - focus on fast carbs between matches. Rehydrate with electrolytes."}
-                      {selectedDayData.phase === 'Recover' && "Recovery day - high protein to repair muscle. Eat freely to refuel."}
-                      {selectedDayData.phase === 'Train' && "Training day - maintain consistent nutrition and hydration."}
-                      {selectedDayData.phase === 'Maintain' && "Maintenance phase - stay at walk-around weight with balanced nutrition."}
+                      {selectedDayData.phase === 'Load' && "Water loading phase — drink consistently throughout the day to trigger natural diuresis."}
+                      {selectedDayData.phase === 'Cut' && "Water cut — restrict water intake. Follow protocol strictly. Monitor weight drift carefully."}
+                      {selectedDayData.phase === 'Compete' && "Competition day — focus on fast carbs between matches. Rehydrate with electrolytes."}
+                      {selectedDayData.phase === 'Recover' && "Recovery day — high protein to repair muscle. Eat freely to refuel."}
+                      {selectedDayData.phase === 'Train' && "Training day — maintain consistent nutrition and hydration."}
                     </>
                   )}
                 </p>
@@ -224,7 +222,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
 
       {/* Phase Legend */}
       <div className="flex flex-wrap justify-center gap-3 px-2">
-        {['Load', 'Prep', 'Cut', 'Compete', 'Recover'].map((phase) => (
+        {['Train', 'Load', 'Cut', 'Compete', 'Recover'].map((phase) => (
           <div key={phase} className="flex items-center gap-1">
             <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
             <span className="text-[10px] text-muted-foreground">{phase}</span>

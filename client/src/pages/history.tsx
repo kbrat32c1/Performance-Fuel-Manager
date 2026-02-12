@@ -126,7 +126,7 @@ export default function History() {
   const generateCoachSummary = () => {
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekLogs = logs.filter(log => new Date(log.date) >= weekStart);
-    const morningLogs = weekLogs.filter(l => l.type === 'morning').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const morningLogs = weekLogs.filter(l => l.type === 'morning' || l.type === 'weigh-in').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     let summary = `📊 Weight Report - ${format(new Date(), 'MMM d, yyyy')}\n\n`;
     summary += `Target: ${profile.targetWeightClass} lbs\n`;
@@ -337,14 +337,14 @@ export default function History() {
   // Get weight range for a date
   const getWeightRange = (date: Date) => {
     const dayLogs = getLogsForDate(date).filter(l =>
-      l.type === 'morning' || l.type === 'pre-practice' || l.type === 'post-practice' || l.type === 'before-bed'
+      l.type === 'morning' || l.type === 'weigh-in' || l.type === 'pre-practice' || l.type === 'post-practice' || l.type === 'before-bed'
     );
     if (dayLogs.length === 0) return null;
     const weights = dayLogs.map(l => l.weight);
     return {
       high: Math.max(...weights),
       low: Math.min(...weights),
-      morning: dayLogs.find(l => l.type === 'morning')?.weight,
+      morning: dayLogs.find(l => l.type === 'morning' || l.type === 'weigh-in')?.weight,
       beforeBed: dayLogs.find(l => l.type === 'before-bed')?.weight
     };
   };
@@ -633,122 +633,6 @@ export default function History() {
       {/* Weight Tab Content */}
       {activeTab === 'weight' && (
         <>
-      {/* Week Summary Card - Only show with valid data */}
-      {descentData.morningWeights.length >= 2 && descentData.totalLost !== null && (
-        <Card className={cn("mb-4", phaseStyle.border, phaseStyle.bgSubtle)}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <TrendingDown className={cn("w-4 h-4", phaseStyle.text)} />
-                <span className="text-xs font-bold uppercase text-muted-foreground">This Week</span>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {getTimeUntilWeighIn()} to weigh-in
-              </span>
-            </div>
-
-            {/* Stats Grid - Weight Progress */}
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Start</span>
-                <span className="font-mono font-bold text-sm">
-                  {descentData.startWeight?.toFixed(1) ?? '-'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Now</span>
-                <span className={cn("font-mono font-bold text-sm", phaseStyle.text)}>
-                  {descentData.currentWeight?.toFixed(1) ?? '-'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Lost</span>
-                <span className={cn(
-                  "font-mono font-bold text-sm",
-                  descentData.totalLost >= 0 ? "text-green-500" : "text-red-500"
-                )}>
-                  {descentData.totalLost > 0 ? `-${descentData.totalLost.toFixed(1)}` : `+${Math.abs(descentData.totalLost).toFixed(1)}`}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Goal</span>
-                <span className="font-mono font-bold text-sm text-green-500">
-                  {descentData.targetWeight}
-                </span>
-              </div>
-            </div>
-
-            {/* Projected Weight */}
-            {descentData.projectedSaturday !== null && (
-              <div className="flex items-center justify-center gap-2 pt-2 mt-2 border-t border-muted">
-                <span className="text-[10px] text-muted-foreground">Projected</span>
-                <span className={cn(
-                  "font-mono font-bold text-xs",
-                  descentData.projectedSaturday <= descentData.targetWeight
-                    ? "text-green-500"
-                    : descentData.projectedSaturday <= descentData.targetWeight * 1.03
-                      ? "text-orange-500"
-                      : "text-red-500"
-                )}>
-                  {descentData.projectedSaturday.toFixed(1)} lbs
-                </span>
-              </div>
-            )}
-
-            {/* Loss Capacity Breakdown */}
-            {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null) && (() => {
-              const extraStats = getExtraWorkoutStats();
-              const hasExtras = extraStats.totalWorkouts > 0;
-              return (
-              <div className={cn("grid gap-1 text-center pt-2 mt-2 border-t border-muted", hasExtras ? "grid-cols-4" : "grid-cols-3")}>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Sleep</span>
-                  <span className={cn("font-mono font-bold text-xs", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
-                    {descentData.avgOvernightDrift !== null ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}` : '-'} lbs
-                  </span>
-                  {descentData.avgDriftRateOzPerHr !== null && (
-                    <span className="block text-[9px] font-mono text-cyan-400">
-                      {descentData.avgDriftRateOzPerHr.toFixed(2)}/hr
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Awake</span>
-                  <span className="font-mono font-bold text-xs text-teal-500">
-                    {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)}` : '-'} lbs
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Practice</span>
-                  <span className={cn("font-mono font-bold text-xs", descentData.avgPracticeLoss !== null ? "text-orange-500" : "")}>
-                    {descentData.avgPracticeLoss !== null ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}` : '-'} lbs
-                  </span>
-                  {descentData.avgSweatRateOzPerHr !== null && (
-                    <span className="block text-[9px] font-mono text-orange-400">
-                      {descentData.avgSweatRateOzPerHr.toFixed(2)}/hr
-                    </span>
-                  )}
-                </div>
-                {hasExtras && (
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Extras</span>
-                    <span className="font-mono font-bold text-xs text-orange-400">
-                      {extraStats.avgLoss !== null ? `-${extraStats.avgLoss.toFixed(1)}` : '-'} lbs
-                    </span>
-                    {extraStats.avgSweatRateOzPerHr !== null && (
-                      <span className="block text-[9px] font-mono text-orange-400/70">
-                        {extraStats.avgSweatRateOzPerHr.toFixed(2)}/hr
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Weight Trend Chart */}
       <TrendChart />
 

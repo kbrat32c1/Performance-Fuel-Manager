@@ -11,7 +11,9 @@ import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
-import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
+import { getWeightContext, getProtocolRecommendation, PROTOCOL_CONFIG } from "@/lib/protocol-utils";
+import { ProtocolWizard } from "@/components/protocol-wizard";
+import type { Protocol } from "@/lib/store";
 import {
   type Goal as SparV2Goal,
   type GoalIntensity,
@@ -55,6 +57,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [activeTab, setActiveTab] = useState('profile');
   const [showNerdMode, setShowNerdMode] = useState(false);
   const [hapticsOn, setHapticsOn] = useState(isHapticsEnabled());
+  const [showProtocolWizard, setShowProtocolWizard] = useState(false);
 
   // Reset pending changes when dialog opens
   useEffect(() => {
@@ -62,9 +65,20 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
       setPendingChanges({});
       setHasChanges(false);
       setShowWeightClassConfirm(false);
-      setActiveTab('profile');
+      // Don't reset activeTab if it was set by the open-settings event
     }
   }, [open]);
+
+  // Listen for open-settings event (e.g., from "No weigh-in scheduled" badge)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.tab) setActiveTab(detail.tab);
+      setOpen(true);
+    };
+    window.addEventListener('open-settings', handler);
+    return () => window.removeEventListener('open-settings', handler);
+  }, []);
 
   // Get the current value (pending or actual)
   const getValue = (key: string) => {
@@ -83,8 +97,11 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const weightClassChanged = newWeightClass !== undefined &&
     Number(newWeightClass) !== Number(oldWeightClass);
 
-  // Is SPAR protocol selected?
-  const isSparProtocol = (getValue('protocol') || profile.protocol) === '5';
+  // Protocol classification
+  const currentProtocol = (getValue('protocol') || profile.protocol) as string;
+  const isSparNutrition = currentProtocol === '5' || currentProtocol === '6';
+  const isSparGeneral = currentProtocol === '5';
+  const isSparProtocol = isSparNutrition; // backward compat alias
 
   // Is SPAR v2 enabled?
   // Auto-upgrade: If user is on SPAR protocol and has v2 stats (height, age), treat as v2
@@ -188,9 +205,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparProtocol ? "grid-cols-4" : "grid-cols-5")}>
+            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-4" : "grid-cols-5")}>
               <TabsTrigger value="profile" className="text-[11px]">Profile</TabsTrigger>
-              {!isSparProtocol && <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>}
+              {!isSparGeneral && <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>}
               <TabsTrigger value="alerts" className="text-[11px]">Alerts</TabsTrigger>
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
               <TabsTrigger value="data" className="text-[11px]">Data</TabsTrigger>
@@ -222,8 +239,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </div>
               </div>
 
-              {/* Weight Row - Target Class only for competition protocols */}
-              {isSparProtocol ? (
+              {/* Weight Row - Target Class only for competition protocols (including SPAR Competition) */}
+              {isSparGeneral ? (
                 <div className="space-y-1">
                   <Label className="text-[11px]">Current Weight</Label>
                   <div className="relative">
@@ -272,8 +289,64 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               )}
 
               {/* Protocol */}
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-[11px]">Protocol</Label>
+
+                {/* Weight Context Card — for competition protocols (including SPAR Competition) */}
+                {!isSparGeneral && getValue('targetWeightClass') > 0 && (() => {
+                  const ctx = getWeightContext(
+                    getValue('currentWeight') || profile.currentWeight,
+                    getValue('targetWeightClass') || profile.targetWeightClass
+                  );
+                  const isUnder = ctx.percentOver < 0;
+                  const statusColor = isUnder ? 'text-blue-500' : ctx.percentOver > 12 ? 'text-red-500' : ctx.percentOver > 7 ? 'text-amber-500' : 'text-green-500';
+                  const statusBg = isUnder ? 'bg-blue-500/10' : ctx.percentOver > 12 ? 'bg-red-500/10' : ctx.percentOver > 7 ? 'bg-amber-500/10' : 'bg-green-500/10';
+
+                  return (
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-muted">
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="font-mono font-bold">{(getValue('currentWeight') || profile.currentWeight)} lbs</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span className="font-mono text-muted-foreground">{ctx.walkAroundWeight.toFixed(1)} lbs</span>
+                      </div>
+                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", statusColor, statusBg)}>
+                        {isUnder
+                          ? `${Math.abs(ctx.percentOver).toFixed(1)}% under`
+                          : `${ctx.percentOver.toFixed(1)}% over class`}
+                      </span>
+                    </div>
+                  );
+                })()}
+
+                {/* Recommendation Badge — shows when recommended ≠ current */}
+                {!isSparGeneral && getValue('targetWeightClass') > 0 && (() => {
+                  const rec = getProtocolRecommendation(
+                    getValue('currentWeight') || profile.currentWeight,
+                    getValue('targetWeightClass') || profile.targetWeightClass
+                  );
+                  const currentProtocol = getValue('protocol') || profile.protocol;
+                  if (rec.protocol === currentProtocol) return null;
+
+                  return (
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-primary/5 border border-primary/20">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-primary">
+                          Recommended: {PROTOCOL_CONFIG[rec.protocol].label}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground truncate">{rec.reason}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[10px] ml-2 shrink-0 border-primary/30 text-primary"
+                        onClick={() => setShowProtocolSwitchConfirm(rec.protocol)}
+                      >
+                        Switch
+                      </Button>
+                    </div>
+                  );
+                })()}
+
                 <Select
                   value={getValue('protocol')}
                   onValueChange={(v) => {
@@ -287,20 +360,35 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={PROTOCOLS.BODY_COMP}>{PROTOCOL_NAMES[PROTOCOLS.BODY_COMP]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.MAKE_WEIGHT}>{PROTOCOL_NAMES[PROTOCOLS.MAKE_WEIGHT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.HOLD_WEIGHT}>{PROTOCOL_NAMES[PROTOCOLS.HOLD_WEIGHT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.BUILD}>{PROTOCOL_NAMES[PROTOCOLS.BUILD]}</SelectItem>
+                    <SelectItem value={PROTOCOLS.EXTREME_CUT}>{PROTOCOL_NAMES[PROTOCOLS.EXTREME_CUT]}</SelectItem>
+                    <SelectItem value={PROTOCOLS.RAPID_CUT}>{PROTOCOL_NAMES[PROTOCOLS.RAPID_CUT]}</SelectItem>
+                    <SelectItem value={PROTOCOLS.OPTIMAL_CUT}>{PROTOCOL_NAMES[PROTOCOLS.OPTIMAL_CUT]}</SelectItem>
+                    <SelectItem value={PROTOCOLS.GAIN}>{PROTOCOL_NAMES[PROTOCOLS.GAIN]}</SelectItem>
                     <SelectItem value={PROTOCOLS.SPAR}>{PROTOCOL_NAMES[PROTOCOLS.SPAR]}</SelectItem>
+                    <SelectItem value={PROTOCOLS.SPAR_COMPETITION}>{PROTOCOL_NAMES[PROTOCOLS.SPAR_COMPETITION]}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-[10px] text-muted-foreground">
-                  {getValue('protocol') === PROTOCOLS.BODY_COMP && 'Aggressive fat loss - fructose-only'}
-                  {getValue('protocol') === PROTOCOLS.MAKE_WEIGHT && 'Weekly cut with water loading'}
-                  {getValue('protocol') === PROTOCOLS.HOLD_WEIGHT && 'At walk-around weight'}
-                  {getValue('protocol') === PROTOCOLS.BUILD && 'Off-season muscle gain'}
-                  {getValue('protocol') === PROTOCOLS.SPAR && 'Clean eating — count slices'}
+                  {getValue('protocol') === PROTOCOLS.EXTREME_CUT && '12%+ above class. Multi-day depletion, strict oversight required.'}
+                  {getValue('protocol') === PROTOCOLS.RAPID_CUT && '7-12% above class. Short-term glycogen + water manipulation.'}
+                  {getValue('protocol') === PROTOCOLS.OPTIMAL_CUT && 'Within 6-7% of class. Glycogen management, performance protected.'}
+                  {getValue('protocol') === PROTOCOLS.GAIN && 'Off-season. Performance and strength focus.'}
+                  {getValue('protocol') === PROTOCOLS.SPAR && 'Balanced eating — count slices, not calories.'}
+                  {getValue('protocol') === PROTOCOLS.SPAR_COMPETITION && 'Portion tracking + competition water loading & auto-adjusting targets.'}
                 </p>
+
+                {/* Help Me Choose — opens ProtocolWizard dialog */}
+                {!isSparGeneral && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8 text-[11px]"
+                    onClick={() => setShowProtocolWizard(true)}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
+                    Help Me Choose
+                  </Button>
+                )}
               </div>
 
               {/* Nutrition Mode Toggle */}
@@ -335,7 +423,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               </div>
 
               {/* SPAR Nutrition Settings */}
-              {isSparProtocol && (
+              {isSparNutrition && (
                 <div className="pt-2 border-t border-muted space-y-3">
                   <div className="flex items-center gap-2">
                     <Utensils className="w-4 h-4 text-green-500" />
@@ -343,9 +431,15 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   </div>
 
                   {/* V2 Settings - Goal, Training, Activity */}
-                  {isSparV2 ? (
-                    <>
-                      {/* Goal Selection */}
+                  <>
+                      {/* Goal Selection — disabled for SPAR Competition (auto-adjusts) */}
+                      {currentProtocol === '6' ? (
+                        <div className="p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                          <p className="text-[10px] text-purple-400 font-bold">
+                            Calorie targets auto-adjust based on walk-around weight and days until weigh-in.
+                          </p>
+                        </div>
+                      ) : (<>
                       <div className="space-y-2">
                         <Label className="text-[11px] flex items-center gap-1.5">
                           <Target className="w-3 h-3" />
@@ -445,6 +539,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                         </div>
                       )}
+                      </>)}
 
                       {/* Training Sessions */}
                       <div className="space-y-2 pt-2 border-t border-muted/50">
@@ -690,101 +785,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                         </div>
                       </div>
-                    </>
-                  ) : (
-                    /* V1 Settings - Macro Protocol Selector */
-                    <>
-                      <div className="space-y-2">
-                        <Label className="text-[11px] flex items-center gap-1.5">
-                          <Activity className="w-3 h-3" />
-                          Macro Protocol
-                        </Label>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {(['performance', 'maintenance', 'recomp', 'build', 'fatloss', 'custom'] as SparMacroProtocol[]).map((protocolId) => {
-                            const config = SPAR_MACRO_PROTOCOLS[protocolId];
-                            const isSelected = (getValue('sparMacroProtocol') || 'maintenance') === protocolId;
-                            const IconComponent = protocolId === 'performance' ? Zap :
-                                                  protocolId === 'maintenance' ? Scale :
-                                                  protocolId === 'recomp' ? Dumbbell :
-                                                  protocolId === 'build' ? TrendingDown :
-                                                  protocolId === 'fatloss' ? Flame : Sliders;
-                            const iconColor = protocolId === 'performance' ? 'text-yellow-500' :
-                                              protocolId === 'maintenance' ? 'text-blue-500' :
-                                              protocolId === 'recomp' ? 'text-cyan-500' :
-                                              protocolId === 'build' ? 'text-green-500' :
-                                              protocolId === 'fatloss' ? 'text-orange-500' : 'text-purple-500';
-                            const displayCarbs = protocolId === 'custom' && getValue('customMacros')?.carbs ? getValue('customMacros').carbs : config.carbs;
-                            const displayProtein = protocolId === 'custom' && getValue('customMacros')?.protein ? getValue('customMacros').protein : config.protein;
-                            const displayFat = protocolId === 'custom' && getValue('customMacros')?.fat ? getValue('customMacros').fat : config.fat;
-                            const calAdj = protocolId === 'custom' && getValue('customMacros')?.calorieAdjustment !== undefined
-                              ? getValue('customMacros').calorieAdjustment
-                              : config.calorieAdjustment;
-                            return (
-                              <button
-                                key={protocolId}
-                                onClick={() => {
-                                  handleChange({ sparMacroProtocol: protocolId });
-                                  if (protocolId === 'custom' && !getValue('customMacros')) {
-                                    handleChange({ customMacros: { carbs: 40, protein: 30, fat: 30, calorieAdjustment: 0 } });
-                                  }
-                                }}
-                                className={cn(
-                                  "flex flex-col items-start p-2 rounded-lg border-2 transition-all text-left",
-                                  isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50",
-                                  protocolId === 'custom' && "col-span-2"
-                                )}
-                              >
-                                <div className="flex items-center gap-1.5 w-full">
-                                  <IconComponent className={cn("w-3.5 h-3.5", iconColor)} />
-                                  <span className="text-[11px] font-bold truncate">{config.shortName}</span>
-                                  {isSelected && <Check className="w-3 h-3 text-primary ml-auto" />}
-                                </div>
-                                <span className="text-[9px] text-muted-foreground mt-0.5">{config.description}</span>
-                                <div className="flex items-center justify-between w-full mt-1">
-                                  <div className="flex gap-1.5 text-[8px] font-mono">
-                                    <span className="text-amber-500">C{displayCarbs}</span>
-                                    <span className="text-orange-500">P{displayProtein}</span>
-                                    <span className="text-blue-400">F{displayFat}</span>
-                                  </div>
-                                  <span className={cn("text-[8px] font-mono", calAdj !== 0 ? iconColor : "text-muted-foreground")}>
-                                    {calAdj > 0 ? `+${calAdj}` : calAdj < 0 ? calAdj : '±0'} cal
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <p className="text-[9px] text-muted-foreground">
-                          {SPAR_MACRO_PROTOCOLS[(getValue('sparMacroProtocol') || 'maintenance') as SparMacroProtocol]?.whoFor}
-                        </p>
-                      </div>
-
-                      {/* Stats Summary */}
-                      {profile.heightInches && profile.age ? (
-                        <div className="grid grid-cols-3 gap-1.5 text-center">
-                          <div className="bg-muted/30 rounded px-2 py-1">
-                            <span className="text-[9px] text-muted-foreground block">Height</span>
-                            <span className="font-mono font-bold text-[11px]">{Math.floor(profile.heightInches / 12)}'{profile.heightInches % 12}"</span>
-                          </div>
-                          <div className="bg-muted/30 rounded px-2 py-1">
-                            <span className="text-[9px] text-muted-foreground block">Age</span>
-                            <span className="font-mono font-bold text-[11px]">{profile.age}</span>
-                          </div>
-                          <div className="bg-muted/30 rounded px-2 py-1">
-                            <span className="text-[9px] text-muted-foreground block">Goal</span>
-                            <span className="font-mono font-bold text-[11px] capitalize">{profile.weeklyGoal || 'maintain'}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2">
-                          <p className="text-[10px] text-yellow-600 dark:text-yellow-400 font-medium">
-                            Complete your profile to get accurate calorie targets.
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
+                  </>
 
                   {/* Practice Weigh-ins Toggle - Always show */}
                   <div className="pt-2 border-t border-muted/50">
@@ -835,28 +836,60 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Weigh-in Date */}
               <div className="space-y-1">
                 <Label className="text-[11px]">Next Weigh-in Date</Label>
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                  <Input
-                    type="date"
-                    className="pl-10 h-10"
-                    value={format(new Date(weighInDate), 'yyyy-MM-dd')}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const [year, month, day] = e.target.value.split('-').map(Number);
-                        const localDate = new Date(year, month - 1, day, 12, 0, 0);
-                        handleChange({ weighInDate: localDate });
-                        e.target.blur();
-                      }
-                    }}
-                  />
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {daysUntil < 0 && "Weigh-in has passed"}
-                  {daysUntil === 0 && "Competition day!"}
-                  {daysUntil > 0 && daysUntil <= 5 && `${daysUntil} day${daysUntil > 1 ? 's' : ''} - cut week`}
-                  {daysUntil > 5 && `${daysUntil} days - maintenance`}
-                </p>
+                {getValue('weighInCleared') ? (
+                  <div className="bg-muted/30 rounded-lg p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-2">No weigh-in date set</p>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                      <Input
+                        type="date"
+                        className="pl-10 h-10"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [year, month, day] = e.target.value.split('-').map(Number);
+                            const localDate = new Date(year, month - 1, day, 12, 0, 0);
+                            handleChange({ weighInDate: localDate, weighInCleared: false, nextCyclePromptDismissed: false });
+                            e.target.blur();
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                      <Input
+                        type="date"
+                        className="pl-10 h-10"
+                        value={format(new Date(weighInDate), 'yyyy-MM-dd')}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [year, month, day] = e.target.value.split('-').map(Number);
+                            const localDate = new Date(year, month - 1, day, 12, 0, 0);
+                            handleChange({ weighInDate: localDate, weighInCleared: false, nextCyclePromptDismissed: false });
+                            e.target.blur();
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] text-muted-foreground">
+                        {daysUntil < 0 && "Weigh-in has passed"}
+                        {daysUntil === 0 && "Competition day!"}
+                        {daysUntil > 0 && daysUntil <= 5 && `${daysUntil} day${daysUntil > 1 ? 's' : ''} - cut week`}
+                        {daysUntil > 5 && `${daysUntil} days - training`}
+                      </p>
+                      <button
+                        onClick={() => handleChange({ weighInCleared: true })}
+                        className="text-[10px] text-red-400 hover:text-red-300"
+                      >
+                        Clear date
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Weigh-in Time */}
@@ -1123,13 +1156,15 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <p className="text-xs text-muted-foreground">
                   {showProtocolSwitchConfirm === '5'
                     ? 'SPAR uses portion-based tracking with slices instead of strict macros.'
+                    : showProtocolSwitchConfirm === '6'
+                    ? 'SPAR portion tracking with competition water loading and auto-adjusting calorie targets.'
                     : 'This will change your daily targets and recommendations.'
                   }
                 </p>
               </div>
 
-              {/* Inline SPAR setup when switching to SPAR */}
-              {showProtocolSwitchConfirm === '5' && (
+              {/* Inline SPAR setup when switching to SPAR or SPAR Competition */}
+              {(showProtocolSwitchConfirm === '5' || showProtocolSwitchConfirm === '6') && (
                 <div className="space-y-3 py-2 border-t border-muted">
                   {/* Goal */}
                   <div className="space-y-1">
@@ -1201,7 +1236,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   onClick={() => {
                     // Apply the protocol change inline
                     const updates: any = { protocol: showProtocolSwitchConfirm };
-                    if (showProtocolSwitchConfirm === '5') {
+                    if (showProtocolSwitchConfirm === '5' || showProtocolSwitchConfirm === '6') {
                       updates.sparV2 = true;
                       updates.sparGoal = pendingChanges.sparGoal || 'maintain';
                       updates.trainingSessions = pendingChanges.trainingSessions || profile.trainingSessions || '3-4';
@@ -1231,8 +1266,32 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
           </div>
         )}
 
+        {/* Protocol Wizard — "Help Me Choose" overlay */}
+        {showProtocolWizard && (
+          <div className="absolute inset-0 bg-background/95 flex flex-col rounded-xl z-50 overflow-y-auto">
+            <div className="p-4 w-full max-w-sm mx-auto">
+              <ProtocolWizard
+                currentWeight={getValue('currentWeight') || profile.currentWeight}
+                targetWeightClass={getValue('targetWeightClass') || profile.targetWeightClass}
+                submitLabel="Select Protocol"
+                onComplete={(protocol: Protocol) => {
+                  if (protocol !== profile.protocol) {
+                    handleChange({ protocol });
+                    toast({
+                      title: 'Protocol updated',
+                      description: `Switched to ${PROTOCOL_CONFIG[protocol].label}. Save to apply.`,
+                    });
+                  }
+                  setShowProtocolWizard(false);
+                }}
+                onBack={() => setShowProtocolWizard(false)}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Sticky Footer - Only for tabs that need save */}
-        {(activeTab === 'profile' || (activeTab === 'schedule' && !isSparProtocol)) && (
+        {(activeTab === 'profile' || (activeTab === 'schedule' && !isSparGeneral)) && (
           <div className="shrink-0 px-4 py-3 pb-safe-bottom border-t border-muted bg-card flex gap-2">
             <Button
               variant="outline"

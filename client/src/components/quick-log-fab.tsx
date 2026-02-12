@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Scale, Sun, Moon, CheckCircle2, Check, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock, Trash2 } from 'lucide-react';
+import { Scale, Sun, Moon, CheckCircle2, Check, Plus, ArrowDownToLine, ArrowUpFromLine, Dumbbell, ChevronDown, X, Clock, Trash2, Utensils, Droplets } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,9 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { hapticSuccess, hapticError, hapticTap } from '@/lib/haptics';
+import { QuickLogWaterTab } from './quick-log-water-tab';
+
+type FabTab = 'weight' | 'food' | 'water';
 
 const DURATION_PRESETS = [30, 45, 60, 90, 120] as const;
 const SLEEP_PRESETS = [5, 6, 7, 8, 9] as const;
@@ -24,17 +27,18 @@ function formatTimeDisplay(time24: string): string {
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-type LogTypeOption = 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-workout' | 'check-in';
+type LogTypeOption = 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-workout' | 'check-in' | 'weigh-in';
 
 const CORE_TYPES: LogTypeOption[] = ['morning', 'pre-practice', 'post-practice', 'before-bed'];
 
 const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; hint: string; icon: React.ReactNode; color: string; selectedBg: string }[] = [
   { value: 'morning', label: 'Morning', hint: 'First thing after waking', icon: <Sun className="w-5 h-5" />, color: 'text-yellow-500', selectedBg: 'border-yellow-500 bg-yellow-500/15 ring-1 ring-yellow-500/30' },
-  { value: 'pre-practice', label: 'Pre-Practice', hint: 'Before workout, in gear', icon: <ArrowDownToLine className="w-5 h-5" />, color: 'text-blue-500', selectedBg: 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/30' },
+  { value: 'pre-practice', label: 'Pre-Practice', hint: 'Before workout', icon: <ArrowDownToLine className="w-5 h-5" />, color: 'text-blue-500', selectedBg: 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/30' },
   { value: 'post-practice', label: 'Post-Practice', hint: 'After workout, before rehydrating', icon: <ArrowUpFromLine className="w-5 h-5" />, color: 'text-green-500', selectedBg: 'border-green-500 bg-green-500/15 ring-1 ring-green-500/30' },
   { value: 'before-bed', label: 'Before Bed', hint: 'Last weigh-in of the day', icon: <Moon className="w-5 h-5" />, color: 'text-purple-500', selectedBg: 'border-purple-500 bg-purple-500/15 ring-1 ring-purple-500/30' },
   { value: 'extra-workout', label: 'Extra Workout', hint: 'Track additional sessions', icon: <Dumbbell className="w-5 h-5" />, color: 'text-orange-500', selectedBg: 'border-orange-500 bg-orange-500/15 ring-1 ring-orange-500/30' },
   { value: 'check-in', label: 'Weight Check', hint: 'Quick check, not counted', icon: <Scale className="w-5 h-5" />, color: 'text-cyan-500', selectedBg: 'border-cyan-500 bg-cyan-500/15 ring-1 ring-cyan-500/30' },
+  { value: 'weigh-in', label: 'Official Weigh-In', hint: 'Competition day weigh-in', icon: <Scale className="w-5 h-5" />, color: 'text-yellow-600', selectedBg: 'border-yellow-600 bg-yellow-600/15 ring-1 ring-yellow-600/30' },
 ];
 
 const EXTRA_TYPES: LogTypeOption[] = ['extra-workout', 'check-in'];
@@ -44,10 +48,10 @@ const LAST_WEIGHT_TYPE_DATE_KEY = 'pfm-last-weight-type-date';
 
 function getTimeBasedType(): LogTypeOption {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 10) return 'morning';
-  if (hour >= 10 && hour < 14) return 'pre-practice';
-  if (hour >= 14 && hour < 18) return 'post-practice';
-  return 'before-bed';
+  if (hour >= 5 && hour < 14) return 'morning';     // 5am–2pm: morning weigh-in
+  if (hour >= 14 && hour < 16) return 'pre-practice'; // 2pm–4pm: heading to practice
+  if (hour >= 16 && hour < 19) return 'post-practice'; // 4pm–7pm: practice wrapping up
+  return 'before-bed';                                  // 7pm+: wind down
 }
 
 function getDefaultType(loggedTypes?: Set<string>): LogTypeOption {
@@ -70,8 +74,21 @@ function getDefaultType(loggedTypes?: Set<string>): LogTypeOption {
 
   // Check for next unlogged type in order
   if (loggedTypes) {
+    const timeBased = getTimeBasedType();
+    const hasExtraWorkout = loggedTypes.has('extra-workout');
+
     for (const t of CORE_TYPES) {
-      if (!loggedTypes.has(t)) return t;
+      if (loggedTypes.has(t)) continue;
+
+      // If user logged an extra workout but skipped regular practice,
+      // don't suggest pre/post-practice if it's already past that time window.
+      // They clearly chose an extra workout instead of regular practice today.
+      if (hasExtraWorkout && !loggedTypes.has('pre-practice') && !loggedTypes.has('post-practice')) {
+        if (t === 'pre-practice' && (timeBased === 'post-practice' || timeBased === 'before-bed')) continue;
+        if (t === 'post-practice' && timeBased === 'before-bed') continue;
+      }
+
+      return t;
     }
   }
 
@@ -223,19 +240,27 @@ export function QuickLogFAB() {
   const [editExtraIds, setEditExtraIds] = useState<{ beforeId: string; afterId: string | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmWildcard, setConfirmWildcard] = useState(false);
+  // Missing before-bed prompt: when morning log is submitted without last night's before-bed
+  const [missingBeforeBed, setMissingBeforeBed] = useState<'prompt' | 'confirm-avg' | null>(null);
+  // When true, the next before-bed save should be backdated to yesterday 10pm
+  const [backdateBeforeBed, setBackdateBeforeBed] = useState(false);
+  // Saved morning form data — restored after logging a backdated before-bed
+  const [savedMorningData, setSavedMorningData] = useState<{ weight: string; time: string; sleepHours: string } | null>(null);
   // Original weight for comparison in edit mode
   const [originalWeight, setOriginalWeight] = useState<number | null>(null);
   const [originalBeforeWeight, setOriginalBeforeWeight] = useState<number | null>(null);
   const [originalAfterWeight, setOriginalAfterWeight] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<FabTab>('weight');
+  // macroHint removed — food tab now opens AddFoodFlow directly
   const inputRef = useRef<HTMLInputElement>(null);
   const beforeRef = useRef<HTMLInputElement>(null);
 
-  const { profile, logs, addLog, updateLog, deleteLog, calculateTarget } = useStore();
+  const { profile, logs, addLog, updateLog, deleteLog, calculateTarget, getDaysUntilWeighIn } = useStore();
 
   const today = profile?.simulatedDate ? new Date(profile.simulatedDate) : new Date();
   const isHistorical = !!profile?.simulatedDate;
   const targetWeight = calculateTarget();
-  const isSparProtocol = profile?.protocol === '5';
+  const isSparProtocol = profile?.protocol === '5' || profile?.protocol === '6';
 
   // Onboarding tooltip logic - show if no logs ever, or no logs in 7+ days
   const [showTooltip, setShowTooltip] = useState(false);
@@ -313,10 +338,13 @@ export function QuickLogFAB() {
     setEditLogId(null);
     setEditExtraIds(null);
     setConfirmDelete(false);
+    setMissingBeforeBed(null);
+    setBackdateBeforeBed(false);
     setOriginalWeight(null);
     setOriginalBeforeWeight(null);
     setOriginalAfterWeight(null);
     setShowExtraTypes(false);
+    setActiveTab('weight');
   }, []);
 
   const handleOpenFull = useCallback(() => {
@@ -392,6 +420,13 @@ export function QuickLogFAB() {
         // Edit mode: pre-fill from existing log
         const log = detail.editLog;
         handleOpenEdit(log.id, log.type as LogTypeOption, log.weight, new Date(log.date), log.duration, log.sleepHours);
+      } else if (detail?.openTab === 'food') {
+        // Food tab → open AddFoodFlow sheet instead of FAB
+        window.dispatchEvent(new CustomEvent('open-add-food', { detail: {} }));
+      } else if (detail?.openTab) {
+        // Other tabs (water) — open in FAB as normal
+        setActiveTab(detail.openTab as FabTab);
+        setIsOpen(true);
       } else if (detail?.type) {
         handleOpenDirect(detail.type as LogTypeOption);
       } else {
@@ -514,9 +549,70 @@ export function QuickLogFAB() {
         return;
       }
 
-      const logDate = new Date(today);
+      // Check for missing before-bed log when submitting a morning weigh-in
+      if (selectedType === 'morning' && !isEditMode && !missingBeforeBed) {
+        // Look for a before-bed log from yesterday evening (or late last night)
+        const yesterdayStart = new Date(today);
+        yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+        yesterdayStart.setHours(0, 0, 0, 0);
+        const todayStart = new Date(today);
+        todayStart.setHours(0, 0, 0, 0);
+
+        const hasBeforeBed = logs.some(l => {
+          const logDate = new Date(l.date);
+          // before-bed from yesterday (anytime) or today before 4am (late night)
+          return l.type === 'before-bed' && (
+            (logDate >= yesterdayStart && logDate < todayStart) ||
+            (logDate >= todayStart && logDate.getHours() < 4)
+          );
+        });
+
+        if (!hasBeforeBed) {
+          setMissingBeforeBed('prompt');
+          return;
+        }
+      }
+
+      // If user confirmed "use average" for missing before-bed, auto-create the log
+      if (selectedType === 'morning' && missingBeforeBed === 'confirm-avg') {
+        // Calculate average before-bed weight from recent logs (EMA-like, last 5)
+        const recentBedWeights = logs
+          .filter(l => l.type === 'before-bed')
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+          .slice(0, 5)
+          .map(l => l.weight);
+
+        if (recentBedWeights.length > 0) {
+          const avgBedWeight = recentBedWeights.reduce((a, b) => a + b, 0) / recentBedWeights.length;
+          // Create a before-bed log for last night at 10pm
+          const bedDate = new Date(today);
+          bedDate.setDate(bedDate.getDate() - 1);
+          bedDate.setHours(22, 0, 0, 0);
+          addLog({
+            weight: parseFloat(avgBedWeight.toFixed(1)),
+            date: bedDate,
+            type: 'before-bed',
+          });
+          toast({
+            title: `Before-bed log added: ${avgBedWeight.toFixed(1)} lbs`,
+            description: "Used your recent average. Edit in log history if needed."
+          });
+        }
+        setMissingBeforeBed(null);
+      }
+
+      let logDate = new Date(today);
       const [logH, logM] = logTime.split(':').map(Number);
       logDate.setHours(logH, logM, 0, 0);
+
+      // If this is a backdated before-bed entry (from missing prompt), set to yesterday 10pm
+      const isBackdatedBeforeBed = backdateBeforeBed && selectedType === 'before-bed';
+      if (isBackdatedBeforeBed) {
+        logDate = new Date(today);
+        logDate.setDate(logDate.getDate() - 1);
+        logDate.setHours(22, 0, 0, 0);
+        setBackdateBeforeBed(false);
+      }
 
       if (isEditMode && editLogId) {
         // Update existing log
@@ -537,16 +633,36 @@ export function QuickLogFAB() {
         });
         hapticSuccess();
 
-        // Show toast with weight vs target comparison (5 seconds)
-        const weightDiff = parsedWeight - targetWeight;
-        const targetComparison = isSparProtocol
-          ? `${typeLabel} weigh-in saved`
-          : weightDiff <= 0
-            ? `${typeLabel} — on target! ${Math.abs(weightDiff).toFixed(1)} lbs under`
-            : weightDiff <= 2
-              ? `${typeLabel} — ${weightDiff.toFixed(1)} lbs over target`
-              : `${typeLabel} — ${weightDiff.toFixed(1)} lbs over target`;
-        toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: targetComparison });
+        // If we just saved a backdated before-bed, restore the morning form instead of closing
+        if (isBackdatedBeforeBed && savedMorningData) {
+          toast({ title: `${parsedWeight.toFixed(1)} lbs saved to last night`, description: "Now save your morning weight" });
+          setSelectedType('morning');
+          setWeight(savedMorningData.weight);
+          setLogTime(savedMorningData.time);
+          setSleepHours(savedMorningData.sleepHours);
+          setSavedMorningData(null);
+          setMissingBeforeBed(null);
+          // Dispatch event for AI coach to refresh
+          window.dispatchEvent(new CustomEvent('weight-logged'));
+          return; // Don't close the modal — let user save the morning weight
+        }
+
+        // Show toast with weight vs GOAL weight comparison (not daily checkpoint)
+        // Skip toast on competition day when making weight — CelebrationBanner handles it
+        const goalWeight = profile.targetWeightClass;
+        const weightDiff = parsedWeight - goalWeight;
+        const isCompDay = getDaysUntilWeighIn() === 0;
+        const willCelebrate = isCompDay && (selectedType === 'weigh-in' || selectedType === 'morning') && parsedWeight <= goalWeight;
+        if (!willCelebrate) {
+          // Weight checks just confirm the log — no target comparison
+          const isInfoOnly = selectedType === 'check-in';
+          const targetComparison = isSparProtocol || isInfoOnly
+            ? `${typeLabel} logged`
+            : weightDiff <= 0
+              ? `${typeLabel} — ${Math.abs(weightDiff).toFixed(1)} lbs under goal`
+              : `${typeLabel} — ${weightDiff.toFixed(1)} lbs over goal (${goalWeight})`;
+          toast({ title: `${parsedWeight.toFixed(1)} lbs logged`, description: targetComparison });
+        }
 
         // Trigger FAB success animation
         setFabSuccess(true);
@@ -583,7 +699,13 @@ export function QuickLogFAB() {
   const currentWeight = selectedType === 'extra-workout'
     ? (afterWeight ? parseFloat(afterWeight) : null)
     : (weight ? parseFloat(weight) : null);
-  const diff = currentWeight && targetWeight ? currentWeight - targetWeight : null;
+  // Compare against walk-around weight during training phase, target during comp week
+  const daysOut = getDaysUntilWeighIn();
+  const isTrainingPhase = daysOut > 5;
+  const goalWeightForDiff = isTrainingPhase
+    ? Math.round(profile.targetWeightClass * 1.07 * 10) / 10
+    : profile.targetWeightClass;
+  const diff = currentWeight && goalWeightForDiff ? currentWeight - goalWeightForDiff : null;
 
   const typeInfo = getTypeInfo(selectedType);
 
@@ -646,12 +768,62 @@ export function QuickLogFAB() {
           />
 
           {/* Panel — fixed to bottom, doesn't shift with keyboard */}
-          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] flex flex-col" role="document">
-            {/* Drag handle visual */}
-            <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[80vh] flex flex-col" role="document">
+            {/* Drag handle — tappable to close */}
+            <div
+              className="flex justify-center pt-3 pb-1 shrink-0 cursor-pointer"
+              onClick={() => { setIsOpen(false); resetForm(); }}
+            >
               <div className="w-12 h-1.5 rounded-full bg-muted" />
             </div>
 
+            {/* Tab bar — hidden in edit mode */}
+            {!isEditMode && (
+              <div className="flex items-center gap-1 px-3 pt-1 pb-2 shrink-0 border-b border-muted/30">
+                {([
+                  { key: 'weight' as FabTab, label: 'Weight', Icon: Scale },
+                  { key: 'food' as FabTab, label: 'Food', Icon: Utensils },
+                  { key: 'water' as FabTab, label: 'Water', Icon: Droplets },
+                ]).map(({ key, label, Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (key === 'food') {
+                        // Food tab → close FAB and open AddFoodFlow
+                        setIsOpen(false);
+                        resetForm();
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('open-add-food', { detail: {} }));
+                        }, 100);
+                      } else {
+                        setActiveTab(key);
+                      }
+                      hapticTap();
+                    }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold rounded-lg transition-all active:scale-95",
+                      activeTab === key
+                        ? "text-primary bg-primary/10"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {label}
+                  </button>
+                ))}
+                {/* Close button — always visible in tab bar */}
+                <button
+                  onClick={() => { setIsOpen(false); resetForm(); }}
+                  className="ml-1 p-2 min-w-[40px] min-h-[40px] rounded-lg hover:bg-muted text-muted-foreground active:scale-95 transition-all flex items-center justify-center"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            )}
+
+            {/* ── Weight Tab ── */}
+            {activeTab === 'weight' && (
             <div className="px-5 pb-6 pt-1 overflow-y-auto flex-1">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
@@ -668,23 +840,14 @@ export function QuickLogFAB() {
                     <h2 id="quick-log-title" className="text-xl font-bold">Log Weight</h2>
                   </div>
                 )}
-                <div className="flex items-center gap-2">
-                  {directMode && !showTypeGrid && !isEditMode && (
-                    <button
-                      onClick={() => setShowTypeGrid(true)}
-                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-2 min-h-[40px] rounded-lg border border-muted active:scale-95 transition-transform"
-                    >
-                      Change <ChevronDown className="w-4 h-4" />
-                    </button>
-                  )}
+                {directMode && !showTypeGrid && !isEditMode && (
                   <button
-                    onClick={() => { setIsOpen(false); resetForm(); }}
-                    className="p-2.5 min-w-[48px] min-h-[48px] rounded-lg hover:bg-muted text-muted-foreground active:scale-95 transition-transform flex items-center justify-center"
-                    aria-label="Close dialog"
+                    onClick={() => setShowTypeGrid(true)}
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground px-3 py-2 min-h-[40px] rounded-lg border border-muted active:scale-95 transition-transform"
                   >
-                    <X className="w-5 h-5" />
+                    Change <ChevronDown className="w-4 h-4" />
                   </button>
-                </div>
+                )}
               </div>
 
               {/* Type Selector Grid — hidden in edit mode */}
@@ -882,13 +1045,13 @@ export function QuickLogFAB() {
                       isSparProtocol
                         ? "text-muted-foreground"
                         : diff !== null && !isNaN(diff)
-                          ? (diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : "text-destructive")
+                          ? (diff <= 0 ? "text-green-500" : diff <= 2 ? "text-yellow-500" : isTrainingPhase ? "text-yellow-500" : "text-destructive")
                           : "text-transparent"
                     )}>
                       {isSparProtocol
                         ? (currentWeight ? `${currentWeight.toFixed(1)} lbs logged` : '\u00A0')
                         : (diff !== null && !isNaN(diff)
-                            ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)} lbs vs target (${targetWeight} lbs)`
+                            ? `${diff > 0 ? '+' : ''}${diff.toFixed(1)} lbs vs ${isTrainingPhase ? 'walk-around' : 'goal'} (${goalWeightForDiff} lbs)`
                             : '\u00A0'
                           )
                       }
@@ -1036,6 +1199,77 @@ export function QuickLogFAB() {
                 </div>
               )}
 
+              {/* Missing Before-Bed Prompt */}
+              {missingBeforeBed === 'prompt' && (
+                <div className="mt-3 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Moon className="w-3.5 h-3.5 text-amber-500" />
+                    <span className="text-xs font-bold text-amber-500">Missing Before-Bed Weight</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mb-3">
+                    No before-bed weigh-in found for last night. This is needed to calculate your overnight drift rate accurately.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-11 text-xs border-amber-500/30 text-amber-500"
+                      onClick={() => {
+                        // Save the morning form data so we can restore it after
+                        setSavedMorningData({ weight, time: logTime, sleepHours });
+                        setMissingBeforeBed(null);
+                        setBackdateBeforeBed(true);
+                        setSelectedType('before-bed');
+                        setWeight('');
+                        toast({ title: "Log your before-bed weight", description: "Enter last night's weight — it will be saved to yesterday" });
+                      }}
+                    >
+                      Log it now
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-11 text-xs border-muted-foreground/30"
+                      onClick={() => {
+                        // Check if we have any historical before-bed data
+                        const bedLogs = logs.filter(l => l.type === 'before-bed');
+                        if (bedLogs.length === 0) {
+                          toast({ title: "No before-bed history", description: "You need at least one before-bed log to use an average. Please log it manually." });
+                          return;
+                        }
+                        const avgWeight = bedLogs
+                          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                          .slice(0, 5)
+                          .reduce((sum, l) => sum + l.weight, 0) / Math.min(bedLogs.length, 5);
+                        setMissingBeforeBed('confirm-avg');
+                        toast({
+                          title: `Average: ${avgWeight.toFixed(1)} lbs`,
+                          description: "Tap Save to use this as last night's before-bed weight"
+                        });
+                      }}
+                    >
+                      Use average
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-11 text-xs text-muted-foreground/60 px-2"
+                      onClick={() => setMissingBeforeBed(null)}
+                    >
+                      Skip
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {missingBeforeBed === 'confirm-avg' && (
+                <div className="mt-3 p-2.5 rounded-lg border border-green-500/30 bg-green-500/5">
+                  <p className="text-[11px] text-green-500 font-medium">
+                    ✓ Will auto-create before-bed log using your recent average. Tap Save to continue.
+                  </p>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex gap-2 mt-4">
                 {isEditMode && (
@@ -1066,6 +1300,14 @@ export function QuickLogFAB() {
                 </Button>
               </div>
             </div>
+            )}
+
+            {/* ── Water Tab ── */}
+            {activeTab === 'water' && (
+              <div className="px-3 pb-6 pt-2 overflow-y-auto flex-1">
+                <QuickLogWaterTab />
+              </div>
+            )}
           </div>
         </div>,
         document.body

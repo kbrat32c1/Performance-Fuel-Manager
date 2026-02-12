@@ -48,6 +48,9 @@ export interface SparV2Input {
   customProteinPerLb?: number;         // Override g/lb multiplier
   customFatPercent?: number;           // Override fat % of remaining calories
   customCarbPercent?: number;          // Override carb % of remaining calories
+
+  // Competition override (Protocol 6)
+  calorieOverride?: number;            // Exact calorie adjustment — bypasses goal-based config
 }
 
 // ─── Output Interface ─────────────────────────────────────────────────────────
@@ -227,8 +230,11 @@ export function calculateSparSlicesV2(input: SparV2Input): SparV2Output {
   const protocolKey = getProtocolKey(input);
   const protocol = PROTOCOL_CONFIGS[protocolKey] ?? PROTOCOL_CONFIGS['maintain_general'];
 
-  // Step 4: Apply calorie adjustment
-  const adjustedTdee = Math.max(1200, tdee + protocol.calorieAdjustment);
+  // Step 4: Apply calorie adjustment (calorieOverride bypasses goal-based config)
+  const effectiveCalorieAdjustment = input.calorieOverride !== undefined
+    ? input.calorieOverride
+    : protocol.calorieAdjustment;
+  const adjustedTdee = Math.max(1200, tdee + effectiveCalorieAdjustment);
 
   // Step 5: Calculate protein (anchored to bodyweight)
   const proteinPerLb = customProteinPerLb ?? protocol.proteinPerLb;
@@ -287,7 +293,7 @@ export function calculateSparSlicesV2(input: SparV2Input): SparV2Output {
     totalSliceCalories: Math.round(totalSliceCalories),
 
     // Protocol info
-    calorieAdjustment: protocol.calorieAdjustment,
+    calorieAdjustment: effectiveCalorieAdjustment,
     proteinPerLb,
     fatCarbSplit: { fat: fatPercent, carb: carbPercent },
   };

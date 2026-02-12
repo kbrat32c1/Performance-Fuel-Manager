@@ -45,7 +45,10 @@ export function AiCoachProactive() {
   const daysUntil = getDaysUntilWeighIn();
 
   // Get current weight and latest log type from today's logs
-  const { currentWeight, latestLogType } = (() => {
+  // Training/hold phase (>2 days out): morning weight is the baseline — before-bed
+  // weight is inflated from food/water and isn't representative of actual progress.
+  // Cut phase (≤2 days out): every weigh-in matters, use most recent.
+  const { currentWeight, latestLogType, hasMorningWeight } = (() => {
     const today = new Date();
     const todayLogs = logs.filter(l => {
       const ld = new Date(l.date);
@@ -55,9 +58,29 @@ export function AiCoachProactive() {
     });
     if (todayLogs.length > 0) {
       const sorted = [...todayLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return { currentWeight: sorted[0].weight, latestLogType: sorted[0].type };
+      const morningLog = todayLogs.find(l => l.type === 'morning' || l.type === 'weigh-in');
+      const isCutPhase = daysUntil <= 2;
+
+      if (isCutPhase) {
+        // Cut phase: use most recent weigh-in for real-time tracking
+        return { currentWeight: sorted[0].weight, latestLogType: sorted[0].type, hasMorningWeight: !!morningLog };
+      } else {
+        // Training/hold phase: use morning weight as baseline
+        if (morningLog) {
+          return { currentWeight: morningLog.weight, latestLogType: morningLog.type, hasMorningWeight: true };
+        }
+        // No morning weight today — fall through to profile
+      }
     }
-    return { currentWeight: profile.currentWeight, latestLogType: null as string | null };
+    // Fallback: use most recent morning/weigh-in from any day
+    const recentMorning = logs
+      .filter(l => l.type === 'morning' || l.type === 'weigh-in')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    return {
+      currentWeight: recentMorning?.weight || profile.currentWeight,
+      latestLogType: null as string | null,
+      hasMorningWeight: false,
+    };
   })();
   const targetWeight = profile.targetWeightClass;
   const weightToLose = Math.max(0, currentWeight - targetWeight);
@@ -192,9 +215,17 @@ export function AiCoachProactive() {
       const needsExtraWork = workoutGuidance !== null;
       const isOnTrack = isAtWeight || (projected !== null && projected <= targetWeight && !needsExtraWork);
 
-      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, tradeoffHint };
+      // Training phase (6+ days out): score against walk-around, not target
+      const isTrainingPhase = daysUntil > 5;
+      const walkAround = targetWeight * 1.07;
+      const walkAroundGap = currentWeight - walkAround;
+      const trainingStatus: 'holding' | 'monitor' | 'high' | null = isTrainingPhase
+        ? (walkAroundGap <= 2 ? 'holding' : walkAroundGap <= 5 ? 'monitor' : 'high')
+        : null;
+
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, tradeoffHint, trainingStatus, walkAroundGap, walkAround };
     } catch {
-      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null };
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null, trainingStatus: null, walkAroundGap: 0, walkAround: targetWeight * 1.07 };
     }
   }, [weightToLose, targetWeight, daysUntil, hour, weighInHour, isAtWeight, getWeekDescentData, getExtraWorkoutStats]);
 
@@ -348,13 +379,17 @@ export function AiCoachProactive() {
     }
   }, [showAiSection, aiMessage]);
 
-  // Don't render for SPAR users or if no profile
+  // Don't render for SPAR General users or if no profile (SPAR Competition gets coach)
   if (!profile.currentWeight || !profile.targetWeightClass || profile.protocol === '5') {
     return null;
   }
 
   // Status color: green = on track, orange = behind, red = critical
+  // Training phase: use walk-around proximity, not projection
   const statusColor = isAtWeight ? 'green' :
+    insights.trainingStatus === 'holding' ? 'green' :
+    insights.trainingStatus === 'monitor' ? 'orange' :
+    insights.trainingStatus === 'high' ? 'red' :
     insights.isOnTrack ? 'green' :
     (weightToLose > 3 && daysUntil <= 1) ? 'red' :
     'orange';
@@ -364,7 +399,7 @@ export function AiCoachProactive() {
   const timeUntilWeighIn = daysUntil >= 0 ? getTimeUntilWeighIn() : null;
 
   // ─── Coaching insight ───
-  // Uses PROJECTED GAP (not raw deficit) — metabolism, overnight drift, and practice losses are accounted for.
+  // Uses PROJECTED GAP (not raw deficit) — sleep drift and practice losses are accounted for.
   // Returns a React node with inline-highlighted key numbers for visual hierarchy.
   // No arbitrary directives — only specific, data-driven advice.
   type CoachingStatus = 'on-track' | 'behind' | 'at-weight';
@@ -372,7 +407,7 @@ export function AiCoachProactive() {
   const getCoachingInsight = (): { status: CoachingStatus; node: React.ReactNode } | null => {
     if (isAtWeight) return {
       status: 'at-weight',
-      node: <>You're at weight. Stay fueled and hydrated for competition.</>,
+      node: <>You're at weight. Ready for competition.</>,
     };
     if (daysUntil < 0) return null;
 
@@ -397,6 +432,15 @@ export function AiCoachProactive() {
     const isMidDayLog = latestLogType && !['morning', 'before-bed'].includes(latestLogType);
     const checkPrefix = isMidDayLog ? <>At {hl(currentWeight.toFixed(1))}, </> : null;
 
+    // Context-aware loss description: only mention what's still remaining
+    const descentDataForText = getWeekDescentData();
+    const remainingComp = descentDataForText.todayRemainingComponents;
+    const hasSleepRemaining = !remainingComp || remainingComp.sleep > 0.05;
+    const hasPracticeRemaining = remainingComp ? remainingComp.practice > 0.05 : true;
+    const lossDescription = hasSleepRemaining && hasPracticeRemaining
+      ? 'sleep drift and practice'
+      : hasSleepRemaining ? 'sleep drift' : hasPracticeRemaining ? 'practice' : 'remaining losses';
+
     // Competition day
     if (daysUntil === 0) {
       if (weightToLose <= 0.5) return {
@@ -405,22 +449,16 @@ export function AiCoachProactive() {
       };
       return {
         status: 'behind',
-        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Stay warm, keep moving light, and stay calm.</>,
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Stay warm and keep moving light.</>,
       };
     }
 
     // Day before (cut day)
     if (daysUntil === 1) {
       if (onTrack) {
-        if (fluids && fluids.oz > 0) {
-          return {
-            status: 'on-track',
-            node: <>{checkPrefix}On pace — metabolism, drift, and practice cover it. You can sip up to {hl(fluids.oz + ' oz')} before {hl(fluids.cutoffTime)}.</>,
-          };
-        }
         return {
           status: 'on-track',
-          node: <>{checkPrefix}On pace — metabolism, drift, and practice should get you there. Let the protocol work.</>,
+          node: <>{checkPrefix}On pace — {lossDescription} cover{hasSleepRemaining && !hasPracticeRemaining ? 's' : ''} it.</>,
         };
       }
       if (gap > 0) {
@@ -428,51 +466,44 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after metabolism, drift, and practice. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed to make weight.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after {lossDescription}. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after metabolism, drift, and practice. Extra work needed to make weight.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after {lossDescription}. Extra work needed.</>,
         };
       }
       return {
         status: 'on-track',
-        node: <>{checkPrefix}On pace — let the protocol work. Metabolism, drift, and practice should handle it.</>,
+        node: <>{checkPrefix}On pace — {lossDescription} should handle it.</>,
       };
     }
 
     // 2 days out (prep day)
     if (daysUntil === 2) {
       if (onTrack) {
-        const foodNote = food && food.maxLbs > 0
-          ? <>Keep meals under {hl(food.maxLbs + ' lbs')} by {hl(food.lastMealTime)}.</>
-          : <>Low-fiber meals to let the gut empty.</>;
-        const fluidNote = fluids && fluids.oz > 0
-          ? <> {hl(fluids.oz + ' oz')} fluids OK before {hl(fluids.cutoffTime)}.</>
-          : null;
         return {
           status: 'on-track',
-          node: <>{checkPrefix}On pace. {foodNote}{fluidNote}</>,
+          node: <>{checkPrefix}On pace — {hl(weightToLose.toFixed(1) + ' lbs')} to go. {hasSleepRemaining && hasPracticeRemaining ? 'Sleep drift and practice cover' : lossDescription + ' cover' + (hasSleepRemaining && !hasPracticeRemaining ? 's' : '')} it.</>,
         };
       }
       if (gap > 0) {
         const totalMinutes = sweatLbsHr && sweatLbsHr > 0 ? Math.round((gap / sweatLbsHr) * 60) : null;
-        const foodNote = food ? <>Keep food under {hl(food.maxLbs + ' lbs')}.</> : <>Keep meals light.</>;
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed to make weight. {foodNote}</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. {foodNote} Extra work needed to make weight.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. Extra work needed to make weight.</>,
         };
       }
       return {
         status: 'behind',
-        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to cut. Low-fiber meals, sip fluids carefully.</>,
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to cut with {hl('2 days')} left.</>,
       };
     }
 
@@ -481,7 +512,7 @@ export function AiCoachProactive() {
       if (onTrack) {
         return {
           status: 'on-track',
-          node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go with {hl(daysUntil + ' days')} left — on schedule. Eat clean, train normally.</>,
+          node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go with {hl(daysUntil + ' days')} left — on schedule.</>,
         };
       }
       if (gap > 0) {
@@ -489,17 +520,17 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work over the next {hl(daysUntil + ' days')} needed to make weight.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work over the next {hl(daysUntil + ' days')} needed.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. {hl(daysUntil + ' days')} to make weight — tighten up meals and push in practice.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over with {hl(daysUntil + ' days')} to go. Push in practice.</>,
         };
       }
       return {
         status: 'on-track',
-        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go, {hl(daysUntil + ' days')} out. Stay disciplined with meals.</>,
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go, {hl(daysUntil + ' days')} out. On schedule.</>,
       };
     }
 
@@ -507,7 +538,7 @@ export function AiCoachProactive() {
     if (daysUntil >= 6) {
       return {
         status: 'on-track',
-        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Plenty of time — focus on clean eating and solid practices.</>,
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Plenty of time — train hard.</>,
       };
     }
 
@@ -516,21 +547,23 @@ export function AiCoachProactive() {
 
   const coachingInsight = showDetailedGuidance ? getCoachingInsight() : null;
 
-  // Determine contextual quick-action based on coaching state
-  const getQuickAction = (): { label: string; icon: 'scale' | 'workout'; type: string } | null => {
+  // Determine contextual quick-action based on coaching state and today's logs
+  // Only show when behind — on-track users don't need a shortcut cluttering the card
+  const getQuickAction = (): { label: string; icon: 'scale' | 'workout'; type: string | null } | null => {
     if (isAtWeight || daysUntil < 0) return null;
-    // If behind (projected gap > 0), offer "Log Workout"
+    // If behind (projected gap > 0), offer "Log Workout" to encourage extra work
     if (!insights.isOnTrack && insights.projectedGap > 0) {
       return { label: 'Log Workout', icon: 'workout', type: 'extra-workout' };
     }
-    // Otherwise suggest logging weight
-    return { label: 'Log Weight', icon: 'scale', type: 'morning' };
+    // On track — no shortcut needed, the FAB is always available
+    return null;
   };
 
   const quickAction = coachingInsight ? getQuickAction() : null;
 
-  const handleQuickAction = (type: string) => {
-    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+  const handleQuickAction = (type: string | null) => {
+    // When type is null, open FAB without pre-selecting — it will auto-pick the next logical type
+    window.dispatchEvent(new CustomEvent('open-quick-log', { detail: type ? { type } : {} }));
   };
 
   return (
@@ -540,13 +573,38 @@ export function AiCoachProactive() {
         <div className="px-4 pt-3 pb-2">
           <div className="text-center">
             <div className="flex items-baseline justify-center gap-2 mb-1.5">
-              <span className="text-3xl font-mono font-bold tracking-tight">
+              <span className={cn(
+                "text-3xl font-mono font-bold tracking-tight",
+                statusColor === 'green' ? "text-green-500" :
+                statusColor === 'orange' ? "text-orange-400" :
+                statusColor === 'red' ? "text-red-400" : ""
+              )}>
                 {currentWeight.toFixed(1)}
               </span>
               <span className="text-base text-muted-foreground/40">→</span>
-              <span className="text-3xl font-mono font-bold text-primary tracking-tight">
-                {targetWeight}
-              </span>
+              {insights.trainingStatus ? (
+                <div className="inline-flex flex-col items-center">
+                  <span className="text-3xl font-mono font-bold text-primary tracking-tight">
+                    {Math.round(insights.walkAround * 10) / 10}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground -mt-1">walk-around</span>
+                </div>
+              ) : (
+                <span className="text-3xl font-mono font-bold text-primary tracking-tight">
+                  {targetWeight}
+                </span>
+              )}
+              {insights.trainingStatus && (
+                <>
+                  <span className="text-base text-muted-foreground/30">→</span>
+                  <div className="inline-flex flex-col items-center">
+                    <span className="text-xl font-mono font-bold text-muted-foreground/50 tracking-tight">
+                      {targetWeight}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground/40 -mt-0.5">class</span>
+                  </div>
+                </>
+              )}
             </div>
             <div className={cn(
               "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
@@ -554,7 +612,16 @@ export function AiCoachProactive() {
               statusColor === 'orange' && "bg-orange-500/10 text-orange-500",
               statusColor === 'red' && "bg-red-500/10 text-red-400"
             )}>
-              {isAtWeight ? '✓ AT WEIGHT' : (
+              {isAtWeight ? '✓ AT WEIGHT' : insights.trainingStatus ? (
+                <>
+                  {insights.trainingStatus === 'holding' ? 'HOLDING' :
+                   insights.trainingStatus === 'monitor' ? 'MONITOR' : 'HIGH'}
+                  <span className="text-muted-foreground font-normal">•</span>
+                  {insights.walkAroundGap <= 0
+                    ? 'At walk-around weight'
+                    : `${insights.walkAroundGap.toFixed(1)} lbs over`}
+                </>
+              ) : (
                 <>
                   {insights.isOnTrack ? 'ON TRACK' : 'BEHIND'}
                   <span className="text-muted-foreground font-normal">•</span>

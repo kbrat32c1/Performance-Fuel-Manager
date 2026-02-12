@@ -139,7 +139,13 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading uppercase tracking-wide;
   }
+  /* Eliminate iOS 300ms tap delay on all interactive elements */
+  button, a, [role="button"], input, select, textarea, label, summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
+
 
 /* Hide scrollbar for metrics strip */
 .scrollbar-hide::-webkit-scrollbar {
@@ -274,4 +280,78 @@
 
 .animate-count-change {
   animation: count-up 0.2s ease-out;
+}
+
+/* Ring glow pulse for 100% fuel completion */
+@keyframes ring-glow {
+  0%, 100% { filter: drop-shadow(0 0 3px currentColor); }
+  50% { filter: drop-shadow(0 0 12px currentColor) drop-shadow(0 0 4px currentColor); }
+}
+
+.animate-ring-glow {
+  animation: ring-glow 2s ease-in-out infinite;
+}
+
+/* Next Grab flash feedback */
+@keyframes grab-flash {
+  0% { background-color: transparent; }
+  30% { background-color: rgba(34, 197, 94, 0.15); }
+  100% { background-color: transparent; }
+}
+
+.animate-grab-flash {
+  animation: grab-flash 0.8s ease-out;
+}
+
+/* Fuel card segment draw-in — arcs animate from 0 to final length */
+@keyframes segment-draw {
+  from { stroke-dashoffset: var(--segment-circ); }
+}
+
+.animate-segment-draw {
+  animation: segment-draw 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Bounce-once — satisfying checkmark bounce when all nutrition targets hit */
+@keyframes bounce-once {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.3); }
+  70% { transform: scale(0.9); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-bounce-once {
+  animation: bounce-once 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Fuel card shimmer — subtle gradient sweep on phase label */
+@keyframes fuel-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.animate-fuel-shimmer {
+  background-size: 200% auto;
+  animation: fuel-shimmer 3s linear infinite;
+}
+
+/* Motivational text fade cycle */
+@keyframes text-breathe {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-text-breathe {
+  animation: text-breathe 4s ease-in-out infinite;
+}
+
+/* Victory burst — brief scale + glow on all-done */
+@keyframes victory-burst {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.05); filter: brightness(1.3); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.animate-victory-burst {
+  animation: victory-burst 0.6s ease-out;
 }

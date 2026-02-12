@@ -55,7 +55,9 @@ export function useCarouselSwipe(
 
     ignoreSwipe.current = isInsideHorizontalScroller(e.target);
     isHorizontal.current = null;
-    setIsDragging(true);
+    // Don't set isDragging here — wait for actual movement in onTouchMove.
+    // Setting state on touchStart causes a React re-render that can swallow
+    // the subsequent click event, making buttons require a double-tap.
   }, []);
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
@@ -76,6 +78,8 @@ export function useCarouselSwipe(
         setOffset(0);
         return;
       }
+      // Only set isDragging once we confirm horizontal movement
+      setIsDragging(true);
     }
 
     if (!isHorizontal.current) return;
@@ -104,6 +108,16 @@ export function useCarouselSwipe(
     if (ignoreSwipe.current) {
       ignoreSwipe.current = false;
       isHorizontal.current = null;
+      return;
+    }
+
+    // If no horizontal movement was ever detected (i.e. a simple tap),
+    // bail out immediately — no animation, no state changes, no blocking.
+    // This lets the click event fire normally without interference.
+    if (isHorizontal.current === null) {
+      touchStartX.current = 0;
+      touchStartY.current = 0;
+      currentOffset.current = 0;
       return;
     }
 
@@ -144,7 +158,7 @@ export function useCarouselSwipe(
         isAnimatingRef.current = false;
       }, 250);
     } else {
-      // Snap back
+      // Snap back from a drag that didn't meet threshold
       isAnimatingRef.current = true;
       setIsAnimating(true);
       setOffset(0);

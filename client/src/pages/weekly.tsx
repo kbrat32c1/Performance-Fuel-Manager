@@ -6,8 +6,19 @@ import { format, getDay, addDays, startOfWeek, isSameDay } from "date-fns";
 import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Dumbbell } from "lucide-react";
 import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWaterTargetGallons, getSodiumTarget } from "@/lib/constants";
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
+import { WeekOverview } from "@/components/dashboard";
+import { useLocation } from "wouter";
 
 export default function Weekly() {
+  const [, setLocation] = useLocation();
+  const { profile: profileCheck } = useStore();
+  const proto = profileCheck?.protocol || '5';
+  // Redirect non-competition protocols (4=Gain, 5=SPAR General) away from Week page
+  if (proto === '4' || proto === '5') {
+    setLocation('/dashboard');
+    return null;
+  }
+
   const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn, getWeeklyPlan } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
@@ -31,10 +42,28 @@ export default function Weekly() {
     sun: getDaysUntilForDay(0),
   };
 
-  // Use athlete's current walk-around weight (or target × 1.07 as fallback)
-  const athleteWeightLbs = logs.length > 0
-    ? logs[logs.length - 1].weight
-    : Math.round(profile.targetWeightClass * 1.07);
+  // Use athlete's walk-around weight for water scaling
+  // Walk-around is estimated as targetWeightClass × 1.06-1.07 (typical rehydration weight)
+  // If we have a recent morning log from training phase (not cut week), use that instead
+  const athleteWeightLbs = (() => {
+    const daysUntil = getDaysUntilWeighIn();
+    // During training phase (6+ days out), use most recent morning or any log
+    if (daysUntil > 5) {
+      // Most recent log of any type gives best current weight estimate
+      if (logs.length > 0) {
+        const sorted = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return sorted[0].weight;
+      }
+    } else {
+      // During comp week, use morning weight (more representative of cutting weight)
+      const morningLogs = [...logs]
+        .filter(l => l.type === 'morning')
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      if (morningLogs.length > 0) return morningLogs[0].weight;
+    }
+    // Fallback: walk-around estimate from weight class
+    return Math.round(profile.targetWeightClass * 1.07);
+  })();
 
   // Compute water targets using ml/kg scaling from research
   const getWaterForDay = (dayKey: string) => {
@@ -188,211 +217,8 @@ export default function Weekly() {
         </p>
       </header>
 
-      {/* Progress Summary Card */}
-      {descentData.morningWeights.length >= 1 && (
-        <Card className={cn(
-          "mb-4 border-2",
-          phaseStyle.border, phaseStyle.bgSubtle
-        )}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                {descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight * 1.03
-                  ? <AlertTriangle className="w-5 h-5 text-red-500" />
-                  : descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight
-                    ? <AlertTriangle className="w-5 h-5 text-orange-500" />
-                    : descentData.pace === 'ahead' ? <TrendingDown className={cn("w-5 h-5", phaseStyle.text)} />
-                    : descentData.pace === 'on-track' ? <Target className={cn("w-5 h-5", phaseStyle.text)} />
-                    : descentData.pace === 'behind' ? <TrendingUp className={cn("w-5 h-5", phaseStyle.text)} />
-                    : <Scale className="w-5 h-5 text-muted-foreground" />}
-                <div>
-                  <span className="text-sm font-bold uppercase block">
-                    {/* Use projection-aware status: if projected Saturday weight misses target, show warning regardless of today's pace */}
-                    {descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight * 1.03
-                      ? "Projected Over"
-                      : descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight
-                        ? "Tight — Check Projections"
-                        : descentData.pace === 'ahead' ? "Ahead of Schedule!"
-                        : descentData.pace === 'on-track' ? "On Track"
-                        : descentData.pace === 'behind' ? "Behind Schedule"
-                        : "Week Progress"}
-                  </span>
-                  {daysUntil >= 3 && descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight && (
-                    <span className="text-[9px] text-muted-foreground font-normal normal-case block">
-                      Normal during loading — big drop comes {format(addDays(new Date(), daysUntil - 2), 'EEE')}–{format(addDays(new Date(), daysUntil - 1), 'EEE')}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <span className={cn(
-                "text-xs font-bold px-2 py-1 rounded",
-                phaseStyle.text, phaseStyle.bgLight
-              )}>
-                {getTimeUntilWeighIn()} to weigh-in
-              </span>
-            </div>
-
-            {/* Stats Grid - Weight Progress */}
-            <div className="grid grid-cols-4 gap-2 text-center">
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Start</span>
-                <span className="font-mono font-bold text-lg">
-                  {descentData.startWeight?.toFixed(1) ?? '—'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Now</span>
-                <span className={cn(
-                  "font-mono font-bold text-lg",
-                  phaseStyle.text
-                )}>
-                  {descentData.currentWeight?.toFixed(1) ?? '—'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Lost</span>
-                <span className={cn(
-                  "font-mono font-bold text-lg",
-                  descentData.totalLost && descentData.totalLost > 0 ? "text-green-500" : "text-muted-foreground"
-                )}>
-                  {descentData.totalLost !== null
-                    ? descentData.totalLost > 0 ? `-${descentData.totalLost.toFixed(1)}` : `+${Math.abs(descentData.totalLost).toFixed(1)}`
-                    : '—'}
-                </span>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground block">Goal</span>
-                <span className={cn("font-mono font-bold text-lg", phaseStyle.text)}>
-                  {descentData.targetWeight}
-                </span>
-              </div>
-            </div>
-
-            {/* Projected Weight */}
-            {descentData.projectedSaturday !== null && (
-              <div className="flex items-center justify-center gap-2 pt-3 mt-3 border-t border-muted">
-                <span className="text-[10px] text-muted-foreground">Projected</span>
-                <span className={cn(
-                  "font-mono font-bold text-sm",
-                  descentData.projectedSaturday <= descentData.targetWeight
-                    ? "text-green-500"
-                    : descentData.projectedSaturday <= descentData.targetWeight * 1.03
-                      ? "text-orange-500"
-                      : "text-red-500"
-                )}>
-                  {descentData.projectedSaturday.toFixed(1)} lbs
-                </span>
-                {daysUntil >= 3 && descentData.projectedSaturday > descentData.targetWeight && (
-                  <span className="text-[9px] text-muted-foreground/60">
-                    drops {format(addDays(new Date(), daysUntil - 2), 'EEE')}–{format(addDays(new Date(), daysUntil - 1), 'EEE')}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Loss Capacity Breakdown */}
-            {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null) && (() => {
-              const extraStats = getExtraWorkoutStats();
-              const hasExtras = extraStats.totalWorkouts > 0;
-              return (
-              <div className={cn("grid gap-1 text-center pt-2 mt-2 border-t border-muted", hasExtras ? "grid-cols-4" : "grid-cols-3")}>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Sleep</span>
-                  <span className={cn("font-mono font-bold text-sm", descentData.avgOvernightDrift !== null ? "text-cyan-500" : "")}>
-                    {descentData.avgOvernightDrift !== null ? `-${Math.abs(descentData.avgOvernightDrift).toFixed(1)}` : '—'} lbs
-                  </span>
-                  {descentData.avgDriftRateOzPerHr !== null && (
-                    <span className="block text-[9px] font-mono text-cyan-400">
-                      {descentData.avgDriftRateOzPerHr.toFixed(2)}/hr
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Awake</span>
-                  <span className="font-mono font-bold text-sm text-teal-500">
-                    {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)}` : '—'} lbs
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-muted-foreground block">Practice</span>
-                  <span className={cn("font-mono font-bold text-sm", descentData.avgPracticeLoss !== null ? "text-orange-500" : "")}>
-                    {descentData.avgPracticeLoss !== null ? `-${Math.abs(descentData.avgPracticeLoss).toFixed(1)}` : '—'} lbs
-                  </span>
-                  {descentData.avgSweatRateOzPerHr !== null && (
-                    <span className="block text-[9px] font-mono text-orange-400">
-                      {descentData.avgSweatRateOzPerHr.toFixed(2)}/hr
-                    </span>
-                  )}
-                </div>
-                {hasExtras && (
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block">Extras</span>
-                    <span className="font-mono font-bold text-sm text-orange-400">
-                      {extraStats.avgLoss !== null ? `-${extraStats.avgLoss.toFixed(1)}` : '—'} lbs
-                    </span>
-                    {extraStats.avgSweatRateOzPerHr !== null && (
-                      <span className="block text-[9px] font-mono text-orange-400/70">
-                        {extraStats.avgSweatRateOzPerHr.toFixed(2)}/hr
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              );
-            })()}
-
-            {/* Gross loss capacity note */}
-            {descentData.grossDailyLoss !== null && (
-              <div className="text-[9px] text-muted-foreground text-center mt-2 pt-2 border-t border-muted/50">
-                Loss capacity: <span className="text-green-500 font-mono font-bold">-{descentData.grossDailyLoss.toFixed(1)} lbs/day</span>
-              </div>
-            )}
-
-            {/* Progress Message — projection-aware */}
-            {descentData.totalLost !== null && descentData.currentWeight && (() => {
-              const isWaterLoading = isWaterLoadingDay();
-              const toGoal = (descentData.currentWeight - descentData.targetWeight).toFixed(1);
-              const projectedOver = descentData.projectedSaturday !== null && descentData.projectedSaturday > descentData.targetWeight;
-              const projectedOverAmt = descentData.projectedSaturday !== null ? (descentData.projectedSaturday - descentData.targetWeight).toFixed(1) : '0';
-
-              // If projection shows over target, override pace message with warning
-              if (projectedOver) {
-                return (
-                  <div className="mt-3 p-2 rounded-lg text-center text-sm bg-orange-500/10 text-orange-500">
-                    {isWaterLoading
-                      ? <>Projected <strong>{projectedOverAmt} lbs over</strong> at weigh-in. Normal during loading — track closely.</>
-                      : <>Projected <strong>{projectedOverAmt} lbs over</strong> at weigh-in. <strong>{toGoal} lbs</strong> left to cut.</>
-                    }
-                  </div>
-                );
-              }
-
-              return (
-                <div className={cn(
-                  "mt-3 p-2 rounded-lg text-center text-sm",
-                  phaseStyle.bgLight, phaseStyle.text
-                )}>
-                  {descentData.pace === 'ahead' && (
-                    isWaterLoading
-                      ? <>Lighter than expected for {currentPhase === 'Prep' ? 'prep' : 'water loading'}! <strong>{toGoal} lbs</strong> to cut — you have room to load more.</>
-                      : <>You're ahead of schedule! <strong>{toGoal} lbs</strong> left to cut — great progress.</>
-                  )}
-                  {descentData.pace === 'on-track' && (
-                    isWaterLoading
-                      ? <>{currentPhase === 'Prep' ? 'Prep phase' : 'Water loading'} on track. <strong>{toGoal} lbs</strong> to cut — normal for this phase, will drop when you cut water.</>
-                      : <>On pace! <strong>{toGoal} lbs</strong> left to cut.</>
-                  )}
-                  {descentData.pace === 'behind' && (
-                    isWaterLoading
-                      ? <>Running heavy for {currentPhase === 'Prep' ? 'prep phase' : 'water loading'}. <strong>{toGoal} lbs</strong> to cut — watch intake today.</>
-                      : <>Need to lose <strong>{toGoal} lbs</strong> more. Tighten up!</>
-                  )}
-                </div>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      )}
+      {/* Visual Week Plan — tap any day for eating/drinking details */}
+      <WeekOverview getWeeklyPlan={getWeeklyPlan} />
 
       {/* Weight Targets Table */}
       <section className="mb-6">
@@ -436,7 +262,7 @@ export default function Weekly() {
                   const dayDate = new Date(planDay.date);
                   const morningLog = logs.find(log => {
                     const logDate = new Date(log.date);
-                    return log.type === 'morning' &&
+                    return (log.type === 'morning' || log.type === 'weigh-in') &&
                       logDate.getFullYear() === dayDate.getFullYear() &&
                       logDate.getMonth() === dayDate.getMonth() &&
                       logDate.getDate() === dayDate.getDate();

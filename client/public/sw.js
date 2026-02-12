@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pwm-v150';
+const CACHE_NAME = 'pwm-v151';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

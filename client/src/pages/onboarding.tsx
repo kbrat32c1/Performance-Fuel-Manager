@@ -11,7 +11,7 @@ import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, Use
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
-import { SPAR_MACRO_PROTOCOLS, type SparMacroProtocol } from "@/lib/spar-calculator";
+import { getProtocolRecommendation as getProtocolRec, PROTOCOL_CONFIG } from "@/lib/protocol-utils";
 import {
   type Goal as SparV2Goal,
   type GoalIntensity,
@@ -31,7 +31,7 @@ import {
 // 4b. If SPAR: Final summary
 // 5. If Competition: Final summary
 
-type UserGoal = 'competition' | 'spar' | null;
+type UserGoal = 'competition' | 'spar' | 'spar-competition' | null;
 
 export default function Onboarding() {
   const { profile, updateProfile } = useStore();
@@ -50,8 +50,11 @@ export default function Onboarding() {
   // Determine initial goal based on switching context or current profile
   const getInitialGoal = (): UserGoal => {
     if (switchingProtocol) {
-      return switchingProtocol === '5' ? 'spar' : 'competition';
+      if (switchingProtocol === '5') return 'spar';
+      if (switchingProtocol === '6') return 'spar-competition';
+      return 'competition';
     }
+    if (profile.protocol === '6') return 'spar-competition';
     if (profile.protocol === '5') return 'spar';
     if (profile.hasCompletedOnboarding) return 'competition';
     return null;
@@ -105,52 +108,26 @@ export default function Onboarding() {
     const target = parseFloat(customTargetWeight);
     if (isNaN(target)) return null;
 
-    // Get calorie adjustment from selected protocol
-    const protocol = profile.sparMacroProtocol || 'maintenance';
-    const config = SPAR_MACRO_PROTOCOLS[protocol];
-    const calorieAdj = protocol === 'custom' && profile.customMacros?.calorieAdjustment !== undefined
-      ? profile.customMacros.calorieAdjustment
-      : config?.calorieAdjustment || 0;
+    // Get calorie adjustment from v2 goal
+    const sparGoal = profile.sparGoal || 'maintain';
+    if (sparGoal === 'maintain') return null; // No progress on maintenance
 
-    if (calorieAdj === 0) return null; // No progress on maintenance protocols
+    // Estimate based on goal intensity
+    const intensity = profile.goalIntensity || 'lean';
+    const calorieAdj = sparGoal === 'lose'
+      ? (intensity === 'aggressive' ? -500 : -250)
+      : (intensity === 'aggressive' ? 500 : 250);
 
     const diff = Math.abs(profile.currentWeight - target);
     // 3500 cal = ~1 lb, weekly cal deficit/surplus = calorieAdj * 7
     const weeklyLbChange = Math.abs(calorieAdj * 7 / 3500);
     if (weeklyLbChange === 0) return null;
     return Math.ceil(diff / weeklyLbChange);
-  }, [customTargetWeight, profile.currentWeight, profile.sparMacroProtocol, profile.customMacros]);
+  }, [customTargetWeight, profile.currentWeight, profile.sparGoal, profile.goalIntensity]);
 
-  // Competition protocol recommendation
+  // Competition protocol recommendation — uses shared utility
   const getProtocolRecommendation = () => {
-    const walkAroundWeight = profile.targetWeightClass * 1.07;
-    const percentOver = ((profile.currentWeight - profile.targetWeightClass) / profile.targetWeightClass) * 100;
-    const lbsOverWalkAround = profile.currentWeight - walkAroundWeight;
-    const lbsOverTarget = profile.currentWeight - profile.targetWeightClass;
-
-    if (profile.currentWeight < profile.targetWeightClass) {
-      return {
-        protocol: '4' as Protocol,
-        reason: `You're ${Math.abs(lbsOverTarget).toFixed(1)} lbs under target. Build Phase helps gain muscle safely.`
-      };
-    }
-    if (percentOver > 7) {
-      return {
-        protocol: '1' as Protocol,
-        reason: `You're ${percentOver.toFixed(1)}% over (${lbsOverWalkAround.toFixed(1)} lbs above walk-around). Body Comp burns fat while preserving performance.`,
-        warning: "Run 2-4 weeks max, then transition."
-      };
-    }
-    if (profile.currentWeight > walkAroundWeight) {
-      return {
-        protocol: '2' as Protocol,
-        reason: `You're ${lbsOverWalkAround.toFixed(1)} lbs above walk-around. Make Weight manages weekly cuts.`
-      };
-    }
-    return {
-      protocol: '3' as Protocol,
-      reason: `You're at walk-around weight. Hold Weight keeps you competition-ready.`
-    };
+    return getProtocolRec(profile.currentWeight, profile.targetWeightClass);
   };
 
   const handleNext = async () => {
@@ -159,7 +136,7 @@ export default function Onboarding() {
       return;
     }
 
-    // Validation for SPAR step 4 (goal selection)
+    // Validation for SPAR General step 4 (goal selection) — not needed for SPAR Competition
     if (step === 4 && userGoal === 'spar' && !profile.sparGoal) {
       setShowValidation(true);
       return;
@@ -178,12 +155,11 @@ export default function Onboarding() {
         simulatedDate: null,
         hasCompletedOnboarding: true,
         // Explicitly set protocol based on user goal
-        protocol: userGoal === 'spar' ? '5' : profile.protocol,
+        protocol: userGoal === 'spar' ? '5' : userGoal === 'spar-competition' ? '6' : profile.protocol,
       };
 
-      // For SPAR v2, enable v2 mode and set defaults
-      if (userGoal === 'spar') {
-        finalUpdate.protocol = '5';
+      // For SPAR-based protocols (v2), enable v2 mode and set defaults
+      if (userGoal === 'spar' || userGoal === 'spar-competition') {
         finalUpdate.sparV2 = true;
         // Set last calc weight to current weight for smart recalculation
         finalUpdate.lastCalcWeight = profile.currentWeight;
@@ -195,11 +171,12 @@ export default function Onboarding() {
         if (!profile.workdayActivity) {
           finalUpdate.workdayActivity = 'mostly_sitting';
         }
-        // Default goal if somehow not set
-        if (!profile.sparGoal) {
+        // SPAR General: set default goal if not set
+        if (userGoal === 'spar' && !profile.sparGoal) {
           finalUpdate.sparGoal = 'maintain';
           finalUpdate.maintainPriority = 'general';
         }
+        // SPAR Competition: goal is dynamically computed by competition adjuster, not user-set
       }
 
       // Await profile save to ensure it persists to Supabase before navigating
@@ -237,7 +214,7 @@ export default function Onboarding() {
               Step {step} of {TOTAL_STEPS}: {
                 step === 1 ? 'Basics' :
                 step === 2 ? 'Goal' :
-                step === 3 ? (userGoal === 'spar' ? 'Stats' : 'Protocol') :
+                step === 3 ? (userGoal === 'spar' ? 'Stats' : userGoal === 'spar-competition' ? 'Setup' : 'Protocol') :
                 step === 4 ? (userGoal === 'spar' ? 'Goal' : 'Timeline') :
                 'Confirm'
               }
@@ -399,7 +376,40 @@ export default function Onboarding() {
                   </div>
                 </Card>
 
-                {/* SPAR Goal */}
+                {/* SPAR Competition Goal */}
+                <Card
+                  className={cn(
+                    "p-5 border-2 cursor-pointer transition-all active:scale-[0.98]",
+                    userGoal === 'spar-competition' ? "border-purple-500 bg-purple-500/5" : "border-muted hover:border-muted-foreground/50"
+                  )}
+                  onClick={() => {
+                    setUserGoal('spar-competition');
+                    updateProfile({ protocol: '6' as Protocol });
+                  }}
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0">
+                      <div className="relative">
+                        <Trophy className="w-5 h-5 text-purple-500 absolute -top-0.5 -left-0.5" />
+                        <Salad className="w-5 h-5 text-purple-400 absolute top-0.5 left-0.5" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg">SPAR Competition</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Competition weight cutting with SPAR portion tracking. Includes water loading protocols and auto-adjusting calorie targets.
+                      </p>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[10px] font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded">
+                          Portions + Water Loading
+                        </span>
+                      </div>
+                    </div>
+                    {userGoal === 'spar-competition' && <CheckCircle className="w-5 h-5 text-purple-500 shrink-0" />}
+                  </div>
+                </Card>
+
+                {/* SPAR General Goal */}
                 <Card
                   className={cn(
                     "p-5 border-2 cursor-pointer transition-all active:scale-[0.98]",
@@ -474,12 +484,13 @@ export default function Onboarding() {
                 <Label>Protocol</Label>
                 {(() => {
                   const rec = getProtocolRecommendation();
-                  const protocols: { id: Protocol; label: string; desc: string; icon: any; color: string }[] = [
-                    { id: '1', label: 'Body Comp Phase', desc: 'Aggressive fat loss via fructose-only', icon: Flame, color: 'text-red-500' },
-                    { id: '2', label: 'Make Weight Phase', desc: 'Weekly cut with water loading', icon: Zap, color: 'text-primary' },
-                    { id: '3', label: 'Hold Weight Phase', desc: 'Maintain at walk-around weight', icon: Trophy, color: 'text-yellow-500' },
-                    { id: '4', label: 'Build Phase', desc: 'Off-season muscle gain', icon: Dumbbell, color: 'text-blue-500' },
-                  ];
+                  const protocols = (['1', '2', '3', '4'] as Protocol[]).map(id => ({
+                    id,
+                    label: PROTOCOL_CONFIG[id].label,
+                    desc: PROTOCOL_CONFIG[id].desc,
+                    icon: PROTOCOL_CONFIG[id].icon,
+                    color: id === '1' ? 'text-red-500' : id === '3' ? 'text-yellow-500' : id === '4' ? 'text-blue-500' : 'text-primary',
+                  }));
 
                   // Sort to put recommended first
                   const sorted = [
@@ -544,6 +555,175 @@ export default function Onboarding() {
                     );
                   });
                 })()}
+              </div>
+            </div>
+          )}
+
+          {/* ═══ Step 3 (SPAR Competition): Weight Class + SPAR Stats ═══ */}
+          {step === 3 && userGoal === 'spar-competition' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="space-y-2">
+                <h1 className="text-4xl font-heading font-bold uppercase italic">Setup</h1>
+                <p className="text-muted-foreground">Weight class and body stats for portion calculation.</p>
+              </div>
+
+              {/* Weight Class Selection */}
+              <div className="space-y-2">
+                <Label>Target Weight Class</Label>
+                <div className="relative">
+                  <Target className="absolute left-3 top-3 text-muted-foreground w-5 h-5 z-10" />
+                  <Select
+                    value={profile.targetWeightClass.toString()}
+                    onValueChange={(v) => updateProfile({ targetWeightClass: parseInt(v) })}
+                  >
+                    <SelectTrigger className="pl-10 text-lg h-12 bg-muted/30 font-mono">
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEIGHT_CLASSES.map(w => (
+                        <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {profile.targetWeightClass > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Walk-around: {(profile.targetWeightClass * 1.07).toFixed(1)} lbs •
+                    You're {profile.currentWeight > profile.targetWeightClass
+                      ? `${(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs over`
+                      : `${(profile.targetWeightClass - profile.currentWeight).toFixed(1)} lbs under`}
+                  </p>
+                )}
+              </div>
+
+              {/* SPAR Stats */}
+              <div className="space-y-4 pt-4 border-t border-muted">
+                <p className="text-xs font-bold text-muted-foreground uppercase">Body Stats (for portion calculation)</p>
+                {/* Height */}
+                <div className="space-y-2">
+                  <Label className="text-xs">Height</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        placeholder="5"
+                        min="4" max="7"
+                        className="h-11 bg-muted/30 font-mono pr-8"
+                        value={profile.heightInches ? Math.floor(profile.heightInches / 12) : ''}
+                        onChange={(e) => {
+                          const feet = parseInt(e.target.value) || 0;
+                          const inches = (profile.heightInches || 0) % 12;
+                          updateProfile({ heightInches: feet * 12 + inches });
+                        }}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ft</span>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        placeholder="10"
+                        min="0" max="11"
+                        className="h-11 bg-muted/30 font-mono pr-8"
+                        value={profile.heightInches ? profile.heightInches % 12 : ''}
+                        onChange={(e) => {
+                          const inches = Math.min(parseInt(e.target.value) || 0, 11);
+                          const feet = Math.floor((profile.heightInches || 0) / 12);
+                          updateProfile({ heightInches: feet * 12 + inches });
+                        }}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">in</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Age & Sex */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Age</Label>
+                    <Input
+                      type="number"
+                      placeholder="16"
+                      min="10" max="80"
+                      className="h-11 bg-muted/30 font-mono"
+                      value={profile.age || ''}
+                      onChange={(e) => updateProfile({ age: parseInt(e.target.value) || undefined })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Sex</Label>
+                    <Select value={profile.gender || 'male'} onValueChange={(v) => updateProfile({ gender: v as any })}>
+                      <SelectTrigger className="h-11 bg-muted/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Training Sessions */}
+                <div className="space-y-2 pt-4 border-t border-muted">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Dumbbell className="w-3.5 h-3.5" />
+                    Weekly Training Sessions
+                  </Label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['1-2', '3-4', '5-6', '7+'] as TrainingSessions[]).map((sessions) => {
+                      const isSelected = (profile.trainingSessions || '3-4') === sessions;
+                      return (
+                        <Card
+                          key={sessions}
+                          className={cn(
+                            "p-3 border-2 cursor-pointer transition-all text-center",
+                            isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
+                          )}
+                          onClick={() => updateProfile({ trainingSessions: sessions })}
+                        >
+                          <span className="font-bold text-lg">{sessions}</span>
+                          <p className="text-[9px] text-muted-foreground">per week</p>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Workday Activity */}
+                <div className="space-y-2 pt-4 border-t border-muted">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <Activity className="w-3.5 h-3.5" />
+                    Workday Activity
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground -mt-1">Outside of training, how active is your typical day?</p>
+                  <div className="space-y-2">
+                    {(['mostly_sitting', 'on_feet_some', 'on_feet_most'] as WorkdayActivity[]).map((activity) => {
+                      const isSelected = (profile.workdayActivity || 'mostly_sitting') === activity;
+                      const label = activity === 'mostly_sitting' ? 'Mostly Sitting' :
+                                    activity === 'on_feet_some' ? 'On Feet Some' : 'On Feet Most';
+                      const desc = activity === 'mostly_sitting' ? 'Desk job, studying, gaming' :
+                                   activity === 'on_feet_some' ? 'Walking between classes, retail' : 'Manual labor, server, warehouse';
+                      return (
+                        <Card
+                          key={activity}
+                          className={cn(
+                            "p-3 border-2 cursor-pointer transition-all",
+                            isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
+                          )}
+                          onClick={() => updateProfile({ workdayActivity: activity })}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-bold text-sm">{label}</span>
+                              <p className="text-[10px] text-muted-foreground">{desc}</p>
+                            </div>
+                            {isSelected && <CheckCircle className="w-4 h-4 text-primary" />}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -688,7 +868,7 @@ export default function Onboarding() {
           )}
 
           {/* ═══ Step 4 (Competition): Timeline ═══ */}
-          {step === 4 && userGoal === 'competition' && (
+          {step === 4 && (userGoal === 'competition' || userGoal === 'spar-competition') && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Timeline</h1>
@@ -1006,7 +1186,7 @@ export default function Onboarding() {
           )}
 
           {/* ═══ Step 5 (Competition): Final Summary ═══ */}
-          {step === 5 && userGoal === 'competition' && (
+          {step === 5 && (userGoal === 'competition' || userGoal === 'spar-competition') && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="space-y-2">
                 <h1 className="text-4xl font-heading font-bold uppercase italic">Ready!</h1>
@@ -1035,10 +1215,11 @@ export default function Onboarding() {
                   <div className="flex justify-between pb-2 border-b border-muted/50">
                     <span className="text-muted-foreground">Protocol</span>
                     <span className="font-bold">
-                      {profile.protocol === '1' && 'Body Comp Phase'}
-                      {profile.protocol === '2' && 'Make Weight Phase'}
-                      {profile.protocol === '3' && 'Hold Weight Phase'}
-                      {profile.protocol === '4' && 'Build Phase'}
+                      {profile.protocol === '1' && 'Extreme Cut Phase'}
+                      {profile.protocol === '2' && 'Rapid Cut Phase'}
+                      {profile.protocol === '3' && 'Optimal Cut Phase'}
+                      {profile.protocol === '4' && 'Gain Phase'}
+                      {profile.protocol === '6' && 'SPAR Competition'}
                     </span>
                   </div>
                   <div className="flex justify-between pb-2 border-b border-muted/50">

@@ -1,15 +1,16 @@
+/**
+ * FuelCard — Dashboard nutrition progress card with gamified visuals.
+ * Multi-segment animated ring, logging streak flame, category progress pills,
+ * and satisfying completion animations. Tapping navigates to /food.
+ */
+
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
-import { Utensils, Droplets, ChevronDown, Check, Zap, Salad, HelpCircle } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Check, ChevronRight, Flame, Utensils, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { useStore } from "@/lib/store";
-import { MacroTracker } from "./macro-tracker";
-import { SparTracker } from "./spar-tracker";
-import { HydrationTracker } from "./hydration-tracker";
-import { getCompetitionState, getCurrentPhase } from "@/components/competition-banner";
-import { SUGAR_FOODS, type SparFood } from "@/lib/food-data";
 
 interface FuelCardProps {
   macros: {
@@ -19,14 +20,8 @@ interface FuelCardProps {
     note?: string;
     weightWarning?: string;
   };
-  todaysFoods: {
-    carbs: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string; timing?: string }>;
-    protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }>;
-    avoid: Array<{ name: string; reason: string }>;
-    carbsLabel: string;
-    proteinLabel: string;
-  };
-  foodLists: ReturnType<ReturnType<typeof useStore>['getFoodLists']>;
+  todaysFoods?: any;
+  foodLists?: any;
   hydration: {
     amount: string;
     type: string;
@@ -40,10 +35,7 @@ interface FuelCardProps {
 
 export function FuelCard({
   macros,
-  todaysFoods,
-  foodLists,
   hydration,
-  daysUntilWeighIn,
   protocol,
   readOnly = false,
 }: FuelCardProps) {
@@ -51,24 +43,15 @@ export function FuelCard({
   const today = profile.simulatedDate || new Date();
   const dateKey = format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
-  const [expanded, setExpanded] = useState(false);
+  const [, setLocation] = useLocation();
 
   // Determine nutrition mode
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
-  // Protocol determines food system: only Protocol 5 uses SPAR food lists
-  const isSparProtocol = protocol === '5';
-  // Show slice-based tracker (SparTracker UI) when:
-  // - Protocol 5 (always SPAR), OR
-  // - Protocols 1-4 with slices preference (uses Sugar Diet foods in slice UI)
-  const showSliceTracker = isSparProtocol || isSparMode;
-  const showMacroTracker = !showSliceTracker;
+  const isSparProtocol = protocol === '5' || protocol === '6';
+  const showSliceTracker = isSparMode;
 
   // ─── Cross-sync reconciliation on mode switch ───
-  // When switching between slices↔grams, reconcile data so both sides match.
-  // The "source of truth" is the `nutritionMode` field on the tracking record:
-  // if it was last logged as 'spar', slices are authoritative → derive grams from slices
-  // if it was last logged as 'sugar' (or undefined), grams are authoritative → derive slices from grams
   const prevModeRef = useRef(nutritionMode);
   useEffect(() => {
     if (prevModeRef.current === nutritionMode) return;
@@ -78,409 +61,314 @@ export function FuelCard({
     const updates: Record<string, any> = {};
 
     if (lastLoggedMode === 'spar') {
-      // Slices are truth → sync grams FROM slices
       const expectedCarbs = tracking.carbSlices * 30;
       const expectedProtein = tracking.proteinSlices * 25;
-      if (Math.abs(tracking.carbsConsumed - expectedCarbs) > 5) {
-        updates.carbsConsumed = expectedCarbs;
-      }
-      if (Math.abs(tracking.proteinConsumed - expectedProtein) > 5) {
-        updates.proteinConsumed = expectedProtein;
-      }
+      if (Math.abs(tracking.carbsConsumed - expectedCarbs) > 5) updates.carbsConsumed = expectedCarbs;
+      if (Math.abs(tracking.proteinConsumed - expectedProtein) > 5) updates.proteinConsumed = expectedProtein;
     } else {
-      // Grams are truth → sync slices FROM grams
       const expectedCarbSlices = Math.round(tracking.carbsConsumed / 26);
       const expectedProteinSlices = Math.round(tracking.proteinConsumed / 25);
-      if (Math.abs(tracking.carbSlices - expectedCarbSlices) > 0) {
-        updates.carbSlices = expectedCarbSlices;
-      }
-      if (Math.abs(tracking.proteinSlices - expectedProteinSlices) > 0) {
-        updates.proteinSlices = expectedProteinSlices;
-      }
+      if (Math.abs(tracking.carbSlices - expectedCarbSlices) > 0) updates.carbSlices = expectedCarbSlices;
+      if (Math.abs(tracking.proteinSlices - expectedProteinSlices) > 0) updates.proteinSlices = expectedProteinSlices;
     }
 
-    if (Object.keys(updates).length > 0) {
-      updateDailyTracking(dateKey, updates);
-    }
+    if (Object.keys(updates).length > 0) updateDailyTracking(dateKey, updates);
   }, [nutritionMode, tracking, dateKey, updateDailyTracking]);
 
-  // Water add flash feedback
-  const [flashedButton, setFlashedButton] = useState<number | null>(null);
-  const flashTimeout = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (flashTimeout.current) clearTimeout(flashTimeout.current);
-    };
-  }, []);
-
-  // ─── Sugar Mode Progress ───
+  // ─── Progress calculations ───
   const doNotEat = macros.carbs.max === 0 && macros.protein.max === 0 && macros.weightWarning;
-  const carbProgress = macros.carbs.max > 0
-    ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100)
-    : 0;
-  const proteinProgress = macros.protein.max > 0
-    ? Math.min(100, (tracking.proteinConsumed / macros.protein.max) * 100)
-    : 0;
-  const sugarCarbsDone = macros.carbs.max === 0 || carbProgress >= 100;
-  const sugarProteinDone = macros.protein.max === 0 || proteinProgress >= 100;
-  const ateWhileDoNotEat = doNotEat && (tracking.carbsConsumed > 0 || tracking.proteinConsumed > 0);
-  const isSipOnly = hydration.type === 'Sip Only';
-  const overDrinkingSip = doNotEat && isSipOnly && tracking.waterConsumed > 16;
-
-  // ─── Slice Mode Progress ───
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
 
-  // Protocol restrictions for slice tracker (applies to both P5 and P1-4 in slice mode)
-  const sparRestrictions = useMemo(() => {
-    if (!showSliceTracker) return undefined;
-    const blocked: Array<'protein' | 'carb' | 'veg'> = [];
-    let warning: string | undefined;
-    let warningDetail: string | undefined;
-
+  const sparBlockedSet = useMemo(() => {
+    const blocked: string[] = [];
     if (macros.carbs.max === 0 && macros.protein.max === 0) {
-      blocked.push('protein', 'carb', 'veg');
-      warning = 'DO NOT EAT';
-      warningDetail = macros.weightWarning || 'Any food adds weight. Focus on extra workouts.';
+      blocked.push('protein', 'carb');
+      if (isSparProtocol) blocked.push('veg');
     } else if (macros.protein.max === 0) {
-      blocked.push('protein', 'veg');
-      warning = 'FRUCTOSE CARBS ONLY';
-      warningDetail = 'Protein and veggies block fat burning. Only fructose-heavy carbs today.';
+      blocked.push('protein');
+      if (isSparProtocol) blocked.push('veg');
     }
+    return new Set(blocked);
+  }, [macros.carbs.max, macros.protein.max, isSparProtocol]);
 
-    return blocked.length > 0 ? {
-      blockedCategories: Array.from(new Set(blocked)),
-      warning,
-      warningDetail,
-      ratioLabel: macros.ratio,
-    } : undefined;
-  }, [showSliceTracker, macros.carbs.max, macros.protein.max, macros.weightWarning, macros.ratio]);
-
-  // Map Sugar Diet foods into SparFood format for slice tracker (Protocols 1-4)
-  const sugarFoodOverride = useMemo(() => {
-    if (isSparProtocol) return undefined; // Protocol 5 uses built-in SPAR foods
-    if (!showSliceTracker) return undefined;
-    // Map Sugar food categories → slice tracker categories
-    const carbFoods: SparFood[] = [
-      ...SUGAR_FOODS.highFructose.map(f => ({
-        name: f.name, serving: f.serving, calories: f.carbs * 4,
-        carbs: f.carbs, icon: f.oz ? '🧃' : '🍯', oz: f.oz,
-      })),
-      ...SUGAR_FOODS.highGlucose.map(f => ({
-        name: f.name, serving: f.serving, calories: f.carbs * 4,
-        carbs: f.carbs, icon: f.oz ? '🧃' : '🍚', oz: f.oz,
-      })),
-      ...SUGAR_FOODS.zeroFiber.map(f => ({
-        name: f.name, serving: f.serving, calories: f.carbs * 4,
-        carbs: f.carbs, icon: f.oz ? '🧃' : '🍚', oz: f.oz,
-      })),
-    ];
-    // Deduplicate by name
-    const seenCarbs = new Set<string>();
-    const uniqueCarbs = carbFoods.filter(f => {
-      if (seenCarbs.has(f.name)) return false;
-      seenCarbs.add(f.name);
-      return true;
-    });
-    const proteinFoods: SparFood[] = SUGAR_FOODS.protein.map(f => ({
-      name: f.name, serving: f.serving, calories: f.protein * 4,
-      protein: f.protein, icon: '🥩',
-    }));
-    return {
-      protein: proteinFoods,
-      carb: uniqueCarbs,
-      veg: [] as SparFood[], // Sugar Diet doesn't have a separate veg category
-    };
-  }, [isSparProtocol, showSliceTracker]);
-
-  const sparBlockedSet = new Set(sparRestrictions?.blockedCategories || []);
   const isProteinBlocked = sparBlockedSet.has('protein');
-  const isVegBlocked = sparBlockedSet.has('veg');
   const isCarbBlocked = sparBlockedSet.has('carb');
+  const isVegBlocked = sparBlockedSet.has('veg');
 
-  const sparProteinProgress = sliceTargets && !isProteinBlocked ? Math.min(100, (tracking.proteinSlices / sliceTargets.protein) * 100) : 0;
-  const sparCarbProgress = sliceTargets && !isCarbBlocked ? Math.min(100, (tracking.carbSlices / sliceTargets.carb) * 100) : 0;
-  const sparVegProgress = sliceTargets && !isVegBlocked ? Math.min(100, (tracking.vegSlices / sliceTargets.veg) * 100) : 0;
-  const sparProteinDone = isProteinBlocked ? true : (sliceTargets ? tracking.proteinSlices >= sliceTargets.protein : false);
-  const sparCarbDone = isCarbBlocked ? true : (sliceTargets ? tracking.carbSlices >= sliceTargets.carb : false);
-  const sparVegDone = isVegBlocked ? true : (sliceTargets ? tracking.vegSlices >= sliceTargets.veg : false);
+  const isV2 = sliceTargets ? (sliceTargets.isV2 || sliceTargets.fruit > 0 || sliceTargets.fat > 0) : false;
 
-  // ─── Hydration progress (shared) ───
-  const waterProgress = hydration.targetOz > 0
-    ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100)
-    : 0;
+  // Slice progress
+  const sparProteinPct = sliceTargets && !isProteinBlocked && sliceTargets.protein > 0 ? Math.min(100, (tracking.proteinSlices / sliceTargets.protein) * 100) : 0;
+  const sparCarbPct = sliceTargets && !isCarbBlocked && sliceTargets.carb > 0 ? Math.min(100, (tracking.carbSlices / sliceTargets.carb) * 100) : 0;
+  const sparVegPct = sliceTargets && !isVegBlocked && sliceTargets.veg > 0 ? Math.min(100, (tracking.vegSlices / sliceTargets.veg) * 100) : 0;
+  const sparFruitPct = sliceTargets && sliceTargets.fruit > 0 ? Math.min(100, ((tracking.fruitSlices || 0) / sliceTargets.fruit) * 100) : 0;
+  const sparFatPct = sliceTargets && sliceTargets.fat > 0 ? Math.min(100, ((tracking.fatSlices || 0) / sliceTargets.fat) * 100) : 0;
+
+  const sparProteinDone = isProteinBlocked || (sliceTargets ? tracking.proteinSlices >= sliceTargets.protein : false);
+  const sparCarbDone = isCarbBlocked || (sliceTargets ? tracking.carbSlices >= sliceTargets.carb : false);
+  const sparVegDone = isVegBlocked || (sliceTargets ? tracking.vegSlices >= sliceTargets.veg : false);
+  const sparFruitDone = !sliceTargets || sliceTargets.fruit === 0 || (tracking.fruitSlices || 0) >= sliceTargets.fruit;
+  const sparFatDone = !sliceTargets || sliceTargets.fat === 0 || (tracking.fatSlices || 0) >= sliceTargets.fat;
+
+  // Gram progress
+  const carbProgress = macros.carbs.max > 0 ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100) : 0;
+  const proteinProgress = macros.protein.max > 0 ? Math.min(100, (tracking.proteinConsumed / macros.protein.max) * 100) : 0;
+  const sugarCarbsDone = macros.carbs.max === 0 || carbProgress >= 100;
+  const sugarProteinDone = macros.protein.max === 0 || proteinProgress >= 100;
+
+  // Hydration
+  const waterProgress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
   const waterDone = hydration.targetOz === 0 || waterProgress >= 100;
+  const isSipOnly = hydration.type === 'Sip Only';
 
-  // All fuel goals met (protocol-aware)
   const allDone = showSliceTracker
-    ? sparProteinDone && sparCarbDone && sparVegDone && waterDone
+    ? sparProteinDone && sparCarbDone && sparVegDone && sparFruitDone && sparFatDone && waterDone
     : sugarCarbsDone && sugarProteinDone && waterDone;
 
-  const quickAddAmounts = isSipOnly ? [2, 4, 6, 8] : [8, 16, 24, 32];
-
-  // Overall completion percentage for the header badge
+  // Overall progress
   const overallProgress = useMemo(() => {
-    let done = 0;
-    let total = 0;
+    const pcts: number[] = [];
     if (showSliceTracker && sliceTargets) {
-      if (!isProteinBlocked && sliceTargets.protein > 0) { total++; if (sparProteinDone) done++; }
-      if (!isCarbBlocked && sliceTargets.carb > 0) { total++; if (sparCarbDone) done++; }
-      if (!isVegBlocked && sliceTargets.veg > 0) { total++; if (sparVegDone) done++; }
+      if (!isProteinBlocked && sliceTargets.protein > 0) pcts.push(sparProteinPct);
+      if (!isCarbBlocked && sliceTargets.carb > 0) pcts.push(sparCarbPct);
+      if (!isVegBlocked && sliceTargets.veg > 0) pcts.push(sparVegPct);
+      if (isV2 && sliceTargets.fruit > 0) pcts.push(sparFruitPct);
+      if (isV2 && sliceTargets.fat > 0) pcts.push(sparFatPct);
     } else {
-      if (macros.carbs.max > 0) { total++; if (sugarCarbsDone) done++; }
-      if (macros.protein.max > 0) { total++; if (sugarProteinDone) done++; }
+      if (macros.carbs.max > 0) pcts.push(carbProgress);
+      if (macros.protein.max > 0) pcts.push(proteinProgress);
     }
-    if (hydration.targetOz > 0) { total++; if (waterDone) done++; }
-    return total > 0 ? Math.round((done / total) * 100) : 0;
-  }, [showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked,
-    sparProteinDone, sparCarbDone, sparVegDone, sugarCarbsDone, sugarProteinDone, waterDone, macros, hydration]);
+    if (hydration.targetOz > 0) pcts.push(waterProgress);
+    return pcts.length > 0 ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+  }, [showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked, isV2,
+    sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct,
+    carbProgress, proteinProgress, waterProgress, macros, hydration]);
 
-  // Competition context — show current phase food tip
-  const [compTip, setCompTip] = useState<{ priority: string; color: string } | null>(null);
+  // ─── Logging streak ───
+  const loggingStreak = useMemo(() => {
+    let streak = 0;
+    for (let d = 0; d < 60; d++) {
+      const checkDate = subDays(today, d);
+      const checkKey = format(checkDate, 'yyyy-MM-dd');
+      const t = getDailyTracking(checkKey);
+      const hasFood = (t.foodLog && t.foodLog.length > 0) || t.carbsConsumed > 0 || t.proteinConsumed > 0
+        || t.proteinSlices > 0 || t.carbSlices > 0;
+      if (hasFood) streak++;
+      else if (d > 0) break; // day 0 (today) might not have logging yet
+      else break;
+    }
+    return streak;
+  }, [today, getDailyTracking]);
+
+  // ─── Animated ring on mount ───
+  const [ringAnimated, setRingAnimated] = useState(false);
   useEffect(() => {
-    const check = () => {
-      const state = getCompetitionState();
-      if (state.active && state.mode !== 'idle') {
-        const phase = getCurrentPhase(state.mode, state.elapsed);
-        if (phase) {
-          setCompTip({ priority: phase.priority, color: phase.color });
-          return;
-        }
-      }
-      setCompTip(null);
-    };
-    check();
-    const interval = setInterval(check, 5000);
-    return () => clearInterval(interval);
+    const t = setTimeout(() => setRingAnimated(true), 150);
+    return () => clearTimeout(t);
   }, []);
+  const displayProgress = ringAnimated ? overallProgress : 0;
 
-  const handleAddWater = (oz: number) => {
-    updateDailyTracking(dateKey, { waterConsumed: tracking.waterConsumed + oz });
+  // ─── Category segments for multi-segment ring ───
+  const segments = useMemo(() => {
+    const segs: Array<{ pct: number; stroke: string; label: string; done: boolean }> = [];
+    if (doNotEat) return segs;
+    if (showSliceTracker && sliceTargets) {
+      if (!isProteinBlocked && sliceTargets.protein > 0) segs.push({ pct: sparProteinPct, stroke: 'stroke-orange-500', label: 'Pro', done: sparProteinDone });
+      if (!isCarbBlocked && sliceTargets.carb > 0) segs.push({ pct: sparCarbPct, stroke: 'stroke-amber-500', label: 'Carb', done: sparCarbDone });
+      if (!isVegBlocked && sliceTargets.veg > 0) segs.push({ pct: sparVegPct, stroke: 'stroke-emerald-500', label: 'Veg', done: sparVegDone });
+      if (isV2 && sliceTargets.fruit > 0) segs.push({ pct: sparFruitPct, stroke: 'stroke-pink-500', label: 'Fruit', done: sparFruitDone });
+      if (isV2 && sliceTargets.fat > 0) segs.push({ pct: sparFatPct, stroke: 'stroke-yellow-500', label: 'Fat', done: sparFatDone });
+    } else {
+      if (macros.carbs.max > 0) segs.push({ pct: carbProgress, stroke: 'stroke-amber-500', label: 'Carb', done: sugarCarbsDone });
+      if (macros.protein.max > 0) segs.push({ pct: proteinProgress, stroke: 'stroke-orange-500', label: 'Pro', done: sugarProteinDone });
+    }
+    segs.push({ pct: waterProgress, stroke: 'stroke-cyan-500', label: '💧', done: waterDone });
+    return segs;
+  }, [doNotEat, showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked, isV2,
+    sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct, sparProteinDone, sparCarbDone,
+    sparVegDone, sparFruitDone, sparFatDone, carbProgress, proteinProgress, sugarCarbsDone,
+    sugarProteinDone, waterProgress, waterDone, macros]);
 
-    // Flash feedback
-    setFlashedButton(oz);
-    if (flashTimeout.current) clearTimeout(flashTimeout.current);
-    flashTimeout.current = setTimeout(() => setFlashedButton(null), 800);
+  // Ring geometry
+  const r = 28;
+  const circ = 2 * Math.PI * r;
+  const gap = 5;
+  const segCount = segments.length;
+  const segArc = segCount > 0 ? (circ - gap * segCount) / segCount : circ;
+
+  // Category pills for bottom row
+  const pills = useMemo(() => {
+    const p: Array<{ label: string; consumed: number | string; target: number | string; pct: number; done: boolean; color: string; blocked?: boolean }> = [];
+    if (doNotEat) return p;
+    if (showSliceTracker && sliceTargets) {
+      if (sliceTargets.protein > 0) p.push({ label: 'Pro', consumed: tracking.proteinSlices, target: sliceTargets.protein, pct: sparProteinPct, done: sparProteinDone, color: 'orange', blocked: isProteinBlocked });
+      if (sliceTargets.carb > 0) p.push({ label: 'Carb', consumed: tracking.carbSlices, target: sliceTargets.carb, pct: sparCarbPct, done: sparCarbDone, color: 'amber', blocked: isCarbBlocked });
+      if (sliceTargets.veg > 0) p.push({ label: 'Veg', consumed: tracking.vegSlices, target: sliceTargets.veg, pct: sparVegPct, done: sparVegDone, color: 'emerald', blocked: isVegBlocked });
+      if (isV2 && sliceTargets.fruit > 0) p.push({ label: 'Fruit', consumed: tracking.fruitSlices || 0, target: sliceTargets.fruit, pct: sparFruitPct, done: sparFruitDone, color: 'pink' });
+      if (isV2 && sliceTargets.fat > 0) p.push({ label: 'Fat', consumed: tracking.fatSlices || 0, target: sliceTargets.fat, pct: sparFatPct, done: sparFatDone, color: 'yellow' });
+    } else {
+      if (macros.carbs.max > 0) p.push({ label: 'Carbs', consumed: `${tracking.carbsConsumed}g`, target: `${macros.carbs.max}g`, pct: carbProgress, done: sugarCarbsDone, color: 'amber' });
+      if (macros.protein.max > 0) p.push({ label: 'Protein', consumed: `${tracking.proteinConsumed}g`, target: `${macros.protein.max}g`, pct: proteinProgress, done: sugarProteinDone, color: 'orange' });
+    }
+    p.push({ label: 'Water', consumed: `${tracking.waterConsumed}`, target: `${hydration.targetOz}oz`, pct: waterProgress, done: waterDone, color: 'cyan' });
+    return p;
+  }, [doNotEat, showSliceTracker, sliceTargets, isV2, tracking, macros, hydration,
+    sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct,
+    sparProteinDone, sparCarbDone, sparVegDone, sparFruitDone, sparFatDone,
+    isProteinBlocked, isCarbBlocked, isVegBlocked,
+    carbProgress, proteinProgress, sugarCarbsDone, sugarProteinDone, waterProgress, waterDone]);
+
+  // Color mapping
+  const colorMap: Record<string, { bg: string; text: string; fill: string; ring: string }> = {
+    orange: { bg: 'bg-orange-500/10', text: 'text-orange-500', fill: 'bg-orange-500', ring: 'ring-orange-500/20' },
+    amber: { bg: 'bg-amber-500/10', text: 'text-amber-500', fill: 'bg-amber-500', ring: 'ring-amber-500/20' },
+    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', fill: 'bg-emerald-500', ring: 'ring-emerald-500/20' },
+    pink: { bg: 'bg-pink-500/10', text: 'text-pink-500', fill: 'bg-pink-500', ring: 'ring-pink-500/20' },
+    yellow: { bg: 'bg-yellow-500/10', text: 'text-yellow-600', fill: 'bg-yellow-500', ring: 'ring-yellow-500/20' },
+    cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-500', fill: 'bg-cyan-500', ring: 'ring-cyan-500/20' },
   };
 
   return (
-    <Card data-tour="fuel" className={cn(
-      "border-muted overflow-hidden transition-all",
-      allDone && "bg-green-500/5 border-green-500/30"
-    )}>
-      <CardContent className="p-0">
-        {/* ── Summary (tap to expand) ── */}
-        <div
-          onClick={() => setExpanded(!expanded)}
-          className="w-full text-left px-3 py-3 hover:bg-muted/30 active:bg-muted/50 transition-colors cursor-pointer select-none"
-        >
-          {/* Header row: icon + title + mode badge + chevron */}
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center gap-2">
-              {allDone ? (
-                <Check className="w-4 h-4 text-green-500" />
-              ) : showSliceTracker ? (
-                <Salad className="w-4 h-4 text-primary" />
-              ) : (
-                <Utensils className="w-4 h-4 text-primary" />
-              )}
-              <span className={cn("text-xs font-bold uppercase tracking-wide", allDone ? "text-green-500" : "text-muted-foreground")}>
-                {isSparProtocol ? 'SPAR Nutrition' : 'Fuel'}
-              </span>
-              {/* Mode indicator badge with help tooltip */}
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className={cn(
-                      "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-0.5 cursor-help",
-                      showSliceTracker
-                        ? "bg-primary/15 text-primary"
-                        : "bg-amber-500/15 text-amber-500"
-                    )}>
-                      {showSliceTracker ? 'SLICES' : 'GRAMS'}
-                      <HelpCircle className="w-2.5 h-2.5" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[220px] bg-card border border-muted text-foreground">
-                    <p className="text-xs">
-                      {showSliceTracker
-                        ? 'Slices = portion-based tracking (palm, fist, thumb). No calorie counting.'
-                        : 'Grams = calorie-based tracking with specific gram targets.'}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <ChevronDown className={cn(
-              "w-4 h-4 text-muted-foreground transition-transform",
-              expanded && "rotate-180"
-            )} />
-          </div>
-
-          {/* Compact summary — one-line progress + thin bar */}
-          <div className="space-y-1.5">
-            {/* Warnings first */}
-            {macros.weightWarning && ateWhileDoNotEat && (
-              <div className="bg-red-500/15 border border-red-500/40 rounded-lg px-2.5 py-1">
-                <p className="text-[10px] text-red-400 font-bold">
-                  🚨 {tracking.carbsConsumed + tracking.proteinConsumed}g consumed — target is ZERO
-                </p>
-              </div>
-            )}
-
-            {overDrinkingSip && (
-              <div className="bg-orange-500/15 border border-orange-500/40 rounded-lg px-2.5 py-1">
-                <p className="text-[10px] text-orange-400 font-bold">
-                  ⚠️ {tracking.waterConsumed}oz — sips only!
-                </p>
-              </div>
-            )}
-
-            {/* One-line category summary */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {showSliceTracker && sliceTargets ? (
-                /* SPAR mode: slice counts */
-                <>
-                  {[
-                    { label: 'Pro', consumed: tracking.proteinSlices, target: sliceTargets.protein, blocked: isProteinBlocked, done: sparProteinDone, color: 'text-orange-500', doneColor: 'text-green-500' },
-                    { label: 'Carb', consumed: tracking.carbSlices, target: sliceTargets.carb, blocked: isCarbBlocked, done: sparCarbDone, color: 'text-amber-500', doneColor: 'text-green-500' },
-                    { label: 'Veg', consumed: tracking.vegSlices, target: sliceTargets.veg, blocked: isVegBlocked, done: sparVegDone, color: 'text-emerald-500', doneColor: 'text-green-500' },
-                    // V2: Fruit and Fat (only show if targets > 0)
-                    ...(sliceTargets.isV2 || sliceTargets.fruit > 0 || sliceTargets.fat > 0 ? [
-                      { label: 'Fruit', consumed: tracking.fruitSlices || 0, target: sliceTargets.fruit, blocked: false, done: (tracking.fruitSlices || 0) >= sliceTargets.fruit, color: 'text-pink-500', doneColor: 'text-green-500' },
-                      { label: 'Fat', consumed: tracking.fatSlices || 0, target: sliceTargets.fat, blocked: false, done: (tracking.fatSlices || 0) >= sliceTargets.fat, color: 'text-yellow-600', doneColor: 'text-green-500' },
-                    ] : []),
-                  ].map(({ label, consumed, target, blocked, done, color, doneColor }) => {
-                    if (blocked) return (
-                      <span key={label} className="text-[11px] text-muted-foreground/40 font-mono line-through">{label}</span>
-                    );
-                    if (target === 0) return null;
-                    return (
-                      <span key={label} className={cn("text-[11px] font-mono font-bold", done ? doneColor : color)}>
-                        {done && '✓'}{label} {consumed}/{target}
-                      </span>
-                    );
-                  })}
-                </>
-              ) : (
-                /* Sugar mode: gram counts */
-                <>
-                  {doNotEat ? (
-                    <span className="text-[11px] font-bold text-red-400 uppercase">Do not eat</span>
-                  ) : (
-                    <>
-                      <span className={cn("text-[11px] font-mono font-bold", sugarCarbsDone ? "text-green-500" : "text-foreground")}>
-                        {sugarCarbsDone && '✓'}Carb {tracking.carbsConsumed}/{macros.carbs.max}g
-                      </span>
-                      <span className={cn("text-[11px] font-mono font-bold", sugarProteinDone ? "text-green-500" : "text-foreground")}>
-                        {sugarProteinDone && '✓'}Pro {tracking.proteinConsumed}/{macros.protein.max}g
-                      </span>
-                    </>
-                  )}
-                </>
-              )}
-              {/* Water inline */}
-              <span className={cn("text-[11px] font-mono font-bold ml-auto",
-                overDrinkingSip ? "text-red-400" : waterDone ? "text-green-500" : isSipOnly ? "text-orange-500" : "text-cyan-500"
-              )}>
-                {waterDone && !overDrinkingSip && '✓'}💧{tracking.waterConsumed}/{hydration.targetOz}
-                {isSipOnly && !overDrinkingSip && <span className="text-[8px] ml-0.5 text-orange-500">SIP</span>}
-              </span>
-            </div>
-
-            {/* Thin overall progress bar */}
-            <div className="h-1.5 bg-muted/30 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-500 ease-out",
-                  allDone ? "bg-green-500" : "bg-primary"
+    <Card
+      data-tour="fuel"
+      className={cn(
+        "overflow-hidden transition-all duration-500 mt-3 cursor-pointer active:scale-[0.98]",
+        allDone
+          ? "bg-gradient-to-br from-green-500/8 to-emerald-500/5 border-green-500/40 shadow-[0_0_20px_rgba(34,197,94,0.08)]"
+          : "border-muted/40 hover:border-muted/60"
+      )}
+      onClick={() => setLocation('/food')}
+    >
+      <CardContent className="!p-0">
+        <div className="px-4 pt-4 pb-3">
+          {/* ── Top row: Ring + Header + Streak ── */}
+          <div className="flex items-center gap-3.5">
+            {/* Multi-segment progress ring */}
+            <div className={cn(
+              "w-16 h-16 relative shrink-0 transition-all duration-500",
+              allDone && "drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+            )}>
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
+                {/* Background arcs */}
+                {segments.map((_seg, i) => {
+                  const offset = i * (segArc + gap);
+                  return (
+                    <circle key={`bg-${i}`} cx="32" cy="32" r={r} fill="none"
+                      strokeWidth="5" strokeLinecap="round"
+                      className="stroke-muted/15"
+                      style={{ strokeDasharray: `${segArc} ${circ - segArc}`, strokeDashoffset: -offset }}
+                    />
+                  );
+                })}
+                {/* Filled arcs with animation */}
+                {segments.map((seg, i) => {
+                  const filled = ringAnimated ? segArc * (Math.min(seg.pct, 100) / 100) : 0;
+                  const offset = i * (segArc + gap);
+                  return (
+                    <circle key={`fill-${i}`} cx="32" cy="32" r={r} fill="none"
+                      strokeWidth="5" strokeLinecap="round"
+                      className={cn(seg.done ? "stroke-green-500" : seg.stroke, "transition-all duration-1000 ease-out")}
+                      style={{
+                        strokeDasharray: `${filled} ${circ - filled}`,
+                        strokeDashoffset: -offset,
+                        filter: seg.done ? 'drop-shadow(0 0 3px rgba(34,197,94,0.5))' : undefined,
+                      }}
+                    />
+                  );
+                })}
+              </svg>
+              {/* Center content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                {allDone ? (
+                  <div className="animate-bounce-once">
+                    <Check className="w-6 h-6 text-green-500" strokeWidth={3} />
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-lg font-black leading-none text-foreground">{displayProgress}</span>
+                    <span className="text-[7px] font-bold text-muted-foreground/50 uppercase tracking-widest">%</span>
+                  </>
                 )}
-                style={{ width: `${overallProgress}%` }}
-              />
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* ── Competition Phase Tip (Sugar mode only) ── */}
-        {!showSliceTracker && compTip && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/5 border-t border-primary/10">
-            <Zap className={cn("w-3 h-3 shrink-0", compTip.color)} />
-            <span className={cn("text-[10px] font-bold uppercase", compTip.color)}>
-              Now: {compTip.priority}
-            </span>
-            <span className="text-[9px] text-muted-foreground">• Competition active</span>
-          </div>
-        )}
+            {/* Header + streak */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Utensils className="w-3.5 h-3.5 text-primary/70" />
+                  <span className={cn("text-xs font-bold uppercase tracking-wide",
+                    allDone ? "text-green-500" : "text-muted-foreground"
+                  )}>
+                    {allDone ? 'All fueled up!' : 'Nutrition'}
+                  </span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-muted-foreground/30 shrink-0" />
+              </div>
 
-        {/* ── Expanded Detail (mode-aware) ── */}
-        {expanded && (
-          <div className="border-t border-muted animate-in slide-in-from-top-2 duration-200">
-            <div className="p-3 space-y-4">
-              {/* Water Quick-Add — moved here from collapsed view */}
-              {!readOnly && (
-                <div className="flex gap-2 items-center">
-                  <Droplets className={cn("w-4 h-4 shrink-0", isSipOnly ? "text-orange-500" : "text-cyan-500")} />
-                  {isSipOnly && (
-                    <span className="text-[10px] text-orange-500 font-bold uppercase">SIP</span>
-                  )}
-                  {quickAddAmounts.map(oz => {
-                    const isFlashed = flashedButton === oz;
-                    return (
-                      <button
-                        key={oz}
-                        onClick={(e) => { e.stopPropagation(); handleAddWater(oz); }}
-                        className={cn(
-                          "min-h-[44px] flex-1 text-sm font-semibold rounded-lg border transition-all active:scale-95",
-                          isFlashed
-                            ? "bg-cyan-500/30 border-cyan-500 text-cyan-500 scale-105"
-                            : "border-muted bg-muted/30 hover:bg-muted/60 active:bg-muted"
-                        )}
-                      >
-                        {isFlashed ? (
-                          <span className="flex items-center justify-center gap-0.5">
-                            <Check className="w-4 h-4" />
-                            +{oz}
-                          </span>
-                        ) : (
-                          `+${oz}oz`
-                        )}
-                      </button>
-                    );
-                  })}
+              {/* Streak badge */}
+              {loggingStreak > 0 && (
+                <div className={cn(
+                  "inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold",
+                  loggingStreak >= 7 ? "bg-orange-500/15 text-orange-500" :
+                  loggingStreak >= 3 ? "bg-amber-500/15 text-amber-500" :
+                  "bg-muted/30 text-muted-foreground"
+                )}>
+                  <Flame className={cn("w-3 h-3", loggingStreak >= 7 && "animate-pulse")} />
+                  {loggingStreak} day{loggingStreak !== 1 ? 's' : ''}
                 </div>
               )}
 
-              {showSliceTracker ? (
-                /* Slice-based tracker: Protocol 5 uses SPAR foods, P1-4 uses Sugar Diet foods */
-                <SparTracker
-                  readOnly={readOnly}
-                  embedded
-                  restrictions={sparRestrictions}
-                  foodOverride={sugarFoodOverride}
-                  headerLabel={isSparProtocol ? undefined : 'Food & Slices'}
-                  gramTargets={isSparProtocol ? undefined : macros}
-                />
-              ) : (
-                /* Grams mode: gram-based tracker with Sugar System foods */
-                <MacroTracker
-                  macros={macros}
-                  todaysFoods={todaysFoods}
-                  foodLists={foodLists}
-                  daysUntilWeighIn={daysUntilWeighIn}
-                  protocol={protocol}
-                  readOnly={readOnly}
-                />
+              {/* DO NOT EAT warning */}
+              {doNotEat && (
+                <div className="flex items-center gap-1.5 mt-1.5 text-red-400">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span className="text-[11px] font-bold uppercase">Do not eat</span>
+                </div>
               )}
-
-              {/* Full HydrationTracker — embedded mode hides duplicate quick-add buttons */}
-              <HydrationTracker
-                hydration={hydration}
-                readOnly={readOnly}
-                embedded
-              />
             </div>
           </div>
-        )}
+
+          {/* ── Category progress pills ── */}
+          {!doNotEat && pills.length > 0 && (
+            <div className="flex gap-1.5 mt-3 overflow-x-auto">
+              {pills.map((pill) => {
+                const c = colorMap[pill.color] || colorMap.amber;
+                if (pill.blocked) {
+                  return (
+                    <div key={pill.label} className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-muted/10 opacity-40">
+                      <span className="text-[9px] font-bold text-muted-foreground line-through block text-center">{pill.label}</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={pill.label} className={cn(
+                    "flex-1 min-w-0 px-2 py-1.5 rounded-lg transition-all duration-300 relative overflow-hidden",
+                    pill.done ? "bg-green-500/10 ring-1 ring-green-500/20" : cn(c.bg, "ring-1", c.ring)
+                  )}>
+                    {/* Mini progress fill */}
+                    <div className={cn(
+                      "absolute bottom-0 left-0 h-[2px] rounded-full transition-all duration-700 ease-out",
+                      pill.done ? "bg-green-500" : c.fill
+                    )} style={{ width: `${Math.min(pill.pct, 100)}%` }} />
+                    <div className="text-center relative">
+                      <span className={cn("text-[9px] font-bold uppercase block leading-tight",
+                        pill.done ? "text-green-500" : c.text
+                      )}>
+                        {pill.done ? '✓' : ''}{pill.label}
+                      </span>
+                      <span className={cn("text-[11px] font-mono font-black leading-tight block",
+                        pill.done ? "text-green-500" : "text-foreground"
+                      )}>
+                        {pill.consumed}<span className="text-muted-foreground/40 font-normal">/{pill.target}</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

@@ -6,121 +6,32 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Flame,
-  Zap,
-  Trophy,
-  Dumbbell,
   CheckCircle2,
   AlertTriangle,
   ArrowUp,
   ArrowDown,
-  Minus,
   Beaker,
-  Salad
 } from "lucide-react";
 import type { Protocol } from "@/lib/store";
+import { PROTOCOL_SCIENCE, PROTOCOL_CONFIG, getProtocolRecommendation } from "@/lib/protocol-utils";
 
 interface ProtocolWizardProps {
   currentWeight: number;
   targetWeightClass: number;
   onComplete: (protocol: Protocol) => void;
   onBack?: () => void;
+  submitLabel?: string;
 }
 
-// Science explanations for each protocol
-const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: string[] }> = {
-  '1': {
-    summary: 'Uses fructose-dominant fueling to activate FGF21 (a fat-burning hormone) while sparing muscle glycogen.',
-    points: [
-      'Fructose is processed by the liver, not muscles — so your muscles stay fueled for practice',
-      'Zero-protein windows trigger FGF21, which accelerates fat oxidation',
-      'Water loading + sodium manipulation drops 3-5 lbs of water weight safely in the final days',
-      'Run for 2-4 weeks max, then transition to Make Weight or Hold Weight',
-    ],
-  },
-  '2': {
-    summary: 'Weekly cut protocol using water loading science to drop weight predictably each week.',
-    points: [
-      '3-day water load (Mon-Wed) suppresses ADH hormone, increasing urine output',
-      'Sharp water restriction (Thu-Fri) exploits the delayed ADH response — your body keeps flushing water',
-      'Sodium loading + restriction amplifies the water drop',
-      'Structured macro phasing keeps energy high for practice while cutting weight',
-    ],
-  },
-  '3': {
-    summary: 'Maintenance protocol for wrestlers already at walk-around weight.',
-    points: [
-      'Balanced macros (40C/35P/25F) keep energy and recovery optimal',
-      'No food restrictions — eat normal, train hard',
-      'Water and sodium targets keep you competition-ready without active cutting',
-      'Switch to Make Weight when you need to cut for a specific meet',
-    ],
-  },
-  '4': {
-    summary: 'Off-season muscle gain protocol with higher carbs and protein.',
-    points: [
-      'Higher calorie targets to support muscle growth',
-      'Protein targets at 1.0-1.2 g/lb to maximize muscle protein synthesis',
-      'No water manipulation — hydrate normally',
-      'Track weight to ensure gains stay controlled and within your target class range',
-    ],
-  },
-  '5': {
-    summary: 'Simple as Pie for Achievable Results — count portions (slices), not calories.',
-    points: [
-      'Palm-sized protein = 1 slice (~110 cal). Fist-sized carb = 1 slice (~120 cal). Fist of veggies/fruit = 1 slice (~50 cal)',
-      'Your daily targets are calculated from BMR × activity level — no calorie counting needed',
-      'Focus on whole, clean foods — no competition cycling or sugar manipulation',
-      'Great for everyday eating, off-season, or when 6+ days from competition',
-    ],
-  },
-};
-
-export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, onBack }: ProtocolWizardProps) {
+export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, onBack, submitLabel }: ProtocolWizardProps) {
   const [selectedProtocol, setSelectedProtocol] = useState<Protocol | null>(null);
   const [showScience, setShowScience] = useState<Protocol | false>(false);
 
-  // Calculate weight metrics based on your document
-  const walkAroundWeight = targetWeightClass * 1.07; // Walk-around = Competition × 1.06-1.07
+  // Calculate weight metrics
+  const walkAroundWeight = targetWeightClass * 1.07;
   const percentOver = ((currentWeight - targetWeightClass) / targetWeightClass) * 100;
-  const lbsOverWalkAround = currentWeight - walkAroundWeight;
-  const lbsOverTarget = currentWeight - targetWeightClass;
 
-  // Determine recommended protocol based on document logic
-  const getRecommendation = (): { protocol: Protocol; reason: string; warning?: string } => {
-    // Moving UP in weight class
-    if (currentWeight < targetWeightClass) {
-      return {
-        protocol: '4',
-        reason: `You're ${Math.abs(lbsOverTarget).toFixed(1)} lbs under your target class. Build Phase will help you gain muscle safely.`
-      };
-    }
-
-    // More than 7% over = need aggressive fat loss first
-    if (percentOver > 7) {
-      return {
-        protocol: '1',
-        reason: `You're ${percentOver.toFixed(1)}% over your competition weight (${lbsOverWalkAround.toFixed(1)} lbs above walk-around). Body Comp Phase will burn fat without sacrificing performance.`,
-        warning: "Run for 2-4 weeks max, then transition to Make Weight or Hold Weight."
-      };
-    }
-
-    // Over walk-around weight but within 7% = need to cut to walk-around
-    if (currentWeight > walkAroundWeight) {
-      return {
-        protocol: '2',
-        reason: `You're ${lbsOverWalkAround.toFixed(1)} lbs above your walk-around weight (${walkAroundWeight.toFixed(1)} lbs). Make Weight Phase manages your weekly cut while preserving performance.`
-      };
-    }
-
-    // At or under walk-around weight = maintain
-    return {
-      protocol: '3',
-      reason: `You're at your walk-around weight. Hold Weight Phase keeps you competition-ready while training hard.`
-    };
-  };
-
-  const recommendation = getRecommendation();
+  const recommendation = getProtocolRecommendation(currentWeight, targetWeightClass);
 
   // Pre-select the recommended protocol
   if (selectedProtocol === null) {
@@ -138,8 +49,8 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
     if (currentWeight < targetWeightClass) {
       return { icon: ArrowUp, label: "Under Target", color: "text-blue-500" };
     }
-    if (percentOver > 7) {
-      return { icon: AlertTriangle, label: "Over 7%", color: "text-destructive" };
+    if (percentOver > 12) {
+      return { icon: AlertTriangle, label: "Over 12%", color: "text-destructive" };
     }
     if (currentWeight > walkAroundWeight) {
       return { icon: ArrowDown, label: "Above Walk-Around", color: "text-yellow-500" };
@@ -186,16 +97,10 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
       {/* Protocol Cards — recommended first, then the rest */}
       <div className="space-y-3">
         {/* Order: recommended first */}
-        {[recommendation.protocol, ...(['1', '2', '3', '4', '5'] as Protocol[]).filter(p => p !== recommendation.protocol)].map(protocol => {
+        {[recommendation.protocol, ...(['1', '2', '3', '4', '5', '6'] as Protocol[]).filter(p => p !== recommendation.protocol)].map(protocol => {
           const isRecommended = protocol === recommendation.protocol;
           const isSelected = selectedProtocol === protocol;
-          const config = {
-            '1': { label: 'Body Comp Phase', desc: 'Aggressive fat loss via fructose-only fueling', icon: Flame, color: 'text-destructive' },
-            '2': { label: 'Make Weight Phase', desc: 'Weekly cut with water loading science', icon: Zap, color: 'text-primary' },
-            '3': { label: 'Hold Weight Phase', desc: 'Stay at walk-around, train hard', icon: Trophy, color: 'text-primary' },
-            '4': { label: 'Build Phase', desc: 'Off-season muscle gain', icon: Dumbbell, color: 'text-primary' },
-            '5': { label: 'SPAR Nutrition', desc: 'Clean eating — count portions, not calories', icon: Salad, color: 'text-green-500' },
-          }[protocol]!;
+          const config = PROTOCOL_CONFIG[protocol];
           const Icon = config.icon;
 
           return (
@@ -252,7 +157,7 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
                           <p className="text-xs text-muted-foreground">{PROTOCOL_SCIENCE[protocol].summary}</p>
 
                           {/* Visual SPAR portion guide */}
-                          {protocol === '5' && (
+                          {(protocol === '5' || protocol === '6') && (
                             <div className="grid grid-cols-3 gap-2 py-2">
                               <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
                                 <div className="text-2xl mb-1">🤚</div>
@@ -309,7 +214,7 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
           disabled={!selectedProtocol}
           className="flex-1 h-14 text-lg font-bold uppercase tracking-wider bg-primary text-white hover:bg-primary/90"
         >
-          Continue <ChevronRight className="ml-2 w-5 h-5" />
+          {submitLabel || 'Continue'} <ChevronRight className="ml-2 w-5 h-5" />
         </Button>
       </div>
     </div>

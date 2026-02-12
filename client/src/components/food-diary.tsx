@@ -1,0 +1,461 @@
+/**
+ * FoodDiary — FatSecret-style meal-section day view.
+ * Groups food log entries by meal (Breakfast/Lunch/Dinner/Snacks),
+ * shows per-section totals, inline delete, and daily summary.
+ */
+
+import { useState, useCallback, useMemo, useRef } from "react";
+import { useStore, type FoodLogEntry, type MealSection, inferMealSection } from "@/lib/store";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import {
+  Plus, X, Check, Undo2, Pencil, Trash2, Utensils, ChevronDown, ChevronUp, ArrowRightLeft,
+} from "lucide-react";
+import { hapticTap } from "@/lib/haptics";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+
+interface FoodDiaryProps {
+  dateKey: string;
+  mode: 'spar' | 'sugar';
+  sliceTargets?: {
+    protein: number; carb: number; veg: number;
+    fruit: number; fat: number;
+  } | null;
+  gramTargets?: {
+    carbs: { min: number; max: number };
+    protein: { min: number; max: number };
+  };
+  onAddFood: (mealSection: MealSection) => void;
+}
+
+const MEAL_CONFIG: { id: MealSection; label: string; emoji: string }[] = [
+  { id: 'breakfast', label: 'Breakfast', emoji: '🌅' },
+  { id: 'lunch', label: 'Lunch', emoji: '☀️' },
+  { id: 'dinner', label: 'Dinner', emoji: '🌙' },
+  { id: 'snacks', label: 'Snacks', emoji: '🍿' },
+];
+
+// Accent color for food entries
+// Static Tailwind class maps (dynamic classes get purged)
+const BG_DOT: Record<string, string> = {
+  orange: 'bg-orange-500', amber: 'bg-amber-500', green: 'bg-green-500',
+  pink: 'bg-pink-500', yellow: 'bg-yellow-500', red: 'bg-red-500', muted: 'bg-muted-foreground',
+};
+const TEXT_ACCENT: Record<string, string> = {
+  orange: 'text-orange-500', amber: 'text-amber-500', green: 'text-green-500',
+  pink: 'text-pink-500', yellow: 'text-yellow-500', red: 'text-red-500', muted: 'text-muted-foreground',
+};
+
+function getEntryAccent(entry: FoodLogEntry): string {
+  if (entry.mode === 'spar') {
+    const cat = entry.sliceType || 'protein';
+    if (cat === 'protein') return 'orange';
+    if (cat === 'carb') return 'amber';
+    if (cat === 'veg') return 'green';
+    if (cat === 'fruit') return 'pink';
+    if (cat === 'fat') return 'yellow';
+    return 'muted';
+  }
+  const isCarb = entry.macroType === 'carbs';
+  if (isCarb) {
+    if (entry.category === 'fructose') return 'green';
+    if (entry.category === 'zerofiber') return 'red';
+    return 'amber';
+  }
+  return 'orange';
+}
+
+export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood }: FoodDiaryProps) {
+  const { getDailyTracking, updateDailyTracking } = useStore();
+  const { toast } = useToast();
+  const tracking = getDailyTracking(dateKey);
+  const foodLog = tracking.foodLog || [];
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [collapsedSections, setCollapsedSections] = useState<Set<MealSection>>(new Set());
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ─── Group entries by meal section ───
+  const grouped = useMemo(() => {
+    const groups: Record<MealSection, FoodLogEntry[]> = {
+      breakfast: [], lunch: [], dinner: [], snacks: [],
+    };
+    for (const entry of foodLog) {
+      const section = entry.mealSection || inferMealSection(entry.timestamp);
+      groups[section].push(entry);
+    }
+    return groups;
+  }, [foodLog]);
+
+  // ─── Per-section totals ───
+  const sectionTotals = useMemo(() => {
+    const totals: Record<MealSection, { slices: number; grams: number; water: number }> = {
+      breakfast: { slices: 0, grams: 0, water: 0 },
+      lunch: { slices: 0, grams: 0, water: 0 },
+      dinner: { slices: 0, grams: 0, water: 0 },
+      snacks: { slices: 0, grams: 0, water: 0 },
+    };
+    for (const section of MEAL_CONFIG) {
+      for (const entry of grouped[section.id]) {
+        if (entry.mode === 'spar') {
+          totals[section.id].slices += entry.sliceCount || 1;
+        }
+        totals[section.id].grams += entry.amount || entry.gramAmount || 0;
+        totals[section.id].water += entry.liquidOz || 0;
+      }
+    }
+    return totals;
+  }, [grouped]);
+
+  // ─── Sync localStorage for tracker compatibility ───
+  const syncLocalStorage = useCallback((entries: FoodLogEntry[]) => {
+    if (typeof window === 'undefined') return;
+    const hasSpar = entries.some(e => e.mode === 'spar');
+    const hasSugar = entries.some(e => e.mode === 'sugar');
+    if (hasSpar || entries.length === 0) {
+      localStorage.setItem(`pwm-spar-history-${dateKey}`, JSON.stringify(entries.filter(e => e.mode === 'spar')));
+    }
+    if (hasSugar || entries.length === 0) {
+      localStorage.setItem(`pwm-food-history-${dateKey}`, JSON.stringify(entries.filter(e => e.mode === 'sugar')));
+    }
+  }, [dateKey]);
+
+  // ─── Subtract entry contribution from tracking totals ───
+  const subtractEntry = useCallback((entry: FoodLogEntry): Record<string, any> => {
+    const updates: Record<string, any> = {};
+    if (entry.mode === 'spar') {
+      const sliceCount = entry.sliceCount || 1;
+      const cat = entry.sliceType || 'protein';
+      const sliceKey = cat === 'protein' ? 'proteinSlices'
+        : cat === 'carb' ? 'carbSlices'
+        : cat === 'veg' ? 'vegSlices'
+        : cat === 'fruit' ? 'fruitSlices'
+        : 'fatSlices';
+      const current = cat === 'protein' ? tracking.proteinSlices
+        : cat === 'carb' ? tracking.carbSlices
+        : cat === 'veg' ? tracking.vegSlices
+        : cat === 'fruit' ? (tracking.fruitSlices || 0)
+        : (tracking.fatSlices || 0);
+      updates[sliceKey] = Math.max(0, current - sliceCount);
+      const gramAmount = entry.gramAmount || (cat === 'protein' ? 25 * sliceCount : cat === 'carb' ? 30 * sliceCount : 0);
+      if (gramAmount > 0 && cat !== 'veg' && cat !== 'fruit' && cat !== 'fat') {
+        const gramKey = cat === 'protein' ? 'proteinConsumed' : 'carbsConsumed';
+        const currentGrams = gramKey === 'proteinConsumed' ? tracking.proteinConsumed : tracking.carbsConsumed;
+        updates[gramKey] = Math.max(0, currentGrams - gramAmount);
+      }
+    } else {
+      const amount = entry.amount || 0;
+      if (entry.macroType === 'carbs') {
+        updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - amount);
+        updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(amount / 26)));
+      } else if (entry.macroType === 'protein') {
+        updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - amount);
+        updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(amount / 25)));
+      }
+    }
+    if (entry.liquidOz && entry.liquidOz > 0) {
+      updates.waterConsumed = Math.max(0, tracking.waterConsumed - entry.liquidOz);
+    }
+    return updates;
+  }, [tracking]);
+
+  // ─── Delete entry (with undo toast) ───
+  const commitDelete = useCallback((entryId: string) => {
+    const entry = foodLog.find(e => e.id === entryId);
+    if (!entry) return;
+    const trackingUpdates = subtractEntry(entry);
+    const newLog = foodLog.filter(e => e.id !== entryId);
+    updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
+    syncLocalStorage(newLog);
+    setPendingDeleteId(null);
+  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage]);
+
+  const handleDelete = useCallback((entryId: string) => {
+    const entry = foodLog.find(e => e.id === entryId);
+    if (!entry) return;
+    hapticTap();
+
+    // Mark as pending (visually fades out)
+    setPendingDeleteId(entryId);
+
+    // Clear any previous undo timer
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+
+    // Show undo toast
+    toast({
+      title: `Removed ${entry.name.length > 30 ? entry.name.slice(0, 30) + '...' : entry.name}`,
+      description: "Tap Undo to restore",
+      action: (
+        <ToastAction
+          altText="Undo delete"
+          onClick={() => {
+            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+            setPendingDeleteId(null);
+          }}
+          className="text-[11px] font-bold"
+        >
+          Undo
+        </ToastAction>
+      ),
+      duration: 4000,
+    });
+
+    // Auto-commit delete after 4 seconds
+    undoTimerRef.current = setTimeout(() => {
+      commitDelete(entryId);
+    }, 4000);
+  }, [foodLog, commitDelete, toast]);
+
+  // ─── Edit entry amount ───
+  const handleEdit = useCallback((entryId: string, newAmount: number) => {
+    const entry = foodLog.find(e => e.id === entryId);
+    if (!entry || newAmount <= 0) return;
+    const updates: Record<string, any> = {};
+    if (entry.mode === 'sugar') {
+      const diff = newAmount - (entry.amount || 0);
+      if (entry.macroType === 'carbs') {
+        updates.carbsConsumed = Math.max(0, tracking.carbsConsumed + diff);
+        updates.carbSlices = Math.max(0, tracking.carbSlices + Math.round(diff / 26));
+      } else if (entry.macroType === 'protein') {
+        updates.proteinConsumed = Math.max(0, tracking.proteinConsumed + diff);
+        updates.proteinSlices = Math.max(0, tracking.proteinSlices + Math.round(diff / 25));
+      }
+    }
+    if (entry.mode === 'spar') {
+      const oldSlices = entry.sliceCount || 1;
+      const diff = newAmount - oldSlices;
+      const cat = entry.sliceType || 'protein';
+      const sliceKey = cat === 'protein' ? 'proteinSlices'
+        : cat === 'carb' ? 'carbSlices'
+        : cat === 'veg' ? 'vegSlices'
+        : cat === 'fruit' ? 'fruitSlices'
+        : 'fatSlices';
+      const current = cat === 'protein' ? tracking.proteinSlices
+        : cat === 'carb' ? tracking.carbSlices
+        : cat === 'veg' ? tracking.vegSlices
+        : cat === 'fruit' ? (tracking.fruitSlices || 0)
+        : (tracking.fatSlices || 0);
+      updates[sliceKey] = Math.max(0, current + diff);
+    }
+    const newLog = foodLog.map(e => {
+      if (e.id !== entryId) return e;
+      return entry.mode === 'sugar' ? { ...e, amount: newAmount } : { ...e, sliceCount: newAmount };
+    });
+    updateDailyTracking(dateKey, { ...updates, foodLog: newLog });
+    syncLocalStorage(newLog);
+    setEditingId(null);
+    setEditingValue('');
+  }, [foodLog, dateKey, tracking, updateDailyTracking, syncLocalStorage]);
+
+  // ─── Move entry to different meal section ───
+  const handleMove = useCallback((entryId: string, toSection: MealSection) => {
+    const newLog = foodLog.map(e => {
+      if (e.id !== entryId) return e;
+      return { ...e, mealSection: toSection };
+    });
+    updateDailyTracking(dateKey, { foodLog: newLog });
+    syncLocalStorage(newLog);
+    setMovingId(null);
+    hapticTap();
+    const entry = foodLog.find(e => e.id === entryId);
+    const mealLabel = MEAL_CONFIG.find(m => m.id === toSection)?.label || toSection;
+    toast({ title: `Moved to ${mealLabel}`, description: entry ? entry.name.slice(0, 30) : '' });
+  }, [foodLog, dateKey, updateDailyTracking, syncLocalStorage, toast]);
+
+  const toggleSection = (section: MealSection) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section);
+      else next.add(section);
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-1">
+      {/* ── Meal Sections ── */}
+      {MEAL_CONFIG.map(meal => {
+        const entries = grouped[meal.id];
+        const totals = sectionTotals[meal.id];
+        const isCollapsed = collapsedSections.has(meal.id);
+        const hasEntries = entries.length > 0;
+
+        return (
+          <div key={meal.id} className="border border-muted/20 rounded-xl overflow-hidden">
+            {/* Section header */}
+            <div
+              className={cn(
+                "flex items-center justify-between px-3 py-2.5",
+                hasEntries ? "bg-muted/10" : "bg-transparent"
+              )}
+            >
+              <button
+                onClick={() => hasEntries && toggleSection(meal.id)}
+                className="flex items-center gap-2 min-w-0 flex-1"
+              >
+                <span className="text-sm">{meal.emoji}</span>
+                <span className="text-[12px] font-bold uppercase tracking-wide text-foreground">
+                  {meal.label}
+                </span>
+                {hasEntries && (
+                  <span className="text-[10px] text-muted-foreground/60 font-mono">
+                    {entries.length} {entries.length === 1 ? 'item' : 'items'}
+                    {mode === 'spar' && totals.slices > 0 && ` · ${totals.slices} slices`}
+                  </span>
+                )}
+                {hasEntries && (
+                  isCollapsed
+                    ? <ChevronDown className="w-3 h-3 text-muted-foreground/40 ml-auto" />
+                    : <ChevronUp className="w-3 h-3 text-muted-foreground/40 ml-auto" />
+                )}
+              </button>
+              <button
+                onClick={() => { hapticTap(); onAddFood(meal.id); }}
+                className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 active:scale-90 transition-all ml-2 shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Entries */}
+            {!isCollapsed && (
+              <div>
+                {entries.length === 0 ? (
+                  <button
+                    onClick={() => { hapticTap(); onAddFood(meal.id); }}
+                    className="w-full px-3 py-3 text-[11px] text-muted-foreground/40 text-center hover:bg-muted/5 transition-colors"
+                  >
+                    Tap + to add food
+                  </button>
+                ) : (
+                  <div className="divide-y divide-muted/10">
+                    {entries.filter(e => e.id !== pendingDeleteId).map(entry => {
+                      const accent = getEntryAccent(entry);
+                      const isSpar = entry.mode === 'spar';
+                      const isEditing = editingId === entry.id;
+                      const isMoving = movingId === entry.id;
+                      const currentSection = entry.mealSection || inferMealSection(entry.timestamp);
+                      const displayAmount = isSpar
+                        ? `${entry.sliceCount || 1}`
+                        : `${entry.amount || 0}g`;
+                      const sliceN = entry.sliceCount || 1;
+                      const displayUnit = isSpar
+                        ? (entry.sliceType === 'protein' ? (sliceN === 1 ? 'palm' : 'palms') : entry.sliceType === 'carb' ? (sliceN === 1 ? 'fist' : 'fists') : entry.sliceType === 'veg' ? (sliceN === 1 ? 'fist' : 'fists') : entry.sliceType === 'fruit' ? 'pc' : (sliceN === 1 ? 'thumb' : 'thumbs'))
+                        : (entry.macroType === 'carbs' ? 'C' : 'P');
+
+                      return (
+                        <div key={entry.id}>
+                          <div
+                            className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:bg-muted/5 transition-colors"
+                          >
+                            {/* Category dot */}
+                            <div className={cn("w-2 h-2 rounded-full shrink-0", BG_DOT[accent] || 'bg-muted-foreground')} />
+
+                            {/* Food name + time */}
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[12px] font-medium truncate block leading-tight">{entry.name}</span>
+                              <span className="text-[10px] text-muted-foreground/50 font-mono">
+                                {(() => { try { return format(new Date(entry.timestamp), 'h:mm a'); } catch { return ''; } })()}
+                              </span>
+                            </div>
+
+                            {/* Amount + move + delete */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isEditing ? (
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0));
+                                      if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
+                                    }}
+                                    autoFocus
+                                    className="w-14 h-7 text-[11px] font-mono font-bold text-center bg-background border border-primary rounded px-1"
+                                  />
+                                  <button
+                                    onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
+                                    className="w-7 h-7 flex items-center justify-center rounded bg-primary/20 text-primary"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditingId(entry.id);
+                                      setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
+                                    }}
+                                    className={cn(
+                                      "text-[11px] font-mono font-bold px-2 py-0.5 rounded hover:ring-1 hover:ring-current transition-all",
+                                      TEXT_ACCENT[accent] || 'text-muted-foreground'
+                                    )}
+                                  >
+                                    {displayAmount} {displayUnit}
+                                  </button>
+                                  {entry.liquidOz && (
+                                    <span className="text-[9px] font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
+                                  )}
+                                  <button
+                                    onClick={() => { setMovingId(isMoving ? null : entry.id); hapticTap(); }}
+                                    className={cn(
+                                      "p-1 rounded transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center",
+                                      isMoving ? "bg-primary/15 text-primary" : "text-muted-foreground/30 hover:text-muted-foreground/60"
+                                    )}
+                                  >
+                                    <ArrowRightLeft className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(entry.id)}
+                                    className="p-1 rounded hover:bg-destructive/10 text-muted-foreground/30 hover:text-destructive transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Move-to-meal inline bar */}
+                          {isMoving && (
+                            <div className="flex items-center gap-1 px-3 py-1.5 bg-muted/10 border-t border-muted/10">
+                              <span className="text-[10px] text-muted-foreground/50 mr-1 shrink-0">Move to</span>
+                              {MEAL_CONFIG.filter(m => m.id !== currentSection).map(m => (
+                                <button
+                                  key={m.id}
+                                  onClick={() => handleMove(entry.id, m.id)}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-background text-[10px] font-bold text-foreground hover:bg-primary/10 hover:text-primary active:scale-95 transition-all border border-muted/20"
+                                >
+                                  <span>{m.emoji}</span>
+                                  {m.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Entry count */}
+      {foodLog.length > 0 && (
+        <p className="text-[10px] text-muted-foreground/40 text-center pt-1">
+          {foodLog.filter(e => e.id !== pendingDeleteId).length} {foodLog.filter(e => e.id !== pendingDeleteId).length === 1 ? 'item' : 'items'} logged today
+        </p>
+      )}
+    </div>
+  );
+}
+
