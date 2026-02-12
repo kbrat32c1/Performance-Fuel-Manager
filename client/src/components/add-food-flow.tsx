@@ -275,10 +275,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     addToRecents(food, serving);
     setSelectedFS(null);
     setSelectedFSServing(null);
-    const mealLabel = MEAL_OPTIONS.find(m => m.id === activeMeal)?.label || activeMeal;
-    const qtyDesc = qty !== 1 ? ` (${qty % 1 === 0 ? qty : qty.toFixed(1)}×)` : '';
-    toast({ title: `✓ Added to ${mealLabel}`, description: `${formatUSDAName(food.name)}${qtyDesc}` });
-  }, [logFoodEntry, addToRecents, setSelectedFS, setSelectedFSServing, toast, activeMeal]);
+  }, [logFoodEntry, addToRecents, setSelectedFS, setSelectedFSServing, activeMeal]);
 
   // ─── Recent food quick-add ───
   const handleRecentAdd = useCallback((recent: typeof recentFoods[0]) => {
@@ -406,9 +403,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     syncLocalStorage(updates.foodLog);
     hapticSuccess();
 
-    const mealLabel = MEAL_OPTIONS.find(m => m.id === activeMeal)?.label || activeMeal;
-    toast({ title: `✓ Logged ${validFoods.length} food${validFoods.length > 1 ? 's' : ''} to ${mealLabel}`, description: `Via ${source}` });
-  }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage, toast]);
+  }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
 
   // ─── Voice result handler ───
   const handleVoiceFoods = useCallback((foods: PhotoFood[], confidence: string) => {
@@ -451,8 +446,6 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       sliceType: showSliceTracker ? customSliceType : undefined,
       sliceCount: 1,
     });
-    const mealLabel = MEAL_OPTIONS.find(m => m.id === activeMeal)?.label || activeMeal;
-    toast({ title: `✓ Added to ${mealLabel}`, description: name });
     // Reset form
     setCustomName('');
     setCustomCarbs('');

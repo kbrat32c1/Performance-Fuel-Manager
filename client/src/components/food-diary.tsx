@@ -75,9 +75,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<MealSection>>(new Set());
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const deletedEntryRef = useRef<{ entry: FoodLogEntry; trackingSnapshot: Record<string, any> } | null>(null);
 
   // ─── Group entries by meal section ───
   const grouped = useMemo(() => {
@@ -163,29 +163,65 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     return updates;
   }, [tracking]);
 
-  // ─── Delete entry (with undo toast) ───
-  const commitDelete = useCallback((entryId: string) => {
-    const entry = foodLog.find(e => e.id === entryId);
-    if (!entry) return;
-    const trackingUpdates = subtractEntry(entry);
-    const newLog = foodLog.filter(e => e.id !== entryId);
-    updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
-    syncLocalStorage(newLog);
-    setPendingDeleteId(null);
-  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage]);
+  // ─── Re-add a previously deleted entry ───
+  const restoreEntry = useCallback((entry: FoodLogEntry) => {
+    const current = getDailyTracking(dateKey);
+    const updates: Record<string, any> = {};
 
+    if (entry.mode === 'spar') {
+      const sliceCount = entry.sliceCount || 1;
+      const cat = entry.sliceType || 'protein';
+      const sliceKey = cat === 'protein' ? 'proteinSlices'
+        : cat === 'carb' ? 'carbSlices'
+        : cat === 'veg' ? 'vegSlices'
+        : cat === 'fruit' ? 'fruitSlices'
+        : 'fatSlices';
+      updates[sliceKey] = (current[sliceKey as keyof typeof current] as number || 0) + sliceCount;
+      const gramAmount = entry.gramAmount || 0;
+      if (gramAmount > 0) {
+        const gramKey = cat === 'protein' ? 'proteinConsumed' : 'carbsConsumed';
+        updates[gramKey] = (current[gramKey as keyof typeof current] as number || 0) + gramAmount;
+      }
+    } else {
+      const amount = entry.amount || 0;
+      if (entry.macroType === 'carbs') {
+        updates.carbsConsumed = current.carbsConsumed + amount;
+        updates.carbSlices = current.carbSlices + Math.max(1, Math.round(amount / 26));
+      } else if (entry.macroType === 'protein') {
+        updates.proteinConsumed = current.proteinConsumed + amount;
+        updates.proteinSlices = current.proteinSlices + Math.max(1, Math.round(amount / 25));
+      }
+    }
+    if (entry.liquidOz && entry.liquidOz > 0) {
+      updates.waterConsumed = current.waterConsumed + entry.liquidOz;
+    }
+
+    const currentLog = current.foodLog || [];
+    const restoredLog = [...currentLog, entry];
+    updateDailyTracking(dateKey, { ...updates, foodLog: restoredLog });
+    syncLocalStorage(restoredLog);
+    deletedEntryRef.current = null;
+  }, [dateKey, getDailyTracking, updateDailyTracking, syncLocalStorage]);
+
+  // ─── Delete entry immediately, with undo to re-add ───
   const handleDelete = useCallback((entryId: string) => {
     const entry = foodLog.find(e => e.id === entryId);
     if (!entry) return;
     hapticTap();
 
-    // Mark as pending (visually fades out)
-    setPendingDeleteId(entryId);
-
     // Clear any previous undo timer
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
 
-    // Show undo toast
+    // Delete immediately — no stale closure risk
+    const trackingUpdates = subtractEntry(entry);
+    const newLog = foodLog.filter(e => e.id !== entryId);
+    updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
+    syncLocalStorage(newLog);
+
+    // Store deleted entry for potential undo
+    deletedEntryRef.current = { entry, trackingSnapshot: trackingUpdates };
+
+    // Show undo toast — undo re-adds the entry using fresh state
     toast({
       title: `Removed ${entry.name.length > 30 ? entry.name.slice(0, 30) + '...' : entry.name}`,
       description: "Tap Undo to restore",
@@ -194,7 +230,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
           altText="Undo delete"
           onClick={() => {
             if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            setPendingDeleteId(null);
+            const saved = deletedEntryRef.current;
+            if (!saved) return;
+            restoreEntry(saved.entry);
           }}
           className="text-[11px] font-bold"
         >
@@ -204,11 +242,11 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
       duration: 4000,
     });
 
-    // Auto-commit delete after 4 seconds
+    // Clear undo ref after timeout
     undoTimerRef.current = setTimeout(() => {
-      commitDelete(entryId);
-    }, 4000);
-  }, [foodLog, commitDelete, toast]);
+      deletedEntryRef.current = null;
+    }, 4500);
+  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage, restoreEntry, toast]);
 
   // ─── Edit entry amount ───
   const handleEdit = useCallback((entryId: string, newAmount: number) => {
@@ -261,10 +299,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     syncLocalStorage(newLog);
     setMovingId(null);
     hapticTap();
-    const entry = foodLog.find(e => e.id === entryId);
-    const mealLabel = MEAL_CONFIG.find(m => m.id === toSection)?.label || toSection;
-    toast({ title: `Moved to ${mealLabel}`, description: entry ? entry.name.slice(0, 30) : '' });
-  }, [foodLog, dateKey, updateDailyTracking, syncLocalStorage, toast]);
+  }, [foodLog, dateKey, updateDailyTracking, syncLocalStorage]);
 
   const toggleSection = (section: MealSection) => {
     setCollapsedSections(prev => {
@@ -333,7 +368,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                   </button>
                 ) : (
                   <div className="divide-y divide-muted/10">
-                    {entries.filter(e => e.id !== pendingDeleteId).map(entry => {
+                    {entries.map(entry => {
                       const accent = getEntryAccent(entry);
                       const isSpar = entry.mode === 'spar';
                       const isEditing = editingId === entry.id;
@@ -452,7 +487,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
       {/* Entry count */}
       {foodLog.length > 0 && (
         <p className="text-[10px] text-muted-foreground/40 text-center pt-1">
-          {foodLog.filter(e => e.id !== pendingDeleteId).length} {foodLog.filter(e => e.id !== pendingDeleteId).length === 1 ? 'item' : 'items'} logged today
+          {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged today
         </p>
       )}
     </div>
