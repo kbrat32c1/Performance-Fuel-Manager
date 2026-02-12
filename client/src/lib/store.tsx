@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { addDays, subDays, differenceInDays, getDay, parseISO, format, startOfDay } from 'date-fns';
 import { supabase, type UserFoodsJson, type MacroCustomFood, type MacroCustomMeal, type SparCustomFood, type SparCustomMealData } from './supabase';
 import { useAuth } from './auth';
@@ -17,6 +17,7 @@ import {
   isValidWeight,
   getWeightValidationError,
 } from './constants';
+import { STORAGE_KEYS, STORAGE_PREFIX } from './storage-keys';
 import { SUGAR_FOODS } from './food-data';
 import {
   calculateSparSlicesV2,
@@ -498,7 +499,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [dailyTracking, setDailyTracking] = useState<DailyTracking[]>(() => {
     // Restore from localStorage cache immediately so food data is visible before Supabase loads
     try {
-      const cached = localStorage.getItem('pwm-daily-tracking-cache');
+      const cached = localStorage.getItem(STORAGE_KEYS.DAILY_TRACKING_CACHE);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) return parsed;
@@ -510,8 +511,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Check if there's localStorage data that could be migrated
   const hasLocalStorageData = useCallback(() => {
-    const savedProfile = localStorage.getItem('pwm-profile');
-    const savedLogs = localStorage.getItem('pwm-logs');
+    const savedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
+    const savedLogs = localStorage.getItem(STORAGE_KEYS.LOGS);
     if (savedProfile) {
       try {
         const parsed = JSON.parse(savedProfile);
@@ -539,15 +540,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (profileData && !profileError) {
-        // Log v2 fields for debugging
-        console.log('Loaded profile v2 fields from Supabase:', {
-          spar_v2: profileData.spar_v2,
-          spar_goal: profileData.spar_goal,
-          training_sessions: profileData.training_sessions,
-          workday_activity: profileData.workday_activity,
-          gender: profileData.gender,
-        });
-
         // Parse dates as local time to avoid timezone shifts
         // Supabase returns dates as "YYYY-MM-DD" strings which get interpreted as UTC
         const parseLocalDate = (dateStr: string): Date => {
@@ -602,8 +594,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           lastCalcWeight: profileData.last_calc_weight || undefined,
           lastCheckInDate: profileData.last_check_in_date || undefined,
           // UI state flags stored in localStorage (no Supabase column)
-          weighInCleared: (() => { try { return JSON.parse(localStorage.getItem('pwm-weigh-in-cleared') || 'false'); } catch { return false; } })(),
-          nextCyclePromptDismissed: (() => { try { return JSON.parse(localStorage.getItem('pwm-next-cycle-dismissed') || 'false'); } catch { return false; } })(),
+          weighInCleared: (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.WEIGH_IN_CLEARED) || 'false'); } catch { return false; } })(),
+          nextCyclePromptDismissed: (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.NEXT_CYCLE_DISMISSED) || 'false'); } catch { return false; } })(),
         });
         // Load user_foods from the same profile row
         const uf = (profileData.user_foods && typeof profileData.user_foods === 'object')
@@ -627,11 +619,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (hasNoSupabaseFoods && typeof window !== 'undefined') {
           try {
-            const lsCF = localStorage.getItem('pwm-custom-foods');
-            const lsCM = localStorage.getItem('pwm-custom-meals');
-            const lsSCF = localStorage.getItem('pwm-spar-custom-foods');
-            const lsSCM = localStorage.getItem('pwm-spar-custom-meals');
-            const lsFav = localStorage.getItem('pwm-favorites');
+            const lsCF = localStorage.getItem(STORAGE_KEYS.CUSTOM_FOODS);
+            const lsCM = localStorage.getItem(STORAGE_KEYS.CUSTOM_MEALS);
+            const lsSCF = localStorage.getItem(STORAGE_KEYS.SPAR_CUSTOM_FOODS);
+            const lsSCM = localStorage.getItem(STORAGE_KEYS.SPAR_CUSTOM_MEALS);
+            const lsFav = localStorage.getItem(STORAGE_KEYS.FAVORITES);
 
             const migrated: UserFoodsData = {
               customFoods: lsCF ? JSON.parse(lsCF) : [],
@@ -648,7 +640,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               || migrated.favorites.length > 0;
 
             if (hasLocalData) {
-              console.log('Migrating user foods from localStorage to Supabase...');
               const payload: UserFoodsJson = {
                 custom_foods: migrated.customFoods,
                 custom_meals: migrated.customMeals,
@@ -658,7 +649,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               };
               await supabase.from('profiles').update({ user_foods: payload }).eq('user_id', user!.id);
               setUserFoods(migrated);
-              console.log('User foods migration complete');
             } else {
               setUserFoods(loadedUserFoods);
             }
@@ -730,7 +720,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }));
         setDailyTracking(mapped);
         // Update localStorage cache with authoritative Supabase data
-        try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(mapped)); } catch {}
+        try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(mapped)); } catch {}
       }
     } catch (error) {
       console.error('Error loading from Supabase:', error);
@@ -749,9 +739,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // Get localStorage data
-      const savedProfile = localStorage.getItem('pwm-profile');
-      const savedLogs = localStorage.getItem('pwm-logs');
-      const savedTracking = localStorage.getItem('pwm-daily-tracking');
+      const savedProfile = localStorage.getItem(STORAGE_KEYS.PROFILE);
+      const savedLogs = localStorage.getItem(STORAGE_KEYS.LOGS);
+      const savedTracking = localStorage.getItem(STORAGE_KEYS.DAILY_TRACKING);
 
       // Migrate profile
       if (savedProfile) {
@@ -821,10 +811,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       // Only clear localStorage if ALL migrations succeeded
       if (profileOk && logsOk && trackingOk) {
-        localStorage.removeItem('pwm-profile');
-        localStorage.removeItem('pwm-logs');
-        localStorage.removeItem('pwm-daily-tracking');
-        localStorage.removeItem('pwm-tanks');
+        localStorage.removeItem(STORAGE_KEYS.PROFILE);
+        localStorage.removeItem(STORAGE_KEYS.LOGS);
+        localStorage.removeItem(STORAGE_KEYS.DAILY_TRACKING);
+        localStorage.removeItem(STORAGE_KEYS.TANKS);
       }
 
       // Reload from Supabase
@@ -926,17 +916,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Store UI state flags in localStorage (no Supabase column needed)
         try {
-          localStorage.setItem('pwm-weigh-in-cleared', JSON.stringify(newProfile.weighInCleared || false));
-          localStorage.setItem('pwm-next-cycle-dismissed', JSON.stringify(newProfile.nextCyclePromptDismissed || false));
+          localStorage.setItem(STORAGE_KEYS.WEIGH_IN_CLEARED, JSON.stringify(newProfile.weighInCleared || false));
+          localStorage.setItem(STORAGE_KEYS.NEXT_CYCLE_DISMISSED, JSON.stringify(newProfile.nextCyclePromptDismissed || false));
         } catch {};
 
         // Try with all fields first (including v2)
         let profilePayload = { ...corePayload, ...sparFields, ...sparV2Fields, ...optionalFields };
-        console.log('Saving profile with v2 fields:', JSON.stringify(sparV2Fields, null, 2));
         let { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
 
         if (!upsertError) {
-          console.log('Profile saved successfully with v2 fields');
           // Only show toast for real settings changes, not date navigation
           if (!isOnlySimulatedDateChange) {
             toast({ title: 'Settings saved', description: 'Your changes have been saved.', duration: 2000 });
@@ -968,11 +956,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Also persist to localStorage as fallback for non-auth / offline
     try {
-      localStorage.setItem('pwm-custom-foods', JSON.stringify(newUserFoods.customFoods));
-      localStorage.setItem('pwm-custom-meals', JSON.stringify(newUserFoods.customMeals));
-      localStorage.setItem('pwm-spar-custom-foods', JSON.stringify(newUserFoods.sparCustomFoods));
-      localStorage.setItem('pwm-spar-custom-meals', JSON.stringify(newUserFoods.sparCustomMeals));
-      localStorage.setItem('pwm-favorites', JSON.stringify(newUserFoods.favorites));
+      localStorage.setItem(STORAGE_KEYS.CUSTOM_FOODS, JSON.stringify(newUserFoods.customFoods));
+      localStorage.setItem(STORAGE_KEYS.CUSTOM_MEALS, JSON.stringify(newUserFoods.customMeals));
+      localStorage.setItem(STORAGE_KEYS.SPAR_CUSTOM_FOODS, JSON.stringify(newUserFoods.sparCustomFoods));
+      localStorage.setItem(STORAGE_KEYS.SPAR_CUSTOM_MEALS, JSON.stringify(newUserFoods.sparCustomMeals));
+      localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(newUserFoods.favorites));
     } catch { /* localStorage unavailable */ }
 
     if (user) {
@@ -1271,7 +1259,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         next = [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, ...updates }];
       }
       // Persist to localStorage as offline fallback
-      try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(next)); } catch {}
       return next;
     });
 
@@ -1307,17 +1295,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               protein_consumed: merged.proteinConsumed,
               water_consumed: merged.waterConsumed,
               no_practice: merged.noPractice ?? false,
+              food_log: merged.foodLog ?? [],
             }, { onConflict: 'user_id,date' });
 
             if (fallbackError) {
               setDailyTracking(previousTracking);
-              try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(previousTracking)); } catch {}
+              try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(previousTracking)); } catch {}
               console.error('Error updating daily tracking (fallback):', fallbackError);
               toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
             }
           } else {
             setDailyTracking(previousTracking);
-            try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(previousTracking)); } catch {}
+            try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(previousTracking)); } catch {}
             console.error('Error updating daily tracking:', error);
             toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
           }
@@ -1325,7 +1314,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         // Rollback on exception
         setDailyTracking(previousTracking);
-        try { localStorage.setItem('pwm-daily-tracking-cache', JSON.stringify(previousTracking)); } catch {}
+        try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(previousTracking)); } catch {}
         console.error('Error updating daily tracking:', error);
         toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
       }
@@ -1363,7 +1352,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Remove only PWM keys instead of clearing all localStorage
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('pwm-')) localStorage.removeItem(key);
+      if (key.startsWith(STORAGE_PREFIX)) localStorage.removeItem(key);
     });
   };
 
@@ -1662,11 +1651,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return profile.nutritionPreference === 'sugar' ? 'sugar' : 'spar';
   };
 
-  // ─── SPAR Slice Targets ───
+  // ─── SPAR Slice Targets (cached) ───
   // Protocol 5/6: BMR → TDEE → macro-protocol-based slice split
   // Protocols 1-4: Derive slices from their gram-based macro targets
+  const sliceTargetsCacheRef = useRef<{ key: string; value: any }>({ key: '', value: null });
   const getSliceTargets = () => {
     const protocol = profile.protocol;
+    // Cache key: all profile fields that affect slice calculation
+    const cacheKey = `${protocol}|${profile.currentWeight}|${profile.targetWeightClass}|${profile.gender}|${profile.age}|${profile.heightInches}|${profile.trainingSessions}|${profile.workdayActivity}|${profile.sparGoal}|${profile.goalIntensity}|${profile.maintainPriority}|${profile.goalWeightLbs}|${profile.bodyFatPercent}|${profile.customProteinPerLb}|${profile.customFatPercent}|${profile.customCarbPercent}|${profile.sparV2}|${daysUntilWeighInMemo}`;
+    if (sliceTargetsCacheRef.current.key === cacheKey && sliceTargetsCacheRef.current.value) {
+      return sliceTargetsCacheRef.current.value;
+    }
+    const _compute = () => {
 
     // Protocol 6 (SPAR Competition): SPAR v2 calculator with competition calorie override
     if (protocol === '6') {
@@ -1812,6 +1808,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       fatGrams: fallbackResult.fatGrams,
       proteinPerLb: fallbackResult.proteinPerLb,
     };
+    }; // end _compute
+    const result = _compute();
+    sliceTargetsCacheRef.current = { key: cacheKey, value: result };
+    return result;
   };
 
   const getMacroTargets = () => {
@@ -3537,8 +3537,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { priority: `${daysUntilWeighIn} days out — train hard, eat normally`, subtext: buildSubtext(), urgency: 'normal', icon: 'check' };
   };
 
+  const weekDescentCacheRef = useRef<{ key: string; value: any }>({ key: '', value: null });
   const getWeekDescentData = () => {
     const today = startOfDay(profile.simulatedDate || new Date());
+    // Cache key: profile fields + logs length/latest date (cheap proxy for log changes)
+    const latestLog = logs.length > 0 ? logs[logs.length - 1].date.getTime() : 0;
+    const wdCacheKey = `${profile.weighInDate?.getTime?.() || ''}|${profile.targetWeightClass}|${profile.currentWeight}|${profile.protocol}|${profile.simulatedDate?.getTime?.() || ''}|${profile.trackPracticeWeighIns}|${logs.length}|${latestLog}|${daysUntilWeighInMemo}|${dailyTracking.length}`;
+    if (weekDescentCacheRef.current.key === wdCacheKey && weekDescentCacheRef.current.value) {
+      return weekDescentCacheRef.current.value;
+    }
     const targetWeight = profile.targetWeightClass;
     const daysRemaining = Math.max(0, differenceInDays(startOfDay(profile.weighInDate), today));
 
@@ -4412,7 +4419,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    return {
+    const result = {
       startWeight,
       currentWeight,
       targetWeight,
@@ -4458,6 +4465,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       cycleHasOwnDriftData,
       cycleHasOwnPracticeData,
     };
+    weekDescentCacheRef.current = { key: wdCacheKey, value: result };
+    return result;
   };
 
   // Check if today has a morning weight logged — used to gate Cut Score display
