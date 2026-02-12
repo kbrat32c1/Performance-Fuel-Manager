@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { addDays, subDays, differenceInDays, getDay, parseISO, format, startOfDay } from 'date-fns';
 import { supabase, type UserFoodsJson, type MacroCustomFood, type MacroCustomMeal, type SparCustomFood, type SparCustomMealData } from './supabase';
 import { useAuth } from './auth';
