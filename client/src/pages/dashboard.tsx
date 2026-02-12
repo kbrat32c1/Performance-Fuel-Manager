@@ -842,7 +842,7 @@ function WeightProjectionCard({ profile, logs }: {
   const goalShortName = goal === 'lose' ? 'Fat Loss' : goal === 'gain' ? 'Building' : 'Maintain';
 
   return (
-    <Card className="mb-2 border-muted overflow-hidden" data-swipeIgnore>
+    <Card className="mb-2 border-muted overflow-hidden" data-swipe-ignore>
       <CardContent className="p-3">
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp className={cn("w-4 h-4", protocolColor)} />
@@ -894,7 +894,7 @@ function WeightProjectionCard({ profile, logs }: {
         </div>
 
         {/* Week slider */}
-        <div className="space-y-2" data-swipeIgnore>
+        <div className="space-y-2" data-swipe-ignore>
           <div className="flex justify-between text-[10px] text-muted-foreground">
             <span>Today</span>
             <span>{format(selectedProjection.date, 'MMM d, yyyy')}</span>
@@ -907,7 +907,8 @@ function WeightProjectionCard({ profile, logs }: {
             value={weeksAhead}
             onChange={(e) => setWeeksAhead(parseInt(e.target.value))}
             className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-            data-swipeIgnore
+            style={{ touchAction: 'none' }}
+            data-swipe-ignore
           />
           {/* Week markers */}
           <div className="flex justify-between px-1">
