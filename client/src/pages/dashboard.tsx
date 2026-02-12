@@ -72,128 +72,60 @@ function SparProtocolSelector({
 // SPAR FOCUS CARD — Protocol summary, tips, and calorie info for SPAR users
 // ═══════════════════════════════════════════════════════════════════════════════
 function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['profile'] }) {
-  const { getSliceTargets } = useStore();
-  const [expanded, setExpanded] = useState(false);
+  const { getSliceTargets, getHydrationTarget } = useStore();
 
   const targets = getSliceTargets();
+  const hydration = getHydrationTarget();
   const goal = profile.sparGoal || 'maintain';
 
-  // V2 goal-based display
-  const goalLabel = goal === 'lose' ? 'Losing Weight' : goal === 'gain' ? 'Gaining Weight' : 'Maintaining';
   const goalShortName = goal === 'lose' ? 'Fat Loss' : goal === 'gain' ? 'Building' : 'Maintain';
-  const calorieAdj = targets.calorieAdjustment || 0;
+  const iconColor = goal === 'lose' ? 'text-orange-500' : goal === 'gain' ? 'text-green-500' : 'text-blue-500';
+  const bgColor = goal === 'lose' ? 'from-orange-500/5' : goal === 'gain' ? 'from-green-500/5' : 'from-blue-500/5';
 
-  // V2 goal-appropriate tips
+  // Daily tip — rotate based on day of week
   const tips = goal === 'lose' ? [
-    'Protein keeps you full longer — hit your palm targets',
+    'Protein keeps you full — hit your palm targets first',
     'Fill up on veggies for volume without extra calories',
     'Stay hydrated — thirst often feels like hunger',
+    'Space meals 3-4 hours apart for steady energy',
+    'Log everything to stay accountable',
+    'Prep protein portions for the week ahead',
+    'Eat slowly — it takes 20 min to feel full',
   ] : goal === 'gain' ? [
     'Eat in a slight surplus for lean gains',
     'Protein at every meal for muscle synthesis',
     'Don\'t skip carbs — they fuel muscle growth',
+    'Post-workout nutrition matters most today',
+    'Add healthy fats for extra calories',
+    'Consistency beats perfection — eat enough',
+    'Hydrate well for better performance',
   ] : [
-    'Spread meals evenly throughout the day',
     'Balance each meal with protein, carbs, and veggies',
     'Stay consistent with portion sizes',
+    'Spread meals evenly throughout the day',
+    'Hydration supports recovery and focus',
+    'Prep meals ahead to stay on track',
+    'Listen to hunger cues — eat when hungry',
+    'Consistency is the key to maintaining',
   ];
-
-  const iconColor = goal === 'lose' ? 'text-orange-500' : goal === 'gain' ? 'text-green-500' : 'text-blue-500';
-  const bgColor = goal === 'lose' ? 'from-orange-500/10' : goal === 'gain' ? 'from-green-500/10' : 'from-blue-500/10';
+  const todayTip = tips[new Date().getDay()];
 
   return (
     <Card className={cn("mb-2 border-muted overflow-hidden bg-gradient-to-br", bgColor, "to-transparent")}>
       <CardContent className="p-3">
-        {/* Header with expand toggle */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-between"
-        >
-          <div className="flex items-center gap-2">
-            <Zap className={cn("w-4 h-4", iconColor)} />
-            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Today's Focus</span>
-            <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", iconColor, "bg-current/10")}>
-              {goalShortName}
-            </span>
-          </div>
-          <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
-        </button>
-
-        {/* Quick stats row — always visible */}
-        <div className="grid grid-cols-3 gap-2 mt-3">
-          <div className="text-center">
-            <div className="text-lg font-bold font-mono text-foreground">{targets.totalCalories}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Calories</div>
-          </div>
-          <div className="text-center">
-            <div className="text-lg font-bold font-mono">
-              <span className="text-amber-500">{targets.carbGramsTotal || '—'}</span>
-              <span className="text-muted-foreground/50">/</span>
-              <span className="text-orange-500">{targets.proteinGrams || '—'}</span>
-              <span className="text-muted-foreground/50">/</span>
-              <span className="text-blue-400">{targets.fatGrams || '—'}</span>
-            </div>
-            <div className="text-[9px] text-muted-foreground uppercase">C/P/F (grams)</div>
-          </div>
-          <div className="text-center">
-            <div className={cn("text-lg font-bold font-mono", iconColor)}>
-              {calorieAdj > 0 ? `+${calorieAdj}` : calorieAdj < 0 ? calorieAdj : '±0'}
-            </div>
-            <div className="text-[9px] text-muted-foreground uppercase">Adjustment</div>
-          </div>
+        <div className="flex items-center gap-2 mb-2">
+          <Zap className={cn("w-4 h-4", iconColor)} />
+          <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Today's Plan</span>
+          <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", iconColor, "bg-current/10")}>
+            {goalShortName}
+          </span>
+          <span className="text-[10px] text-muted-foreground/50 ml-auto font-mono">{targets.totalCalories} cal</span>
         </div>
 
-        {/* Slice targets summary */}
-        <div className="flex items-center justify-center gap-2 mt-3 py-2 bg-muted/30 rounded-lg flex-wrap">
-          <div className="flex items-center gap-1">
-            <span className="text-orange-500 font-bold text-sm">{targets.protein}P</span>
-          </div>
-          <span className="text-muted-foreground">•</span>
-          <div className="flex items-center gap-1">
-            <span className="text-amber-500 font-bold text-sm">{targets.carb}C</span>
-          </div>
-          <span className="text-muted-foreground">•</span>
-          <div className="flex items-center gap-1">
-            <span className="text-green-500 font-bold text-sm">{targets.veg}V</span>
-          </div>
-          {/* V2: Show Fruit and Fat */}
-          {(targets.isV2 || targets.fruit > 0 || targets.fat > 0) && (
-            <>
-              <span className="text-muted-foreground">•</span>
-              <div className="flex items-center gap-1">
-                <span className="text-pink-500 font-bold text-sm">{targets.fruit}Fr</span>
-              </div>
-              <span className="text-muted-foreground">•</span>
-              <div className="flex items-center gap-1">
-                <span className="text-yellow-600 font-bold text-sm">{targets.fat}Ft</span>
-              </div>
-            </>
-          )}
-          <span className="text-muted-foreground/50 text-[10px]">slices today</span>
-        </div>
-
-        {/* Expanded section with tips */}
-        {expanded && (
-          <div className="mt-3 pt-3 border-t border-muted/50 animate-in slide-in-from-top-2 duration-200">
-            <p className="text-[10px] text-muted-foreground font-bold uppercase mb-2">Protocol Tips</p>
-            <div className="space-y-2">
-              {tips.map((tip, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <span className={cn("text-[10px] font-bold mt-0.5", iconColor)}>{i + 1}</span>
-                  <span className="text-[11px] text-muted-foreground leading-relaxed">{tip}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Goal context */}
-            <div className="mt-3 p-2 bg-muted/20 rounded-lg">
-              <p className="text-[9px] text-muted-foreground">
-                <span className="font-bold">Goal:</span> {goalLabel}
-                {calorieAdj !== 0 && ` (${calorieAdj > 0 ? '+' : ''}${calorieAdj} cal/day)`}
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Daily tip */}
+        <p className="text-[11px] text-muted-foreground/80 leading-relaxed pl-6">
+          💡 {todayTip}
+        </p>
       </CardContent>
     </Card>
   );
