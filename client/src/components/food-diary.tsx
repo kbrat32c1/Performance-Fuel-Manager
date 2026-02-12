@@ -9,11 +9,9 @@ import { useStore, type FoodLogEntry, type MealSection, inferMealSection } from 
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
-  Plus, X, Check, Undo2, Pencil, Trash2, Utensils, ChevronDown, ChevronUp, ArrowRightLeft,
+  Plus, X, Check, ChevronDown, ChevronUp, ArrowRightLeft,
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
-import { useToast } from "@/hooks/use-toast";
-import { ToastAction } from "@/components/ui/toast";
 
 interface FoodDiaryProps {
   dateKey: string;
@@ -68,7 +66,6 @@ function getEntryAccent(entry: FoodLogEntry): string {
 
 export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood }: FoodDiaryProps) {
   const { getDailyTracking, updateDailyTracking } = useStore();
-  const { toast } = useToast();
   const tracking = getDailyTracking(dateKey);
   const foodLog = tracking.foodLog || [];
 
@@ -76,8 +73,8 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
   const [editingValue, setEditingValue] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<MealSection>>(new Set());
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [undoEntry, setUndoEntry] = useState<FoodLogEntry | null>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const deletedEntryRef = useRef<{ entry: FoodLogEntry; trackingSnapshot: Record<string, any> } | null>(null);
 
   // ─── Group entries by meal section ───
   const grouped = useMemo(() => {
@@ -200,10 +197,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     const restoredLog = [...currentLog, entry];
     updateDailyTracking(dateKey, { ...updates, foodLog: restoredLog });
     syncLocalStorage(restoredLog);
-    deletedEntryRef.current = null;
   }, [dateKey, getDailyTracking, updateDailyTracking, syncLocalStorage]);
 
-  // ─── Delete entry immediately, with undo to re-add ───
+  // ─── Delete entry immediately, with inline undo ───
   const handleDelete = useCallback((entryId: string) => {
     const entry = foodLog.find(e => e.id === entryId);
     if (!entry) return;
@@ -218,35 +214,22 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
     syncLocalStorage(newLog);
 
-    // Store deleted entry for potential undo
-    deletedEntryRef.current = { entry, trackingSnapshot: trackingUpdates };
+    // Show inline undo bar
+    setUndoEntry(entry);
 
-    // Show undo toast — undo re-adds the entry using fresh state
-    toast({
-      title: `Removed ${entry.name.length > 30 ? entry.name.slice(0, 30) + '...' : entry.name}`,
-      description: "Tap Undo to restore",
-      action: (
-        <ToastAction
-          altText="Undo delete"
-          onClick={() => {
-            if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
-            const saved = deletedEntryRef.current;
-            if (!saved) return;
-            restoreEntry(saved.entry);
-          }}
-          className="text-[11px] font-bold"
-        >
-          Undo
-        </ToastAction>
-      ),
-      duration: 4000,
-    });
-
-    // Clear undo ref after timeout
+    // Auto-dismiss after 4 seconds
     undoTimerRef.current = setTimeout(() => {
-      deletedEntryRef.current = null;
-    }, 4500);
-  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage, restoreEntry, toast]);
+      setUndoEntry(null);
+    }, 4000);
+  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage]);
+
+  const handleUndo = useCallback(() => {
+    if (!undoEntry) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    restoreEntry(undoEntry);
+    setUndoEntry(null);
+    hapticTap();
+  }, [undoEntry, restoreEntry]);
 
   // ─── Edit entry amount ───
   const handleEdit = useCallback((entryId: string, newAmount: number) => {
@@ -484,8 +467,23 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
         );
       })}
 
+      {/* Inline undo bar */}
+      {undoEntry && (
+        <div className="flex items-center justify-between px-3 py-2 bg-muted/20 rounded-lg border border-muted/30 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <span className="text-[11px] text-muted-foreground truncate mr-2">
+            Removed {undoEntry.name.length > 25 ? undoEntry.name.slice(0, 25) + '...' : undoEntry.name}
+          </span>
+          <button
+            onClick={handleUndo}
+            className="text-[11px] font-bold text-primary px-2 py-1 rounded hover:bg-primary/10 active:scale-95 transition-all shrink-0"
+          >
+            Undo
+          </button>
+        </div>
+      )}
+
       {/* Entry count */}
-      {foodLog.length > 0 && (
+      {foodLog.length > 0 && !undoEntry && (
         <p className="text-[10px] text-muted-foreground/40 text-center pt-1">
           {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged today
         </p>

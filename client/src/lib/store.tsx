@@ -1231,9 +1231,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateDailyTracking = async (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => {
-    // Capture previous state for rollback
-    const previousTracking = dailyTracking;
-
     // Compute merged values BEFORE setState to avoid stale read
     const existing = getDailyTracking(date);
     const merged = {
@@ -1299,24 +1296,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }, { onConflict: 'user_id,date' });
 
             if (fallbackError) {
-              setDailyTracking(previousTracking);
-              try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(previousTracking)); } catch {}
+              // Don't rollback — keep localStorage as source of truth
               console.error('Error updating daily tracking (fallback):', fallbackError);
-              toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
             }
           } else {
-            setDailyTracking(previousTracking);
-            try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(previousTracking)); } catch {}
+            // Don't rollback — keep localStorage as source of truth
             console.error('Error updating daily tracking:', error);
-            toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
           }
         }
       } catch (error) {
-        // Rollback on exception
-        setDailyTracking(previousTracking);
-        try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(previousTracking)); } catch {}
+        // Don't rollback — keep localStorage as source of truth
         console.error('Error updating daily tracking:', error);
-        toast({ title: "Sync failed", description: "Could not save tracking data. Please try again.", variant: "destructive" });
       }
     }
   };
