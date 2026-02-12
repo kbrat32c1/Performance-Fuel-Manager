@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pwm-v54';
+const CACHE_NAME = 'pwm-v147';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -54,14 +54,30 @@ self.addEventListener('fetch', (event) => {
   // Skip external requests (like Supabase API)
   if (!event.request.url.startsWith(self.location.origin)) return;
 
+  // Skip API requests — never cache them
+  if (event.request.url.includes('/api/')) return;
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Clone the response before caching
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
+        // Only cache successful responses with correct content types
+        // This prevents caching HTML error pages for JS/CSS requests
+        if (response.ok) {
+          const contentType = response.headers.get('content-type') || '';
+          const url = event.request.url;
+          const isJSRequest = url.endsWith('.js') || url.includes('.js?');
+          const isCSSRequest = url.endsWith('.css') || url.includes('.css?');
+
+          // Don't cache if a JS/CSS request got an HTML response (Vercel catch-all)
+          if ((isJSRequest || isCSSRequest) && contentType.includes('text/html')) {
+            return response;
+          }
+
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
         return response;
       })
       .catch(() => {
