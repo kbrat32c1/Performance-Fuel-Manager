@@ -3,6 +3,7 @@ import { Bot, Send, Loader2, X, BrainCircuit, Minimize2, ChevronDown, Flame, Spa
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 
@@ -86,7 +87,7 @@ export function AiCoachGlobal() {
   const { profile, logs, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus, getDriftMetrics, getDailyTracking, getDailyPriority, getHydrationTarget, calculateTarget, getNutritionMode, getSliceTargets, getWeekDescentData, getExtraWorkoutStats } = store;
 
   const daysUntil = getDaysUntilWeighIn();
-  const recoveryMode = localStorage.getItem('pwm-comp-mode') || 'idle';
+  const recoveryMode = localStorage.getItem(STORAGE_KEYS.COMP_MODE) || 'idle';
 
   const quickPrompts = useMemo(
     () => getQuickPrompts(location, daysUntil, recoveryMode !== 'idle' ? recoveryMode : undefined),
@@ -217,9 +218,9 @@ export function AiCoachGlobal() {
     // Recovery context
     if (recoveryMode !== 'idle') {
       ctx.recoveryMode = recoveryMode;
-      ctx.matchNumber = localStorage.getItem('pwm-comp-match') || '0';
-      ctx.elapsed = parseInt(localStorage.getItem('pwm-comp-elapsed') || '0');
-      ctx.weighInWeight = localStorage.getItem('pwm-recovery-weighin') || '';
+      ctx.matchNumber = localStorage.getItem(STORAGE_KEYS.COMP_MATCH) || '0';
+      ctx.elapsed = parseInt(localStorage.getItem(STORAGE_KEYS.COMP_ELAPSED) || '0');
+      ctx.weighInWeight = localStorage.getItem(STORAGE_KEYS.RECOVERY_WEIGHIN) || '';
       if (ctx.weighInWeight) {
         ctx.lostWeight = (profile.currentWeight - parseFloat(ctx.weighInWeight)).toFixed(1);
       }

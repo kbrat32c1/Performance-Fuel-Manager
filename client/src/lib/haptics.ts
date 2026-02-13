@@ -2,6 +2,7 @@
  * Haptic feedback utilities for mobile devices.
  * Uses the Vibration API when available.
  */
+import { STORAGE_KEYS } from './storage-keys';
 
 // Check if vibration is supported
 const supportsVibration = typeof navigator !== 'undefined' && 'vibrate' in navigator;
@@ -27,7 +28,7 @@ const HAPTIC_PATTERNS = {
 type HapticType = keyof typeof HAPTIC_PATTERNS;
 
 // User preference for haptics (stored in localStorage)
-const HAPTICS_PREF_KEY = 'pwm-haptics-enabled';
+const HAPTICS_PREF_KEY = STORAGE_KEYS.HAPTICS_ENABLED;
 
 /**
  * Check if haptic feedback is enabled by the user.

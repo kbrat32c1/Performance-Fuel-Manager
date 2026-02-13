@@ -13,7 +13,7 @@ import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
 import { getWeightContext, getProtocolRecommendation, PROTOCOL_CONFIG } from "@/lib/protocol-utils";
 import { ProtocolWizard } from "@/components/protocol-wizard";
-import type { Protocol } from "@/lib/store";
+import type { Protocol, AthleteProfile } from "@/lib/store";
 import {
   type Goal as SparV2Goal,
   type GoalIntensity,
@@ -35,9 +35,14 @@ import {
 } from "@/lib/notifications";
 import { isHapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
 
+/** Profile updates use Record<string, any> because settings-dialog
+ *  accesses fields dynamically via getValue(key) and Select returns string. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ProfileUpdates = Record<string, any>;
+
 interface SettingsDialogProps {
-  profile: any;
-  updateProfile: (updates: any) => void;
+  profile: AthleteProfile;
+  updateProfile: (updates: ProfileUpdates) => void;
   resetData: () => Promise<void>;
   clearLogs: () => Promise<void>;
 }
@@ -52,7 +57,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [open, setOpen] = useState(false);
 
   // Local state for pending changes
-  const [pendingChanges, setPendingChanges] = useState<any>({});
+  const [pendingChanges, setPendingChanges] = useState<ProfileUpdates>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [showNerdMode, setShowNerdMode] = useState(false);
@@ -81,13 +86,14 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   }, []);
 
   // Get the current value (pending or actual)
-  const getValue = (key: string) => {
-    return pendingChanges[key] !== undefined ? pendingChanges[key] : profile[key];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getValue = (key: keyof AthleteProfile): any => {
+    return key in pendingChanges ? pendingChanges[key] : profile[key];
   };
 
   // Update pending changes
-  const handleChange = (updates: any) => {
-    setPendingChanges((prev: any) => ({ ...prev, ...updates }));
+  const handleChange = (updates: ProfileUpdates) => {
+    setPendingChanges(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
   };
 
@@ -134,7 +140,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
       return;
     }
     const savePayload = { ...pendingChanges, ...v2SettingsToSave };
-    console.log('Settings handleSave - saving:', JSON.stringify(savePayload, null, 2));
     updateProfile(savePayload);
     setOpen(false);
   };

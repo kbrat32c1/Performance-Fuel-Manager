@@ -10,6 +10,7 @@ import {
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { Input } from "@/components/ui/input";
 
 
@@ -199,58 +200,58 @@ function ConfirmDialog({
 export default function Recovery() {
   // ─ State (all persisted to localStorage) ─
   const [mode, setMode] = useState<CompMode>(() => {
-    return (localStorage.getItem('pwm-comp-mode') as CompMode) || 'idle';
+    return (localStorage.getItem(STORAGE_KEYS.COMP_MODE) as CompMode) || 'idle';
   });
 
   const [elapsed, setElapsed] = useState(() => {
-    const startTime = localStorage.getItem('pwm-comp-start');
-    const isActive = localStorage.getItem('pwm-comp-active') === 'true';
+    const startTime = localStorage.getItem(STORAGE_KEYS.COMP_START);
+    const isActive = localStorage.getItem(STORAGE_KEYS.COMP_ACTIVE) === 'true';
     if (isActive && startTime) {
       return Math.floor((Date.now() - parseInt(startTime)) / 1000);
     }
-    const saved = localStorage.getItem('pwm-comp-elapsed');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_ELAPSED);
     return saved ? parseInt(saved) : 0;
   });
 
   const [active, setActive] = useState(() => {
-    return localStorage.getItem('pwm-comp-active') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.COMP_ACTIVE) === 'true';
   });
 
   const [matchNumber, setMatchNumber] = useState(() => {
-    const saved = localStorage.getItem('pwm-comp-match');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_MATCH);
     return saved ? parseInt(saved) : 0;
   });
 
   const [weighInWeight, setWeighInWeight] = useState(() => {
-    const saved = localStorage.getItem('pwm-recovery-weighin');
+    const saved = localStorage.getItem(STORAGE_KEYS.RECOVERY_WEIGHIN);
     if (saved) return saved;
     return '';
   });
 
   // Time to first match (minutes) — used to scale recovery phases
   const [timeToMatch, setTimeToMatch] = useState(() => {
-    const saved = localStorage.getItem('pwm-comp-time-to-match');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_TIME_TO_MATCH);
     return saved ? parseInt(saved) : 120; // default 2 hours
   });
 
   // Time between matches (minutes) — used to scale between-match recovery phases
   const [timeBetweenMatches, setTimeBetweenMatches] = useState(() => {
-    const saved = localStorage.getItem('pwm-comp-time-between');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_TIME_BETWEEN);
     return saved ? parseInt(saved) : 60; // default 1 hour
   });
 
   // Whether we've already used the post weigh-in recovery for this competition
   const [weighInRecoveryUsed, setWeighInRecoveryUsed] = useState(() => {
-    return localStorage.getItem('pwm-comp-wi-recovery-used') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.COMP_WI_RECOVERY_USED) === 'true';
   });
 
   const [checklist, setChecklist] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('pwm-comp-checklist');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_CHECKLIST);
     return saved ? JSON.parse(saved) : {};
   });
 
   const [matchPrepChecklist, setMatchPrepChecklist] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('pwm-match-prep-checklist');
+    const saved = localStorage.getItem(STORAGE_KEYS.MATCH_PREP_CHECKLIST);
     return saved ? JSON.parse(saved) : {};
   });
 
@@ -265,12 +266,12 @@ export default function Recovery() {
 
   // Alerts (sound/vibration toggle)
   const [alertsEnabled, setAlertsEnabled] = useState(() => {
-    return localStorage.getItem('pwm-recovery-alerts') !== 'false'; // default ON
+    return localStorage.getItem(STORAGE_KEYS.RECOVERY_ALERTS) !== 'false'; // default ON
   });
 
   // Notifications
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
-    return localStorage.getItem('pwm-recovery-notifications') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.RECOVERY_NOTIFICATIONS) === 'true';
   });
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
@@ -480,60 +481,60 @@ export default function Recovery() {
 
   // ─ Persistence ─
   useEffect(() => {
-    localStorage.setItem('pwm-comp-mode', mode);
+    localStorage.setItem(STORAGE_KEYS.COMP_MODE, mode);
   }, [mode]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-active', active.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_ACTIVE, active.toString());
     if (active) {
-      const existingStart = localStorage.getItem('pwm-comp-start');
+      const existingStart = localStorage.getItem(STORAGE_KEYS.COMP_START);
       if (!existingStart) {
-        localStorage.setItem('pwm-comp-start', (Date.now() - elapsed * 1000).toString());
+        localStorage.setItem(STORAGE_KEYS.COMP_START, (Date.now() - elapsed * 1000).toString());
       }
     } else {
-      localStorage.removeItem('pwm-comp-start');
+      localStorage.removeItem(STORAGE_KEYS.COMP_START);
     }
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-match', matchNumber.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_MATCH, matchNumber.toString());
   }, [matchNumber]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-time-to-match', timeToMatch.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_TIME_TO_MATCH, timeToMatch.toString());
   }, [timeToMatch]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-time-between', timeBetweenMatches.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_TIME_BETWEEN, timeBetweenMatches.toString());
   }, [timeBetweenMatches]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-wi-recovery-used', weighInRecoveryUsed.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_WI_RECOVERY_USED, weighInRecoveryUsed.toString());
   }, [weighInRecoveryUsed]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-recovery-weighin', weighInWeight);
+    localStorage.setItem(STORAGE_KEYS.RECOVERY_WEIGHIN, weighInWeight);
   }, [weighInWeight]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-checklist', JSON.stringify(checklist));
+    localStorage.setItem(STORAGE_KEYS.COMP_CHECKLIST, JSON.stringify(checklist));
   }, [checklist]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-match-prep-checklist', JSON.stringify(matchPrepChecklist));
+    localStorage.setItem(STORAGE_KEYS.MATCH_PREP_CHECKLIST, JSON.stringify(matchPrepChecklist));
   }, [matchPrepChecklist]);
 
   // Timer tick — compute from start time to avoid drift when tab is backgrounded
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (active) {
-      const startTime = localStorage.getItem('pwm-comp-start');
+      const startTime = localStorage.getItem(STORAGE_KEYS.COMP_START);
       const startMs = startTime ? parseInt(startTime) : Date.now();
       interval = setInterval(() => {
         const newVal = Math.floor((Date.now() - startMs) / 1000);
         setElapsed(newVal);
         if (newVal % 5 === 0) {
-          localStorage.setItem('pwm-comp-elapsed', newVal.toString());
+          localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, newVal.toString());
         }
       }, 1000);
     }
@@ -543,7 +544,7 @@ export default function Recovery() {
   // Persist on unmount
   useEffect(() => {
     return () => {
-      if (elapsed > 0) localStorage.setItem('pwm-comp-elapsed', elapsed.toString());
+      if (elapsed > 0) localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, elapsed.toString());
     };
   }, [elapsed]);
 
@@ -633,8 +634,8 @@ export default function Recovery() {
     setChecklist({});
     setMatchPrepChecklist({});
     setWeighInRecoveryUsed(false);
-    localStorage.setItem('pwm-comp-start', Date.now().toString());
-    localStorage.setItem('pwm-comp-elapsed', '0');
+    localStorage.setItem(STORAGE_KEYS.COMP_START, Date.now().toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, '0');
   };
 
   const startMatch = () => {
@@ -644,8 +645,8 @@ export default function Recovery() {
     setActive(true);
     setChecklist({});
     setMatchPrepChecklist({});
-    localStorage.setItem('pwm-comp-start', Date.now().toString());
-    localStorage.setItem('pwm-comp-elapsed', '0');
+    localStorage.setItem(STORAGE_KEYS.COMP_START, Date.now().toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, '0');
     setConfirmMatchOpen(false);
   };
 
@@ -657,8 +658,8 @@ export default function Recovery() {
     setChecklist({});
     setMatchPrepChecklist({});
     setWeighInRecoveryUsed(false);
-    localStorage.removeItem('pwm-comp-start');
-    localStorage.removeItem('pwm-comp-elapsed');
+    localStorage.removeItem(STORAGE_KEYS.COMP_START);
+    localStorage.removeItem(STORAGE_KEYS.COMP_ELAPSED);
     setConfirmEndOpen(false);
   };
 
@@ -671,12 +672,12 @@ export default function Recovery() {
       setNotificationPermission(perm);
       if (perm === 'granted') {
         setNotificationsEnabled(true);
-        localStorage.setItem('pwm-recovery-notifications', 'true');
+        localStorage.setItem(STORAGE_KEYS.RECOVERY_NOTIFICATIONS, 'true');
       }
     } else if (Notification.permission === 'granted') {
       const next = !notificationsEnabled;
       setNotificationsEnabled(next);
-      localStorage.setItem('pwm-recovery-notifications', next.toString());
+      localStorage.setItem(STORAGE_KEYS.RECOVERY_NOTIFICATIONS, next.toString());
     }
   };
 
@@ -906,7 +907,7 @@ export default function Recovery() {
                 onClick={() => {
                   const next = !alertsEnabled;
                   setAlertsEnabled(next);
-                  localStorage.setItem('pwm-recovery-alerts', next.toString());
+                  localStorage.setItem(STORAGE_KEYS.RECOVERY_ALERTS, next.toString());
                   if (next) {
                     // Play a quick test sound so user knows it's on
                     playAlertSound();
@@ -1189,8 +1190,8 @@ export default function Recovery() {
                     setActive(true);
                     setChecklist({});
                     setWeighInRecoveryUsed(true);
-                    localStorage.setItem('pwm-comp-start', Date.now().toString());
-                    localStorage.setItem('pwm-comp-elapsed', '0');
+                    localStorage.setItem(STORAGE_KEYS.COMP_START, Date.now().toString());
+                    localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, '0');
                   }}
                   variant="outline"
                   className="h-12 text-sm font-bold uppercase border-primary/50 text-primary rounded-xl"

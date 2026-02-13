@@ -24,17 +24,19 @@ async function getFatSecretToken(): Promise<string> {
   }
 
   // Try premier scope first, fall back to basic
+  // Use HTTP Basic Auth (base64-encoded client_id:client_secret)
+  const basicAuth = Buffer.from(`${FATSECRET_CLIENT_ID}:${FATSECRET_CLIENT_SECRET}`).toString("base64");
+
   for (const scope of ["premier", "basic"]) {
     try {
       const response = await fetch("https://oauth.fatsecret.com/connect/token", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
+          "Authorization": `Basic ${basicAuth}`,
         },
         body: new URLSearchParams({
           grant_type: "client_credentials",
-          client_id: FATSECRET_CLIENT_ID,
-          client_secret: FATSECRET_CLIENT_SECRET,
           scope,
         }).toString(),
       });
@@ -108,19 +110,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // ─── FatSecret Search ───
 
 async function searchFatSecret(query: string, token: string) {
-  const params = new URLSearchParams({
-    search_expression: query,
-    format: "json",
-    max_results: "20",
-    include_food_attributes: "true",
-  });
-
+  // Use foods.search.v3 via server.api — includes full serving data
   const response = await fetch(
-    `https://platform.fatsecret.com/rest/foods/search/v1?${params}`,
+    "https://platform.fatsecret.com/rest/server.api",
     {
+      method: "POST",
       headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Bearer ${token}`,
       },
+      body: new URLSearchParams({
+        method: "foods.search.v3",
+        search_expression: query,
+        format: "json",
+        max_results: "20",
+        include_food_attributes: "true",
+      }).toString(),
     }
   );
 
@@ -130,7 +135,7 @@ async function searchFatSecret(query: string, token: string) {
   }
 
   const data = await response.json();
-  const results = data?.foods?.food;
+  const results = data?.foods_search?.results?.food;
   if (!results) return { foods: [], totalHits: 0 };
 
   const foodList = Array.isArray(results) ? results : [results];
@@ -190,7 +195,7 @@ async function searchFatSecret(query: string, token: string) {
 
   return {
     foods,
-    totalHits: parseInt(data?.foods?.total_results) || foods.length,
+    totalHits: parseInt(data?.foods_search?.total_results) || foods.length,
   };
 }
 

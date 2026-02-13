@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { STORAGE_PREFIX } from "@/lib/storage-keys";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -122,7 +123,7 @@ export default function Landing() {
   const handleSkipMigration = () => {
     // Clear only PWM localStorage keys and start fresh
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('pwm-')) localStorage.removeItem(key);
+      if (key.startsWith(STORAGE_PREFIX)) localStorage.removeItem(key);
     });
     setLocation('/onboarding');
   };

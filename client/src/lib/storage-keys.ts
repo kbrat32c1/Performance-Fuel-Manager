@@ -55,14 +55,14 @@ export const STORAGE_KEYS = {
   MACRO_RECENT_FOODS: 'pwm-macro-recent-foods',
 
   // ─── Preferences ─────────────────────────────────────────────────────────
-  THEME: 'pfm-theme',
-  HAPTICS_ENABLED: 'pfm-haptics-enabled',
+  THEME: 'pwm-theme',
+  HAPTICS_ENABLED: 'pwm-haptics-enabled',
 
   // ─── Notifications ───────────────────────────────────────────────────────
-  NOTIFICATION_PREFS: 'pfm-notification-prefs',
+  NOTIFICATION_PREFS: 'pwm-notification-prefs',
 
   // ─── UI State ────────────────────────────────────────────────────────────
-  TOUR_COMPLETED: 'pfm-tour-completed',
+  DASHBOARD_TOUR_SEEN: 'pfm-dashboard-tour-seen',
   FAB_TOOLTIP_DISMISSED: 'pfm-fab-tooltip-dismissed',
   LAST_WEIGHT_TYPE: 'pfm-last-weight-type',
   LAST_WEIGHT_TYPE_DATE: 'pfm-last-weight-type-date',

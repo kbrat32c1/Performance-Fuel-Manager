@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Timer, Droplets, Flame, Utensils, Brain, Wind, Swords, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 type CompMode = 'idle' | 'weigh-in' | 'between-matches';
 
@@ -43,18 +44,18 @@ function formatTime(sec: number) {
 export function getCompetitionState(): { mode: CompMode; active: boolean; elapsed: number; matchNumber: number } {
   if (typeof window === 'undefined') return { mode: 'idle', active: false, elapsed: 0, matchNumber: 1 };
 
-  const mode = (localStorage.getItem('pwm-comp-mode') as CompMode) || 'idle';
-  const active = localStorage.getItem('pwm-comp-active') === 'true';
-  const matchNumber = parseInt(localStorage.getItem('pwm-comp-match') || '1');
+  const mode = (localStorage.getItem(STORAGE_KEYS.COMP_MODE) as CompMode) || 'idle';
+  const active = localStorage.getItem(STORAGE_KEYS.COMP_ACTIVE) === 'true';
+  const matchNumber = parseInt(localStorage.getItem(STORAGE_KEYS.COMP_MATCH) || '1');
 
   let elapsed = 0;
   if (active) {
-    const startTime = localStorage.getItem('pwm-comp-start');
+    const startTime = localStorage.getItem(STORAGE_KEYS.COMP_START);
     if (startTime) {
       elapsed = Math.floor((Date.now() - parseInt(startTime)) / 1000);
     }
   } else {
-    const saved = localStorage.getItem('pwm-comp-elapsed');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_ELAPSED);
     if (saved) elapsed = parseInt(saved);
   }
 

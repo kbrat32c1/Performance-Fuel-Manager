@@ -8,6 +8,8 @@ import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { hapticSuccess, hapticError, hapticTap } from '@/lib/haptics';
+import { isValidWeight, getWeightValidationError, MIN_WEIGHT_LBS, MAX_WEIGHT_LBS } from '@/lib/constants';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { QuickLogWaterTab } from './quick-log-water-tab';
 
 type FabTab = 'weight' | 'food' | 'water';
@@ -43,8 +45,8 @@ const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; hint: string; ico
 
 const EXTRA_TYPES: LogTypeOption[] = ['extra-workout', 'check-in'];
 
-const LAST_WEIGHT_TYPE_KEY = 'pfm-last-weight-type';
-const LAST_WEIGHT_TYPE_DATE_KEY = 'pfm-last-weight-type-date';
+const LAST_WEIGHT_TYPE_KEY = STORAGE_KEYS.LAST_WEIGHT_TYPE;
+const LAST_WEIGHT_TYPE_DATE_KEY = STORAGE_KEYS.LAST_WEIGHT_TYPE_DATE;
 
 function getTimeBasedType(): LogTypeOption {
   const hour = new Date().getHours();
@@ -266,7 +268,7 @@ export function QuickLogFAB() {
   const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
-    const TOOLTIP_DISMISSED_KEY = 'pfm-fab-tooltip-dismissed';
+    const TOOLTIP_DISMISSED_KEY = STORAGE_KEYS.FAB_TOOLTIP_DISMISSED;
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
     // Check if tooltip was dismissed recently
@@ -297,7 +299,7 @@ export function QuickLogFAB() {
   const dismissTooltip = useCallback(() => {
     setShowTooltip(false);
     try {
-      localStorage.setItem('pfm-fab-tooltip-dismissed', Date.now().toString());
+      localStorage.setItem(STORAGE_KEYS.FAB_TOOLTIP_DISMISSED, Date.now().toString());
     } catch {
       // localStorage not available
     }
@@ -521,9 +523,10 @@ export function QuickLogFAB() {
         flashError("Enter a valid number");
         return;
       }
-      if (parsedWeight < 80 || parsedWeight > 350) {
-        toast({ title: "Weight out of range", description: "Enter a weight between 80 and 350 lbs" });
-        flashError("Weight must be 80–350 lbs");
+      if (!isValidWeight(parsedWeight)) {
+        const err = getWeightValidationError(parsedWeight) || `Weight must be ${MIN_WEIGHT_LBS}–${MAX_WEIGHT_LBS} lbs`;
+        toast({ title: "Weight out of range", description: err });
+        flashError(err);
         return;
       }
       // Wildcard weight warning: confirm if 10+ lbs different from most recent log
@@ -1231,16 +1234,21 @@ export function QuickLogFAB() {
                       size="sm"
                       className="flex-1 h-11 text-xs border-muted-foreground/30"
                       onClick={() => {
-                        // Check if we have any historical before-bed data
-                        const bedLogs = logs.filter(l => l.type === 'before-bed');
-                        if (bedLogs.length === 0) {
+                        // Check if we have any historical before-bed data with valid weights
+                        const validBedLogs = logs
+                          .filter(l => l.type === 'before-bed' && typeof l.weight === 'number' && !isNaN(l.weight) && isValidWeight(l.weight));
+                        if (validBedLogs.length === 0) {
                           toast({ title: "No before-bed history", description: "You need at least one before-bed log to use an average. Please log it manually." });
                           return;
                         }
-                        const avgWeight = bedLogs
+                        const recent = validBedLogs
                           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                          .slice(0, 5)
-                          .reduce((sum, l) => sum + l.weight, 0) / Math.min(bedLogs.length, 5);
+                          .slice(0, 5);
+                        const avgWeight = recent.reduce((sum, l) => sum + l.weight, 0) / recent.length;
+                        if (!isValidWeight(avgWeight)) {
+                          toast({ title: "Unable to calculate average", description: "Before-bed data appears corrupted. Please log manually." });
+                          return;
+                        }
                         setMissingBeforeBed('confirm-avg');
                         toast({
                           title: `Average: ${avgWeight.toFixed(1)} lbs`,

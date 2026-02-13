@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Plus, Check, ChevronDown, ChevronRight, Ban, Clock, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { type FuelGuideResult, type SugarCarbFood, type SugarProteinFood, type TournamentFood, type RecoveryFood, SUGAR_FOODS } from "@/lib/food-data";
 
 interface FuelGuideProps {
@@ -32,13 +33,13 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
 
   // Avoid section collapse state from localStorage
   const [avoidCollapsed, setAvoidCollapsed] = useState(() => {
-    try { return localStorage.getItem('fuel-guide-avoid-collapsed') === 'true'; } catch { return false; }
+    try { return localStorage.getItem(STORAGE_KEYS.FUEL_GUIDE_AVOID_COLLAPSED) === 'true'; } catch { return false; }
   });
 
   const toggleAvoid = useCallback(() => {
     setAvoidCollapsed(prev => {
       const next = !prev;
-      try { localStorage.setItem('fuel-guide-avoid-collapsed', String(next)); } catch {}
+      try { localStorage.setItem(STORAGE_KEYS.FUEL_GUIDE_AVOID_COLLAPSED, String(next)); } catch {}
       return next;
     });
   }, []);
@@ -174,9 +175,9 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
             foods={morningCarbs.map(f => ({
               name: f.name,
               serving: f.serving,
-              grams: (f as any).carbs || 0,
+              grams: (f as SugarCarbFood).carbs || 0,
               gramLabel: 'carb',
-              oz: (f as any).oz as number | undefined,
+              oz: (f as SugarCarbFood).oz as number | undefined,
             }))}
             flashedFood={flashedFood}
             onLog={(food) => handleLog({ name: food.name, carbs: food.grams, oz: food.oz }, 'carb')}
@@ -191,9 +192,9 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
               ...eveningCarbs.map(f => ({
                 name: f.name,
                 serving: f.serving,
-                grams: (f as any).carbs || 0,
+                grams: (f as SugarCarbFood).carbs || 0,
                 gramLabel: 'carb' as const,
-                oz: (f as any).oz as number | undefined,
+                oz: (f as SugarCarbFood).oz as number | undefined,
               })),
               ...eveningProteins.map(f => ({
                 name: f.name,

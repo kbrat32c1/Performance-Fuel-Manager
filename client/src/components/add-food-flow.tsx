@@ -82,6 +82,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     barcodeLoading, barcodeLookup,
     selectedFS, setSelectedFS,
     selectedFSServing, setSelectedFSServing,
+    selectedOFF, setSelectedOFF,
+    offServingGrams, setOffServingGrams,
     recentFoods, addToRecents,
     clearResults,
   } = search;
@@ -289,7 +291,36 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     if (!food) {
       toast({ title: "Product not found", description: "Try searching by name.", variant: "destructive" });
     }
+    // If food found, selectedOFF is set by the hook and the product card will render
   }, [barcodeLookup, toast]);
+
+  // ─── Add scanned barcode food ───
+  const handleOFFAdd = useCallback(() => {
+    if (!selectedOFF) return;
+    const grams = parseFloat(offServingGrams) || 100;
+    const carbs = Math.round(selectedOFF.carbs * grams / 100);
+    const protein = Math.round(selectedOFF.protein * grams / 100);
+    const brandLabel = selectedOFF.brand ? ` (${selectedOFF.brand})` : '';
+    const servingLabel = selectedOFF.servingSizeLabel || `${grams}g`;
+    const foodName = `${selectedOFF.name}${brandLabel} — ${servingLabel}`;
+
+    // Same slice logic as handleFSAdd
+    const sliceType: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat' =
+      protein >= 10 && protein > carbs ? 'protein' : 'carb';
+    let sliceCount = 0;
+    if (sliceType === 'protein') {
+      sliceCount = Math.round(protein / 25);
+    } else {
+      sliceCount = Math.round(carbs / 26);
+    }
+
+    logFoodEntry(foodName, carbs, protein, {
+      category: 'off',
+      sliceType,
+      sliceCount,
+    });
+    setSelectedOFF(null);
+  }, [selectedOFF, offServingGrams, logFoodEntry, setSelectedOFF]);
 
   // ─── Batch log multiple foods in a single update (avoids stale closure) ───
   const batchLogFoods = useCallback((foods: PhotoFood[], source: string) => {
@@ -566,6 +597,67 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           <div className="flex items-center justify-center py-6 gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span className="text-sm">Looking up barcode...</span>
+          </div>
+        )}
+
+        {/* ── Scanned barcode product card ── */}
+        {selectedOFF && !barcodeLoading && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-bold truncate">{selectedOFF.name}</p>
+                {selectedOFF.brand && (
+                  <p className="text-[11px] text-muted-foreground/60 truncate">{selectedOFF.brand}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedOFF(null)}
+                className="w-6 h-6 rounded-full bg-muted/30 flex items-center justify-center shrink-0"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Nutrition per serving */}
+            {(() => {
+              const g = parseFloat(offServingGrams) || 100;
+              const cal = Math.round(selectedOFF.calories * g / 100);
+              const c = Math.round(selectedOFF.carbs * g / 100);
+              const p = Math.round(selectedOFF.protein * g / 100);
+              const f = Math.round(selectedOFF.fat * g / 100);
+              return (
+                <div className="flex items-center gap-3 text-[11px] font-mono font-bold">
+                  <span className="text-muted-foreground">{cal} cal</span>
+                  <span className="text-amber-500">{c}g C</span>
+                  <span className="text-orange-500">{p}g P</span>
+                  <span className="text-yellow-600">{f}g F</span>
+                </div>
+              );
+            })()}
+
+            {/* Serving size input */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground/60 shrink-0">Serving:</span>
+              <input
+                type="number"
+                value={offServingGrams}
+                onChange={(e) => setOffServingGrams(e.target.value)}
+                className="w-16 h-7 text-[12px] font-mono font-bold text-center bg-background border border-muted/30 rounded px-1"
+              />
+              <span className="text-[11px] text-muted-foreground/60">g</span>
+              {selectedOFF.servingSizeLabel && (
+                <span className="text-[10px] text-muted-foreground/40 truncate">
+                  ({selectedOFF.servingSizeLabel})
+                </span>
+              )}
+              <button
+                onClick={() => { handleOFFAdd(); hapticTap(); }}
+                className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold active:scale-95 transition-all shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add
+              </button>
+            </div>
           </div>
         )}
 

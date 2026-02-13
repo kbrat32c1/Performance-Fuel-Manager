@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, ChevronRight, ChevronLeft, Scale, Zap, Calendar, Apple, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 interface TourStep {
   title: string;
@@ -42,7 +43,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "pfm-dashboard-tour-seen";
+const TOUR_KEY = STORAGE_KEYS.DASHBOARD_TOUR_SEEN;
 
 // Viewport-relative rect (getBoundingClientRect values)
 interface VRect {

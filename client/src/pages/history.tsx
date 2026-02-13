@@ -790,7 +790,15 @@ export default function History() {
               {groupedSelectedDateLogs.map((log) => (
                 <SwipeableRow
                   key={log.id}
-                  onDelete={() => handleDeleteWithUndo(log)}
+                  actions={[
+                    {
+                      icon: <Trash2 className="w-4 h-4" />,
+                      label: "Delete",
+                      bgColor: "bg-red-600",
+                      textColor: "text-white",
+                      onClick: () => handleDeleteWithUndo(log),
+                    },
+                  ]}
                   disabled={editingExtraId === log.id}
                 >
                   <Card className={cn("border-muted", log.type === 'extra-workout' && "border-orange-500/30 bg-orange-500/5")}>

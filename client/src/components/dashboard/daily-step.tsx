@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Scale, Pencil } from "lucide-react";
+import { CheckCircle2, Scale, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { LucideIcon } from "lucide-react";
@@ -157,7 +157,17 @@ export function DailyStep({
   // Only wrap in SwipeableRow if logged and delete is available
   if (isComplete && deleteLog) {
     return (
-      <SwipeableRow onDelete={handleDelete}>
+      <SwipeableRow
+        actions={[
+          {
+            icon: <Trash2 className="w-4 h-4" />,
+            label: "Delete",
+            bgColor: "bg-red-600",
+            textColor: "text-white",
+            onClick: handleDelete,
+          },
+        ]}
+      >
         {cardContent}
       </SwipeableRow>
     );

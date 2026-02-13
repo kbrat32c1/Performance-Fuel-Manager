@@ -48,7 +48,6 @@ export function FuelCard({
   // Determine nutrition mode
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
-  const isSparProtocol = protocol === '5' || protocol === '6';
   const showSliceTracker = isSparMode;
 
   // ─── Cross-sync reconciliation on mode switch ───
@@ -83,13 +82,13 @@ export function FuelCard({
     const blocked: string[] = [];
     if (macros.carbs.max === 0 && macros.protein.max === 0) {
       blocked.push('protein', 'carb');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     } else if (macros.protein.max === 0) {
       blocked.push('protein');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     }
     return new Set(blocked);
-  }, [macros.carbs.max, macros.protein.max, isSparProtocol]);
+  }, [macros.carbs.max, macros.protein.max, isSparMode]);
 
   const isProteinBlocked = sparBlockedSet.has('protein');
   const isCarbBlocked = sparBlockedSet.has('carb');

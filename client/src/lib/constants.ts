@@ -455,24 +455,6 @@ export const UI = {
   TOAST_DURATION: 5000,
 } as const;
 
-// LocalStorage keys
-export const STORAGE_KEYS = {
-  PROFILE: 'pwm-profile',
-  LOGS: 'pwm-logs',
-  DAILY_TRACKING: 'pwm-daily-tracking',
-  TANKS: 'pwm-tanks',
-  RECOVERY_ELAPSED: 'pwm-recovery-elapsed',
-  RECOVERY_START: 'pwm-recovery-start',
-  RECOVERY_ACTIVE: 'pwm-recovery-active',
-  RECOVERY_CHECKLIST: 'pwm-recovery-checklist',
-  RECOVERY_WEIGHIN: 'pwm-recovery-weighin',
-  MATCH_TIMER_ELAPSED: 'pwm-match-timer-elapsed',
-  MATCH_TIMER_START: 'pwm-match-timer-start',
-  MATCH_TIMER_ACTIVE: 'pwm-match-timer-active',
-  MATCH_COUNT: 'pwm-match-count',
-  THEME: 'pwm-theme',
-} as const;
-
 // =============================================================================
 // CENTRALIZED WEIGHT TARGET SYSTEM
 // All weight targets should be calculated using these functions for consistency

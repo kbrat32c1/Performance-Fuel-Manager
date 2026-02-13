@@ -10,13 +10,12 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
   Undo2,
-  X,
   Check,
-  Pencil,
   Trash2,
   Utensils,
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
 
 interface FoodHistoryPanelProps {
   dateKey: string;
@@ -340,80 +339,85 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
             : (entry.macroType === 'carbs' ? 'C' : 'P');
 
           return (
-            <div
+            <SwipeableRow
               key={entry.id}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2.5 rounded-lg border-l-[3px] min-h-[48px] transition-colors",
-                `border-l-${accent}-500`,
-                `bg-${accent}-500/8`,
-                "hover:bg-muted/20"
-              )}
+              actions={[
+                {
+                  icon: <Trash2 className="w-4 h-4" />,
+                  label: "Delete",
+                  bgColor: "bg-red-600",
+                  textColor: "text-white",
+                  onClick: () => handleDelete(entry.id),
+                },
+              ]}
+              className="rounded-lg overflow-hidden"
             >
-              {/* Food name + time */}
-              <div className="flex-1 min-w-0">
-                <span className="text-[12px] font-semibold truncate block leading-tight">{entry.name}</span>
-                <span className="text-[10px] text-muted-foreground/60 font-mono">
-                  {(() => {
-                    try {
-                      return format(new Date(entry.timestamp), 'h:mm a');
-                    } catch {
-                      return '';
-                    }
-                  })()}
-                </span>
-              </div>
-
-              {/* Amount + actions */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                {isEditing ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={editingValue}
-                      onChange={(e) => setEditingValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0));
-                        if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
-                      }}
-                      autoFocus
-                      className="w-16 h-8 text-[12px] font-mono font-bold text-center bg-background border border-primary rounded px-1"
-                    />
-                    <button
-                      onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
-                      className="w-8 h-8 flex items-center justify-center rounded bg-primary/20 text-primary hover:bg-primary/30"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        setEditingId(entry.id);
-                        setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
-                      }}
-                      className={cn(
-                        "text-[12px] font-mono font-bold px-2.5 py-1 rounded-md hover:ring-1 hover:ring-current transition-all",
-                        `text-${accent}-500`
-                      )}
-                      title="Tap to edit"
-                    >
-                      {displayAmount} {displayUnit}
-                    </button>
-                    {entry.liquidOz && (
-                      <span className="text-[10px] font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
-                    )}
-                    <button
-                      onClick={() => handleDelete(entry.id)}
-                      className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
-                      aria-label={`Remove ${entry.name}`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </>
+              <div
+                className={cn(
+                  "flex items-center gap-2.5 px-3 py-2.5 border-l-[3px] min-h-[48px] transition-colors",
+                  `border-l-${accent}-500`,
+                  `bg-${accent}-500/8`,
                 )}
+              >
+                {/* Food name + time */}
+                <div className="flex-1 min-w-0">
+                  <span className="text-[12px] font-semibold truncate block leading-tight">{entry.name}</span>
+                  <span className="text-[10px] text-muted-foreground/60 font-mono">
+                    {(() => {
+                      try {
+                        return format(new Date(entry.timestamp), 'h:mm a');
+                      } catch {
+                        return '';
+                      }
+                    })()}
+                  </span>
+                </div>
+
+                {/* Amount + edit */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0));
+                          if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
+                        }}
+                        autoFocus
+                        className="w-16 h-8 text-[12px] font-mono font-bold text-center bg-background border border-primary rounded px-1"
+                      />
+                      <button
+                        onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
+                        className="w-8 h-8 flex items-center justify-center rounded bg-primary/20 text-primary hover:bg-primary/30"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingId(entry.id);
+                          setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
+                        }}
+                        className={cn(
+                          "text-[12px] font-mono font-bold px-2.5 py-1 rounded-md hover:ring-1 hover:ring-current transition-all",
+                          `text-${accent}-500`
+                        )}
+                        title="Tap to edit"
+                      >
+                        {displayAmount} {displayUnit}
+                      </button>
+                      {entry.liquidOz && (
+                        <span className="text-[10px] font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
+            </SwipeableRow>
           );
         })}
       </div>

@@ -33,18 +33,17 @@ export default function Fuel() {
   const hydration = getHydrationTarget();
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
-  const isSparProtocol = protocol === '5' || protocol === '6';
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
   // todaysFoods/foodLists removed — embedded trackers replaced with AddFoodFlow
 
   const phaseInfo = getProtocolPhase(protocol, daysUntilWeighIn, macros.ratio);
 
-  // Guide data for P1-4
+  // Guide data — only shown in grams mode (sugar system food recommendations)
   const guide = useMemo(() => {
-    if (protocol === '5' || protocol === '6') return null;
+    if (isSparMode) return null;
     return getTodaysFuelGuide(protocol, daysUntilWeighIn);
-  }, [protocol, daysUntilWeighIn]);
+  }, [protocol, daysUntilWeighIn, isSparMode]);
 
   // ─── Progress calculations ───
   const carbProgress = macros.carbs.max > 0 ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100) : 0;
@@ -55,13 +54,13 @@ export default function Fuel() {
     const blocked: string[] = [];
     if (macros.carbs.max === 0 && macros.protein.max === 0) {
       blocked.push('protein', 'carb');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     } else if (macros.protein.max === 0) {
       blocked.push('protein');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     }
     return new Set(blocked);
-  }, [macros.carbs.max, macros.protein.max, isSparProtocol]);
+  }, [macros.carbs.max, macros.protein.max, isSparMode]);
 
   const isProteinBlocked = sparBlockedSet.has('protein');
   const isCarbBlocked = sparBlockedSet.has('carb');
