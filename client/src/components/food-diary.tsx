@@ -469,13 +469,13 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
 
       {/* Inline undo bar */}
       {undoEntry && (
-        <div className="flex items-center justify-between px-3 py-2 bg-muted/20 rounded-lg border border-muted/30 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <span className="text-[11px] text-muted-foreground truncate mr-2">
+        <div className="flex items-center justify-between px-3 py-2.5 bg-primary/15 rounded-xl border border-primary/30 animate-in fade-in slide-in-from-bottom-2 duration-200">
+          <span className="text-[11px] text-foreground/70 truncate mr-2">
             Removed {undoEntry.name.length > 25 ? undoEntry.name.slice(0, 25) + '...' : undoEntry.name}
           </span>
           <button
             onClick={handleUndo}
-            className="text-[11px] font-bold text-primary px-2 py-1 rounded hover:bg-primary/10 active:scale-95 transition-all shrink-0"
+            className="text-[11px] font-bold text-primary bg-primary/20 px-3 py-1 rounded-lg hover:bg-primary/30 active:scale-95 transition-all shrink-0"
           >
             Undo
           </button>
