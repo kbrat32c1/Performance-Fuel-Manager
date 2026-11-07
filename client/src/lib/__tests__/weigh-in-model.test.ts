@@ -62,10 +62,33 @@ describe('practiceChange', () => {
 });
 
 describe('timestampFor', () => {
-  it('uses now for today and a typical time for an earlier day', () => {
-    const now = new Date(2026, 10, 7, 13, 5);
-    expect(timestampFor('morning', '2026-11-07', now)).toBe(now);
-    expect(timestampFor('before-bed', '2026-11-06', now)).toEqual(new Date(2026, 10, 6, 22, 0));
+  const at = (h: number, m = 0) => new Date(2026, 10, 7, h, m);
+
+  it('uses the actual time when entered during that weigh-in\'s usual window', () => {
+    expect(timestampFor('morning', '2026-11-07', at(6, 40))).toEqual(at(6, 40));
+    expect(timestampFor('post-practice', '2026-11-07', at(17, 50))).toEqual(at(17, 50));
+    expect(timestampFor('before-bed', '2026-11-07', at(22, 15))).toEqual(at(22, 15));
+  });
+
+  it('uses the typical time when entered later in the day', () => {
+    expect(timestampFor('morning', '2026-11-07', at(21, 0))).toEqual(at(6, 0));
+    expect(timestampFor('pre-practice', '2026-11-07', at(21, 0))).toEqual(at(15, 0));
+    expect(timestampFor('post-practice', '2026-11-07', at(23, 0))).toEqual(at(17, 30));
+  });
+
+  it('keeps the actual time for an early practice rather than a time still to come', () => {
+    expect(timestampFor('pre-practice', '2026-11-07', at(9, 0))).toEqual(at(9, 0));
+  });
+
+  it('keeps the four readings in order when all are typed at once', () => {
+    const now = at(10, 0);
+    const times = (['morning', 'pre-practice', 'post-practice'] as const).map(t => timestampFor(t, '2026-11-07', now).getTime());
+    expect(times[0]).toBeLessThanOrEqual(times[1]);
+    expect(times[1]).toBeLessThanOrEqual(times[2]);
+  });
+
+  it('uses the typical time for an earlier day', () => {
+    expect(timestampFor('before-bed', '2026-11-06', at(13, 5))).toEqual(new Date(2026, 10, 6, 22, 0));
   });
 });
 

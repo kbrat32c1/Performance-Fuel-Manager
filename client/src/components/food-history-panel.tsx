@@ -49,8 +49,13 @@ function getEntryAccent(entry: FoodLogEntry): string {
 }
 
 export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
-  const { getDailyTracking, updateDailyTracking } = useStore();
+  const { getDailyTracking, updateDailyTracking, profile } = useStore();
   const tracking = getDailyTracking(dateKey);
+  const dayLabel = (() => {
+    if (dateKey === format(profile.simulatedDate || new Date(), 'yyyy-MM-dd')) return 'today';
+    const [y, m, d] = dateKey.split('-').map(Number);
+    return `on ${format(new Date(y, m - 1, d), 'EEE, MMM d')}`;
+  })();
   const foodLog = tracking.foodLog || [];
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -424,7 +429,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
 
       {/* Entry count */}
       <p className="text-[10px] text-muted-foreground/40 text-center pt-2">
-        {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged today
+        {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged {dayLabel}
       </p>
     </div>
   );

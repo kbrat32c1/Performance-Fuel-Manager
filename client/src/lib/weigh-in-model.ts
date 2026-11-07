@@ -3,11 +3,13 @@ import type { WeightLog } from './stores/types';
 
 export type DailySlotType = 'morning' | 'pre-practice' | 'post-practice' | 'before-bed';
 
-export const DAILY_SLOTS: { type: DailySlotType; label: string; hour: number; minute: number }[] = [
-  { type: 'morning', label: 'Morning', hour: 6, minute: 0 },
-  { type: 'pre-practice', label: 'Before practice', hour: 15, minute: 0 },
-  { type: 'post-practice', label: 'After practice', hour: 17, minute: 30 },
-  { type: 'before-bed', label: 'Before bed', hour: 22, minute: 0 },
+// hour/minute: the typical time, used for entries made later or for an earlier day.
+// from/to: hours when entering it "now" means it was just weighed (to may wrap past midnight).
+export const DAILY_SLOTS: { type: DailySlotType; label: string; hour: number; minute: number; from: number; to: number }[] = [
+  { type: 'morning', label: 'Morning', hour: 6, minute: 0, from: 3, to: 11 },
+  { type: 'pre-practice', label: 'Before practice', hour: 15, minute: 0, from: 11, to: 19 },
+  { type: 'post-practice', label: 'After practice', hour: 17, minute: 30, from: 13, to: 22 },
+  { type: 'before-bed', label: 'Before bed', hour: 22, minute: 0, from: 19, to: 3 },
 ];
 
 export type ParsedWeight =
@@ -63,12 +65,21 @@ export function practiceChange(before: number | undefined, after: number | undef
   return `${diff < 0 ? '−' : '+'}${Math.abs(diff).toFixed(1)} lb (${pct < 0.1 ? '<0.1' : pct.toFixed(1)}%)`;
 }
 
-/** When a new reading is stamped: now for today, a typical time of day for an earlier day. */
+/**
+ * When a new reading is stamped. Today: the actual time if it's within that weigh-in's usual
+ * window, otherwise its typical time if that has passed (a morning weight typed in the evening
+ * is still a 6 AM weight), otherwise the actual time (an early practice). Earlier days: the
+ * typical time.
+ */
 export function timestampFor(type: DailySlotType, dateKey: string, now: Date = new Date()): Date {
-  if (dateKey === dayKey(now)) return now;
   const slot = DAILY_SLOTS.find(s => s.type === type)!;
   const [y, m, d] = dateKey.split('-').map(Number);
-  return new Date(y, m - 1, d, slot.hour, slot.minute, 0);
+  const typical = new Date(y, m - 1, d, slot.hour, slot.minute, 0);
+  if (dateKey !== dayKey(now)) return typical;
+  const h = now.getHours();
+  const inWindow = slot.from < slot.to ? h >= slot.from && h < slot.to : h >= slot.from || h < slot.to;
+  if (inWindow) return now;
+  return typical.getTime() <= now.getTime() ? typical : now;
 }
 
 // ── Unsaved drafts: kept on the phone until the save is confirmed ──
