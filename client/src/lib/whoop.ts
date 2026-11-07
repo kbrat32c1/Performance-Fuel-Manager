@@ -14,23 +14,36 @@ const NOT_CONNECTED: WhoopStatus = { connected: false, connectedAt: null, lastSy
 /** Re-sync at most this often when the dashboard opens. */
 export const WHOOP_SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
-/** Status only — tokens never leave the server. 'unavailable' before the database update. */
-export async function getWhoopStatus(): Promise<WhoopStatus | 'unavailable'> {
-  const { data, error } = await supabase.rpc('whoop_status');
-  if (error) return /whoop_status|PGRST202|42883/.test(`${error.code} ${error.message}`) ? 'unavailable' : NOT_CONNECTED;
-  const row = Array.isArray(data) ? data[0] : data;
+/**
+ * Status only — tokens never leave the server. 'unavailable' before the database update;
+ * 'error' when the check itself failed (offline, server hiccup) — not the same as "not connected".
+ */
+export async function getWhoopStatus(): Promise<WhoopStatus | 'unavailable' | 'error'> {
+  let data: unknown, error: { code?: string; message?: string } | null;
+  try {
+    ({ data, error } = await supabase.rpc('whoop_status'));
+  } catch {
+    return 'error';
+  }
+  if (error) return /whoop_status|PGRST202|42883/.test(`${error.code} ${error.message}`) ? 'unavailable' : 'error';
+  const row = (Array.isArray(data) ? data[0] : data) as { connected_at?: string; last_synced_at?: string; last_error?: string } | null;
   if (!row) return NOT_CONNECTED;
   return { connected: true, connectedAt: row.connected_at ?? null, lastSyncedAt: row.last_synced_at ?? null, lastError: row.last_error ?? null };
 }
 
 async function post(path: string, body: unknown = {}): Promise<{ ok: boolean; data: any }> {
-  const res = await fetch(apiUrl(path), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, data };
+  try {
+    const res = await fetch(apiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  } catch {
+    // Dropped connection: report it instead of throwing, so buttons don't spin forever.
+    return { ok: false, data: { error: "Couldn't reach SPAR. Check your connection and try again." } };
+  }
 }
 
 /** Opens WHOOP's approval page. On the web the page navigates away; in the app it opens a browser sheet. */

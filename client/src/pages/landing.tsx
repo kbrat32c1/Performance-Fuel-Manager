@@ -369,6 +369,31 @@ export default function Landing() {
                     </button>
                   )}
                 </div>
+
+                {authMode !== 'forgot' && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center gap-3" aria-hidden="true">
+                      <div className="flex-1 h-px bg-muted" />
+                      <span className="text-xs text-muted-foreground">or</span>
+                      <div className="flex-1 h-px bg-muted" />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => signInWithGoogle()}
+                      className="w-full h-12 font-bold"
+                    >
+                      Continue with Google
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => { setAuthMode('landing'); setError(null); }}
+                      className="w-full min-h-11 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Back
+                    </button>
+                  </div>
+                )}
               </form>
             )}
           </div>

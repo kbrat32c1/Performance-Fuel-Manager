@@ -133,7 +133,8 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
   // and land on the previous evening in US time zones, putting the countdown a day early.
   const weighInDate = startOfDay(parseISO(profile.weigh_in_date));
   const daysUntilWeighIn = differenceInDays(weighInDate, today);
-  const waterLoading = profile.water_loading !== false;
+  // Same rule as the athlete's app: Gain never loads or cuts water, whatever the switch says.
+  const waterLoading = profile.water_loading !== false && String(profile.protocol) !== '4';
   const currentPhase = getPhaseForDaysUntil(daysUntilWeighIn, waterLoading);
 
   // Sort all logs newest first

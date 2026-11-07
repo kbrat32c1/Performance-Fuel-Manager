@@ -42,7 +42,7 @@ export function useWhoopAutoSync(userId: string | null, refreshHealth: () => Pro
       checking = true;
       try {
         const status = await getWhoopStatus();
-        if (cancelled || status === 'unavailable' || !whoopSyncDue(status)) return;
+        if (cancelled || status === 'unavailable' || status === 'error' || !whoopSyncDue(status)) return;
         if (!(await syncWhoop()) && !cancelled) await changed();
       } finally {
         checking = false;
