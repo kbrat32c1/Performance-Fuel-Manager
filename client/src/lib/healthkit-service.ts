@@ -497,8 +497,8 @@ export async function syncDayToSupabase(
     .eq('date', dayData.date)
     .maybeSingle();
 
-  if (existing?.source === 'v5-direct') {
-    console.debug('[HealthKit] Skipping upsert — V5 data already exists for', dayData.date);
+  if (existing?.source === 'v5-direct' || existing?.source === 'whoop') {
+    console.debug('[HealthKit] Skipping upsert —', existing.source, 'data already exists for', dayData.date);
     return null;
   }
 

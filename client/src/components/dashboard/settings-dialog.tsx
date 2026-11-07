@@ -36,6 +36,7 @@ import { isHapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useV5BandContext } from "@/lib/v5band-context";
 import { WaterLoadingSwitch } from "@/components/water-loading-switch";
+import { WhoopCard } from "@/components/dashboard/whoop-card";
 
 /** Profile updates use Record<string, any> because settings-dialog
  *  accesses fields dynamically via getValue(key) and Select returns string. */
@@ -1021,6 +1022,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   <Heart className="w-4 h-4 text-red-500" />
                   <span className="text-sm font-semibold">Health Tracker</span>
                 </div>
+
+                {/* ── WHOOP (web and app) ── */}
+                <WhoopCard onSynced={() => void hkSync.refreshData()} />
 
                 {/* ── V5 SMART BAND SECTION ── */}
                 {v5band.available ? (

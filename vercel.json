@@ -15,6 +15,7 @@
     { "source": "/api/foods/voice-parse", "destination": "/api/foods/voice-parse" },
     { "source": "/api/ai/coach", "destination": "/api/ai/coach" },
     { "source": "/api/share/:token", "destination": "/api/share/[token]" },
+    { "source": "/api/whoop/:action(connect|callback|sync|disconnect)", "destination": "/api/whoop/:action" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
