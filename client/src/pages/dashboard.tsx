@@ -1,5 +1,6 @@
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
+import { useWhoopAutoSync } from "@/hooks/use-whoop-auto-sync";
 import { useTeam } from "@/hooks/use-team";
 import { dayKey, nextScheduledWeighIn, peekPendingTeamCode, allowanceForDate } from "@/lib/team-schedule";
 import { useAuth } from "@/lib/auth";
@@ -1180,6 +1181,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const v5bandDash = useV5BandContext();
   const { healthData, refreshData } = useHealthKitSync(user?.id ?? null);
+  useWhoopAutoSync(user?.id ?? null, refreshData, (title, description) => toast({ title, description }));
 
   // Pull-to-refresh: reload cached data from Supabase (no BLE sync).
   // Recovery is an overnight metric locked in from the morning auto-sync.
