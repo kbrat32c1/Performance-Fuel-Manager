@@ -136,6 +136,7 @@ export const PROTOCOL_KNOWLEDGE = {
 // ─── WATER PROTOCOL ─────────────────────────────────────────────────────────
 
 export const WATER_PROTOCOL = `
+If the athlete has water loading OFF (context says "Water loading: off"), skip this schedule: they drink normally, about 0.7 oz/lb every day, with normal sodium — no loading, restriction, sips-only day or salt-loading.
 ## WATER LOADING PROTOCOL (Protocols 1-4)
 
 PURPOSE: Prime the body's ADH (antidiuretic hormone) to flush water rapidly when restriction begins.

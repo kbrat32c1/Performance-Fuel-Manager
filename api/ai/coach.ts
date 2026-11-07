@@ -65,6 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || sanitizeForPrompt(ctx.protocol)}`);
     if (ctx.phase) contextLines.push(`Current phase: ${sanitizeForPrompt(ctx.phase)}`);
+    if (typeof ctx.waterLoading === 'boolean') contextLines.push(`Water loading: ${ctx.waterLoading ? 'on' : 'off (drinks normally)'}`);
     if (ctx.status) contextLines.push(`Status: ${sanitizeForPrompt(ctx.status)}`);
 
     if (ctx.macroTargets) {
@@ -157,6 +158,7 @@ PROTOCOL 4 (Gain):
 • Zero protein (4-5 days out, protocols 1&2): Protein triggers insulin and mTOR pathways that shut down fat oxidation. Removing it lets the body burn more actual body fat.
 
 ═══ WATER & SODIUM PROTOCOL ═══
+If the athlete has water loading OFF (context says "Water loading: off"), skip this schedule: they drink normally, about 0.7 oz/lb every day, with normal sodium — no loading, restriction, sips-only day or salt-loading.
 Based on research: PubMed 29182412, ISSN Position Stand PMC11894756.
 Protocol: 3 days water load → 1 day restrict → 1 day sips → weigh-in → rehydrate.
 Water is scaled by body weight (oz per lb):

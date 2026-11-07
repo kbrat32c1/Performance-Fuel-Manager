@@ -62,7 +62,8 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const consumedOz = tracking.waterConsumed;
 
   // Only apply sip-only mode for competition users doing weight cuts
-  const isSipOnly = !isSparProtocol && (hydration.type === 'Sip Only' || daysUntilWeighIn === 1);
+  const waterLoadingOn = profile.waterLoading !== false;
+  const isSipOnly = waterLoadingOn && !isSparProtocol && (hydration.type === 'Sip Only' || daysUntilWeighIn === 1);
   const quickAddAmounts = isSipOnly ? [2, 4, 6, 8] : [8, 16, 24, 32];
 
   const handleAddWater = (oz: number) => {
@@ -258,7 +259,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
         )}
 
         {/* Why Explanations — only for competition users doing weight cuts */}
-        {!isSparProtocol && (
+        {!isSparProtocol && waterLoadingOn && (
           <div className="pt-2 mt-2 border-t border-muted space-y-2">
             {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
               <WhyExplanation title="water loading (3-5 days out)">

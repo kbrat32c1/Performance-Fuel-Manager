@@ -336,8 +336,12 @@ export const SODIUM_MG_BY_DAY = {
 // Max water loading cap (oz) — ~2.5 gal. Prevents unsafe volumes for heavyweights.
 export const MAX_WATER_LOADING_OZ = 320;
 
-export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
+/** Normal daily drinking for athletes who turn water loading off (same as a training day). */
+export const NORMAL_WATER_OZ_PER_LB = WATER_OZ_PER_LB[6];
+
+export function getWaterTargetOz(daysUntil: number, weightLbs: number, waterLoading = true): number {
   if (daysUntil === 0) return 0; // Weigh-in day — rehydrate after
+  if (!waterLoading) return Math.round(NORMAL_WATER_OZ_PER_LB * weightLbs);
   const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
   const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
   const raw = Math.round(ozPerLb * weightLbs);
@@ -349,10 +353,10 @@ export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
  * Get formatted water target string (e.g. "1.50 gal", "Sips only", "Rehydrate").
  * Used for weekly plan and explanatory text where gallon-scale numbers make sense.
  */
-export function getWaterTargetGallons(daysUntil: number, weightLbs: number): string {
+export function getWaterTargetGallons(daysUntil: number, weightLbs: number, waterLoading = true): string {
   if (daysUntil === 0) return 'Rehydrate';
   const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
-  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
+  const ozPerLb = waterLoading ? (WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5) : NORMAL_WATER_OZ_PER_LB;
   if (ozPerLb <= 0.1) return 'Sips only';
   let totalOz = ozPerLb * weightLbs;
   // Cap loading days for heavyweights
@@ -366,7 +370,10 @@ export function getWaterTargetGallons(daysUntil: number, weightLbs: number): str
 /**
  * Get sodium info for a given day.
  */
-export function getSodiumTarget(daysUntil: number) {
+export function getSodiumTarget(daysUntil: number, waterLoading = true) {
+  if (!waterLoading) {
+    return daysUntil === 0 ? SODIUM_MG_BY_DAY[0] : { target: 3000, label: 'Normal', color: 'text-primary' };
+  }
   const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
   return SODIUM_MG_BY_DAY[key as keyof typeof SODIUM_MG_BY_DAY] ?? SODIUM_MG_BY_DAY[-1];
 }
@@ -510,7 +517,8 @@ export function getWeightMultiplier(daysUntil: number): number {
 /**
  * Check if a given day is a water loading day
  */
-export function isWaterLoadingDay(daysUntil: number, protocol: string): boolean {
+export function isWaterLoadingDay(daysUntil: number, protocol: string, waterLoading = true): boolean {
+  if (!waterLoading) return false;
   if (protocol !== PROTOCOLS.EXTREME_CUT && protocol !== PROTOCOLS.RAPID_CUT && protocol !== PROTOCOLS.OPTIMAL_CUT) {
     return false;
   }
@@ -530,7 +538,7 @@ export function calculateTargetWeight(
   const multiplier = getWeightMultiplier(daysUntil);
   const base = Math.round(targetWeightClass * multiplier);
 
-  const waterLoading = includeWaterLoading && isWaterLoadingDay(daysUntil, protocol);
+  const waterLoading = isWaterLoadingDay(daysUntil, protocol, includeWaterLoading);
 
   if (waterLoading) {
     return {
@@ -556,9 +564,10 @@ export function calculateTargetWeight(
 export function formatWeightTarget(
   targetWeightClass: number,
   daysUntil: number,
-  protocol: string
+  protocol: string,
+  waterLoading = true
 ): string {
-  const target = calculateTargetWeight(targetWeightClass, daysUntil, protocol);
+  const target = calculateTargetWeight(targetWeightClass, daysUntil, protocol, waterLoading);
 
   if (target.range) {
     return `${target.range.min}-${target.range.max}`;
@@ -570,10 +579,10 @@ export function formatWeightTarget(
 /**
  * Get phase name based on days until weigh-in
  */
-export function getPhaseForDaysUntil(daysUntil: number): string {
+export function getPhaseForDaysUntil(daysUntil: number, waterLoading = true): string {
   if (daysUntil < 0) return 'Recover';
   if (daysUntil === 0) return 'Compete';
   if (daysUntil <= 2) return 'Cut';
-  if (daysUntil <= 5) return 'Load';
+  if (daysUntil <= 5) return waterLoading ? 'Load' : 'Train';
   return 'Train';
 }

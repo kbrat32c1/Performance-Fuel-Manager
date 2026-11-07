@@ -35,6 +35,7 @@ import {
 import { isHapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useV5BandContext } from "@/lib/v5band-context";
+import { WaterLoadingSwitch } from "@/components/water-loading-switch";
 
 /** Profile updates use Record<string, any> because settings-dialog
  *  accesses fields dynamically via getValue(key) and Select returns string. */
@@ -879,6 +880,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 </span>
                 <span className="text-sm font-bold text-primary shrink-0">Open</span>
               </button>
+
+              <WaterLoadingSwitch />
 
               {/* Weigh-in Date */}
               <div className="space-y-1">

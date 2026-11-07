@@ -128,6 +128,7 @@ export function AiCoachGlobal() {
       daysUntilWeighIn: daysUntil,
       weightToLose: Math.max(0, profile.currentWeight - profile.targetWeightClass).toFixed(1),
       protocol: profile.protocol,
+      waterLoading: profile.waterLoading !== false,
       phase: getPhase(),
       status: getStatus().status,
     };

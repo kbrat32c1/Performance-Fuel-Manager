@@ -58,8 +58,8 @@ export function TrendChart() {
       const typeLabel = typeLabels[log.type] || '';
 
       const daysUntil = weighInDate ? differenceInDays(weighInDate, startOfDay(logDate)) : 7;
-      const projectedTarget = calculateTargetWeight(profile.targetWeightClass, daysUntil, profile.protocol);
-      const phase = getPhaseForDaysUntil(daysUntil);
+      const projectedTarget = calculateTargetWeight(profile.targetWeightClass, daysUntil, profile.protocol, profile.waterLoading !== false);
+      const phase = getPhaseForDaysUntil(daysUntil, profile.waterLoading !== false);
 
       return {
         date: `${dayStr} ${typeLabel}`,

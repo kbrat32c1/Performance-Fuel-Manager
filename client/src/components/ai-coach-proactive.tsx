@@ -242,6 +242,7 @@ export function AiCoachProactive() {
       daysUntilWeighIn: daysUntil,
       weightToLose: weightToLose.toFixed(1),
       protocol: profile.protocol,
+      waterLoading: profile.waterLoading !== false,
       phase: getPhase(),
       status: getStatus().status,
     };
@@ -598,29 +599,33 @@ export function AiCoachProactive() {
               ))}
             </div>
             <div className={cn(
-              "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
+              "inline-flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1 rounded-2xl text-xs font-bold",
               statusColor === 'green' && "bg-green-500/10 text-green-500",
               statusColor === 'orange' && "bg-orange-500/10 text-orange-500",
               statusColor === 'red' && "bg-red-500/10 text-red-400"
             )}>
-              {isAtWeight ? '✓ AT WEIGHT' : insights.trainingStatus ? (
+              {isAtWeight ? <span className="whitespace-nowrap">✓ AT WEIGHT</span> : insights.trainingStatus ? (
                 <>
-                  {insights.trainingStatus === 'holding' ? 'HOLDING' :
-                   insights.trainingStatus === 'monitor' ? 'MONITOR' : 'HIGH'}
+                  <span className="whitespace-nowrap">
+                    {insights.trainingStatus === 'holding' ? 'HOLDING' :
+                     insights.trainingStatus === 'monitor' ? 'MONITOR' : 'HIGH'}
+                  </span>
                   <span className="text-muted-foreground font-normal">•</span>
-                  {insights.walkAroundGap <= 0
-                    ? 'At walk-around weight'
-                    : `${insights.walkAroundGap.toFixed(1)} lbs over`}
+                  <span className="whitespace-nowrap">
+                    {insights.walkAroundGap <= 0
+                      ? 'At walk-around weight'
+                      : `${insights.walkAroundGap.toFixed(1)} lbs over`}
+                  </span>
                 </>
               ) : (
                 <>
-                  {insights.isOnTrack ? 'ON TRACK' : 'BEHIND'}
+                  <span className="whitespace-nowrap">{insights.isOnTrack ? 'ON TRACK' : 'BEHIND'}</span>
                   <span className="text-muted-foreground font-normal">•</span>
-                  {`${weightToLose.toFixed(1)} lbs to go`}
+                  <span className="whitespace-nowrap">{`${weightToLose.toFixed(1)} lbs to go`}</span>
                 </>
               )}
               {timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME' && !isAtWeight && (
-                <span className="text-muted-foreground font-normal">• {timeUntilWeighIn}</span>
+                <span className="whitespace-nowrap text-muted-foreground font-normal">• {timeUntilWeighIn}</span>
               )}
             </div>
           </div>

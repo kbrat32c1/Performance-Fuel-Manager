@@ -2,9 +2,10 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { format, getDay, addDays, startOfWeek, isSameDay } from "date-fns";
+import { format, getDay, addDays, startOfWeek, isSameDay, differenceInCalendarDays } from "date-fns";
 import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Dumbbell } from "lucide-react";
 import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWaterTargetGallons, getSodiumTarget } from "@/lib/constants";
+import { WaterLoadingSwitch } from "@/components/water-loading-switch";
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 import { WeekOverview } from "@/components/dashboard";
 import { useLocation } from "wouter";
@@ -28,7 +29,7 @@ export default function Weekly() {
 
   // Current phase based on days until weigh-in
   const daysUntil = getDaysUntilWeighIn();
-  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil);
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil, profile.waterLoading !== false);
 
   // Dynamically compute daysUntil for each day of the week based on actual weigh-in date
   // dayNum: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -41,6 +42,8 @@ export default function Weekly() {
     sat: getDaysUntilForDay(6),
     sun: getDaysUntilForDay(0),
   };
+
+  const waterLoadingOn = profile.waterLoading !== false;
 
   // Use athlete's walk-around weight for water scaling
   // Walk-around is estimated as targetWeightClass × 1.06-1.07 (typical rehydration weight)
@@ -68,13 +71,13 @@ export default function Weekly() {
   // Compute water targets using ml/kg scaling from research
   const getWaterForDay = (dayKey: string) => {
     const daysOut = dayToDaysUntil[dayKey] ?? 5;
-    return getWaterTargetGallons(daysOut, athleteWeightLbs);
+    return getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn);
   };
 
   // Compute sodium target for each day
   const getSodiumForDay = (dayKey: string) => {
     const daysOut = dayToDaysUntil[dayKey] ?? 5;
-    return getSodiumTarget(daysOut);
+    return getSodiumTarget(daysOut, waterLoadingOn);
   };
 
   // Water loading bonus from centralized helper
@@ -84,7 +87,7 @@ export default function Weekly() {
   const getWeightTargets = () => {
     const w = profile.targetWeightClass;
     const protocol = profile.protocol;
-    const getTarget = (daysUntil: number) => calculateTargetWeight(w, daysUntil, protocol);
+    const getTarget = (daysUntil: number) => calculateTargetWeight(w, daysUntil, protocol, waterLoadingOn);
 
     // Build targets for each day using dynamic daysUntil
     const buildDayTarget = (dayKey: string) => {
@@ -150,7 +153,7 @@ export default function Weekly() {
     { key: 'sun', label: 'Sun', dayNum: 0 },
   ].map(d => ({
     ...d,
-    phase: getPhaseStyleForDaysUntil(dayToDaysUntil[d.key]).phase,
+    phase: getPhaseStyleForDaysUntil(dayToDaysUntil[d.key], waterLoadingOn).phase,
   }));
 
   // Get logged weight for a specific day
@@ -215,6 +218,7 @@ export default function Weekly() {
         <p className="text-sm text-muted-foreground mt-1">
           {profile.targetWeightClass} lb class • Water scaled to {athleteWeightLbs} lbs
         </p>
+        <WaterLoadingSwitch className="mt-3" />
       </header>
 
       {/* Visual Week Plan — tap any day for eating/drinking details */}
@@ -251,7 +255,7 @@ export default function Weekly() {
                   <th className="p-2 text-left font-bold">Day</th>
                   <th className="p-2 text-center font-bold">
                     <div>Target</div>
-                    <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">w/ loading</div>
+                    {waterLoadingOn && <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">w/ loading</div>}
                   </th>
                   <th className="p-2 text-center font-bold">Logged</th>
                   <th className="p-2 text-center font-bold">Status</th>
@@ -268,7 +272,7 @@ export default function Weekly() {
                       logDate.getDate() === dayDate.getDate();
                   });
                   const relevantLog = morningLog;
-                  const dayDaysUntil = Math.round((new Date(profile.weighInDate).getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const dayDaysUntil = differenceInCalendarDays(new Date(profile.weighInDate), dayDate);
                   const isLoadingDay = dayDaysUntil >= 3 && dayDaysUntil <= 5;
                   const isCritical = planDay.isCriticalCheckpoint || dayDaysUntil === 1;
                   const dateLabel = format(dayDate, 'M/d');
@@ -338,7 +342,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          Loading day targets include water loading weight • 1 day out is critical checkpoint
+          {waterLoadingOn ? 'Loading day targets include water loading weight • ' : ''}1 day out is critical checkpoint
         </p>
       </section>
 
@@ -361,9 +365,9 @@ export default function Weekly() {
               <tbody>
                 {getWeeklyPlan().map((planDay) => {
                   const dayDate = new Date(planDay.date);
-                  const daysOut = Math.round((new Date(profile.weighInDate).getTime() - dayDate.getTime()) / (1000 * 60 * 60 * 24));
-                  const waterAmount = getWaterTargetGallons(daysOut, athleteWeightLbs);
-                  const sodiumInfo = getSodiumTarget(daysOut);
+                  const daysOut = differenceInCalendarDays(new Date(profile.weighInDate), dayDate);
+                  const waterAmount = getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn);
+                  const sodiumInfo = getSodiumTarget(daysOut, waterLoadingOn);
                   const dateLabel = format(dayDate, 'M/d');
 
                   return (
@@ -413,7 +417,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          Based on Reale et al. acute weight management protocol (100 ml/kg peak loading) • Scaled to {athleteWeightLbs} lbs ({Math.round(athleteWeightLbs * 0.4536)} kg)
+          {waterLoadingOn ? 'Based on Reale et al. acute weight management protocol (100 ml/kg peak loading)' : 'Water loading off — the same normal amount every day'} • Scaled to {athleteWeightLbs} lbs ({Math.round(athleteWeightLbs * 0.4536)} kg)
         </p>
       </section>
 
@@ -482,33 +486,24 @@ export default function Weekly() {
         <div className="space-y-3">
           {(() => {
             // Build dynamic day labels for each protocol phase
-            const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            const dayKeys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-            const loadingDays = dayKeys.filter(k => dayToDaysUntil[k] >= 3 && dayToDaysUntil[k] <= 5);
-            const restrictionDays = dayKeys.filter(k => dayToDaysUntil[k] === 2);
-            const criticalDays = dayKeys.filter(k => dayToDaysUntil[k] === 1);
-            const peakDay = dayKeys.find(k => dayToDaysUntil[k] === 4); // Peak loading day
-
-            const toLabel = (keys: string[]) => keys.map(k => dayLabels[dayKeys.indexOf(k)]).join(', ');
-            const rangeLabel = (keys: string[]) => {
-              if (keys.length <= 2) return toLabel(keys);
-              return `${dayLabels[dayKeys.indexOf(keys[0])]}–${dayLabels[dayKeys.indexOf(keys[keys.length - 1])]}`;
-            };
+            // Day names counted back from the weigh-in date (it may fall next week)
+            const dayName = (daysOut: number) => format(addDays(new Date(profile.weighInDate), -daysOut), 'EEE');
 
             return (
               <>
+                {waterLoadingOn ? (<>
                 <Card className="p-3 border-cyan-500/30 bg-cyan-500/5">
-                  <h4 className="font-bold text-sm text-cyan-500 mb-1">{rangeLabel(loadingDays)}: Water Loading Phase</h4>
+                  <h4 className="font-bold text-sm text-cyan-500 mb-1">{dayName(5)}–{dayName(3)}: Water Loading Phase</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• <strong className="text-cyan-500">Expect to be +{waterLoadBonus} lbs heavier</strong> than baseline targets</li>
                     <li>• Walk-around weight: {checkpoints.walkAround}</li>
                     <li>• Being heavier during loading is NORMAL and part of the protocol</li>
-                    {peakDay && <li>• Peak water intake {dayLabels[dayKeys.indexOf(peakDay)]} (heaviest day)</li>}
+                    <li>• Peak water intake {dayName(4)} (heaviest day)</li>
                   </ul>
                 </Card>
 
                 <Card className="p-3 border-violet-400/30 bg-violet-400/5">
-                  <h4 className="font-bold text-sm text-violet-400 mb-1">{toLabel(restrictionDays)}: Water Restriction Begins</h4>
+                  <h4 className="font-bold text-sm text-violet-400 mb-1">{dayName(2)}: Water Restriction Begins</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• Sharp water drop — ADH still suppressed from loading, urine output stays high</li>
                     <li>• Sodium back to normal (~2,500mg) — stop adding extra salt</li>
@@ -516,9 +511,19 @@ export default function Weekly() {
                     <li>• Water weight drops fast as body keeps flushing</li>
                   </ul>
                 </Card>
+                </>) : (
+                <Card className="p-3 border-cyan-500/30 bg-cyan-500/5">
+                  <h4 className="font-bold text-sm text-cyan-500 mb-1">Water loading off</h4>
+                  <ul className="text-xs text-muted-foreground space-y-0.5">
+                    <li>• Drink about {getWaterTargetGallons(3, athleteWeightLbs, false)} every day — no loading or cutting back</li>
+                    <li>• Sodium stays normal</li>
+                    <li>• Walk-around weight: {checkpoints.walkAround}</li>
+                  </ul>
+                </Card>
+                )}
 
                 <Card className="p-3 border-orange-500/30 bg-orange-500/5">
-                  <h4 className="font-bold text-sm text-orange-500 mb-1">{toLabel(criticalDays)} PM: CRITICAL Checkpoint</h4>
+                  <h4 className="font-bold text-sm text-orange-500 mb-1">{dayName(1)} before practice: CRITICAL Checkpoint</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• <strong className="text-orange-500">Must be {checkpoints.friTarget}</strong></li>
                     <li>• Final 3% drops from practice + overnight drift</li>

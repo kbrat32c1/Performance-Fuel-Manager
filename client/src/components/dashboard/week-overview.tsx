@@ -225,8 +225,10 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
       </Card>
 
       {/* Phase Legend */}
-      <div className="flex flex-wrap justify-center gap-3 px-2">
-        {['Train', 'Load', 'Cut', 'Compete', 'Recover'].map((phase) => (
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 px-2">
+        {['Train', 'Load', 'Cut', 'Compete', 'Recover']
+          .filter((phase) => phase !== 'Load' || weekPlan.some((d) => d.phase === 'Load'))
+          .map((phase) => (
           <div key={phase} className="flex items-center gap-1">
             <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
             <span className="text-xs text-muted-foreground">{phase}</span>

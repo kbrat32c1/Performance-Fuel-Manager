@@ -1369,7 +1369,7 @@ export default function Dashboard() {
   const phaseInfo = getPhaseInfo();
 
   // Phase color mapping for UI elements
-  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn);
+  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading !== false);
 
   // Get today's tracking data for status summary
   const dateKey = format(displayDate, 'yyyy-MM-dd');
@@ -1719,7 +1719,7 @@ export default function Dashboard() {
         {/* SIP-ONLY WARNING BANNER — Only when projection says fluids must be 0 */}
         {/* Uses store's projection to check if athlete has any fluid buffer     */}
         {/* ═══════════════════════════════════════════════════════ */}
-        {!isViewingHistorical && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
+        {!isViewingHistorical && profile.waterLoading !== false && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
           // Check projection-based fluid buffer — only show if truly no room for fluids
           try {
             const descentData = getWeekDescentData();
@@ -1751,21 +1751,21 @@ export default function Dashboard() {
                   : isSparGeneral ? "My Nutrition" : "The Cut"
               )}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
               {/* For SPAR users, show goal label */}
               {isSparGeneral ? (
                 <SparProtocolSelector profile={profile} />
               ) : (
                 <>
-                  <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
+                  <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.color)}>
                     {phaseInfo.label}
                   </span>
                   <span className="text-xs text-muted-foreground">·</span>
-                  <span className="text-xs font-bold font-mono text-primary">{profile.targetWeightClass} lbs</span>
+                  <span className="text-xs font-bold font-mono text-primary whitespace-nowrap">{profile.targetWeightClass} lbs</span>
                   {phaseInfo.stage && (
                     <>
                       <span className="text-xs text-muted-foreground">·</span>
-                      <span className={cn("text-xs font-bold uppercase", phaseInfo.stageColor)}>
+                      <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.stageColor)}>
                         {phaseInfo.stage}
                       </span>
                     </>
@@ -2862,7 +2862,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const effectiveCompDay = daysUntilWeighIn === 0 || hasWeighInLogForDay;
 
   // Phase styling for header badge only
-  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(effectiveCompDay ? 0 : daysUntilWeighIn);
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(effectiveCompDay ? 0 : daysUntilWeighIn, profile.waterLoading !== false);
   const isWaterLoading = isWaterLoadingDay();
 
   // Card border/bg driven by Cut Score zone — matches the gauge ring color

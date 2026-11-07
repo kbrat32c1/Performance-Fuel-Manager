@@ -9,11 +9,13 @@ interface WeighInCountdownProps {
 }
 
 export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInCountdownProps) {
-  const { getTimeUntilWeighIn } = useStore();
+  const { getTimeUntilWeighIn, profile } = useStore();
+  const waterLoadingOn = profile.waterLoading !== false;
   const timeLeft = getTimeUntilWeighIn();
 
   // Day-specific messaging based on days until weigh-in
   const getMessage = () => {
+    if (!waterLoadingOn) return daysUntilWeighIn === 1 ? "Day before weigh-in" : "Until weigh-in";
     if (daysUntilWeighIn === 5) return "Water loading day 1";
     if (daysUntilWeighIn === 4) return "Peak water loading today";
     if (daysUntilWeighIn === 3) return "Last water loading day";
@@ -23,7 +25,7 @@ export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInC
   };
 
   // Use phase-based colors matching the rest of the app
-  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn);
+  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, waterLoadingOn);
   const colors = { bg: phaseStyle.bgMedium, border: phaseStyle.border, text: phaseStyle.text };
   const isDayBefore = daysUntilWeighIn === 1;
 
@@ -46,7 +48,7 @@ export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInC
       {/* Day before weigh-in critical target info */}
       {isDayBefore && dayBeforeTarget && (
         <div className={cn("mt-2 pt-2 border-t text-xs text-muted-foreground", phaseStyle.border)}>
-          Must be <strong className={phaseStyle.text}>{dayBeforeTarget}</strong> by evening for safe overnight cut.
+          Must be <strong className={phaseStyle.text}>{dayBeforeTarget}</strong> before practice. Practice and overnight drift take off the last ~3%.
         </div>
       )}
     </div>

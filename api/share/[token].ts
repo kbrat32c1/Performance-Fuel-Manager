@@ -63,7 +63,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fetch profile by share_token
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("name, current_weight, target_weight_class, weigh_in_date, weigh_in_time, protocol, user_id")
+      .select("name, current_weight, target_weight_class, weigh_in_date, weigh_in_time, protocol, water_loading, user_id")
       .eq("share_token", token)
       .single();
 
