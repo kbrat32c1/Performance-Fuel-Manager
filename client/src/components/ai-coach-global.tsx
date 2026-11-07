@@ -373,6 +373,7 @@ export function AiCoachGlobal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (speech.listening) return; // wait for the final transcript
     sendMessage(input);
   };
 
@@ -530,7 +531,7 @@ export function AiCoachGlobal() {
                 )}
                 <button
                   type="submit"
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || speech.listening}
                   className={cn(
                     "p-2 rounded-lg transition-all active:scale-95 shrink-0",
                     input.trim() && !loading

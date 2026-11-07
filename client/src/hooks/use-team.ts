@@ -150,15 +150,18 @@ export interface RosterEntry {
 /** The coach's roster: who joined, their class, and events they marked "Not wrestling". */
 export function useTeamRoster(teamId: string | null) {
   const [roster, setRoster] = useState<RosterEntry[] | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt(n => n + 1), []);
 
   useEffect(() => {
     if (!teamId) return;
     let cancelled = false;
+    setStatus('loading');
     (async () => {
       const { data, error } = await supabase.rpc('team_roster', { t: teamId });
       if (cancelled) return;
-      if (error) { setStatus(/team_roster|PGRST202|42883/.test(`${error.code} ${error.message}`) ? 'unavailable' : 'ready'); return; }
+      if (error) { setStatus(/team_roster|PGRST202|42883/.test(`${error.code} ${error.message}`) ? 'unavailable' : 'error'); return; }
       setRoster((data ?? []).map((r: any) => ({
         userId: r.user_id,
         name: [r.name, r.last_name].filter(Boolean).join(' ') || 'Unnamed athlete',
@@ -169,7 +172,7 @@ export function useTeamRoster(teamId: string | null) {
       setStatus('ready');
     })();
     return () => { cancelled = true; };
-  }, [teamId]);
+  }, [teamId, attempt]);
 
-  return { roster, status };
+  return { roster, status, retry };
 }

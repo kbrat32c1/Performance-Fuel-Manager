@@ -762,7 +762,7 @@ export function AiCoachProactive() {
 
               {/* Chat input */}
               {speech.error && <p role="alert" className="mb-1 text-xs text-destructive">{speech.error}</p>}
-              <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
+              <form onSubmit={(e) => { e.preventDefault(); if (!speech.listening) sendMessage(); }} className="flex gap-2">
                 <Input
                   ref={inputRef}
                   value={input}
@@ -788,7 +788,7 @@ export function AiCoachProactive() {
                 )}
                 <button
                   type="submit"
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || speech.listening}
                   className={cn(
                     "h-9 px-3 rounded-lg transition-colors",
                     input.trim() && !loading

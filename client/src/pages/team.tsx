@@ -172,13 +172,18 @@ function CoachPanel({ team, events, todayKey, onSave, onDelete }: {
 }
 
 function RosterSection({ teamId, events }: { teamId: string; events: TeamEvent[] }) {
-  const { roster, status } = useTeamRoster(teamId);
+  const { roster, status, retry } = useTeamRoster(teamId);
   const eventName = (id: string) => events.find(e => e.id === id)?.name;
 
   return (
     <Section title={`Roster${roster ? ` (${roster.length})` : ''}`}>
       {status === 'unavailable' ? (
         <p className="text-sm text-muted-foreground">The roster needs a one-time database update.</p>
+      ) : status === 'error' ? (
+        <div className="flex items-center justify-between gap-3">
+          <p role="alert" className="text-sm text-destructive">Couldn't load the roster. Check your connection.</p>
+          <button type="button" onClick={retry} className={outlineButton}>Retry</button>
+        </div>
       ) : status === 'loading' ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : !roster || roster.length === 0 ? (
