@@ -60,11 +60,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "server-side-fallback-2026-07-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
-        temperature: 0,
+        model: "claude-opus-5-5",
+        // Thinking is always on and shares max_tokens with the answer
+        max_tokens: 8000,
+        output_config: { effort: "low" },
+        fallbacks: "default",
         system: "You are a food identification parser. You MUST respond with ONLY a raw JSON object. No markdown, no explanation, no code fences, no backticks, no text before or after the JSON. Your entire response must be valid JSON starting with { and ending with }.",
         messages: [{
           role: "user",
