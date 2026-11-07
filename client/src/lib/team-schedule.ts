@@ -5,12 +5,16 @@ export interface TeamEvent {
   name: string;
   eventDate: string; // yyyy-MM-dd, first weigh-in day
   days: 1 | 2;
+  /** Extra pounds allowed on the event's last weigh-in day (0 = none). */
+  allowance: number;
 }
 
 export interface ScheduledWeighIn {
   event: TeamEvent;
   date: string; // yyyy-MM-dd of this weigh-in day
   day: 1 | 2;
+  /** Allowance for this weigh-in day: the event's allowance on its last day, otherwise 0. */
+  allowance: number;
 }
 
 export const dayKey = (d: Date) => format(d, 'yyyy-MM-dd');
@@ -37,22 +41,35 @@ export function nextScheduledWeighIn(
   for (const event of upcoming) {
     const days = eventDays(event);
     const i = days.findIndex(d => d >= todayKey);
-    if (i >= 0) return { event, date: days[i], day: (i + 1) as 1 | 2 };
+    if (i >= 0) return { event, date: days[i], day: (i + 1) as 1 | 2, allowance: allowanceOn(event, days[i]) };
   }
   return null;
 }
 
-/** "Roger Williams Open (day 2), Sun, Nov 15" */
-export function describeWeighIn(w: ScheduledWeighIn): string {
-  const when = format(parseISO(w.date), 'EEE, MMM d');
-  return `${w.event.name}${w.event.days === 2 ? ` (day ${w.day})` : ''}, ${when}`;
+/** Allowance on a given weigh-in day of an event: only its last day carries one. */
+export function allowanceOn(event: TeamEvent, date: string): number {
+  const days = eventDays(event);
+  return date === days[days.length - 1] ? event.allowance : 0;
 }
 
-export function validateEvent(input: { name: string; eventDate: string; days: number }): string | null {
+/** The allowance for whatever team event has a weigh-in on `date` (0 if none). */
+export function allowanceForDate(events: TeamEvent[], date: string): number {
+  const event = events.find(e => eventDays(e).includes(date));
+  return event ? allowanceOn(event, date) : 0;
+}
+
+/** "Roger Williams Open (day 2), Sun, Nov 15 · +1 lb" */
+export function describeWeighIn(w: ScheduledWeighIn): string {
+  const when = format(parseISO(w.date), 'EEE, MMM d');
+  return `${w.event.name}${w.event.days === 2 ? ` (day ${w.day})` : ''}, ${when}${w.allowance ? ` · +${w.allowance} lb` : ''}`;
+}
+
+export function validateEvent(input: { name: string; eventDate: string; days: number; allowance?: number }): string | null {
   if (!input.name.trim()) return 'Give the event a name.';
   if (input.name.trim().length > 80) return 'Keep the name under 80 characters.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.eventDate)) return 'Pick the weigh-in date.';
   if (input.days !== 1 && input.days !== 2) return 'Events are 1 or 2 days.';
+  if (input.allowance != null && ![0, 1, 2].includes(input.allowance)) return 'Allowance is 0, 1 or 2 lb.';
   return null;
 }
 

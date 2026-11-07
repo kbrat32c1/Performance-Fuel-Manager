@@ -1,7 +1,7 @@
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { useTeam } from "@/hooks/use-team";
-import { dayKey, nextScheduledWeighIn, peekPendingTeamCode } from "@/lib/team-schedule";
+import { dayKey, nextScheduledWeighIn, peekPendingTeamCode, allowanceForDate } from "@/lib/team-schedule";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1832,7 +1832,7 @@ export default function Dashboard() {
           profile={profile}
           updateProfile={updateProfile}
           daysUntilWeighIn={daysUntilWeighIn}
-          team={team.membership ? { name: team.membership.team.name, next: scheduledNext } : undefined}
+          team={team.membership ? { name: team.membership.team.name, next: scheduledNext, passedAllowance: allowanceForDate(team.membership.events, dayKey(profile.weighInDate)) } : undefined}
         />
       )}
 

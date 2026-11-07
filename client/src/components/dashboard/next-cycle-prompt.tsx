@@ -22,7 +22,7 @@ interface NextCyclePromptProps {
   updateProfile: (updates: any) => void;
   daysUntilWeighIn: number;
   /** On a team: the next weigh-in from the coach's schedule (null when none are left). */
-  team?: { name: string; next: ScheduledWeighIn | null };
+  team?: { name: string; next: ScheduledWeighIn | null; passedAllowance?: number };
 }
 
 const dateKey = (d: Date) => format(d, "yyyy-MM-dd");
@@ -56,7 +56,7 @@ function AfterWeighIn({ profile, updateProfile, team }: Omit<NextCyclePromptProp
 
   const [step, setStep] = useState<"weight" | "confirm" | "next" | "pick">("weight");
   const [weight, setWeight] = useState("");
-  const [allowance, setAllowance] = useState(0);
+  const [allowance, setAllowance] = useState(team?.passedAllowance ?? 0);
   const [secondDay, setSecondDay] = useState(true);
   const [nextDate, setNextDate] = useState("");
   const [error, setError] = useState<string | null>(null);
