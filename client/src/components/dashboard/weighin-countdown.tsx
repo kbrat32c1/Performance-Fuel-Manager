@@ -49,7 +49,7 @@ export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInC
       {/* Day before weigh-in critical target info */}
       {isDayBefore && dayBeforeTarget && (
         <div className={cn("mt-2 pt-2 border-t text-xs text-muted-foreground", phaseStyle.border)}>
-          Must be <strong className={phaseStyle.text}>{dayBeforeTarget}</strong> after practice. Overnight drift takes care of the rest.
+          Must be <strong className={phaseStyle.text}>{dayBeforeTarget}</strong> before practice. Practice and overnight drift take off the last ~3%.
         </div>
       )}
     </div>

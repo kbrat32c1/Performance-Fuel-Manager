@@ -474,7 +474,7 @@ export default function Weekly() {
                 )}
 
                 <Card className="p-3 border-orange-500/30 bg-orange-500/5">
-                  <h4 className="font-bold text-sm text-orange-500 mb-1">{dayBefore} after practice: CRITICAL Checkpoint</h4>
+                  <h4 className="font-bold text-sm text-orange-500 mb-1">{dayBefore} before practice: CRITICAL Checkpoint</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• <strong className="text-orange-500">Must be {checkpoints.friTarget}</strong></li>
                     <li>• Final 3% drops from practice + overnight drift</li>
