@@ -23,7 +23,8 @@ function mockRes() {
   return res;
 }
 
-const TOKEN = '3f2b6c1e-8a4d-4c2b-9e1f-7a6b5c4d3e2f';
+// Placeholder share token: valid UUID v4 shape, deliberately low-entropy.
+const TOKEN = '00000000-0000-4000-8000-000000000000';
 
 afterEach(() => {
   vi.unstubAllEnvs();
