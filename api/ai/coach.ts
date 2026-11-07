@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { requireUserWithinLimit } from "../_auth.js";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -19,6 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Paid AI call: signed-in athletes only, with a per-athlete limit
+  const userId = await requireUserWithinLimit(req, res, "coach", { perMinute: 10, perDay: 100 });
+  if (!userId) return;
+
   try {
     if (!ANTHROPIC_API_KEY) {
       return res.status(503).json({
@@ -26,6 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         message: "Add ANTHROPIC_API_KEY to environment variables to enable AI coaching.",
       });
     }
+
+    // The app's availability check: answer without spending an AI call
+    if (req.body?.ping === true) return res.status(200).json({ ok: true });
 
     const { question, context, history } = req.body;
 

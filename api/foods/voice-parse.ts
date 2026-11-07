@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { requireUserWithinLimit } from "../_auth.js";
 import {
   getFatSecretToken,
   searchFatSecret,
@@ -29,6 +30,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
+
+  // Paid AI call: signed-in athletes only, with a per-athlete limit
+  const userId = await requireUserWithinLimit(req, res, "voice", { perMinute: 10, perDay: 200 });
+  if (!userId) return;
 
   try {
     if (!ANTHROPIC_API_KEY) {

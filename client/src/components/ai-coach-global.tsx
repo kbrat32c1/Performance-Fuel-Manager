@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { authHeaders } from "@/lib/auth-headers";
 import { Bot, Send, Loader2, X, BrainCircuit, Minimize2, ChevronDown, Flame, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -97,11 +98,12 @@ export function AiCoachGlobal() {
   // Check AI availability
   useEffect(() => {
     if (open && aiAvailable === null) {
-      fetch("/api/ai/coach", {
+      // Availability check only: the server answers without calling the AI
+      authHeaders().then(headers => fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: "ping" }),
-      })
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ ping: true }),
+      }))
         .then(res => setAiAvailable(res.status !== 503))
         .catch(() => setAiAvailable(false));
     }
@@ -340,7 +342,7 @@ export function AiCoachGlobal() {
 
       const res = await fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           question: text.trim(),
           context: buildContext(),

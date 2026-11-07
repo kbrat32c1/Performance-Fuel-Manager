@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { authHeaders } from "@/lib/auth-headers";
 import { X, Loader2, Camera, Check, AlertTriangle, Pencil, Plus, Minus, Trash2, Ban, ChevronDown, ArrowLeftRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { checkSugarDietFood } from "@/lib/food-data";
@@ -187,7 +188,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
       try {
         const res = await fetch('/api/foods/photo-analysis', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ image: imageDataUrl }),
         });
 
