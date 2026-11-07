@@ -219,6 +219,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
             {/* ═══ PROFILE TAB ═══ */}
             <TabsContent value="profile" className="px-4 pb-4 space-y-3 mt-0">
+              {/* SPAR General has no Schedule tab, but athletes on it still join their team. */}
+              {isSparGeneral && <TeamScheduleLink onOpen={() => navigate('/team')} />}
               {/* Name Row */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
@@ -870,17 +872,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
             {/* ═══ SCHEDULE TAB ═══ */}
             <TabsContent value="schedule" className="px-4 pb-4 space-y-3 mt-0">
-              <button
-                type="button"
-                onClick={() => navigate('/team')}
-                className="w-full flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-left"
-              >
-                <span>
-                  <span className="block text-sm font-bold">Team schedule</span>
-                  <span className="block text-xs text-muted-foreground">Join your team, or set one up as a coach. Your weigh-in dates then fill in by themselves.</span>
-                </span>
-                <span className="text-sm font-bold text-primary shrink-0">Open</span>
-              </button>
+              <TeamScheduleLink onOpen={() => navigate('/team')} />
 
               <WaterLoadingSwitch />
 
@@ -1825,5 +1817,21 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+function TeamScheduleLink({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-left"
+    >
+      <span>
+        <span className="block text-sm font-bold">Team schedule</span>
+        <span className="block text-xs text-muted-foreground">Join your team, or set one up as a coach. Your weigh-in dates then fill in by themselves.</span>
+      </span>
+      <span className="text-sm font-bold text-primary shrink-0">Open</span>
+    </button>
   );
 }

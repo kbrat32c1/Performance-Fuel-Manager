@@ -81,3 +81,44 @@ export const STORAGE_KEYS = {
 
 /** Prefix for all PWM keys — used in "clear all data" */
 export const STORAGE_PREFIX = 'pwm-';
+
+// ─── Account separation on shared devices ────────────────────────────────────
+/** Which signed-in user the cached data on this device belongs to. */
+export const CACHE_OWNER_KEY = 'pwm-cache-owner';
+/** Device settings that are not anyone's personal data. */
+const DEVICE_KEYS: string[] = [STORAGE_KEYS.THEME, STORAGE_KEYS.HAPTICS_ENABLED, STORAGE_KEYS.NOTIFICATION_PREFS];
+const LEGACY_LOCAL_KEYS: string[] = [STORAGE_KEYS.PROFILE, STORAGE_KEYS.LOGS, STORAGE_KEYS.DAILY_TRACKING, STORAGE_KEYS.TANKS];
+
+function isAccountKey(key: string): boolean {
+  if (!(key.startsWith(STORAGE_PREFIX) || key.startsWith('pfm-'))) return false;
+  if (DEVICE_KEYS.includes(key)) return false;
+  // Unsaved rows are already stored per user and are sent when that user signs back in.
+  if (key.startsWith('pwm-tracking-unsynced-')) return false;
+  // Data from before accounts existed waits to be moved into the first account (store migration).
+  if (LEGACY_LOCAL_KEYS.includes(key)) return false;
+  return true;
+}
+
+/** Remove the previous account's cached profile, logs, food history and screen state. */
+export function clearAccountCache(storage: Storage = localStorage): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) { const k = storage.key(i); if (k) keys.push(k); }
+    keys.filter(isAccountKey).forEach(key => storage.removeItem(key));
+  } catch { /* storage unavailable */ }
+}
+
+/**
+ * Make the cached data on this device belong to `userId`. Returns true when it
+ * belonged to someone else (or to no recorded owner) and was cleared.
+ */
+export function claimAccountCache(userId: string, storage: Storage = localStorage): boolean {
+  try {
+    if (storage.getItem(CACHE_OWNER_KEY) === userId) return false;
+    clearAccountCache(storage);
+    storage.setItem(CACHE_OWNER_KEY, userId);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Scale, TrendingDown, Droplets, Timer, Activity, RefreshCw, Sun, ArrowDown, ArrowUp, Moon, Dumbbell, Flame } from "lucide-react";
-import { format, differenceInDays, startOfDay, addDays, getDay } from "date-fns";
+import { format, differenceInDays, startOfDay, addDays, getDay, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine } from "recharts";
 import { getWaterTargetOz, getWeightMultiplier, getPhaseForDaysUntil } from "@/lib/constants";
@@ -126,9 +126,12 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
 
   const today = startOfDay(new Date());
   const todayStr = format(today, 'yyyy-MM-dd');
-  const weighInDate = startOfDay(new Date(profile.weigh_in_date));
+  // parseISO reads a date-only "2026-11-14" as local midnight; new Date() would read it as UTC
+  // and land on the previous evening in US time zones, putting the countdown a day early.
+  const weighInDate = startOfDay(parseISO(profile.weigh_in_date));
   const daysUntilWeighIn = differenceInDays(weighInDate, today);
-  const currentPhase = getPhaseForDaysUntil(daysUntilWeighIn, profile.water_loading !== false);
+  const waterLoading = profile.water_loading !== false;
+  const currentPhase = getPhaseForDaysUntil(daysUntilWeighIn, waterLoading);
 
   // Sort all logs newest first
   const sortedLogs = useMemo(() =>
@@ -252,7 +255,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
   }, [sortedLogs, avgDriftLoss, avgPracticeLoss, daysUntilWeighIn]);
 
   // Status — widen thresholds during loading phase (athletes are intentionally heavy)
-  const isLoadingPhase = daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5;
+  const isLoadingPhase = waterLoading && daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5;
   const onTrackThreshold = isLoadingPhase ? 4 : 1.5;
   const borderlineThreshold = isLoadingPhase ? 6 : 3;
   const status = overTarget <= onTrackThreshold ? 'on-track' : overTarget <= borderlineThreshold ? 'borderline' : 'risk';
@@ -280,7 +283,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
       const d = addDays(weekMonday, i);
       const dStr = format(d, 'yyyy-MM-dd');
       const dUntil = differenceInDays(weighInDate, d);
-      const phase = getPhaseForDaysUntil(dUntil, profile.water_loading !== false);
+      const phase = getPhaseForDaysUntil(dUntil, waterLoading);
       const multiplier = getWeightMultiplier(dUntil);
       const target = Math.round(profile.target_weight_class * multiplier * 10) / 10;
 
@@ -301,12 +304,12 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
       });
     }
     return days;
-  }, [weighInDate, logs, todayStr, profile.target_weight_class]);
+  }, [weighInDate, logs, todayStr, profile.target_weight_class, waterLoading]);
 
   // Water target for today — uses shared constants (includes MAX_WATER_LOADING_OZ safety cap)
   const waterTarget = useMemo(() => {
-    return getWaterTargetOz(daysUntilWeighIn, currentWeight, profile.water_loading !== false);
-  }, [daysUntilWeighIn, currentWeight]);
+    return getWaterTargetOz(daysUntilWeighIn, currentWeight, waterLoading);
+  }, [daysUntilWeighIn, currentWeight, waterLoading]);
 
   return (
     <div className="min-h-screen bg-background">

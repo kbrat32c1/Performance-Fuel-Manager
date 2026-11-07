@@ -1728,7 +1728,7 @@ export default function Dashboard() {
         {/* SIP-ONLY WARNING BANNER — Only when projection says fluids must be 0 */}
         {/* Uses store's projection to check if athlete has any fluid buffer     */}
         {/* ═══════════════════════════════════════════════════════ */}
-        {!isViewingHistorical && profile.waterLoading !== false && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
+        {!isViewingHistorical && profile.waterLoading !== false && profile.protocol !== '4' && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
           // Check projection-based fluid buffer — only show if truly no room for fluids
           try {
             const descentData = getWeekDescentData();
