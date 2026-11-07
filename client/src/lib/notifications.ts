@@ -1,4 +1,5 @@
 // Notification preferences and permission helpers for daily weigh-in reminders
+import { STORAGE_KEYS } from './storage-keys';
 
 export interface NotificationPreferences {
   enabled: boolean;
@@ -20,7 +21,7 @@ export const DEFAULT_PREFS: NotificationPreferences = {
   beforeBedTime: "21:00",
 };
 
-const STORAGE_KEY = 'pwm-notification-prefs';
+const STORAGE_KEY = STORAGE_KEYS.NOTIFICATION_PREFS;
 
 export function getNotificationPrefs(): NotificationPreferences {
   try {

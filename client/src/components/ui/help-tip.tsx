@@ -24,7 +24,7 @@ export function HelpTip({ title, description, className }: HelpTipProps) {
         className="w-56 p-3"
       >
         <p className="text-xs font-bold mb-1">{title}</p>
-        <p className="text-[11px] text-muted-foreground leading-relaxed">{description}</p>
+        <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
       </PopoverContent>
     </Popover>
   );

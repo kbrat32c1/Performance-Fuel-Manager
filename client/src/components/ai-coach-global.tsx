@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { authHeaders } from "@/lib/auth-headers";
 import { Bot, Send, Loader2, X, BrainCircuit, Minimize2, ChevronDown, Flame, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 
@@ -86,7 +88,7 @@ export function AiCoachGlobal() {
   const { profile, logs, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus, getDriftMetrics, getDailyTracking, getDailyPriority, getHydrationTarget, calculateTarget, getNutritionMode, getSliceTargets, getWeekDescentData, getExtraWorkoutStats } = store;
 
   const daysUntil = getDaysUntilWeighIn();
-  const recoveryMode = localStorage.getItem('pwm-comp-mode') || 'idle';
+  const recoveryMode = localStorage.getItem(STORAGE_KEYS.COMP_MODE) || 'idle';
 
   const quickPrompts = useMemo(
     () => getQuickPrompts(location, daysUntil, recoveryMode !== 'idle' ? recoveryMode : undefined),
@@ -96,11 +98,12 @@ export function AiCoachGlobal() {
   // Check AI availability
   useEffect(() => {
     if (open && aiAvailable === null) {
-      fetch("/api/ai/coach", {
+      // Availability check only: the server answers without calling the AI
+      authHeaders().then(headers => fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: "ping" }),
-      })
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ ping: true }),
+      }))
         .then(res => setAiAvailable(res.status !== 503))
         .catch(() => setAiAvailable(false));
     }
@@ -217,9 +220,9 @@ export function AiCoachGlobal() {
     // Recovery context
     if (recoveryMode !== 'idle') {
       ctx.recoveryMode = recoveryMode;
-      ctx.matchNumber = localStorage.getItem('pwm-comp-match') || '0';
-      ctx.elapsed = parseInt(localStorage.getItem('pwm-comp-elapsed') || '0');
-      ctx.weighInWeight = localStorage.getItem('pwm-recovery-weighin') || '';
+      ctx.matchNumber = localStorage.getItem(STORAGE_KEYS.COMP_MATCH) || '0';
+      ctx.elapsed = parseInt(localStorage.getItem(STORAGE_KEYS.COMP_ELAPSED) || '0');
+      ctx.weighInWeight = localStorage.getItem(STORAGE_KEYS.RECOVERY_WEIGHIN) || '';
       if (ctx.weighInWeight) {
         ctx.lostWeight = (profile.currentWeight - parseFloat(ctx.weighInWeight)).toFixed(1);
       }
@@ -339,7 +342,7 @@ export function AiCoachGlobal() {
 
       const res = await fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           question: text.trim(),
           context: buildContext(),
@@ -397,7 +400,7 @@ export function AiCoachGlobal() {
               </div>
               <div>
                 <h2 className="text-xs font-bold">SPAR Coach</h2>
-                <p className="text-[9px] text-muted-foreground leading-tight">
+                <p className="text-xs text-muted-foreground leading-tight">
                   {daysUntil === 0 ? "COMP DAY" : daysUntil > 0 ? `${daysUntil}d out · ${profile.currentWeight}→${profile.targetWeightClass}lbs` : "Weight cutting expert"}
                 </p>
               </div>
@@ -417,8 +420,8 @@ export function AiCoachGlobal() {
               <div className="bg-muted/20 rounded-lg p-3 text-center space-y-1.5 mt-4">
                 <Bot className="w-6 h-6 text-muted-foreground mx-auto" />
                 <p className="text-xs font-medium">SPAR Coach Not Configured</p>
-                <p className="text-[10px] text-muted-foreground">
-                  Add <code className="bg-muted px-1 py-0.5 rounded text-[9px]">ANTHROPIC_API_KEY</code> to env vars.
+                <p className="text-xs text-muted-foreground">
+                  Add <code className="bg-muted px-1 py-0.5 rounded text-xs">ANTHROPIC_API_KEY</code> to env vars.
                 </p>
               </div>
             )}
@@ -426,7 +429,7 @@ export function AiCoachGlobal() {
             {/* Welcome + quick prompts */}
             {aiAvailable !== false && messages.length === 0 && !loading && (
               <div className="space-y-2 pt-1">
-                <p className="text-[11px] text-muted-foreground text-center px-2">
+                <p className="text-xs text-muted-foreground text-center px-2">
                   Ask me about weight cutting, nutrition, or recovery.
                 </p>
                 <div className="space-y-1">
@@ -434,7 +437,7 @@ export function AiCoachGlobal() {
                     <button
                       key={i}
                       onClick={() => sendMessage(prompt)}
-                      className="w-full text-left bg-muted/20 hover:bg-muted/40 rounded-lg px-3 py-2 text-[11px] text-foreground transition-colors active:scale-[0.98]"
+                      className="w-full text-left bg-muted/20 hover:bg-muted/40 rounded-lg px-3 py-2 text-xs text-foreground transition-colors active:scale-[0.98]"
                     >
                       {prompt}
                     </button>
@@ -448,7 +451,7 @@ export function AiCoachGlobal() {
               <div
                 key={i}
                 className={cn(
-                  "rounded-lg px-3 py-2 text-[11px] max-w-[90%]",
+                  "rounded-lg px-3 py-2 text-xs max-w-[90%]",
                   msg.role === "user"
                     ? "bg-purple-600 text-white ml-auto"
                     : msg.role === "error"
@@ -459,7 +462,7 @@ export function AiCoachGlobal() {
                 {msg.role === "assistant" && (
                   <div className="flex items-center gap-1 mb-1">
                     <BrainCircuit className="w-2.5 h-2.5 text-primary" />
-                    <span className="text-[8px] uppercase font-bold text-primary tracking-wider">SPAR Coach</span>
+                    <span className="text-xs uppercase font-bold text-primary tracking-wider">SPAR Coach</span>
                   </div>
                 )}
                 <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -470,7 +473,7 @@ export function AiCoachGlobal() {
             {loading && (
               <div className="bg-muted/30 rounded-lg px-3 py-2 max-w-[90%] flex items-center gap-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                <span className="text-[11px] text-muted-foreground">Thinking...</span>
+                <span className="text-xs text-muted-foreground">Thinking...</span>
               </div>
             )}
 
@@ -487,7 +490,7 @@ export function AiCoachGlobal() {
                     <button
                       key={i}
                       onClick={() => sendMessage(prompt)}
-                      className="shrink-0 text-[9px] bg-muted/30 hover:bg-muted/50 rounded-full px-2.5 py-1 text-muted-foreground transition-colors"
+                      className="shrink-0 text-xs bg-muted/30 hover:bg-muted/50 rounded-full px-2.5 py-1 text-muted-foreground transition-colors"
                     >
                       {prompt}
                     </button>
@@ -503,7 +506,7 @@ export function AiCoachGlobal() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   disabled={loading}
-                  className="flex-1 h-9 text-[11px] rounded-lg"
+                  className="flex-1 h-9 text-xs rounded-lg"
                 />
                 <button
                   type="submit"

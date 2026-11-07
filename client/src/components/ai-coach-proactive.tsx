@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { authHeaders } from "@/lib/auth-headers";
 import { Sparkles, Send, X, Scale, Dumbbell, ChevronRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -321,7 +322,7 @@ export function AiCoachProactive() {
       const context = buildContext();
       const res = await fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           question: "Based on my current situation, what's the most helpful thing I should know right now? Be specific with numbers and timing. Keep it encouraging and brief — 2-3 sentences max.",
           context,
@@ -352,7 +353,7 @@ export function AiCoachProactive() {
       const context = buildContext();
       const res = await fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ question: userMessage, context }),
       });
 
@@ -572,39 +573,29 @@ export function AiCoachProactive() {
         {/* Weight Display Header — compact */}
         <div className="px-4 pt-3 pb-2">
           <div className="text-center">
-            <div className="flex items-baseline justify-center gap-2 mb-1.5">
-              <span className={cn(
-                "text-3xl font-mono font-bold tracking-tight",
-                statusColor === 'green' ? "text-green-500" :
-                statusColor === 'orange' ? "text-orange-400" :
-                statusColor === 'red' ? "text-red-400" : ""
-              )}>
-                {currentWeight.toFixed(1)}
-              </span>
-              <span className="text-base text-muted-foreground/40">→</span>
-              {insights.trainingStatus ? (
-                <div className="inline-flex flex-col items-center">
-                  <span className="text-3xl font-mono font-bold text-primary tracking-tight">
-                    {Math.round(insights.walkAround * 10) / 10}
+            <div className={cn("grid gap-2 mb-2", insights.trainingStatus ? "grid-cols-3" : "grid-cols-2")}>
+              {[
+                {
+                  label: 'Now',
+                  value: currentWeight.toFixed(1),
+                  color: statusColor === 'green' ? "text-green-500" :
+                    statusColor === 'orange' ? "text-orange-400" :
+                    statusColor === 'red' ? "text-red-400" : "",
+                },
+                ...(insights.trainingStatus
+                  ? [
+                      { label: 'Walk-around', value: String(Math.round(insights.walkAround * 10) / 10), color: "text-foreground" },
+                      { label: 'Class', value: String(targetWeight), color: "text-muted-foreground" },
+                    ]
+                  : [{ label: 'Target', value: String(targetWeight), color: "text-foreground" }]),
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex flex-col items-center">
+                  <span className={cn("text-3xl font-mono font-bold tracking-tight leading-none tabular-nums", color)}>
+                    {value}
                   </span>
-                  <span className="text-[9px] text-muted-foreground -mt-1">walk-around</span>
+                  <span className="text-xs text-muted-foreground mt-1">{label}</span>
                 </div>
-              ) : (
-                <span className="text-3xl font-mono font-bold text-primary tracking-tight">
-                  {targetWeight}
-                </span>
-              )}
-              {insights.trainingStatus && (
-                <>
-                  <span className="text-base text-muted-foreground/30">→</span>
-                  <div className="inline-flex flex-col items-center">
-                    <span className="text-xl font-mono font-bold text-muted-foreground/50 tracking-tight">
-                      {targetWeight}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground/40 -mt-0.5">class</span>
-                  </div>
-                </>
-              )}
+              ))}
             </div>
             <div className={cn(
               "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold",
@@ -672,7 +663,7 @@ export function AiCoachProactive() {
           <div className="px-3 pb-2">
             <button
               onClick={() => setInsightDismissed(false)}
-              className="flex items-center gap-1.5 mx-auto text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              className="flex items-center gap-1.5 mx-auto text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               Show insight

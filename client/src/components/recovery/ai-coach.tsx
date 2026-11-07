@@ -129,7 +129,7 @@ export function AiCoach({
         }}
         className="w-full flex items-center justify-between p-3 active:bg-purple-500/10 transition-colors"
       >
-        <span className="text-[10px] uppercase font-bold text-purple-500 flex items-center gap-1.5 tracking-wider">
+        <span className="text-xs uppercase font-bold text-purple-500 flex items-center gap-1.5 tracking-wider">
           <Sparkles className="w-3.5 h-3.5" /> AI Recovery Coach
         </span>
         <ChevronDown
@@ -147,7 +147,7 @@ export function AiCoach({
             <div className="bg-muted/20 rounded-lg p-3 text-center space-y-1">
               <Bot className="w-6 h-6 text-muted-foreground mx-auto" />
               <p className="text-xs text-muted-foreground">
-                AI coach requires an API key. Add <code className="bg-muted px-1 rounded text-[10px]">ANTHROPIC_API_KEY</code> to your environment variables.
+                AI coach requires an API key. Add <code className="bg-muted px-1 rounded text-xs">ANTHROPIC_API_KEY</code> to your environment variables.
               </p>
             </div>
           )}
@@ -171,7 +171,7 @@ export function AiCoach({
                       )}
                     >
                       {msg.role === "assistant" && (
-                        <span className="text-[9px] uppercase font-bold text-purple-500 block mb-1">
+                        <span className="text-xs uppercase font-bold text-purple-500 block mb-1">
                           AI Coach
                         </span>
                       )}
@@ -191,7 +191,7 @@ export function AiCoach({
               {/* Quick prompts (only if no messages yet) */}
               {messages.length === 0 && !loading && (
                 <div className="space-y-1">
-                  <p className="text-[9px] uppercase text-muted-foreground tracking-wider px-1">
+                  <p className="text-xs uppercase text-muted-foreground tracking-wider px-1">
                     Quick questions
                   </p>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -199,7 +199,7 @@ export function AiCoach({
                       <button
                         key={i}
                         onClick={() => sendMessage(prompt)}
-                        className="text-left bg-background/50 hover:bg-background/80 rounded-lg px-2.5 py-2 text-[11px] text-foreground transition-colors active:scale-[0.98]"
+                        className="text-left bg-background/50 hover:bg-background/80 rounded-lg px-2.5 py-2 text-xs text-foreground transition-colors active:scale-[0.98]"
                       >
                         {prompt}
                       </button>

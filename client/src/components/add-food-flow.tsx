@@ -33,6 +33,8 @@ interface AddFoodFlowProps {
   onClose: () => void;
   /** If omitted, component manages its own meal selector */
   hideMealSelector?: boolean;
+  /** Day to log into (yyyy-MM-dd). Defaults to today. */
+  dateKey?: string;
 }
 
 const MEAL_OPTIONS: { id: MealSection; label: string; emoji: string }[] = [
@@ -42,20 +44,21 @@ const MEAL_OPTIONS: { id: MealSection; label: string; emoji: string }[] = [
   { id: 'snacks', label: 'Snacks', emoji: '🍿' },
 ];
 
-export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCategories, onClose, hideMealSelector }: AddFoodFlowProps) {
+export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCategories, onClose, hideMealSelector, dateKey: dateKeyProp }: AddFoodFlowProps) {
   const {
     profile, getDailyTracking, updateDailyTracking,
-    getMacroTargets, getSliceTargets, getNutritionMode,
+    getNutritionMode, getTargetsForDate,
   } = useStore();
   const { toast } = useToast();
   const today = profile.simulatedDate || new Date();
-  const dateKey = format(today, 'yyyy-MM-dd');
+  const dateKey = dateKeyProp ?? format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
-  const macros = getMacroTargets();
+  const dayTargets = getTargetsForDate(dateKey);
+  const macros = dayTargets.macros;
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
   const showSliceTracker = isSparMode;
-  const sliceTargets = showSliceTracker ? getSliceTargets() : null;
+  const sliceTargets = showSliceTracker ? dayTargets.slices : null;
 
   const [activeMeal, setActiveMeal] = useState<MealSection>(initialMeal);
   const [activeTab, setActiveTab] = useState<FlowTab>('recent');
@@ -82,6 +85,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     barcodeLoading, barcodeLookup,
     selectedFS, setSelectedFS,
     selectedFSServing, setSelectedFSServing,
+    selectedOFF, setSelectedOFF,
+    offServingGrams, setOffServingGrams,
     recentFoods, addToRecents,
     clearResults,
   } = search;
@@ -289,7 +294,36 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     if (!food) {
       toast({ title: "Product not found", description: "Try searching by name.", variant: "destructive" });
     }
+    // If food found, selectedOFF is set by the hook and the product card will render
   }, [barcodeLookup, toast]);
+
+  // ─── Add scanned barcode food ───
+  const handleOFFAdd = useCallback(() => {
+    if (!selectedOFF) return;
+    const grams = parseFloat(offServingGrams) || 100;
+    const carbs = Math.round(selectedOFF.carbs * grams / 100);
+    const protein = Math.round(selectedOFF.protein * grams / 100);
+    const brandLabel = selectedOFF.brand ? ` (${selectedOFF.brand})` : '';
+    const servingLabel = selectedOFF.servingSizeLabel || `${grams}g`;
+    const foodName = `${selectedOFF.name}${brandLabel} — ${servingLabel}`;
+
+    // Same slice logic as handleFSAdd
+    const sliceType: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat' =
+      protein >= 10 && protein > carbs ? 'protein' : 'carb';
+    let sliceCount = 0;
+    if (sliceType === 'protein') {
+      sliceCount = Math.round(protein / 25);
+    } else {
+      sliceCount = Math.round(carbs / 26);
+    }
+
+    logFoodEntry(foodName, carbs, protein, {
+      category: 'off',
+      sliceType,
+      sliceCount,
+    });
+    setSelectedOFF(null);
+  }, [selectedOFF, offServingGrams, logFoodEntry, setSelectedOFF]);
 
   // ─── Batch log multiple foods in a single update (avoids stale closure) ───
   const batchLogFoods = useCallback((foods: PhotoFood[], source: string) => {
@@ -569,13 +603,74 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           </div>
         )}
 
+        {/* ── Scanned barcode product card ── */}
+        {selectedOFF && !barcodeLoading && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-bold truncate">{selectedOFF.name}</p>
+                {selectedOFF.brand && (
+                  <p className="text-xs text-muted-foreground/60 truncate">{selectedOFF.brand}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedOFF(null)}
+                className="w-6 h-6 rounded-full bg-muted/30 flex items-center justify-center shrink-0"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Nutrition per serving */}
+            {(() => {
+              const g = parseFloat(offServingGrams) || 100;
+              const cal = Math.round(selectedOFF.calories * g / 100);
+              const c = Math.round(selectedOFF.carbs * g / 100);
+              const p = Math.round(selectedOFF.protein * g / 100);
+              const f = Math.round(selectedOFF.fat * g / 100);
+              return (
+                <div className="flex items-center gap-3 text-xs font-mono font-bold">
+                  <span className="text-muted-foreground">{cal} cal</span>
+                  <span className="text-amber-500">{c}g C</span>
+                  <span className="text-orange-500">{p}g P</span>
+                  <span className="text-yellow-600">{f}g F</span>
+                </div>
+              );
+            })()}
+
+            {/* Serving size input */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground/60 shrink-0">Serving:</span>
+              <input
+                type="number"
+                value={offServingGrams}
+                onChange={(e) => setOffServingGrams(e.target.value)}
+                className="w-16 h-7 text-[12px] font-mono font-bold text-center bg-background border border-muted/30 rounded px-1"
+              />
+              <span className="text-xs text-muted-foreground/60">g</span>
+              {selectedOFF.servingSizeLabel && (
+                <span className="text-xs text-muted-foreground/40 truncate">
+                  ({selectedOFF.servingSizeLabel})
+                </span>
+              )}
+              <button
+                onClick={() => { handleOFFAdd(); hapticTap(); }}
+                className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold active:scale-95 transition-all shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── Search Results ── */}
         {isSearching && !isLoading && (
           <>
             {/* Database results */}
             {fsResults.length > 0 && (
               <div className="divide-y divide-muted/15">
-                <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-wide pb-1">Database Results</p>
+                <p className="text-xs font-bold text-muted-foreground/60 uppercase tracking-wide pb-1">Database Results</p>
                 {fsResults.slice(0, 15).map(food => (
                   <FSFoodRow
                     key={food.id}
@@ -619,7 +714,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 )}
                 <button
                   onClick={() => { setShowCustomEntry(true); setCustomName(query); }}
-                  className="mt-3 text-[11px] font-bold text-primary hover:underline"
+                  className="mt-3 text-xs font-bold text-primary hover:underline"
                 >
                   + Add "{query}" as custom food
                 </button>
@@ -653,7 +748,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-[12px] font-medium truncate">{formatUSDAName(food.name)}</p>
-                      <p className="text-[10px] text-muted-foreground/60 truncate">
+                      <p className="text-xs text-muted-foreground/60 truncate">
                         {serving.description} · {Math.round(serving.carbs)}C {Math.round(serving.protein)}P
                       </p>
                     </div>
@@ -683,7 +778,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 <div key={name} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/10">
                   <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500 shrink-0" />
                   <span className="text-[12px] font-medium flex-1 truncate">{name}</span>
-                  <span className="text-[10px] text-muted-foreground/50">Search to add</span>
+                  <span className="text-xs text-muted-foreground/50">Search to add</span>
                 </div>
               ))
             )}
@@ -696,7 +791,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       {showCustomEntry && (
         <div className="shrink-0 border-t border-muted/20 bg-muted/5 px-4 py-3 space-y-2.5 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Custom Food</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Custom Food</span>
             <button onClick={() => { setShowCustomEntry(false); hapticTap(); }} className="p-1 rounded-lg hover:bg-muted/20">
               <X className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
@@ -715,7 +810,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                   key={cat}
                   onClick={() => setCustomSliceType(cat)}
                   className={cn(
-                    "px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all",
+                    "px-2.5 py-1.5 rounded-lg text-xs font-bold uppercase transition-all",
                     customSliceType === cat
                       ? "bg-primary text-white"
                       : "bg-muted/20 text-muted-foreground hover:bg-muted/30"
@@ -728,7 +823,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           ) : (
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="text-[10px] font-bold text-muted-foreground/60 uppercase mb-0.5 block">Carbs (g)</label>
+                <label className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Carbs (g)</label>
                 <input
                   type="number"
                   value={customCarbs}
@@ -738,7 +833,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 />
               </div>
               <div className="flex-1">
-                <label className="text-[10px] font-bold text-muted-foreground/60 uppercase mb-0.5 block">Protein (g)</label>
+                <label className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Protein (g)</label>
                 <input
                   type="number"
                   value={customProtein}
@@ -766,14 +861,14 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
             className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl active:scale-95 active:bg-muted/20 transition-all"
           >
             <Camera className="w-5 h-5 text-muted-foreground" />
-            <span className="text-[10px] font-medium text-muted-foreground">Photo</span>
+            <span className="text-xs font-medium text-muted-foreground">Photo</span>
           </button>
           <button
             onClick={() => { setShowVoice(true); hapticTap(); }}
             className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl active:scale-95 active:bg-muted/20 transition-all"
           >
             <Mic className="w-5 h-5 text-muted-foreground" />
-            <span className="text-[10px] font-medium text-muted-foreground">Voice</span>
+            <span className="text-xs font-medium text-muted-foreground">Voice</span>
           </button>
           <button
             onClick={() => { setShowCustomEntry(!showCustomEntry); hapticTap(); }}
@@ -783,14 +878,14 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
             )}
           >
             <Pencil className={cn("w-5 h-5", showCustomEntry ? "text-primary" : "text-muted-foreground")} />
-            <span className={cn("text-[10px] font-medium", showCustomEntry ? "text-primary" : "text-muted-foreground")}>Custom</span>
+            <span className={cn("text-xs font-medium", showCustomEntry ? "text-primary" : "text-muted-foreground")}>Custom</span>
           </button>
           <button
             onClick={() => { setShowBarcode(true); hapticTap(); }}
             className="flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl active:scale-95 active:bg-muted/20 transition-all"
           >
             <ScanBarcode className="w-5 h-5 text-muted-foreground" />
-            <span className="text-[10px] font-medium text-muted-foreground">Scan</span>
+            <span className="text-xs font-medium text-muted-foreground">Scan</span>
           </button>
         </div>
       </div>
@@ -878,7 +973,7 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
       <button onClick={onToggle} className="w-full flex items-center gap-2 px-3 py-1.5 text-left">
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold truncate">{formatUSDAName(food.name)}</p>
-          <p className="text-[10px] text-muted-foreground/60 truncate">
+          <p className="text-xs text-muted-foreground/60 truncate">
             {food.brand && <span>{food.brand} · </span>}
             {activeServing ? (
               <>
@@ -941,7 +1036,7 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
           </div>
 
           {/* Macro breakdown (multiplied by qty) */}
-          <div className="flex items-center gap-3 text-[10px] font-mono">
+          <div className="flex items-center gap-3 text-xs font-mono">
             <span className="text-muted-foreground">{totalCal} cal</span>
             <span className="text-amber-500">{totalCarbs}g C</span>
             <span className="text-orange-500">{totalProtein}g P</span>

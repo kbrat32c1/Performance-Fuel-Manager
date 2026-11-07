@@ -29,7 +29,7 @@ export function MacroBar({
     return (
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">{label}</span>
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{label}</span>
           <span className={cn("text-xs font-mono font-bold", done ? "text-green-500" : "text-foreground")}>
             {done && <Check className="w-3 h-3 inline mr-0.5" />}{consumed}{unit} / {target}{unit}
           </span>
@@ -47,7 +47,7 @@ export function MacroBar({
   // Default: inline variant
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] font-semibold text-muted-foreground w-14 shrink-0">{label}</span>
+      <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">{label}</span>
       <div className="flex-1 h-2 bg-muted/15 rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-500 ease-out", done ? "bg-green-500" : color)}
@@ -55,7 +55,7 @@ export function MacroBar({
         />
       </div>
       <span className={cn(
-        "text-[11px] font-mono font-bold w-20 text-right shrink-0",
+        "text-xs font-mono font-bold w-28 text-right shrink-0 whitespace-nowrap",
         done ? "text-green-500" : "text-muted-foreground/70"
       )}>
         {done ? (

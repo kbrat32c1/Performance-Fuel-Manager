@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { X, ChevronRight, ChevronLeft, Scale, Zap, Calendar, Apple, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 interface TourStep {
   title: string;
@@ -42,7 +43,7 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
-const TOUR_KEY = "pfm-dashboard-tour-seen";
+const TOUR_KEY = STORAGE_KEYS.DASHBOARD_TOUR_SEEN;
 
 // Viewport-relative rect (getBoundingClientRect values)
 interface VRect {
@@ -301,7 +302,7 @@ export function DashboardTour() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-primary">{current.icon}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
                 {step + 1} of {TOUR_STEPS.length}
               </span>
             </div>

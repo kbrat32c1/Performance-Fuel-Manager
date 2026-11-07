@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 // ─── Shared types ───
 
@@ -121,7 +122,7 @@ export function useFoodSearch(): UseFoodSearchReturn {
   const [recentFoods, setRecentFoods] = useState<RecentFood[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
-      const saved = localStorage.getItem('pwm-macro-recent-foods');
+      const saved = localStorage.getItem(STORAGE_KEYS.MACRO_RECENT_FOODS);
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
@@ -136,6 +137,9 @@ export function useFoodSearch(): UseFoodSearchReturn {
       setFsError(false);
       return;
     }
+
+    // Clear barcode selection when user starts a new text search
+    setSelectedOFF(null);
 
     debounceRef.current = setTimeout(async () => {
       const q = encodeURIComponent(query.trim());
@@ -182,7 +186,7 @@ export function useFoodSearch(): UseFoodSearchReturn {
     setRecentFoods(prev => {
       const filtered = prev.filter(r => r.food.id !== food.id);
       const next = [{ food, serving, lastUsed: Date.now() }, ...filtered].slice(0, 15);
-      if (typeof window !== 'undefined') localStorage.setItem('pwm-macro-recent-foods', JSON.stringify(next));
+      if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEYS.MACRO_RECENT_FOODS, JSON.stringify(next));
       return next;
     });
   }, []);

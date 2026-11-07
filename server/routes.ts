@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
+import { autoSparCategory } from "../api/foods/_fatsecret-utils.js";
+import { verifyUser } from "../api/_auth.js";
 
 // ─── API Response Types ───────────────────────────────────────────────────────
 interface USDAFoodNutrient {
@@ -339,40 +341,132 @@ export async function registerRoutes(
   async function getFatSecretToken(): Promise<string | null> {
     if (!FATSECRET_CLIENT_ID || !FATSECRET_CLIENT_SECRET) return null;
     if (fsTokenCache && Date.now() < fsTokenCache.expiresAt - 300000) return fsTokenCache.token;
-    try {
-      const resp = await fetch("https://oauth.fatsecret.com/connect/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: FATSECRET_CLIENT_ID,
-          client_secret: FATSECRET_CLIENT_SECRET,
-          scope: "premier",
-        }).toString(),
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      fsTokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in || 86400) * 1000 };
-      return fsTokenCache.token;
-    } catch { return null; }
-  }
-
-  function autoSparCategory(cal: number, p: number, c: number, f: number, fib: number, foodCategory?: string): string | null {
-    if (cal <= 0 && p <= 0) return null;
-    const cat = (foodCategory || "").toLowerCase();
-    if (cat.includes("fruit") && !cat.includes("baby")) return 'fruit';
-    if (cat.includes("vegetable")) return 'veg';
-    if (cal > 0) {
-      const pP = (p*4)/cal, cP = (c*4)/cal, fP = (f*9)/cal;
-      if (pP > 0.40) return 'protein';
-      if (fP > 0.60) return 'fat';
-      if (cP > 0.40 && fib > 3) return 'veg';
-      if (cP > 0.40) return 'carb';
+    // Premier scope first, then basic (same as the Vercel functions)
+    for (const scope of ["premier", "basic"]) {
+      try {
+        const resp = await fetch("https://oauth.fatsecret.com/connect/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: FATSECRET_CLIENT_ID,
+            client_secret: FATSECRET_CLIENT_SECRET,
+            scope,
+          }).toString(),
+        });
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        fsTokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in || 86400) * 1000 };
+        return fsTokenCache.token;
+      } catch { /* try the next scope */ }
     }
     return null;
   }
 
   const rnd = (v: number) => Math.round(v * 10) / 10;
+
+  // ── Shared helpers for FatSecret matching (used by voice-parse & photo-analysis) ──
+  function searchFatSecretExpress(
+    query: string,
+    token: string,
+    opts?: { maxResults?: number }
+  ): Promise<{ foods: any[]; totalHits: number }> {
+    return (async () => {
+      const fsParams = new URLSearchParams({
+        method: "foods.search.v3",
+        search_expression: query,
+        format: "json",
+        max_results: String(opts?.maxResults ?? 20),
+        include_food_attributes: "true",
+      });
+      const fsResp = await fetch("https://platform.fatsecret.com/rest/server.api", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Bearer ${token}`,
+        },
+        body: fsParams.toString(),
+      });
+      if (!fsResp.ok) {
+        const errText = await fsResp.text();
+        throw new Error(`FatSecret API ${fsResp.status}: ${errText}`);
+      }
+      const data = await fsResp.json();
+      const results = data?.foods_search?.results?.food;
+      if (!results) return { foods: [], totalHits: 0 };
+      const foodList = Array.isArray(results) ? results : [results];
+      const foods = foodList.map((food: any) => {
+        const srvs = food.servings?.serving;
+        const servings = Array.isArray(srvs) ? srvs : srvs ? [srvs] : [];
+        const def = servings.find((s: any) => s.is_default === "1") || servings[0];
+        if (!def) return null;
+        const cal = parseFloat(def.calories)||0, pro = parseFloat(def.protein)||0;
+        const carb = parseFloat(def.carbohydrate)||0, fat = parseFloat(def.fat)||0;
+        const fib = parseFloat(def.fiber)||0, sug = parseFloat(def.sugar)||0, sod = parseFloat(def.sodium)||0;
+        if (cal <= 0 && pro <= 0 && carb <= 0) return null;
+        return {
+          id: String(food.food_id), name: food.food_name||"", brand: food.brand_name||"",
+          type: food.food_type||"Generic",
+          calories: rnd(cal), protein: rnd(pro), carbs: rnd(carb), fat: rnd(fat),
+          fiber: rnd(fib), sugar: rnd(sug), sodium: rnd(sod),
+          servingSize: parseFloat(def.metric_serving_amount)||100,
+          servingSizeUnit: def.metric_serving_unit||"g",
+          servingSizeLabel: def.serving_description||"per serving",
+          sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type, food.food_name),
+          servings: servings.map((s: any) => ({
+            id: s.serving_id||s.serving_description, description: s.serving_description||"serving",
+            calories: rnd(parseFloat(s.calories)||0), protein: rnd(parseFloat(s.protein)||0),
+            carbs: rnd(parseFloat(s.carbohydrate)||0), fat: rnd(parseFloat(s.fat)||0),
+            fiber: rnd(parseFloat(s.fiber)||0), sugar: rnd(parseFloat(s.sugar)||0),
+            metricAmount: parseFloat(s.metric_serving_amount)||null, metricUnit: s.metric_serving_unit||"g",
+            isDefault: s.is_default === "1",
+          })),
+        };
+      }).filter(Boolean);
+      return { foods, totalHits: parseInt(data?.foods_search?.total_results)||foods.length };
+    })();
+  }
+
+  function pickBestServing(
+    servings: any[],
+    targetGrams: number
+  ): { serving: any; qty: number } {
+    const defaultServing = servings.find((s: any) => s.isDefault) || servings[0];
+    if (!targetGrams || targetGrams <= 0 || servings.length === 0) {
+      return { serving: defaultServing, qty: 1 };
+    }
+    let bestServing = defaultServing;
+    let bestQty = 1;
+    let bestScore = Infinity;
+    for (const s of servings) {
+      if (!s.metricAmount || s.metricAmount <= 0) continue;
+      const rawQty = targetGrams / s.metricAmount;
+      const roundedQty = Math.round(rawQty * 2) / 2;
+      if (roundedQty <= 0) continue;
+      const qtyPenalty = Math.abs(roundedQty - 1) * 0.3;
+      const gramsDiff = Math.abs(roundedQty * s.metricAmount - targetGrams) / targetGrams;
+      const score = gramsDiff + qtyPenalty;
+      if (score < bestScore) {
+        bestScore = score;
+        bestServing = s;
+        bestQty = roundedQty;
+      }
+    }
+    return { serving: bestServing, qty: Math.max(0.5, bestQty) };
+  }
+
+  function scoreMatchConfidence(
+    query: string,
+    matchName: string
+  ): 'exact' | 'close' | 'fuzzy' {
+    const q = query.toLowerCase().trim();
+    const m = matchName.toLowerCase().trim();
+    if (m === q || m.includes(q) || q.includes(m)) return 'exact';
+    const qWords = q.split(/\s+/);
+    const matchesAll = qWords.every(w => m.includes(w));
+    if (matchesAll) return 'close';
+    return 'fuzzy';
+  }
 
   // ── FatSecret Autocomplete ──
   app.get("/api/foods/fatsecret-autocomplete", foodSearchLimiter, async (req: Request, res: Response) => {
@@ -443,7 +537,7 @@ export async function registerRoutes(
                   servingSize: parseFloat(def.metric_serving_amount)||100,
                   servingSizeUnit: def.metric_serving_unit||"g",
                   servingSizeLabel: def.serving_description||"per serving",
-                  sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type),
+                  sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type, food.food_name),
                   servings: servings.map((s: any) => ({
                     id: s.serving_id||s.serving_description, description: s.serving_description||"serving",
                     calories: rnd(parseFloat(s.calories)||0), protein: rnd(parseFloat(s.protein)||0),
@@ -500,7 +594,7 @@ export async function registerRoutes(
       if (cal <= 0 && pro <= 0 && carb <= 0) return null;
       const ss = food.servingSize || 100;
       const ssu = food.servingSizeUnit || "g";
-      const sparCat = autoSparCategory(cal, pro, carb, fat, fib, food.foodCategory);
+      const sparCat = autoSparCategory(cal, pro, carb, fat, fib, food.foodCategory, food.description);
 
       return {
         id: String(food.fdcId), name: food.description || "",
@@ -526,8 +620,14 @@ export async function registerRoutes(
     return { foods, totalHits: data.totalHits || 0 };
   }
 
-  // ─── AI Food Photo Analysis ─────────────────────────────────────────────────
-  app.post("/api/foods/photo-analysis", aiCoachLimiter, async (req: Request, res: Response) => {
+  // ─── AI Food Photo Analysis (name extraction → FatSecret lookup) ────────────
+  // Same rule as the Vercel functions: paid AI calls only for signed-in athletes
+  const requireSignedIn = async (req: Request, res: Response, next: () => void) => {
+    if (await verifyUser(req.headers.authorization)) return next();
+    res.status(401).json({ error: "Sign in required" });
+  };
+
+  app.post("/api/foods/photo-analysis", requireSignedIn, aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({ error: "AI not configured" });
@@ -550,21 +650,38 @@ export async function registerRoutes(
       const mediaType = `image/${match[1]}` as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
       const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
+      // ─── Step 1: AI extracts food names + quantities from photo ───
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
+          model: "claude-opus-5-5",
+          max_tokens: 8000,
+          output_config: { effort: "low" },
+          fallbacks: "default",
           messages: [{
             role: "user",
             content: [
               { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
-              { type: "text", text: `Analyze this food photo. Identify each distinct food item visible.\n\nFor EACH food item, estimate:\n- name: common food name\n- estimatedGrams: weight in grams\n- calories, protein, carbs, fat, fiber\n- sparCategory: "protein", "carb", "veg", "fruit", or "fat"\n- sliceCount: SPAR portions (1 palm protein=1, 1 fist carb=1, 1 fist veg=1, 1 piece fruit=1, 1 thumb fat=1)\n\nRespond ONLY with valid JSON:\n{"foods": [{"name":"...","estimatedGrams":0,"calories":0,"protein":0,"carbs":0,"fat":0,"fiber":0,"sparCategory":"...","sliceCount":1}], "confidence":"high|medium|low"}` },
+              { type: "text", text: `Analyze this food photo. Identify each distinct food item visible.
+
+For EACH food item, extract:
+- name: the most common/searchable food name (e.g., "chicken breast", "brown rice", "banana"). Use plain names suitable for food database search.
+- quantity: estimated quantity description (e.g., "1 large piece", "about 1 cup")
+- estimatedGrams: estimated weight in grams for the visible portion
+
+Also provide fallback nutrition estimates in case the food can't be found in our database:
+- fallbackCalories, fallbackProtein, fallbackCarbs, fallbackFat, fallbackFiber
+
+Respond ONLY with valid JSON (no markdown, no explanation):
+{"foods": [{"name":"...","quantity":"...","estimatedGrams":0,"fallbackCalories":0,"fallbackProtein":0,"fallbackCarbs":0,"fallbackFat":0,"fallbackFiber":0}], "confidence":"high|medium|low"}
+
+If you cannot identify any food in the image, return: {"foods": [], "confidence": "low"}` },
             ],
           }],
         }),
@@ -576,7 +693,6 @@ export async function registerRoutes(
       }
 
       const aiData = await response.json();
-      // Find the text content block (skip thinking blocks)
       const textBlock = aiData.content?.find((b: any) => b.type === 'text');
       const rawText = textBlock?.text || "";
 
@@ -605,20 +721,82 @@ export async function registerRoutes(
         return res.status(502).json({ error: "AI returned unexpected structure" });
       }
 
-      const foods = parsed.foods.map((f: any) => ({
-        name: String(f.name || "Unknown food").slice(0, 100),
-        estimatedGrams: Math.max(0, Math.round(Number(f.estimatedGrams) || 0)),
-        calories: Math.max(0, Math.round(Number(f.calories) || 0)),
-        protein: Math.max(0, Math.round(Number(f.protein) || 0)),
-        carbs: Math.max(0, Math.round(Number(f.carbs) || 0)),
-        fat: Math.max(0, Math.round(Number(f.fat) || 0)),
-        fiber: Math.max(0, Math.round(Number(f.fiber) || 0)),
-        sparCategory: ["protein", "carb", "veg", "fruit", "fat"].includes(f.sparCategory) ? f.sparCategory : "carb",
-        sliceCount: Math.max(0.5, Math.min(10, Number(f.sliceCount) || 1)),
-      }));
+      // ─── Step 2: Parallel FatSecret lookups for each food ───
+      let token: string | null = null;
+      try {
+        token = await getFatSecretToken();
+      } catch (err: any) {
+        log(`FatSecret token error: ${err.message}`);
+      }
+
+      const matchedFoods = await Promise.all(
+        parsed.foods.map(async (food: any) => {
+          const name = String(food.name || "").trim();
+          const quantity = String(food.quantity || "1 serving");
+          const estimatedGrams = Math.max(0, Math.round(Number(food.estimatedGrams) || 0));
+
+          // Build AI fallback
+          const fbCal = Math.max(0, Math.round(Number(food.fallbackCalories) || 0));
+          const fbPro = Math.max(0, Math.round(Number(food.fallbackProtein) || 0));
+          const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
+          const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
+          const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
+          const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber, undefined, String(food.name || "")) || 'carb';
+          const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
+
+          let fbSliceCount = 0;
+          if (!isNegligible) {
+            if (fbCategory === 'protein') fbSliceCount = fbPro >= 5 ? Math.max(1, Math.round(fbPro / 25)) : 0;
+            else if (fbCategory === 'carb') fbSliceCount = fbCarbs >= 5 ? Math.max(1, Math.round(fbCarbs / 26)) : 0;
+            else fbSliceCount = 1;
+          }
+
+          const aiFallback = {
+            name: name || "Unknown food",
+            estimatedGrams,
+            calories: fbCal, protein: fbPro, carbs: fbCarbs, fat: fbFat, fiber: fbFiber,
+            sparCategory: fbCategory, sliceCount: fbSliceCount,
+          };
+
+          if (!token || !name) {
+            return {
+              originalName: name || "Unknown food", quantity, estimatedGrams,
+              fsMatch: null, selectedServing: null, servingQty: 1,
+              alternatives: [], aiFallback, matchConfidence: 'none' as const,
+            };
+          }
+
+          try {
+            const result = await searchFatSecretExpress(name, token, { maxResults: 5 });
+            if (result.foods.length === 0) {
+              return {
+                originalName: name, quantity, estimatedGrams,
+                fsMatch: null, selectedServing: null, servingQty: 1,
+                alternatives: [], aiFallback, matchConfidence: 'none' as const,
+              };
+            }
+            const bestMatch = result.foods[0];
+            const { serving, qty } = pickBestServing(bestMatch.servings, estimatedGrams);
+            const confidence = scoreMatchConfidence(name, bestMatch.name);
+            return {
+              originalName: name, quantity, estimatedGrams,
+              fsMatch: bestMatch, selectedServing: serving, servingQty: qty,
+              alternatives: result.foods.slice(1, 5),
+              aiFallback: null, matchConfidence: confidence,
+            };
+          } catch (err) {
+            log(`FatSecret search failed for "${name}": ${err instanceof Error ? err.message : 'Unknown'}`);
+            return {
+              originalName: name, quantity, estimatedGrams,
+              fsMatch: null, selectedServing: null, servingQty: 1,
+              alternatives: [], aiFallback, matchConfidence: 'none' as const,
+            };
+          }
+        })
+      );
 
       return res.json({
-        foods,
+        foods: matchedFoods,
         confidence: ["high", "medium", "low"].includes(parsed.confidence) ? parsed.confidence : "medium",
       });
     } catch (err) {
@@ -628,8 +806,8 @@ export async function registerRoutes(
     }
   });
 
-  // ─── Voice Food Parsing (text transcript → food items) ──────────────────────
-  app.post("/api/foods/voice-parse", aiCoachLimiter, async (req: Request, res: Response) => {
+  // ─── Voice Food Parsing (name extraction → FatSecret lookup) ────────────────
+  app.post("/api/foods/voice-parse", requireSignedIn, aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({ error: "AI not configured" });
@@ -644,21 +822,37 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Description too long. Keep it under 1000 characters." });
       }
 
+      // ─── Step 1: AI extracts food names + quantities (not nutrition) ───
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
-          temperature: 0,
-          system: "You are a food nutrition parser. You MUST respond with ONLY a raw JSON object. No markdown, no explanation, no code fences, no backticks, no text before or after the JSON. Your entire response must be valid JSON starting with { and ending with }.",
+          model: "claude-opus-5-5",
+          max_tokens: 8000,
+          output_config: { effort: "low" },
+          fallbacks: "default",
+          system: "You are a food identification parser. You MUST respond with ONLY a raw JSON object. No markdown, no explanation, no code fences, no backticks, no text before or after the JSON. Your entire response must be valid JSON starting with { and ending with }.",
           messages: [{
             role: "user",
-            content: `Parse this food description into individual food items with estimated nutrition.\n\nFood description: "${transcript.trim()}"\n\nFor EACH food item, estimate:\n- name: common food name\n- estimatedGrams: weight in grams\n- calories, protein, carbs, fat, fiber\n- sparCategory: "protein", "carb", "veg", "fruit", or "fat" (pick the dominant macro)\n- sliceCount: SPAR portions (1 palm protein≈25g protein, 1 fist carb≈26g carbs, 1 fist veg, 1 piece fruit, 1 thumb fat≈14g fat)\n\nRespond ONLY with this JSON structure:\n{"foods": [{"name":"...","estimatedGrams":0,"calories":0,"protein":0,"carbs":0,"fat":0,"fiber":0,"sparCategory":"...","sliceCount":1}], "confidence":"high|medium|low"}`,
+            content: `Parse this food description into individual food items.
+
+Food description: "${transcript.trim()}"
+
+For EACH food item, extract:
+- name: the most common/searchable food name (e.g., "chicken breast", "brown rice", "banana"). Use plain names that work as food database search queries. Keep important qualifiers like "whole wheat" or "skim" but drop cooking methods.
+- quantity: the spoken quantity (e.g., "2 large", "about a cup", "1 serving"). If none mentioned, use "1 serving".
+- estimatedGrams: your best estimate of total weight in grams for the stated quantity.
+
+Also provide fallback nutrition estimates in case the food can't be found in our database:
+- fallbackCalories, fallbackProtein, fallbackCarbs, fallbackFat, fallbackFiber
+
+Respond ONLY with this JSON structure:
+{"foods": [{"name":"...","quantity":"...","estimatedGrams":0,"fallbackCalories":0,"fallbackProtein":0,"fallbackCarbs":0,"fallbackFat":0,"fallbackFiber":0}], "confidence":"high|medium|low"}`,
           }],
         }),
       });
@@ -670,7 +864,6 @@ export async function registerRoutes(
       }
 
       const aiData = await response.json();
-      // Find the text content block (skip thinking blocks)
       const textBlock = aiData.content?.find((b: any) => b.type === 'text');
       const rawText = textBlock?.text || "";
 
@@ -681,9 +874,7 @@ export async function registerRoutes(
 
       let parsed;
       try {
-        // Strip markdown code blocks if present
         let jsonStr = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        // If it still doesn't start with {, try to extract JSON object
         if (!jsonStr.startsWith("{")) {
           const firstBrace = jsonStr.indexOf("{");
           const lastBrace = jsonStr.lastIndexOf("}");
@@ -701,20 +892,82 @@ export async function registerRoutes(
         return res.status(502).json({ error: "AI returned unexpected structure" });
       }
 
-      const foods = parsed.foods.map((f: any) => ({
-        name: String(f.name || "Unknown food").slice(0, 100),
-        estimatedGrams: Math.max(0, Math.round(Number(f.estimatedGrams) || 0)),
-        calories: Math.max(0, Math.round(Number(f.calories) || 0)),
-        protein: Math.max(0, Math.round(Number(f.protein) || 0)),
-        carbs: Math.max(0, Math.round(Number(f.carbs) || 0)),
-        fat: Math.max(0, Math.round(Number(f.fat) || 0)),
-        fiber: Math.max(0, Math.round(Number(f.fiber) || 0)),
-        sparCategory: ["protein", "carb", "veg", "fruit", "fat"].includes(f.sparCategory) ? f.sparCategory : "carb",
-        sliceCount: Math.max(0.5, Math.min(10, Number(f.sliceCount) || 1)),
-      }));
+      // ─── Step 2: Parallel FatSecret lookups for each food ───
+      let token: string | null = null;
+      try {
+        token = await getFatSecretToken();
+      } catch (err: any) {
+        log(`FatSecret token error: ${err.message}`);
+      }
+
+      const matchedFoods = await Promise.all(
+        parsed.foods.map(async (food: any) => {
+          const name = String(food.name || "").trim();
+          const quantity = String(food.quantity || "1 serving");
+          const estimatedGrams = Math.max(0, Math.round(Number(food.estimatedGrams) || 0));
+
+          // Build AI fallback
+          const fbCal = Math.max(0, Math.round(Number(food.fallbackCalories) || 0));
+          const fbPro = Math.max(0, Math.round(Number(food.fallbackProtein) || 0));
+          const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
+          const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
+          const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
+          const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber, undefined, String(food.name || "")) || 'carb';
+          const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
+
+          let fbSliceCount = 0;
+          if (!isNegligible) {
+            if (fbCategory === 'protein') fbSliceCount = fbPro >= 5 ? Math.max(1, Math.round(fbPro / 25)) : 0;
+            else if (fbCategory === 'carb') fbSliceCount = fbCarbs >= 5 ? Math.max(1, Math.round(fbCarbs / 26)) : 0;
+            else fbSliceCount = 1;
+          }
+
+          const aiFallback = {
+            name: name || "Unknown food",
+            estimatedGrams,
+            calories: fbCal, protein: fbPro, carbs: fbCarbs, fat: fbFat, fiber: fbFiber,
+            sparCategory: fbCategory, sliceCount: fbSliceCount,
+          };
+
+          if (!token || !name) {
+            return {
+              originalName: name || "Unknown food", quantity, estimatedGrams,
+              fsMatch: null, selectedServing: null, servingQty: 1,
+              alternatives: [], aiFallback, matchConfidence: 'none' as const,
+            };
+          }
+
+          try {
+            const result = await searchFatSecretExpress(name, token, { maxResults: 5 });
+            if (result.foods.length === 0) {
+              return {
+                originalName: name, quantity, estimatedGrams,
+                fsMatch: null, selectedServing: null, servingQty: 1,
+                alternatives: [], aiFallback, matchConfidence: 'none' as const,
+              };
+            }
+            const bestMatch = result.foods[0];
+            const { serving, qty } = pickBestServing(bestMatch.servings, estimatedGrams);
+            const confidence = scoreMatchConfidence(name, bestMatch.name);
+            return {
+              originalName: name, quantity, estimatedGrams,
+              fsMatch: bestMatch, selectedServing: serving, servingQty: qty,
+              alternatives: result.foods.slice(1, 5),
+              aiFallback: null, matchConfidence: confidence,
+            };
+          } catch (err) {
+            log(`FatSecret search failed for "${name}": ${err instanceof Error ? err.message : 'Unknown'}`);
+            return {
+              originalName: name, quantity, estimatedGrams,
+              fsMatch: null, selectedServing: null, servingQty: 1,
+              alternatives: [], aiFallback, matchConfidence: 'none' as const,
+            };
+          }
+        })
+      );
 
       return res.json({
-        foods,
+        foods: matchedFoods,
         confidence: ["high", "medium", "low"].includes(parsed.confidence) ? parsed.confidence : "medium",
       });
     } catch (err) {
@@ -725,7 +978,7 @@ export async function registerRoutes(
   });
 
   // ─── AI Weight Cutting & Recovery Coach (Elite Version) ─────────────────────
-  app.post("/api/ai/coach", aiCoachLimiter, async (req: Request, res: Response) => {
+  app.post("/api/ai/coach", requireSignedIn, aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({
@@ -733,6 +986,9 @@ export async function registerRoutes(
           message: "Add ANTHROPIC_API_KEY to environment variables to enable AI coaching.",
         });
       }
+
+      // The app's availability check: answer without spending an AI call
+      if (req.body?.ping === true) return res.status(200).json({ ok: true });
 
       const { question, context } = req.body;
 
@@ -822,10 +1078,13 @@ export async function registerRoutes(
           "Content-Type": "application/json",
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 600, // Increased for more detailed responses
+          model: "claude-opus-5-5",
+          max_tokens: 4000, // thinking shares this budget with the answer
+          output_config: { effort: "low" },
+          fallbacks: "default",
           system: systemPrompt,
           messages: [{ role: "user", content: sanitizeForPrompt(question.trim()) }],
         }),
@@ -838,7 +1097,7 @@ export async function registerRoutes(
       }
 
       const aiData = await response.json();
-      const reply = aiData.content?.[0]?.text || "Sorry, I couldn't generate a recommendation.";
+      const reply = aiData.content?.find((b: any) => b.type === "text")?.text || "Sorry, I couldn't generate a recommendation.";
 
       return res.json({ recommendation: reply });
     } catch (err) {

@@ -25,85 +25,89 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
               <Calendar className="w-4 h-4 text-primary" />
               <h4 className="font-bold text-sm uppercase">Week Overview</h4>
             </div>
-            <span className="text-[10px] text-muted-foreground">Tap any day for details</span>
+            <span className="text-xs text-muted-foreground">Tap any day for details</span>
           </div>
 
-          {/* Phase Timeline Bar */}
-          <div className="flex h-2">
-            {weekPlan.map((day, idx) => (
-              <div
-                key={`bar-${idx}`}
-                className={cn(
-                  "flex-1",
-                  getPhaseStyle(day.phase).bg || 'bg-muted',
-                  day.isToday && "ring-2 ring-white ring-inset"
-                )}
-              />
-            ))}
-          </div>
-
-          {/* Day Cards Grid */}
-          <div className="grid grid-cols-7 gap-0.5 p-2 bg-muted/20">
-            {weekPlan.map((day, idx) => {
-              const colors = getPhaseStyle(day.phase);
-              const isSelected = selectedIdx === idx;
-
-              return (
-                <button
-                  key={`${day.day}-${idx}`}
-                  onClick={() => setSelectedIdx(isSelected ? null : idx)}
+          {/* One column per day for both the phase bar and the day cards, so they always line up.
+              The plan can run past 7 days (today through the day after weigh-in); scroll sideways then. */}
+          <div className="overflow-x-auto scrollbar-hide bg-muted/20" style={{ scrollbarWidth: "none" }}>
+            <div
+              className="grid gap-x-0.5 gap-y-2 p-2 min-w-full"
+              style={{ gridTemplateColumns: `repeat(${weekPlan.length}, minmax(2.75rem, 1fr))` }}
+            >
+              {/* Phase Timeline Bar */}
+              {weekPlan.map((day, idx) => (
+                <div
+                  key={`bar-${idx}`}
                   className={cn(
-                    "flex flex-col items-center p-1.5 rounded-lg transition-all text-center min-h-[72px]",
-                    day.isToday && "ring-2 ring-primary",
-                    isSelected && colors.bgMedium,
-                    isSelected && colors.border,
-                    isSelected && "border",
-                    !isSelected && !day.isToday && "hover:bg-muted/50"
+                    "h-2 rounded-sm",
+                    getPhaseStyle(day.phase).bg || 'bg-muted',
+                    day.isToday && "ring-2 ring-white ring-inset"
                   )}
-                >
-                  {/* Day Name + Date */}
-                  <span className={cn(
-                    "text-[10px] font-bold uppercase",
-                    day.isToday ? "text-primary" : "text-muted-foreground"
-                  )}>
-                    {day.day.slice(0, 3)}
-                  </span>
-                  <span className="text-[8px] text-muted-foreground">
-                    {(() => {
-                      if (!day.date) return '';
-                      const d = new Date(day.date);
-                      return isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
-                    })()}
-                  </span>
+                />
+              ))}
 
-                  {/* Phase Indicator Dot */}
-                  <div className={cn(
-                    "w-2 h-2 rounded-full my-1",
-                    getPhaseStyle(day.phase).bg || 'bg-muted'
-                  )} />
+              {weekPlan.map((day, idx) => {
+                const colors = getPhaseStyle(day.phase);
+                const isSelected = selectedIdx === idx;
 
-                  {/* Weight Target (Morning) */}
-                  <span className={cn(
-                    "font-mono text-[11px] font-bold",
-                    day.isToday ? "text-foreground" : "text-muted-foreground"
-                  )}>
-                    {day.weightTarget}
-                  </span>
-
-                  {/* Today/Tomorrow Badge */}
-                  {day.isToday && (
-                    <span className="text-[8px] bg-primary text-white px-1 rounded mt-0.5 font-bold">
-                      TODAY
+                return (
+                  <button
+                    key={`${day.day}-${idx}`}
+                    onClick={() => setSelectedIdx(isSelected ? null : idx)}
+                    className={cn(
+                      "flex flex-col items-center p-1.5 rounded-lg transition-all text-center min-h-[72px]",
+                      day.isToday && "ring-2 ring-primary",
+                      isSelected && colors.bgMedium,
+                      isSelected && colors.border,
+                      isSelected && "border",
+                      !isSelected && !day.isToday && "hover:bg-muted/50"
+                    )}
+                  >
+                    {/* Day Name + Date */}
+                    <span className={cn(
+                      "text-xs font-bold uppercase",
+                      day.isToday ? "text-primary" : "text-muted-foreground"
+                    )}>
+                      {day.day.slice(0, 3)}
                     </span>
-                  )}
-                  {day.isTomorrow && !day.isToday && (
-                    <span className="text-[8px] bg-primary/30 text-primary px-1 rounded mt-0.5 font-bold">
-                      NEXT
+                    <span className="text-xs text-muted-foreground">
+                      {(() => {
+                        if (!day.date) return '';
+                        const d = new Date(day.date);
+                        return isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()}`;
+                      })()}
                     </span>
-                  )}
-                </button>
-              );
-            })}
+
+                    {/* Phase Indicator Dot */}
+                    <div className={cn(
+                      "w-2 h-2 rounded-full my-1",
+                      getPhaseStyle(day.phase).bg || 'bg-muted'
+                    )} />
+
+                    {/* Weight Target (Morning) */}
+                    <span className={cn(
+                      "font-mono text-xs font-bold",
+                      day.isToday ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {day.weightTarget}
+                    </span>
+
+                    {/* Today/Tomorrow Badge */}
+                    {day.isToday && (
+                      <span className="text-xs leading-4 whitespace-nowrap bg-primary text-white px-1.5 rounded mt-0.5 font-bold">
+                        Today
+                      </span>
+                    )}
+                    {day.isTomorrow && !day.isToday && (
+                      <span className="text-xs leading-4 whitespace-nowrap bg-primary/15 text-primary px-1.5 rounded mt-0.5 font-bold">
+                        Next
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Expanded Day Details */}
@@ -158,7 +162,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                   <div className="bg-background/50 rounded-lg p-2">
                     <span className="font-mono font-bold text-cyan-500 block">{selectedDayData.water.amount}</span>
                     <span className={cn(
-                      "text-[10px] font-bold uppercase",
+                      "text-xs font-bold uppercase",
                       selectedDayData.water.type === 'Sip Only' ? "text-orange-500" : "text-muted-foreground"
                     )}>
                       {selectedDayData.water.type}
@@ -195,7 +199,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                         : `${selectedDayData.protein.min}-${selectedDayData.protein.max}g`}
                     </span>
                     {selectedDayData.protein.min === 0 && (
-                      <span className="text-[10px] text-destructive block font-bold">NO PROTEIN</span>
+                      <span className="text-xs text-destructive block font-bold">NO PROTEIN</span>
                     )}
                   </div>
                 </div>
@@ -225,7 +229,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
         {['Train', 'Load', 'Cut', 'Compete', 'Recover'].map((phase) => (
           <div key={phase} className="flex items-center gap-1">
             <div className={cn("w-2 h-2 rounded-full", getPhaseStyle(phase).bg)} />
-            <span className="text-[10px] text-muted-foreground">{phase}</span>
+            <span className="text-xs text-muted-foreground">{phase}</span>
           </div>
         ))}
       </div>

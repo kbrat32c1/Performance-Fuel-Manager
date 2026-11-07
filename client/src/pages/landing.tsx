@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, CheckCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { STORAGE_PREFIX } from "@/lib/storage-keys";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -82,6 +83,12 @@ export default function Landing() {
     return null;
   };
 
+  // Signed out: this page is what shows, so lift the HTML splash (signed-in users are redirected
+  // and the protected page lifts it instead).
+  useEffect(() => {
+    if (!authLoading && !user) window.__splashReady?.();
+  }, [authLoading, user]);
+
   // Handle redirects in useEffect to avoid render-time side effects
   useEffect(() => {
     if (!authLoading && !storeLoading && user) {
@@ -122,7 +129,7 @@ export default function Landing() {
   const handleSkipMigration = () => {
     // Clear only PWM localStorage keys and start fresh
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('pwm-')) localStorage.removeItem(key);
+      if (key.startsWith(STORAGE_PREFIX)) localStorage.removeItem(key);
     });
     setLocation('/onboarding');
   };
@@ -249,43 +256,65 @@ export default function Landing() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-3">
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <Input
-                      type="email"
-                      placeholder="Email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12 bg-card border-border"
-                      required
-                    />
+                  <div className="space-y-1.5">
+                    <label htmlFor="auth-email" className="block text-sm font-medium text-foreground">Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                      <Input
+                        id="auth-email"
+                        type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 h-12 bg-card border-border"
+                        aria-invalid={error ? true : undefined}
+                        aria-describedby={error ? 'auth-error' : undefined}
+                        required
+                      />
+                    </div>
                   </div>
 
                   {authMode !== 'forgot' && (
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10 pr-10 h-12 bg-card border-border"
-                        required
-                        minLength={12}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
+                    <div className="space-y-1.5">
+                      <label htmlFor="auth-password" className="block text-sm font-medium text-foreground">Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" aria-hidden="true" />
+                        <Input
+                          id="auth-password"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete={authMode === 'signup' ? 'new-password' : 'current-password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="pl-10 pr-12 h-12 bg-card border-border"
+                          aria-invalid={error ? true : undefined}
+                          aria-describedby={[authMode === 'signup' ? 'auth-password-rules' : '', error ? 'auth-error' : ''].filter(Boolean).join(' ') || undefined}
+                          required
+                          minLength={12}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          aria-pressed={showPassword}
+                          aria-controls="auth-password"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
+                        </button>
+                      </div>
+                      {authMode === 'signup' && (
+                        <p id="auth-password-rules" className="text-xs text-muted-foreground">
+                          At least 12 characters, with an uppercase and a lowercase letter, a number and a symbol.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
 
                 {error && (
-                  <p className="text-sm text-destructive text-center">{error}</p>
+                  <p id="auth-error" role="alert" className="text-sm text-destructive text-center">{error}</p>
                 )}
 
                 <Button
@@ -418,7 +447,7 @@ export default function Landing() {
       </div>
 
       <div className="relative z-10 p-4 text-center">
-        <p className="text-[10px] text-muted-foreground/40 uppercase tracking-widest">
+        <p className="text-xs text-muted-foreground/40 uppercase tracking-widest">
           SPAR Life
         </p>
       </div>

@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets } = useStore();
+  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets, getTargetsForDate } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
@@ -665,7 +665,7 @@ export default function History() {
           {/* Day Headers */}
           <div className="grid grid-cols-7 gap-1 mb-1">
             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-              <div key={i} className="text-center text-[10px] font-bold text-muted-foreground py-1">
+              <div key={i} className="text-center text-xs font-bold text-muted-foreground py-1">
                 {day}
               </div>
             ))}
@@ -790,7 +790,15 @@ export default function History() {
               {groupedSelectedDateLogs.map((log) => (
                 <SwipeableRow
                   key={log.id}
-                  onDelete={() => handleDeleteWithUndo(log)}
+                  actions={[
+                    {
+                      icon: <Trash2 className="w-4 h-4" />,
+                      label: "Delete",
+                      bgColor: "bg-red-600",
+                      textColor: "text-white",
+                      onClick: () => handleDeleteWithUndo(log),
+                    },
+                  ]}
                   disabled={editingExtraId === log.id}
                 >
                   <Card className={cn("border-muted", log.type === 'extra-workout' && "border-orange-500/30 bg-orange-500/5")}>
@@ -847,7 +855,7 @@ export default function History() {
                             <div className="flex items-center gap-2">
                               <div className="text-right">
                                 <span className="font-mono font-bold text-lg text-green-500">-{log.loss.toFixed(1)} lbs</span>
-                                <div className="text-[10px] text-muted-foreground">
+                                <div className="text-xs text-muted-foreground">
                                   {log.beforeWeight} → {log.afterWeight}
                                 </div>
                               </div>
@@ -912,14 +920,14 @@ export default function History() {
 
       {/* Hydration Tab Content */}
       {activeTab === 'hydration' && (
-        <HydrationHistory dailyTracking={dailyTracking} targetOz={hydrationTarget.targetOz} />
+        <HydrationHistory dailyTracking={dailyTracking} targetOz={hydrationTarget.targetOz} targetOzFor={(d) => getTargetsForDate(d).hydration.targetOz} />
       )}
 
       {/* Macros / Slices Tab Content */}
       {activeTab === 'macros' && (
         isSparMode && sliceTargets
-          ? <SliceHistory dailyTracking={dailyTracking} sliceTargets={sliceTargets} />
-          : <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} />
+          ? <SliceHistory dailyTracking={dailyTracking} sliceTargets={sliceTargets} sliceTargetsFor={(d) => getTargetsForDate(d).slices} />
+          : <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} macroTargetsFor={(d) => getTargetsForDate(d).macros} />
       )}
 
       {/* Bottom Spacing */}
@@ -932,9 +940,11 @@ export default function History() {
 interface HydrationHistoryProps {
   dailyTracking: Array<{ date: string; waterConsumed: number; carbsConsumed: number; proteinConsumed: number }>;
   targetOz: number;
+  /** That day's target, so past days are graded against what applied then */
+  targetOzFor?: (dateStr: string) => number;
 }
 
-function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
+function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHistoryProps) {
   const today = new Date();
 
   // Get last 14 days of data
@@ -946,6 +956,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
       date,
       dateStr,
       waterConsumed: tracking?.waterConsumed || 0,
+      targetOz: targetOzFor?.(dateStr) ?? targetOz,
       dayLabel: format(date, 'EEE'),
       dayNum: format(date, 'd'),
       isToday: isSameDay(date, today)
@@ -956,7 +967,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
   const daysWithData = last14Days.filter(d => d.waterConsumed > 0);
   const totalConsumed = daysWithData.reduce((sum, d) => sum + d.waterConsumed, 0);
   const avgDaily = daysWithData.length > 0 ? totalConsumed / daysWithData.length : 0;
-  const daysHitTarget = daysWithData.filter(d => d.waterConsumed >= targetOz).length;
+  const daysHitTarget = daysWithData.filter(d => d.waterConsumed >= d.targetOz).length;
   const maxWater = Math.max(...last14Days.map(d => d.waterConsumed), targetOz);
 
   // Get last 7 days for weekly summary
@@ -975,19 +986,19 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Total</span>
+              <span className="text-xs text-muted-foreground block">Total</span>
               <span className="font-mono font-bold text-lg text-cyan-500">{weeklyTotal}</span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Daily Avg</span>
+              <span className="text-xs text-muted-foreground block">Daily Avg</span>
               <span className="font-mono font-bold text-lg">{weeklyAvg.toFixed(0)}</span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Target</span>
+              <span className="text-xs text-muted-foreground block">Target</span>
               <span className="font-mono font-bold text-lg text-primary">{targetOz}</span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
           </div>
         </CardContent>
@@ -1010,17 +1021,17 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
           </div>
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Daily Intake</span>
+              <span className="text-xs text-muted-foreground block">Avg Daily Intake</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgDaily >= targetOz ? "text-green-500" : avgDaily >= targetOz * 0.75 ? "text-cyan-500" : "text-yellow-500"
               )}>
                 {avgDaily.toFixed(0)}
               </span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Target Hit Rate</span>
+              <span className="text-xs text-muted-foreground block">Target Hit Rate</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 daysHitTarget / 14 >= 0.7 ? "text-green-500" : daysHitTarget / 14 >= 0.5 ? "text-cyan-500" : "text-yellow-500"
@@ -1041,7 +1052,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
           <div className="flex items-end gap-1 h-32 mb-2">
             {last14Days.map((day, i) => {
               const heightPercent = maxWater > 0 ? (day.waterConsumed / maxWater) * 100 : 0;
-              const hitTarget = day.waterConsumed >= targetOz;
+              const hitTarget = day.waterConsumed >= day.targetOz;
               const targetHeightPercent = maxWater > 0 ? (targetOz / maxWater) * 100 : 0;
 
               return (
@@ -1073,7 +1084,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
                 <span className={cn(
-                  "text-[8px]",
+                  "text-xs",
                   day.isToday ? "text-cyan-500 font-bold" : "text-muted-foreground"
                 )}>
                   {day.dayNum}
@@ -1086,15 +1097,15 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
           <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-cyan-500" />
-              <span className="text-[10px] text-muted-foreground">Today</span>
+              <span className="text-xs text-muted-foreground">Today</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-cyan-500/70" />
-              <span className="text-[10px] text-muted-foreground">Hit Target</span>
+              <span className="text-xs text-muted-foreground">Hit Target</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-cyan-500/40" />
-              <span className="text-[10px] text-muted-foreground">Under Target</span>
+              <span className="text-xs text-muted-foreground">Under Target</span>
             </div>
           </div>
         </CardContent>
@@ -1121,13 +1132,13 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "font-mono font-bold",
-                    day.waterConsumed >= targetOz ? "text-green-500" :
-                    day.waterConsumed >= targetOz * 0.75 ? "text-cyan-500" :
+                    day.waterConsumed >= day.targetOz ? "text-green-500" :
+                    day.waterConsumed >= day.targetOz * 0.75 ? "text-cyan-500" :
                     day.waterConsumed > 0 ? "text-yellow-500" : "text-muted-foreground"
                   )}>
                     {day.waterConsumed > 0 ? `${day.waterConsumed} oz` : '—'}
                   </span>
-                  {day.waterConsumed >= targetOz && (
+                  {day.waterConsumed >= day.targetOz && (
                     <Check className="w-4 h-4 text-green-500" />
                   )}
                 </div>
@@ -1143,7 +1154,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
             <Droplets className="w-10 h-10 mx-auto mb-3 text-cyan-500/40" />
             <p className="font-bold text-sm mb-1">No Hydration Data Yet</p>
             <p className="text-xs text-muted-foreground mb-3">Track your water intake to hit your daily target</p>
-            <p className="text-[10px] text-cyan-500 font-medium">Tap the 💧 button on the dashboard to log water</p>
+            <p className="text-xs text-cyan-500 font-medium">Tap the 💧 button on the dashboard to log water</p>
           </CardContent>
         </Card>
       )}
@@ -1154,10 +1165,14 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
 // Macro History Component
 interface MacroHistoryProps {
   dailyTracking: Array<{ date: string; waterConsumed: number; carbsConsumed: number; proteinConsumed: number }>;
-  macroTargets: { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string };
+  macroTargets: MacroRange;
+  /** That day's targets, so past days are graded against what applied then */
+  macroTargetsFor?: (dateStr: string) => MacroRange;
 }
 
-function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
+type MacroRange = { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string };
+
+function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHistoryProps) {
   const today = new Date();
 
   // Get last 14 days of data
@@ -1170,6 +1185,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
       dateStr,
       carbsConsumed: tracking?.carbsConsumed || 0,
       proteinConsumed: tracking?.proteinConsumed || 0,
+      target: macroTargetsFor?.(dateStr) ?? macroTargets,
       dayLabel: format(date, 'EEE'),
       dayNum: format(date, 'd'),
       isToday: isSameDay(date, today)
@@ -1190,10 +1206,10 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
   const proteinTargetMid = (macroTargets.protein.min + macroTargets.protein.max) / 2;
 
   const daysHitCarbTarget = daysWithCarbData.filter(d =>
-    d.carbsConsumed >= macroTargets.carbs.min && d.carbsConsumed <= macroTargets.carbs.max * 1.1
+    d.carbsConsumed >= d.target.carbs.min && d.carbsConsumed <= d.target.carbs.max * 1.1
   ).length;
   const daysHitProteinTarget = daysWithProteinData.filter(d =>
-    d.proteinConsumed >= macroTargets.protein.min && d.proteinConsumed <= macroTargets.protein.max * 1.1
+    d.proteinConsumed >= d.target.protein.min && d.proteinConsumed <= d.target.protein.max * 1.1
   ).length;
 
   const maxCarbs = Math.max(...last14Days.map(d => d.carbsConsumed), macroTargets.carbs.max);
@@ -1217,11 +1233,11 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Total Carbs</span>
+              <span className="text-xs text-muted-foreground block">Total Carbs</span>
               <span className="font-mono font-bold text-lg text-primary">{weeklyCarbs}g</span>
             </div>
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Total Protein</span>
+              <span className="text-xs text-muted-foreground block">Total Protein</span>
               <span className="font-mono font-bold text-lg text-orange-500">{weeklyProtein}g</span>
             </div>
           </div>
@@ -1234,26 +1250,26 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
           <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">14-Day Averages</span>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Avg Daily Carbs</span>
+              <span className="text-xs text-muted-foreground block">Avg Daily Carbs</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgDailyCarbs >= macroTargets.carbs.min ? "text-green-500" : avgDailyCarbs >= macroTargets.carbs.min * 0.75 ? "text-primary" : "text-yellow-500"
               )}>
                 {avgDailyCarbs.toFixed(0)}g
               </span>
-              <span className="text-[9px] text-muted-foreground block">
+              <span className="text-xs text-muted-foreground block">
                 Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g
               </span>
             </div>
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Avg Daily Protein</span>
+              <span className="text-xs text-muted-foreground block">Avg Daily Protein</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgDailyProtein >= macroTargets.protein.min ? "text-green-500" : avgDailyProtein >= macroTargets.protein.min * 0.75 ? "text-orange-500" : "text-yellow-500"
               )}>
                 {avgDailyProtein.toFixed(0)}g
               </span>
-              <span className="text-[9px] text-muted-foreground block">
+              <span className="text-xs text-muted-foreground block">
                 Target: {macroTargets.protein.min}-{macroTargets.protein.max}g
               </span>
             </div>
@@ -1266,14 +1282,14 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">Daily Carbs (Last 14 Days)</span>
-            <span className="text-[10px] text-primary font-mono">Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g</span>
+            <span className="text-xs text-primary font-mono">Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g</span>
           </div>
 
           {/* Bar Chart */}
           <div className="flex items-end gap-1 h-24 mb-2">
             {last14Days.map((day, i) => {
               const heightPercent = maxCarbs > 0 ? (day.carbsConsumed / maxCarbs) * 100 : 0;
-              const inRange = day.carbsConsumed >= macroTargets.carbs.min && day.carbsConsumed <= macroTargets.carbs.max * 1.1;
+              const inRange = day.carbsConsumed >= day.target.carbs.min && day.carbsConsumed <= day.target.carbs.max * 1.1;
               const targetHeightPercent = maxCarbs > 0 ? (carbTargetMid / maxCarbs) * 100 : 0;
 
               return (
@@ -1302,7 +1318,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
           <div className="flex gap-1">
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={cn("text-[8px]", day.isToday ? "text-primary font-bold" : "text-muted-foreground")}>
+                <span className={cn("text-xs", day.isToday ? "text-primary font-bold" : "text-muted-foreground")}>
                   {day.dayNum}
                 </span>
               </div>
@@ -1316,14 +1332,14 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">Daily Protein (Last 14 Days)</span>
-            <span className="text-[10px] text-orange-500 font-mono">Target: {macroTargets.protein.min}-{macroTargets.protein.max}g</span>
+            <span className="text-xs text-orange-500 font-mono">Target: {macroTargets.protein.min}-{macroTargets.protein.max}g</span>
           </div>
 
           {/* Bar Chart */}
           <div className="flex items-end gap-1 h-24 mb-2">
             {last14Days.map((day, i) => {
               const heightPercent = maxProtein > 0 ? (day.proteinConsumed / maxProtein) * 100 : 0;
-              const inRange = day.proteinConsumed >= macroTargets.protein.min && day.proteinConsumed <= macroTargets.protein.max * 1.1;
+              const inRange = day.proteinConsumed >= day.target.protein.min && day.proteinConsumed <= day.target.protein.max * 1.1;
               const targetHeightPercent = maxProtein > 0 ? (proteinTargetMid / maxProtein) * 100 : 0;
 
               return (
@@ -1352,7 +1368,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
           <div className="flex gap-1">
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={cn("text-[8px]", day.isToday ? "text-orange-500 font-bold" : "text-muted-foreground")}>
+                <span className={cn("text-xs", day.isToday ? "text-orange-500 font-bold" : "text-muted-foreground")}>
                   {day.dayNum}
                 </span>
               </div>
@@ -1385,7 +1401,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
                     )}>
                       {day.carbsConsumed > 0 ? `${day.carbsConsumed}g` : '—'}
                     </span>
-                    <span className="text-[9px] text-muted-foreground ml-1">carbs</span>
+                    <span className="text-xs text-muted-foreground ml-1">carbs</span>
                   </div>
                   <div className="text-right">
                     <span className={cn(
@@ -1394,7 +1410,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
                     )}>
                       {day.proteinConsumed > 0 ? `${day.proteinConsumed}g` : '—'}
                     </span>
-                    <span className="text-[9px] text-muted-foreground ml-1">protein</span>
+                    <span className="text-xs text-muted-foreground ml-1">protein</span>
                   </div>
                 </div>
               </div>
@@ -1409,7 +1425,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
             <Utensils className="w-10 h-10 mx-auto mb-3 text-amber-500/40" />
             <p className="font-bold text-sm mb-1">No Macro Data Yet</p>
             <p className="text-xs text-muted-foreground mb-3">Track your carbs and protein to see your nutrition trends</p>
-            <p className="text-[10px] text-amber-500 font-medium">Open FUEL on the dashboard to log foods</p>
+            <p className="text-xs text-amber-500 font-medium">Open FUEL on the dashboard to log foods</p>
           </CardContent>
         </Card>
       )}
@@ -1420,10 +1436,14 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
 // Slice History Component (SPAR mode)
 interface SliceHistoryProps {
   dailyTracking: Array<{ date: string; proteinSlices?: number; carbSlices?: number; vegSlices?: number }>;
-  sliceTargets: { protein: number; carb: number; veg: number; totalCalories: number };
+  sliceTargets: SliceRange;
+  /** That day's targets, so past days are graded against what applied then */
+  sliceTargetsFor?: (dateStr: string) => SliceRange;
 }
 
-function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
+type SliceRange = { protein: number; carb: number; veg: number; totalCalories: number };
+
+function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHistoryProps) {
   const today = new Date();
   const totalTarget = sliceTargets.protein + sliceTargets.carb + sliceTargets.veg;
 
@@ -1442,6 +1462,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
       carb: c,
       veg: v,
       total: p + c + v,
+      dayTarget: (() => { const t = sliceTargetsFor?.(dateStr) ?? sliceTargets; return t.protein + t.carb + t.veg; })(),
       dayLabel: format(date, 'EEE'),
       dayNum: format(date, 'd'),
       isToday: isSameDay(date, today)
@@ -1449,7 +1470,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
   });
 
   const daysWithData = last14Days.filter(d => d.total > 0);
-  const daysHitTarget = daysWithData.filter(d => d.total >= totalTarget).length;
+  const daysHitTarget = daysWithData.filter(d => d.total >= d.dayTarget).length;
 
   const avgProtein = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.protein, 0) / daysWithData.length : 0;
   const avgCarb = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.carb, 0) / daysWithData.length : 0;
@@ -1474,19 +1495,19 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Total</span>
+              <span className="text-xs text-muted-foreground block">Total</span>
               <span className="font-mono font-bold text-lg text-green-500">{weeklyTotal}</span>
             </div>
             <div>
-              <span className="text-[10px] text-orange-400 block">Protein</span>
+              <span className="text-xs text-orange-400 block">Protein</span>
               <span className="font-mono font-bold text-lg text-orange-400">{weeklyProtein}</span>
             </div>
             <div>
-              <span className="text-[10px] text-amber-400 block">Carb</span>
+              <span className="text-xs text-amber-400 block">Carb</span>
               <span className="font-mono font-bold text-lg text-amber-400">{weeklyCarb}</span>
             </div>
             <div>
-              <span className="text-[10px] text-green-400 block">Veg</span>
+              <span className="text-xs text-green-400 block">Veg</span>
               <span className="font-mono font-bold text-lg text-green-400">{weeklyVeg}</span>
             </div>
           </div>
@@ -1510,34 +1531,34 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Protein</span>
+              <span className="text-xs text-muted-foreground block">Avg Protein</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgProtein >= sliceTargets.protein ? "text-green-500" : "text-orange-400"
               )}>
                 {avgProtein.toFixed(1)}
               </span>
-              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.protein}</span>
+              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.protein}</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Carb</span>
+              <span className="text-xs text-muted-foreground block">Avg Carb</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgCarb >= sliceTargets.carb ? "text-green-500" : "text-amber-400"
               )}>
                 {avgCarb.toFixed(1)}
               </span>
-              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.carb}</span>
+              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.carb}</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Veg</span>
+              <span className="text-xs text-muted-foreground block">Avg Veg</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgVeg >= sliceTargets.veg ? "text-green-500" : "text-green-400"
               )}>
                 {avgVeg.toFixed(1)}
               </span>
-              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.veg}</span>
+              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.veg}</span>
             </div>
           </div>
         </CardContent>
@@ -1548,7 +1569,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">Daily Slices (Last 14 Days)</span>
-            <span className="text-[10px] text-green-500 font-mono">Target: {totalTarget}</span>
+            <span className="text-xs text-green-500 font-mono">Target: {totalTarget}</span>
           </div>
 
           <div className="flex items-end gap-1 h-28 mb-2">
@@ -1585,7 +1606,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
           <div className="flex gap-1">
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={cn("text-[8px]", day.isToday ? "text-green-500 font-bold" : "text-muted-foreground")}>
+                <span className={cn("text-xs", day.isToday ? "text-green-500 font-bold" : "text-muted-foreground")}>
                   {day.dayNum}
                 </span>
               </div>
@@ -1596,15 +1617,15 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
           <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-orange-400/70" />
-              <span className="text-[10px] text-muted-foreground">Protein</span>
+              <span className="text-xs text-muted-foreground">Protein</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-amber-400/70" />
-              <span className="text-[10px] text-muted-foreground">Carb</span>
+              <span className="text-xs text-muted-foreground">Carb</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-green-500/70" />
-              <span className="text-[10px] text-muted-foreground">Veg</span>
+              <span className="text-xs text-muted-foreground">Veg</span>
             </div>
           </div>
         </CardContent>
@@ -1616,7 +1637,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
           <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Details</span>
           <div className="space-y-2">
             {[...last14Days].reverse().map((day, i) => {
-              const hitTarget = day.total >= totalTarget;
+              const hitTarget = day.total >= day.dayTarget;
               return (
                 <div key={i} className={cn(
                   "flex items-center justify-between py-2 border-b border-muted last:border-0",
@@ -1647,7 +1668,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
             <Apple className="w-10 h-10 mx-auto mb-3 text-green-500/40" />
             <p className="font-bold text-sm mb-1">No Slice Data Yet</p>
             <p className="text-xs text-muted-foreground mb-3">Track your protein, carb, and veggie slices</p>
-            <p className="text-[10px] text-green-500 font-medium">Tap the SPAR tracker on the dashboard to start</p>
+            <p className="text-xs text-green-500 font-medium">Tap the SPAR tracker on the dashboard to start</p>
           </CardContent>
         </Card>
       )}

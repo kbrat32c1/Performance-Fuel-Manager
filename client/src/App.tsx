@@ -2,6 +2,7 @@ import { Switch, Route } from "wouter";
 import { AuthProvider } from "./lib/auth";
 import { StoreProvider } from "./lib/store";
 import { ThemeProvider } from "./lib/theme";
+import { V5BandProvider } from "./lib/v5band-context";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "./components/protected-route";
 import { ErrorBoundary, PageErrorBoundary } from "./components/error-boundary";
@@ -19,6 +20,12 @@ import Fuel from "@/pages/fuel";
 import Food from "@/pages/food";
 import CoachView from "@/pages/coach-view";
 import Reports from "@/pages/reports";
+import WeighIn from "@/pages/weigh-in";
+import Descent from "@/pages/descent";
+import TeamPage from "@/pages/team";
+import { rememberPendingTeamCode } from "@/lib/team-schedule";
+
+rememberPendingTeamCode(window.location.search, window.location.pathname);
 
 function Router() {
   return (
@@ -36,6 +43,27 @@ function Router() {
         <ProtectedRoute>
           <PageErrorBoundary pageName="Dashboard">
             <Dashboard />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/weigh-in">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Weigh-ins">
+            <WeighIn />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/descent">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Descent plan">
+            <Descent />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/team">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Team schedule">
+            <TeamPage />
           </PageErrorBoundary>
         </ProtectedRoute>
       </Route>
@@ -114,9 +142,11 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <StoreProvider>
-            <Toaster />
-            <Router />
-            <NotificationScheduler />
+            <V5BandProvider>
+              <Toaster />
+              <Router />
+              <NotificationScheduler />
+            </V5BandProvider>
           </StoreProvider>
         </AuthProvider>
       </ThemeProvider>

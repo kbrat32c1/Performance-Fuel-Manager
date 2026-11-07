@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders, Brain, ChevronDown, ChevronUp, Briefcase } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders, Brain, ChevronDown, ChevronUp, Briefcase, Heart, Smartphone, Bluetooth, BatteryMedium, Search, Loader2 } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { WEIGHT_CLASSES, PROTOCOL_NAMES, PROTOCOLS } from "@/lib/constants";
 import { getWeightContext, getProtocolRecommendation, PROTOCOL_CONFIG } from "@/lib/protocol-utils";
 import { ProtocolWizard } from "@/components/protocol-wizard";
-import type { Protocol } from "@/lib/store";
+import type { Protocol, AthleteProfile } from "@/lib/store";
 import {
   type Goal as SparV2Goal,
   type GoalIntensity,
@@ -30,14 +30,20 @@ import {
   saveNotificationPrefs,
   getPermissionState,
   requestPermission as requestNotifPermission,
-  getTimeOptions,
   type NotificationPreferences,
 } from "@/lib/notifications";
 import { isHapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
+import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
+import { useV5BandContext } from "@/lib/v5band-context";
+
+/** Profile updates use Record<string, any> because settings-dialog
+ *  accesses fields dynamically via getValue(key) and Select returns string. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ProfileUpdates = Record<string, any>;
 
 interface SettingsDialogProps {
-  profile: any;
-  updateProfile: (updates: any) => void;
+  profile: AthleteProfile;
+  updateProfile: (updates: ProfileUpdates) => void;
   resetData: () => Promise<void>;
   clearLogs: () => Promise<void>;
 }
@@ -45,6 +51,8 @@ interface SettingsDialogProps {
 export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }: SettingsDialogProps) {
   const { signOut, user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const hkSync = useHealthKitSync(user?.id ?? null);
+  const v5band = useV5BandContext();
   const [, navigate] = useLocation();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showWeightClassConfirm, setShowWeightClassConfirm] = useState(false);
@@ -52,7 +60,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   const [open, setOpen] = useState(false);
 
   // Local state for pending changes
-  const [pendingChanges, setPendingChanges] = useState<any>({});
+  const [pendingChanges, setPendingChanges] = useState<ProfileUpdates>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [showNerdMode, setShowNerdMode] = useState(false);
@@ -81,13 +89,14 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   }, []);
 
   // Get the current value (pending or actual)
-  const getValue = (key: string) => {
-    return pendingChanges[key] !== undefined ? pendingChanges[key] : profile[key];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getValue = (key: keyof AthleteProfile): any => {
+    return key in pendingChanges ? pendingChanges[key] : profile[key];
   };
 
   // Update pending changes
-  const handleChange = (updates: any) => {
-    setPendingChanges((prev: any) => ({ ...prev, ...updates }));
+  const handleChange = (updates: ProfileUpdates) => {
+    setPendingChanges(prev => ({ ...prev, ...updates }));
     setHasChanges(true);
   };
 
@@ -134,7 +143,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
       return;
     }
     const savePayload = { ...pendingChanges, ...v2SettingsToSave };
-    console.log('Settings handleSave - saving:', JSON.stringify(savePayload, null, 2));
     updateProfile(savePayload);
     setOpen(false);
   };
@@ -182,20 +190,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open settings">
-          <Settings className="w-5 h-5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent
+    <>
+      <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open settings" onClick={() => setOpen(true)}>
+        <Settings className="w-5 h-5" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
         className="w-[92%] max-w-md rounded-xl bg-card border-muted max-h-[80vh] flex flex-col !top-[8%] !translate-y-0 p-0"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement;
-          if (target?.closest?.('[role="listbox"], [role="option"], [data-radix-select-viewport]')) {
-            e.preventDefault();
-          }
-        }}
       >
         {/* Fixed Header */}
         <DialogHeader className="px-4 pt-4 pb-2 border-b border-muted shrink-0">
@@ -205,12 +206,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-4" : "grid-cols-5")}>
-              <TabsTrigger value="profile" className="text-[11px]">Profile</TabsTrigger>
-              {!isSparGeneral && <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>}
-              <TabsTrigger value="alerts" className="text-[11px]">Alerts</TabsTrigger>
-              <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
-              <TabsTrigger value="data" className="text-[11px]">Data</TabsTrigger>
+            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-5" : "grid-cols-6")}>
+              <TabsTrigger value="profile" className="text-xs px-1">Profile</TabsTrigger>
+              {!isSparGeneral && <TabsTrigger value="schedule" className="text-xs px-1">Schedule</TabsTrigger>}
+              <TabsTrigger value="health" className="text-xs px-1">Health</TabsTrigger>
+              <TabsTrigger value="alerts" className="text-xs px-1">Alerts</TabsTrigger>
+              <TabsTrigger value="theme" className="text-xs px-1">Theme</TabsTrigger>
+              <TabsTrigger value="data" className="text-xs px-1">Data</TabsTrigger>
             </TabsList>
 
             {/* ═══ PROFILE TAB ═══ */}
@@ -218,7 +220,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Name Row */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">First Name</Label>
+                  <Label className="text-xs">First Name</Label>
                   <Input
                     type="text"
                     value={getValue('name') || ''}
@@ -228,7 +230,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Last Name</Label>
+                  <Label className="text-xs">Last Name</Label>
                   <Input
                     type="text"
                     value={getValue('lastName') || ''}
@@ -242,7 +244,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Weight Row - Target Class only for competition protocols (including SPAR Competition) */}
               {isSparGeneral ? (
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Current Weight</Label>
+                  <Label className="text-xs">Current Weight</Label>
                   <div className="relative">
                     <Input
                       type="number"
@@ -251,13 +253,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       className="h-10 font-mono pr-10"
                       placeholder="170"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">lbs</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">lbs</span>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Current Weight</Label>
+                    <Label className="text-xs">Current Weight</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -266,31 +268,34 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         className="h-10 font-mono pr-10"
                         placeholder="170"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">lbs</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">lbs</span>
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Target Class</Label>
-                    <Select
-                      value={getValue('targetWeightClass').toString()}
-                      onValueChange={(v) => handleChange({ targetWeightClass: parseInt(v) })}
-                    >
-                      <SelectTrigger className="h-10 font-mono">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {WEIGHT_CLASSES.map(w => (
-                          <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs">Target Class</Label>
+                    <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                      {WEIGHT_CLASSES.map(w => (
+                        <button
+                          key={w}
+                          onClick={() => handleChange({ targetWeightClass: w })}
+                          className={cn(
+                            "shrink-0 h-10 px-3 rounded-lg border-2 font-mono text-sm font-bold transition-all",
+                            getValue('targetWeightClass') === w
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-muted hover:border-muted-foreground/50"
+                          )}
+                        >
+                          {w}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Protocol */}
               <div className="space-y-2">
-                <Label className="text-[11px]">Protocol</Label>
+                <Label className="text-xs">Protocol</Label>
 
                 {/* Weight Context Card — for competition protocols (including SPAR Competition) */}
                 {!isSparGeneral && getValue('targetWeightClass') > 0 && (() => {
@@ -309,7 +314,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         <span className="text-muted-foreground">→</span>
                         <span className="font-mono text-muted-foreground">{ctx.walkAroundWeight.toFixed(1)} lbs</span>
                       </div>
-                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", statusColor, statusBg)}>
+                      <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", statusColor, statusBg)}>
                         {isUnder
                           ? `${Math.abs(ctx.percentOver).toFixed(1)}% under`
                           : `${ctx.percentOver.toFixed(1)}% over class`}
@@ -318,71 +323,83 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   );
                 })()}
 
-                {/* Recommendation Badge — shows when recommended ≠ current */}
-                {!isSparGeneral && getValue('targetWeightClass') > 0 && (() => {
-                  const rec = getProtocolRecommendation(
-                    getValue('currentWeight') || profile.currentWeight,
-                    getValue('targetWeightClass') || profile.targetWeightClass
-                  );
-                  const currentProtocol = getValue('protocol') || profile.protocol;
-                  if (rec.protocol === currentProtocol) return null;
+                {(() => {
+                  const recommended = !isSparGeneral && getValue('targetWeightClass') > 0
+                    ? getProtocolRecommendation(
+                        getValue('currentWeight') || profile.currentWeight,
+                        getValue('targetWeightClass') || profile.targetWeightClass
+                      )
+                    : null;
+                  const groups: { title: string; hint: string; protocols: Protocol[] }[] = [
+                    {
+                      title: 'Weight-class plans',
+                      hint: 'Pick by how far you are from your class.',
+                      protocols: [PROTOCOLS.EXTREME_CUT, PROTOCOLS.RAPID_CUT, PROTOCOLS.OPTIMAL_CUT, PROTOCOLS.GAIN],
+                    },
+                    {
+                      title: 'SPAR portion plans',
+                      hint: 'Count palms and fists instead of calories.',
+                      protocols: [PROTOCOLS.SPAR, PROTOCOLS.SPAR_COMPETITION],
+                    },
+                  ];
 
-                  return (
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-primary/5 border border-primary/20">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-primary">
-                          Recommended: {PROTOCOL_CONFIG[rec.protocol].label}
-                        </p>
-                        <p className="text-[9px] text-muted-foreground truncate">{rec.reason}</p>
+                  return groups.map((group) => (
+                    <div key={group.title} className="space-y-1.5">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide">{group.title}</p>
+                        <p className="text-xs text-muted-foreground">{group.hint}</p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 text-[10px] ml-2 shrink-0 border-primary/30 text-primary"
-                        onClick={() => setShowProtocolSwitchConfirm(rec.protocol)}
-                      >
-                        Switch
-                      </Button>
+                      {group.protocols.map((p) => {
+                        const isSelected = getValue('protocol') === p;
+                        const isRecommended = recommended?.protocol === p;
+                        return (
+                          <button
+                            key={p}
+                            aria-pressed={isSelected}
+                            onClick={() => {
+                              if (p !== profile.protocol) {
+                                setShowProtocolSwitchConfirm(p);
+                              } else if (getValue('protocol') !== profile.protocol) {
+                                // Back to the saved protocol: drop the unsaved switch.
+                                const { protocol: _protocol, sparV2: _sparV2, ...rest } = pendingChanges;
+                                setPendingChanges(rest);
+                                setHasChanges(Object.keys(rest).length > 0);
+                              }
+                            }}
+                            className={cn(
+                              "w-full flex items-start gap-2 px-3 py-2.5 rounded-lg border-2 transition-all text-left",
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-muted hover:border-muted-foreground/50"
+                            )}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-sm font-bold">{PROTOCOL_NAMES[p]}</span>
+                                {isRecommended && (
+                                  <span className="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
+                                    Recommended for you
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                                {PROTOCOL_CONFIG[p].pickIf}
+                              </p>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                          </button>
+                        );
+                      })}
                     </div>
-                  );
+                  ));
                 })()}
-
-                <Select
-                  value={getValue('protocol')}
-                  onValueChange={(v) => {
-                    // If switching protocols, show confirmation first
-                    if (v !== profile.protocol) {
-                      setShowProtocolSwitchConfirm(v);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={PROTOCOLS.EXTREME_CUT}>{PROTOCOL_NAMES[PROTOCOLS.EXTREME_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.RAPID_CUT}>{PROTOCOL_NAMES[PROTOCOLS.RAPID_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.OPTIMAL_CUT}>{PROTOCOL_NAMES[PROTOCOLS.OPTIMAL_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.GAIN}>{PROTOCOL_NAMES[PROTOCOLS.GAIN]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.SPAR}>{PROTOCOL_NAMES[PROTOCOLS.SPAR]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.SPAR_COMPETITION}>{PROTOCOL_NAMES[PROTOCOLS.SPAR_COMPETITION]}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">
-                  {getValue('protocol') === PROTOCOLS.EXTREME_CUT && '12%+ above class. Multi-day depletion, strict oversight required.'}
-                  {getValue('protocol') === PROTOCOLS.RAPID_CUT && '7-12% above class. Short-term glycogen + water manipulation.'}
-                  {getValue('protocol') === PROTOCOLS.OPTIMAL_CUT && 'Within 6-7% of class. Glycogen management, performance protected.'}
-                  {getValue('protocol') === PROTOCOLS.GAIN && 'Off-season. Performance and strength focus.'}
-                  {getValue('protocol') === PROTOCOLS.SPAR && 'Balanced eating — count slices, not calories.'}
-                  {getValue('protocol') === PROTOCOLS.SPAR_COMPETITION && 'Portion tracking + competition water loading & auto-adjusting targets.'}
-                </p>
 
                 {/* Help Me Choose — opens ProtocolWizard dialog */}
                 {!isSparGeneral && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full h-8 text-[11px]"
+                    className="w-full h-8 text-xs"
                     onClick={() => setShowProtocolWizard(true)}
                   >
                     <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
@@ -391,9 +408,27 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 )}
               </div>
 
+              {/* Age — needed for strain HR zone calculations (all protocols) */}
+              <div className="flex items-center gap-3 pt-2 border-t border-muted">
+                <Label className="text-xs text-muted-foreground whitespace-nowrap">Age</Label>
+                <Input
+                  type="number"
+                  min="10"
+                  max="100"
+                  placeholder="Enter age"
+                  className="h-7 font-mono text-xs w-20 text-center"
+                  value={getValue('age') || ''}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    handleChange({ age: !isNaN(val) && val > 0 ? val : undefined });
+                  }}
+                />
+                <span className="text-xs text-muted-foreground/60">Max HR: {getValue('age') ? 220 - Number(getValue('age')) : '—'} bpm</span>
+              </div>
+
               {/* Nutrition Mode Toggle */}
               <div className="space-y-2 pt-2 border-t border-muted">
-                <Label className="text-[11px]">Nutrition Tracking</Label>
+                <Label className="text-xs">Nutrition Tracking</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleChange({ nutritionPreference: 'spar' })}
@@ -435,13 +470,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       {/* Goal Selection — disabled for SPAR Competition (auto-adjusts) */}
                       {currentProtocol === '6' ? (
                         <div className="p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                          <p className="text-[10px] text-purple-400 font-bold">
+                          <p className="text-xs text-purple-400 font-bold">
                             Calorie targets auto-adjust based on walk-around weight and days until weigh-in.
                           </p>
                         </div>
                       ) : (<>
                       <div className="space-y-2">
-                        <Label className="text-[11px] flex items-center gap-1.5">
+                        <Label className="text-xs flex items-center gap-1.5">
                           <Target className="w-3 h-3" />
                           Goal
                         </Label>
@@ -468,7 +503,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 )}
                               >
                                 <Icon className={cn("w-4 h-4", iconColor)} />
-                                <span className="text-[10px] font-bold">{label}</span>
+                                <span className="text-xs font-bold">{label}</span>
                               </button>
                             );
                           })}
@@ -491,8 +526,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                     isSelected ? "border-primary bg-primary/10" : "border-muted"
                                   )}
                                 >
-                                  <span className="text-[10px] font-bold capitalize">{intensity}</span>
-                                  <span className="text-[8px] text-muted-foreground block">{cal > 0 ? '+' : ''}{cal} cal/day</span>
+                                  <span className="text-xs font-bold capitalize">{intensity}</span>
+                                  <span className="text-xs text-muted-foreground block">{cal > 0 ? '+' : ''}{cal} cal/day</span>
                                 </button>
                               );
                             })}
@@ -511,8 +546,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                     isSelected ? "border-primary bg-primary/10" : "border-muted"
                                   )}
                                 >
-                                  <span className="text-[10px] font-bold capitalize">{priority}</span>
-                                  <span className="text-[8px] text-muted-foreground block">{split} carb/fat</span>
+                                  <span className="text-xs font-bold capitalize">{priority}</span>
+                                  <span className="text-xs text-muted-foreground block">{split} carb/fat</span>
                                 </button>
                               );
                             })}
@@ -523,7 +558,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       {/* Goal Weight (for lose/gain) */}
                       {(getValue('sparGoal') === 'lose' || getValue('sparGoal') === 'gain') && (
                         <div className="space-y-1">
-                          <Label className="text-[11px]">Goal Weight (optional)</Label>
+                          <Label className="text-xs">Goal Weight (optional)</Label>
                           <div className="flex gap-2 items-center">
                             <Input
                               type="number"
@@ -535,7 +570,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 handleChange({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
                               }}
                             />
-                            <span className="text-[10px] text-muted-foreground">lbs</span>
+                            <span className="text-xs text-muted-foreground">lbs</span>
                           </div>
                         </div>
                       )}
@@ -543,7 +578,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                       {/* Training Sessions */}
                       <div className="space-y-2 pt-2 border-t border-muted/50">
-                        <Label className="text-[11px] flex items-center gap-1.5">
+                        <Label className="text-xs flex items-center gap-1.5">
                           <Dumbbell className="w-3 h-3" />
                           Weekly Training
                         </Label>
@@ -559,7 +594,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   isSelected ? "border-primary bg-primary/10" : "border-muted"
                                 )}
                               >
-                                <span className="text-[11px] font-bold">{sessions}</span>
+                                <span className="text-xs font-bold">{sessions}</span>
                               </button>
                             );
                           })}
@@ -568,7 +603,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                       {/* Workday Activity */}
                       <div className="space-y-2">
-                        <Label className="text-[11px] flex items-center gap-1.5">
+                        <Label className="text-xs flex items-center gap-1.5">
                           <Briefcase className="w-3 h-3" />
                           Workday Activity
                         </Label>
@@ -586,7 +621,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   isSelected ? "border-primary bg-primary/10" : "border-muted"
                                 )}
                               >
-                                <span className="text-[10px] font-medium">{label}</span>
+                                <span className="text-xs font-medium">{label}</span>
                                 {isSelected && <Check className="w-3 h-3 text-primary" />}
                               </button>
                             );
@@ -618,7 +653,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             )} />
                           </div>
                         </button>
-                        <p className="text-[10px] text-muted-foreground">Vibrate on key actions (mobile only)</p>
+                        <p className="text-xs text-muted-foreground">Vibrate on key actions (mobile only)</p>
                       </div>
 
                       {/* Nerd Mode - Collapsible */}
@@ -638,7 +673,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           <div className="space-y-3 pt-2">
                             {/* Body Fat % */}
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-purple-500">Body Fat % (enables Cunningham formula)</Label>
+                              <Label className="text-xs text-purple-500">Body Fat % (enables Cunningham formula)</Label>
                               <Input
                                 type="number"
                                 min="5"
@@ -655,7 +690,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                             {/* Custom Protein g/lb */}
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-purple-500">Custom Protein (g/lb bodyweight)</Label>
+                              <Label className="text-xs text-purple-500">Custom Protein (g/lb bodyweight)</Label>
                               <Input
                                 type="number"
                                 min="0.5"
@@ -674,7 +709,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             {/* Custom Fat/Carb Split */}
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
-                                <Label className="text-[10px] text-purple-500">Fat % of remaining</Label>
+                                <Label className="text-xs text-purple-500">Fat % of remaining</Label>
                                 <Input
                                   type="number"
                                   min="0"
@@ -689,7 +724,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[10px] text-purple-500">Carb % of remaining</Label>
+                                <Label className="text-xs text-purple-500">Carb % of remaining</Label>
                                 <Input
                                   type="number"
                                   min="0"
@@ -704,7 +739,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 />
                               </div>
                             </div>
-                            <p className="text-[9px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               Leave blank to use protocol defaults. Fat + Carb should total 100%.
                             </p>
                           </div>
@@ -716,7 +751,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         <div className="grid grid-cols-3 gap-2">
                           {/* Height */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Height</Label>
+                            <Label className="text-xs text-muted-foreground">Height</Label>
                             <div className="flex gap-1">
                               <Input
                                 type="number"
@@ -748,7 +783,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                           {/* Age */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Age</Label>
+                            <Label className="text-xs text-muted-foreground">Age</Label>
                             <Input
                               type="number"
                               min="10"
@@ -764,7 +799,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                           {/* Sex */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Sex</Label>
+                            <Label className="text-xs text-muted-foreground">Sex</Label>
                             <div className="flex gap-1">
                               {(['male', 'female'] as const).map((sex) => (
                                 <button
@@ -772,7 +807,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   type="button"
                                   onClick={() => handleChange({ gender: sex })}
                                   className={cn(
-                                    "flex-1 h-7 rounded text-[10px] font-medium transition-colors",
+                                    "flex-1 h-7 rounded text-xs font-medium transition-colors",
                                     (getValue('gender') || profile.gender) === sex
                                       ? "bg-primary text-primary-foreground"
                                       : "bg-muted/50 hover:bg-muted"
@@ -797,7 +832,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         <Scale className="w-4 h-4 text-blue-500" />
                         <div className="text-left">
                           <span className="text-xs font-bold block">Track Practice Weigh-ins</span>
-                          <span className="text-[10px] text-muted-foreground">Log PRE/POST weights to track sweat loss</span>
+                          <span className="text-xs text-muted-foreground">Log PRE/POST weights to track sweat loss</span>
                         </div>
                       </div>
                       <div className={cn(
@@ -833,9 +868,21 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
             {/* ═══ SCHEDULE TAB ═══ */}
             <TabsContent value="schedule" className="px-4 pb-4 space-y-3 mt-0">
+              <button
+                type="button"
+                onClick={() => navigate('/team')}
+                className="w-full flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5 text-left"
+              >
+                <span>
+                  <span className="block text-sm font-bold">Team schedule</span>
+                  <span className="block text-xs text-muted-foreground">Join your team, or set one up as a coach. Your weigh-in dates then fill in by themselves.</span>
+                </span>
+                <span className="text-sm font-bold text-primary shrink-0">Open</span>
+              </button>
+
               {/* Weigh-in Date */}
               <div className="space-y-1">
-                <Label className="text-[11px]">Next Weigh-in Date</Label>
+                <Label className="text-xs">Next Weigh-in Date</Label>
                 {getValue('weighInCleared') ? (
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-2">No weigh-in date set</p>
@@ -875,7 +922,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {daysUntil < 0 && "Weigh-in has passed"}
                         {daysUntil === 0 && "Competition day!"}
                         {daysUntil > 0 && daysUntil <= 5 && `${daysUntil} day${daysUntil > 1 ? 's' : ''} - cut week`}
@@ -883,7 +930,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       </p>
                       <button
                         onClick={() => handleChange({ weighInCleared: true })}
-                        className="text-[10px] text-red-400 hover:text-red-300"
+                        className="text-xs text-red-400 hover:text-red-300"
                       >
                         Clear date
                       </button>
@@ -894,44 +941,23 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Weigh-in Time */}
               <div className="space-y-1">
-                <Label className="text-[11px]">Weigh-in Time</Label>
+                <Label className="text-xs">Weigh-in Time</Label>
                 <div className="relative">
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
-                  <Select
+                  <Input
+                    type="time"
+                    className="pl-10 h-10 font-mono"
                     value={getValue('weighInTime') || '07:00'}
-                    onValueChange={(v) => handleChange({ weighInTime: v })}
-                  >
-                    <SelectTrigger className="pl-10 h-10 font-mono">
-                      <SelectValue>
-                        {(() => {
-                          const val = getValue('weighInTime') || '07:00';
-                          const [h, m] = val.split(':').map(Number);
-                          const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                          const ampm = h < 12 ? 'AM' : 'PM';
-                          return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
-                        })()}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {Array.from({ length: 48 }, (_, i) => {
-                        const hour = Math.floor(i / 2);
-                        const min = i % 2 === 0 ? '00' : '30';
-                        const value = `${hour.toString().padStart(2, '0')}:${min}`;
-                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-                        const ampm = hour < 12 ? 'AM' : 'PM';
-                        const label = `${displayHour}:${min} ${ampm}`;
-                        return <SelectItem key={value} value={value}>{label}</SelectItem>;
-                      })}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => handleChange({ weighInTime: e.target.value })}
+                  />
                 </div>
               </div>
 
               {/* Demo Mode */}
               <div className="space-y-2 pt-3 border-t border-muted">
-                <Label className="text-[11px] flex items-center gap-2">
+                <Label className="text-xs flex items-center gap-2">
                   Demo Mode
-                  <span className="text-[9px] text-muted-foreground font-normal">(Test different days)</span>
+                  <span className="text-xs text-muted-foreground font-normal">(Test different days)</span>
                 </Label>
                 <div className="flex gap-2">
                   <Input
@@ -973,7 +999,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         key={day}
                         variant="outline"
                         size="sm"
-                        className="text-[10px] h-7 px-2"
+                        className="text-xs h-7 px-2"
                         onClick={() => handleChange({ simulatedDate: targetDate })}
                       >
                         {day}
@@ -981,6 +1007,253 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     );
                   })}
                 </div>
+              </div>
+            </TabsContent>
+
+            {/* ═══ HEALTH TRACKER TAB ═══ */}
+            <TabsContent value="health" className="px-4 pb-4 space-y-4 mt-0">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  <span className="text-sm font-semibold">Health Tracker</span>
+                </div>
+
+                {/* ── V5 SMART BAND SECTION ── */}
+                {v5band.available ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Bluetooth className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-xs font-semibold">JCVital V5 Band</span>
+                      <span className="text-xs text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded-full font-medium">Direct BLE</span>
+                    </div>
+
+                    {/* Connection Status */}
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          v5band.connected ? "bg-green-500" :
+                          v5band.connecting ? "bg-yellow-500 animate-pulse" :
+                          "bg-muted-foreground"
+                        )} />
+                        <div>
+                          <span className="text-xs font-medium block">
+                            {v5band.connected ? v5band.deviceName || "V5 Band Connected" :
+                             v5band.connecting ? "Connecting..." :
+                             v5band.scanning ? "Scanning..." :
+                             "Not connected"}
+                          </span>
+                          {v5band.connected && v5band.batteryLevel != null && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <BatteryMedium className="w-3 h-3" />
+                              {v5band.batteryLevel}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {v5band.connected ? (
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={v5band.syncing}
+                            onClick={() => v5band.syncNow()}
+                          >
+                            <RefreshCw className={cn("w-3 h-3 mr-1", v5band.syncing && "animate-spin")} />
+                            {v5band.syncing ? "Syncing" : "Sync"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-destructive"
+                            onClick={() => v5band.disconnect()}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : !v5band.scanning ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          disabled={v5band.connecting}
+                          onClick={() => v5band.scan()}
+                        >
+                          <Search className="w-3 h-3 mr-1" />
+                          Scan
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => v5band.stopScan()}
+                        >
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Stop
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Discovered Devices */}
+                    {!v5band.connected && v5band.devices.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Discovered Bands</Label>
+                        {v5band.devices.map((device) => (
+                          <button
+                            key={device.deviceId}
+                            onClick={() => v5band.connect(device.deviceId)}
+                            disabled={v5band.connecting}
+                            className="w-full flex items-center justify-between bg-muted/20 hover:bg-muted/40 rounded-lg p-2.5 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Bluetooth className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="text-xs font-medium">{device.name}</span>
+                            </div>
+                            <span className="text-xs text-primary font-medium">Connect</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* No devices found */}
+                    {!v5band.connected && !v5band.scanning && v5band.devices.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-1">
+                        Tap Scan to search for your V5 band. Make sure Bluetooth is on and the band is nearby.
+                      </p>
+                    )}
+
+                    {/* Last Sync */}
+                    {v5band.connected && v5band.lastSyncAt && (
+                      <div className="text-xs text-muted-foreground/60 text-center">
+                        Last synced: {new Date(v5band.lastSyncAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* ── DIVIDER between V5 Band and Apple Health ── */}
+                {v5band.available && hkSync.available && (
+                  <div className="flex items-center gap-2 py-1">
+                    <div className="flex-1 h-px bg-muted" />
+                    <span className="text-xs text-muted-foreground uppercase tracking-wider">or</span>
+                    <div className="flex-1 h-px bg-muted" />
+                  </div>
+                )}
+
+                {/* ── APPLE HEALTH SECTION ── */}
+                {hkSync.available ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Heart className="w-3.5 h-3.5 text-red-400" />
+                      <span className="text-xs font-semibold">Apple Health</span>
+                      <span className="text-xs text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded-full font-medium">Fallback</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {v5band.available
+                        ? "Apple Health is used as a fallback when the V5 band is not directly connected."
+                        : "Connect Apple Health to sync heart rate, HRV, sleep, and activity data into your Cut Score."}
+                    </p>
+
+                    {/* Authorization */}
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          hkSync.authorized ? "bg-green-500" : "bg-muted-foreground"
+                        )} />
+                        <span className="text-xs font-medium">
+                          {hkSync.authorized ? "Connected to Apple Health" : "Not connected"}
+                        </span>
+                      </div>
+                      {!hkSync.authorized ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            const success = await hkSync.authorize();
+                            if (success) {
+                              toast({ title: "Connected!", description: "Apple Health data will now sync to your Cut Score." });
+                            }
+                          }}
+                        >
+                          Connect
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={hkSync.syncing}
+                          onClick={() => hkSync.syncNow()}
+                        >
+                          <RefreshCw className={cn("w-3 h-3 mr-1", hkSync.syncing && "animate-spin")} />
+                          {hkSync.syncing ? "Syncing..." : "Sync Now"}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Last Sync */}
+                    {hkSync.authorized && hkSync.lastSyncAt && (
+                      <div className="text-xs text-muted-foreground/60 text-center">
+                        Last synced: {new Date(hkSync.lastSyncAt).toLocaleString()}
+                        {hkSync.lastSyncCount > 0 && ` (${hkSync.lastSyncCount} day${hkSync.lastSyncCount > 1 ? 's' : ''} updated)`}
+                      </div>
+                    )}
+
+                    {/* Data Types */}
+                    {hkSync.authorized && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Syncing from Apple Health</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { icon: "❤️", label: "Heart Rate (HRV)" },
+                            { icon: "💤", label: "Sleep Analysis" },
+                            { icon: "🫁", label: "Blood Oxygen (SpO2)" },
+                            { icon: "🌡️", label: "Body Temperature" },
+                            { icon: "🏃", label: "Active Energy" },
+                            { icon: "👟", label: "Step Count" },
+                          ].map((item) => (
+                            <div key={item.label} className="flex items-center gap-1.5 bg-muted/20 rounded px-2 py-1.5">
+                              <span className="text-xs">{item.icon}</span>
+                              <span className="text-xs text-muted-foreground">{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : !v5band.available ? (
+                  /* Not running in Capacitor — web/PWA mode */
+                  <div className="bg-muted/30 rounded-lg p-4 text-center space-y-3">
+                    <Smartphone className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium">Native App Required</p>
+                      <p className="text-xs text-muted-foreground">
+                        Install the SPAR Nutrition iOS app to connect your V5 band directly or use Apple Health to sync health data.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Cut Score Integration Note — show when any source is connected */}
+                {(v5band.connected || (hkSync.available && hkSync.authorized)) && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Zap className="w-3 h-3 text-green-500" />
+                      <span className="text-xs font-semibold text-green-500">Premium Cut Score</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {v5band.connected
+                        ? "V5 band data is feeding directly into your Cut Score recovery pillar. HRV, heart rate, and sleep quality drive your recovery readiness."
+                        : "Apple Health data is feeding into the Cut Score recovery pillar. HRV, heart rate, and sleep quality are used to calculate your recovery readiness."}
+                    </p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -992,7 +1265,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             {/* ═══ THEME TAB ═══ */}
             <TabsContent value="theme" className="px-4 pb-4 space-y-4 mt-0">
               <div className="space-y-2">
-                <Label className="text-[11px]">Appearance</Label>
+                <Label className="text-xs">Appearance</Label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setTheme("light")}
@@ -1004,7 +1277,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <Sun className={cn("w-5 h-5", theme === "light" ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-[10px] font-medium">Light</span>
+                    <span className="text-xs font-medium">Light</span>
                   </button>
                   <button
                     onClick={() => setTheme("dark")}
@@ -1016,7 +1289,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <Moon className={cn("w-5 h-5", theme === "dark" ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-[10px] font-medium">Dark</span>
+                    <span className="text-xs font-medium">Dark</span>
                   </button>
                   <button
                     onClick={() => setTheme("system")}
@@ -1028,7 +1301,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <Monitor className={cn("w-5 h-5", theme === "system" ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-[10px] font-medium">System</span>
+                    <span className="text-xs font-medium">System</span>
                   </button>
                 </div>
               </div>
@@ -1054,7 +1327,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             <TabsContent value="data" className="px-4 pb-4 space-y-4 mt-0">
               {user && (
                 <div className="space-y-2">
-                  <Label className="text-[11px]">Account</Label>
+                  <Label className="text-xs">Account</Label>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   <Button
                     variant="outline"
@@ -1071,7 +1344,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {user && <ShareWithCoachSection userId={user.id} />}
 
               <div className="space-y-2 pt-3 border-t border-muted">
-                <Label className="text-[11px] text-destructive">Danger Zone</Label>
+                <Label className="text-xs text-destructive">Danger Zone</Label>
                 {!showResetConfirm ? (
                   <Button
                     variant="destructive"
@@ -1168,7 +1441,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <div className="space-y-3 py-2 border-t border-muted">
                   {/* Goal */}
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Your Goal</Label>
+                    <Label className="text-xs">Your Goal</Label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
                         { value: 'lose', label: 'Lose', icon: <TrendingDown className="w-4 h-4" />, color: 'text-orange-500' },
@@ -1194,39 +1467,51 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                   {/* Training Frequency */}
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Training Sessions / Week</Label>
-                    <Select
-                      value={pendingChanges.trainingSessions || profile.trainingSessions || '3-4'}
-                      onValueChange={(v) => handleChange({ trainingSessions: v })}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1-2">1-2 sessions</SelectItem>
-                        <SelectItem value="3-4">3-4 sessions</SelectItem>
-                        <SelectItem value="5-6">5-6 sessions</SelectItem>
-                        <SelectItem value="7+">7+ sessions</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs">Training Sessions / Week</Label>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['1-2', '3-4', '5-6', '7+'] as const).map((sessions) => {
+                        const isSelected = (pendingChanges.trainingSessions || profile.trainingSessions || '3-4') === sessions;
+                        return (
+                          <button
+                            key={sessions}
+                            onClick={() => handleChange({ trainingSessions: sessions })}
+                            className={cn(
+                              "p-1.5 rounded border-2 text-center transition-all",
+                              isSelected ? "border-primary bg-primary/10" : "border-muted"
+                            )}
+                          >
+                            <span className="text-xs font-bold">{sessions}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Workday Activity */}
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Daily Activity Level</Label>
-                    <Select
-                      value={pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting'}
-                      onValueChange={(v) => handleChange({ workdayActivity: v })}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mostly_sitting">Mostly sitting (desk job)</SelectItem>
-                        <SelectItem value="on_feet_some">On feet some of the day</SelectItem>
-                        <SelectItem value="on_feet_most">On feet most of the day</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs">Daily Activity Level</Label>
+                    <div className="space-y-1">
+                      {([
+                        { value: 'mostly_sitting', label: 'Mostly Sitting' },
+                        { value: 'on_feet_some', label: 'On Feet Some' },
+                        { value: 'on_feet_most', label: 'On Feet Most' },
+                      ] as const).map((opt) => {
+                        const isSelected = (pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting') === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => handleChange({ workdayActivity: opt.value })}
+                            className={cn(
+                              "w-full p-1.5 rounded border-2 text-left transition-all flex items-center justify-between",
+                              isSelected ? "border-primary bg-primary/10" : "border-muted"
+                            )}
+                          >
+                            <span className="text-xs font-medium">{opt.label}</span>
+                            {isSelected && <Check className="w-3 h-3 text-primary" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1268,7 +1553,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
         {/* Protocol Wizard — "Help Me Choose" overlay */}
         {showProtocolWizard && (
-          <div className="absolute inset-0 bg-background/95 flex flex-col rounded-xl z-50 overflow-y-auto">
+          <div className="absolute inset-0 bg-background flex flex-col rounded-xl z-50 overflow-y-auto overflow-x-hidden">
             <div className="p-4 w-full max-w-sm mx-auto">
               <ProtocolWizard
                 currentWeight={getValue('currentWeight') || profile.currentWeight}
@@ -1310,8 +1595,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             </Button>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1319,7 +1605,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 function AlertsTab() {
   const [prefs, setPrefs] = useState<NotificationPreferences>(getNotificationPrefs());
   const [permission, setPermission] = useState(getPermissionState());
-  const timeOptions = getTimeOptions();
 
   const update = (changes: Partial<NotificationPreferences>) => {
     const next = { ...prefs, ...changes };
@@ -1345,23 +1630,23 @@ function AlertsTab() {
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label className="text-[11px] flex items-center gap-2">
+        <Label className="text-xs flex items-center gap-2">
           {prefs.enabled ? <Bell className="w-3.5 h-3.5 text-primary" /> : <BellOff className="w-3.5 h-3.5 text-muted-foreground" />}
           Weigh-in Reminders
         </Label>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Get notified when it's time to log your weight.
         </p>
       </div>
 
       {!isSupported && (
-        <p className="text-[10px] text-orange-500">
+        <p className="text-xs text-orange-500">
           Notifications not supported in this browser.
         </p>
       )}
 
       {isDenied && (
-        <p className="text-[10px] text-orange-500">
+        <p className="text-xs text-orange-500">
           Notifications blocked. Enable in browser settings.
         </p>
       )}
@@ -1384,7 +1669,7 @@ function AlertsTab() {
             time={prefs.morningTime}
             onToggle={(v) => update({ morningReminder: v })}
             onTimeChange={(v) => update({ morningTime: v })}
-            timeOptions={timeOptions}
+
           />
           <ReminderRow
             label="Pre-Practice"
@@ -1393,7 +1678,7 @@ function AlertsTab() {
             time={prefs.prePracticeTime}
             onToggle={(v) => update({ prePracticeReminder: v })}
             onTimeChange={(v) => update({ prePracticeTime: v })}
-            timeOptions={timeOptions}
+
           />
           <ReminderRow
             label="Before Bed"
@@ -1402,7 +1687,7 @@ function AlertsTab() {
             time={prefs.beforeBedTime}
             onToggle={(v) => update({ beforeBedReminder: v })}
             onTimeChange={(v) => update({ beforeBedTime: v })}
-            timeOptions={timeOptions}
+
           />
         </div>
       )}
@@ -1410,14 +1695,13 @@ function AlertsTab() {
   );
 }
 
-function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeOptions }: {
+function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange }: {
   label: string;
   icon: React.ReactNode;
   enabled: boolean;
   time: string;
   onToggle: (v: boolean) => void;
   onTimeChange: (v: string) => void;
-  timeOptions: { value: string; label: string }[];
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -1432,16 +1716,12 @@ function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeO
         <span className="text-xs font-medium">{label}</span>
       </button>
       {enabled && (
-        <Select value={time} onValueChange={onTimeChange}>
-          <SelectTrigger className="w-[90px] h-8 text-[10px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" className="max-h-[200px] z-[100]">
-            {timeOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Input
+          type="time"
+          className="w-[90px] h-8 text-xs font-mono px-2"
+          value={time}
+          onChange={(e) => onTimeChange(e.target.value)}
+        />
       )}
     </div>
   );
@@ -1511,7 +1791,7 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-2 pt-3 border-t border-muted">
-      <Label className="text-[11px] flex items-center gap-2">
+      <Label className="text-xs flex items-center gap-2">
         <Share2 className="w-3.5 h-3.5 text-primary" />
         Share with Coach
       </Label>
@@ -1524,14 +1804,14 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-2">
           <div className="flex gap-2">
-            <div className="flex-1 bg-muted/30 border border-muted rounded-md px-2 py-1.5 text-[10px] font-mono truncate">
+            <div className="flex-1 bg-muted/30 border border-muted rounded-md px-2 py-1.5 text-xs font-mono truncate">
               {shareUrl}
             </div>
             <Button variant="outline" size="sm" onClick={copyLink} className="h-auto px-2">
               {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
             </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={disableSharing} disabled={saving} className="w-full h-7 text-[10px] text-destructive hover:text-destructive">
+          <Button variant="ghost" size="sm" onClick={disableSharing} disabled={saving} className="w-full h-7 text-xs text-destructive hover:text-destructive">
             <X className="w-3 h-3 mr-1" />
             {saving ? 'Disabling...' : 'Disable Sharing'}
           </Button>

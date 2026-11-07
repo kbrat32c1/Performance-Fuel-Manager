@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Plus, Check, ChevronDown, ChevronRight, Ban, Clock, Pill } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { type FuelGuideResult, type SugarCarbFood, type SugarProteinFood, type TournamentFood, type RecoveryFood, SUGAR_FOODS } from "@/lib/food-data";
 
 interface FuelGuideProps {
@@ -32,13 +33,13 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
 
   // Avoid section collapse state from localStorage
   const [avoidCollapsed, setAvoidCollapsed] = useState(() => {
-    try { return localStorage.getItem('fuel-guide-avoid-collapsed') === 'true'; } catch { return false; }
+    try { return localStorage.getItem(STORAGE_KEYS.FUEL_GUIDE_AVOID_COLLAPSED) === 'true'; } catch { return false; }
   });
 
   const toggleAvoid = useCallback(() => {
     setAvoidCollapsed(prev => {
       const next = !prev;
-      try { localStorage.setItem('fuel-guide-avoid-collapsed', String(next)); } catch {}
+      try { localStorage.setItem(STORAGE_KEYS.FUEL_GUIDE_AVOID_COLLAPSED, String(next)); } catch {}
       return next;
     });
   }, []);
@@ -87,14 +88,14 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", carbInfo.color)}>
+          <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded-full", carbInfo.color)}>
             {carbInfo.label}
           </span>
-          <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded-full", proteinInfo.color)}>
+          <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded-full", proteinInfo.color)}>
             {proteinInfo.label}
           </span>
           {macros.carbs.max > 0 && (
-            <span className="text-[9px] font-mono text-muted-foreground/70 ml-auto">
+            <span className="text-xs font-mono text-muted-foreground/70 ml-auto">
               {macros.carbs.max}g carb{macros.protein.max > 0 ? ` · ${macros.protein.max}g pro` : ''}
             </span>
           )}
@@ -104,14 +105,14 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
       {/* ── Tournament Day: Timing Windows ── */}
       {tournamentGroups && (
         <div className="space-y-2">
-          <h4 className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">
+          <h4 className="text-xs font-bold uppercase text-muted-foreground tracking-wide">
             Between Matches
           </h4>
           {tournamentGroups.map(group => (
             <div key={group.timing} className="bg-yellow-500/5 border border-yellow-500/20 rounded-lg p-2">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Clock className="w-3 h-3 text-yellow-500" />
-                <span className="text-[10px] font-bold text-yellow-500 uppercase">{group.timing}</span>
+                <span className="text-xs font-bold text-yellow-500 uppercase">{group.timing}</span>
               </div>
               {group.foods.map(food => (
                 <FoodRow
@@ -174,9 +175,9 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
             foods={morningCarbs.map(f => ({
               name: f.name,
               serving: f.serving,
-              grams: (f as any).carbs || 0,
+              grams: (f as SugarCarbFood).carbs || 0,
               gramLabel: 'carb',
-              oz: (f as any).oz as number | undefined,
+              oz: (f as SugarCarbFood).oz as number | undefined,
             }))}
             flashedFood={flashedFood}
             onLog={(food) => handleLog({ name: food.name, carbs: food.grams, oz: food.oz }, 'carb')}
@@ -191,9 +192,9 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
               ...eveningCarbs.map(f => ({
                 name: f.name,
                 serving: f.serving,
-                grams: (f as any).carbs || 0,
+                grams: (f as SugarCarbFood).carbs || 0,
                 gramLabel: 'carb' as const,
-                oz: (f as any).oz as number | undefined,
+                oz: (f as SugarCarbFood).oz as number | undefined,
               })),
               ...eveningProteins.map(f => ({
                 name: f.name,
@@ -227,10 +228,10 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
               <ChevronDown className="w-3 h-3 text-red-400" />
             )}
             <Ban className="w-3 h-3 text-red-400" />
-            <span className="text-[10px] font-bold uppercase text-red-400 tracking-wide">
+            <span className="text-xs font-bold uppercase text-red-400 tracking-wide">
               Avoid Today
             </span>
-            <span className="text-[9px] text-red-400/60 ml-auto">
+            <span className="text-xs text-red-400/60 ml-auto">
               {guide.avoidSummary}
             </span>
           </button>
@@ -238,9 +239,9 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
             <div className="px-3 pb-2 space-y-1">
               {guide.avoidFoods.map(food => (
                 <div key={food.name} className="flex items-center gap-2 py-0.5">
-                  <span className="text-[10px]">🚫</span>
-                  <span className="text-[11px] text-red-300/80">{food.name.replace(/\s*\(.*?\)\s*$/, '')}</span>
-                  <span className="text-[9px] text-red-400/50 ml-auto">{food.reason}</span>
+                  <span className="text-xs">🚫</span>
+                  <span className="text-xs text-red-300/80">{food.name.replace(/\s*\(.*?\)\s*$/, '')}</span>
+                  <span className="text-xs text-red-400/50 ml-auto">{food.reason}</span>
                 </div>
               ))}
             </div>
@@ -251,7 +252,7 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
       {/* ── Supplements ── */}
       <div className="flex items-center gap-1.5 px-1">
         <Pill className="w-3 h-3 text-muted-foreground/50" />
-        <span className="text-[9px] text-muted-foreground/60">
+        <span className="text-xs text-muted-foreground/60">
           {SUGAR_FOODS.supplements.slice(0, 4).map(s => s.name).join(' · ')}
         </span>
       </div>
@@ -289,9 +290,9 @@ function MealSection({
     <div className="bg-muted/10 border border-muted/30 rounded-lg p-2">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-sm">{emoji}</span>
-        <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">{label}</span>
+        <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">{label}</span>
       </div>
-      <p className="text-[9px] text-muted-foreground/70 mb-2 pl-6">{tip}</p>
+      <p className="text-xs text-muted-foreground/70 mb-2 pl-6">{tip}</p>
       {foods.map(food => (
         <FoodRow
           key={food.name}
@@ -325,10 +326,10 @@ function FoodRow({
   return (
     <div className="flex items-center gap-2 py-1 pl-6 pr-1 group">
       <div className="flex-1 min-w-0">
-        <span className="text-[11px] font-medium text-foreground truncate block">{name}</span>
-        <span className="text-[9px] text-muted-foreground/60">{serving}</span>
+        <span className="text-xs font-medium text-foreground truncate block">{name}</span>
+        <span className="text-xs text-muted-foreground/60">{serving}</span>
       </div>
-      <span className="text-[9px] font-mono text-muted-foreground/50 shrink-0">
+      <span className="text-xs font-mono text-muted-foreground/50 shrink-0">
         {grams}g {gramLabel}
       </span>
       <button

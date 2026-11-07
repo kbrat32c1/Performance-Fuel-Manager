@@ -287,7 +287,7 @@ function computeRecovery(input: CutScoreInput, tier: string): number {
       // Blend wearable recovery with our calculated score
       // Wearable gets heavy influence since it has real physiological data
       const wearableScore = input.recoveryScore; // Already 0-100
-      score = score * 0.3 + wearableScore * 0.7;
+      score = Math.round(score * 0.3 + wearableScore * 0.7);
     } else {
       // Individual metrics if no composite score
       if (input.hrv != null) {
@@ -445,7 +445,7 @@ function getRationale(
         return 'Not feeling great — recovery matters for performance.';
       }
       if (input.recoveryScore != null && input.recoveryScore < 40) {
-        return `Recovery score is ${input.recoveryScore}% — body needs rest.`;
+        return `Recovery score is ${Math.round(input.recoveryScore)}% — body needs rest.`;
       }
       return 'Recovery looks good — keep it up.';
 

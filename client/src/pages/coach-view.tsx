@@ -323,9 +323,9 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
               {statusLabel}
             </span>
             {isLoadingPhase && overTarget > 1.5 && (
-              <p className="text-[9px] text-muted-foreground mt-0.5">Loading phase — big drop comes {cutDayNames}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Loading phase — big drop comes {cutDayNames}</p>
             )}
-            <div className={cn("text-[10px] font-bold uppercase px-2 py-0.5 rounded", PHASE_COLORS[currentPhase] || 'bg-gray-500', 'text-white')}>
+            <div className={cn("text-xs font-bold uppercase px-2 py-0.5 rounded", PHASE_COLORS[currentPhase] || 'bg-gray-500', 'text-white')}>
               {currentPhase} Phase
             </div>
           </div>
@@ -336,7 +336,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Current</p>
+                <p className="text-xs text-muted-foreground uppercase font-bold">Current</p>
                 <p className="text-3xl font-mono font-bold">{currentWeight.toFixed(1)}</p>
                 <p className={cn("text-xs font-mono", overTarget > 0 ? "text-red-500" : "text-green-500")}>
                   {overTarget > 0 ? '+' : ''}{overTarget.toFixed(1)} lbs {overTarget > 0 ? 'over' : 'from'} {profile.target_weight_class}
@@ -344,11 +344,11 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
               </div>
               <div className="text-right space-y-1">
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">Weigh-in</p>
+                  <p className="text-xs text-muted-foreground uppercase font-bold">Weigh-in</p>
                   {daysUntilWeighIn >= 0 ? (
                     <>
                       <p className="text-2xl font-mono font-bold">{daysUntilWeighIn}</p>
-                      <p className="text-[10px] text-muted-foreground">day{daysUntilWeighIn !== 1 ? 's' : ''} left</p>
+                      <p className="text-xs text-muted-foreground">day{daysUntilWeighIn !== 1 ? 's' : ''} left</p>
                     </>
                   ) : (
                     <p className="text-xs text-cyan-500 font-bold">Passed</p>
@@ -356,7 +356,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
                 </div>
                 {projectedWeight !== null && (
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Projected</p>
+                    <p className="text-xs text-muted-foreground uppercase font-bold">Projected</p>
                     <p className={cn("text-sm font-mono font-bold", projectedWeight <= profile.target_weight_class ? "text-green-500" : "text-orange-500")}>
                       {projectedWeight.toFixed(1)}
                     </p>
@@ -370,7 +370,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
         {/* Today's Weigh-in Timeline */}
         <Card>
           <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold mb-3">Today's Timeline</p>
+            <p className="text-xs text-muted-foreground uppercase font-bold mb-3">Today's Timeline</p>
             <div className="grid grid-cols-4 gap-2">
               {/* AM */}
               <TimelineSlot
@@ -419,7 +419,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
         {extraWorkouts.length > 0 && (
           <Card>
             <CardContent className="p-4">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-2">
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-2">
                 <Dumbbell className="w-3.5 h-3.5 inline mr-1 text-orange-500" />
                 {extraWorkouts.length} Extra Workout{extraWorkouts.length > 1 ? 's' : ''}
               </p>
@@ -446,7 +446,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
         {checkIns.length > 0 && (
           <Card>
             <CardContent className="p-4">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-2">Check-ins</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-2">Check-ins</p>
               <div className="space-y-1">
                 {checkIns.map((log, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
@@ -464,41 +464,41 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
           <Card>
             <CardContent className="p-3 text-center">
               <Droplets className="w-4 h-4 text-cyan-500 mx-auto mb-1" />
-              <p className="text-[9px] text-muted-foreground uppercase font-bold">Drift</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold">Drift</p>
               {avgDriftLoss !== null ? (
                 <p className="text-sm font-mono font-bold">-{avgDriftLoss.toFixed(1)}</p>
               ) : (
                 <p className="text-sm font-mono text-muted-foreground">—</p>
               )}
               {avgDriftRate !== null && (
-                <p className="text-[8px] text-muted-foreground">{avgDriftRate.toFixed(2)} lbs/hr</p>
+                <p className="text-xs text-muted-foreground">{avgDriftRate.toFixed(2)} lbs/hr</p>
               )}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3 text-center">
               <Activity className="w-4 h-4 text-orange-500 mx-auto mb-1" />
-              <p className="text-[9px] text-muted-foreground uppercase font-bold">Practice</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold">Practice</p>
               {avgPracticeLoss !== null ? (
                 <p className="text-sm font-mono font-bold">-{avgPracticeLoss.toFixed(1)}</p>
               ) : (
                 <p className="text-sm font-mono text-muted-foreground">—</p>
               )}
               {avgSweatRate !== null && (
-                <p className="text-[8px] text-muted-foreground">{avgSweatRate.toFixed(2)} lbs/hr</p>
+                <p className="text-xs text-muted-foreground">{avgSweatRate.toFixed(2)} lbs/hr</p>
               )}
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-3 text-center">
               <Droplets className="w-4 h-4 text-blue-500 mx-auto mb-1" />
-              <p className="text-[9px] text-muted-foreground uppercase font-bold">Water</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold">Water</p>
               {dailyTracking ? (
                 <p className="text-sm font-mono font-bold">{dailyTracking.waterConsumed}</p>
               ) : (
                 <p className="text-sm font-mono text-muted-foreground">0</p>
               )}
-              <p className="text-[8px] text-muted-foreground">/ {waterTarget} oz</p>
+              <p className="text-xs text-muted-foreground">/ {waterTarget} oz</p>
             </CardContent>
           </Card>
         </div>
@@ -506,7 +506,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
         {/* Week Overview */}
         <Card>
           <CardContent className="p-4">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold mb-3">Week Overview</p>
+            <p className="text-xs text-muted-foreground uppercase font-bold mb-3">Week Overview</p>
             <div className="grid grid-cols-7 gap-1">
               {weekDays.map((day) => (
                 <div
@@ -516,19 +516,19 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
                     day.isToday ? "ring-2 ring-primary bg-primary/10" : "bg-muted/30"
                   )}
                 >
-                  <p className="text-[9px] font-bold text-muted-foreground">{day.label}</p>
-                  <p className="text-[8px] text-muted-foreground">{day.dateStr}</p>
+                  <p className="text-xs font-bold text-muted-foreground">{day.label}</p>
+                  <p className="text-xs text-muted-foreground">{day.dateStr}</p>
                   <div className={cn("h-1 rounded-full my-1 mx-auto w-4", PHASE_COLORS[day.phase] || 'bg-gray-500')} />
-                  <p className="text-[10px] font-mono font-bold">{day.target}</p>
+                  <p className="text-xs font-mono font-bold">{day.target}</p>
                   {day.morningWeight !== null ? (
                     <p className={cn(
-                      "text-[9px] font-mono font-bold",
+                      "text-xs font-mono font-bold",
                       day.morningWeight <= day.target ? "text-green-500" : "text-red-500"
                     )}>
                       {day.morningWeight.toFixed(1)}
                     </p>
                   ) : (
-                    <p className="text-[9px] text-muted-foreground/40">—</p>
+                    <p className="text-xs text-muted-foreground/40">—</p>
                   )}
                 </div>
               ))}
@@ -551,13 +551,13 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
         {chartData.length >= 2 && (
           <Card>
             <CardContent className="p-4">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold mb-2">Morning Weight Trend</p>
+              <p className="text-xs text-muted-foreground uppercase font-bold mb-2">Morning Weight Trend</p>
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={chartData}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="hsl(var(--muted-foreground))" />
                   <YAxis
                     domain={['auto', 'auto']}
-                    tick={{ fontSize: 10 }}
+                    tick={{ fontSize: 12 }}
                     stroke="hsl(var(--muted-foreground))"
                     width={40}
                   />
@@ -573,7 +573,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
                     y={profile.target_weight_class}
                     stroke="hsl(var(--destructive))"
                     strokeDasharray="3 3"
-                    label={{ value: `${profile.target_weight_class}`, position: 'right', fontSize: 10, fill: 'hsl(var(--destructive))' }}
+                    label={{ value: `${profile.target_weight_class}`, position: 'right', fontSize: 12, fill: 'hsl(var(--destructive))' }}
                   />
                   <Line
                     type="monotone"
@@ -598,7 +598,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
             <RefreshCw className="w-3 h-3" />
             Refresh · Updated {format(lastRefresh, 'h:mm a')}
           </button>
-          <p className="text-[10px] text-muted-foreground/50">
+          <p className="text-xs text-muted-foreground/50">
             Powered by SPAR Nutrition
           </p>
         </div>
@@ -631,18 +631,18 @@ function TimelineSlot({
     )}>
       <div className="flex items-center justify-center gap-1 mb-1">
         {icon}
-        <span className="text-[9px] font-bold text-muted-foreground">{label}</span>
+        <span className="text-xs font-bold text-muted-foreground">{label}</span>
       </div>
       {hasWeight ? (
         <>
           <p className="text-sm font-mono font-bold">{weight.toFixed(1)}</p>
           {overTarget !== null && (
-            <p className={cn("text-[8px] font-mono", overTarget > 0 ? "text-red-400" : "text-green-400")}>
+            <p className={cn("text-xs font-mono", overTarget > 0 ? "text-red-400" : "text-green-400")}>
               {overTarget > 0 ? '+' : ''}{overTarget.toFixed(1)}
             </p>
           )}
           {prevWeight !== undefined && prevWeight !== null && (
-            <p className="text-[8px] font-mono text-orange-400">
+            <p className="text-xs font-mono text-orange-400">
               -{(prevWeight - weight).toFixed(1)}
             </p>
           )}

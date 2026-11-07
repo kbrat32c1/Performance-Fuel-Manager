@@ -119,19 +119,22 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
                   <Icon className={cn("w-6 h-6", config.color)} />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-lg">{config.label}</h3>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <h3 className="font-bold text-lg leading-tight">{config.label}</h3>
                     {isRecommended && (
-                      <span className="text-[9px] font-bold uppercase tracking-wider bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                      <span className="text-xs font-bold uppercase tracking-wider bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                         Recommended
                       </span>
                     )}
                   </div>
 
-                  {/* Always show description */}
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {isRecommended ? recommendation.reason : config.desc}
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">{config.pickIf}</p>
+                  {isRecommended && (
+                    <p className="text-sm mt-2">
+                      <span className="font-bold">Why it fits you: </span>
+                      {recommendation.reason}
+                    </p>
+                  )}
 
                   {isRecommended && recommendation.warning && (
                     <p className="text-xs text-yellow-500 mt-2 flex items-center gap-1">
@@ -145,7 +148,7 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
                     <>
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowScience(showScience === protocol ? false : protocol); }}
-                        className="flex items-center gap-1 mt-3 text-[11px] text-primary font-bold uppercase tracking-wide"
+                        className="flex items-center gap-1 mt-3 text-xs text-primary font-bold uppercase tracking-wide"
                       >
                         <Beaker className="w-3 h-3" />
                         How it works
@@ -161,28 +164,28 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
                             <div className="grid grid-cols-3 gap-2 py-2">
                               <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
                                 <div className="text-2xl mb-1">🤚</div>
-                                <p className="text-[10px] font-bold text-orange-500 uppercase">Protein</p>
-                                <p className="text-[9px] text-muted-foreground">Palm-sized</p>
-                                <p className="text-[9px] text-orange-400 mt-0.5">~110 cal</p>
+                                <p className="text-xs font-bold text-orange-500 uppercase">Protein</p>
+                                <p className="text-xs text-muted-foreground">Palm-sized</p>
+                                <p className="text-xs text-orange-400 mt-0.5">~110 cal</p>
                               </div>
                               <div className="text-center p-2 rounded-lg bg-primary/10 border border-primary/30">
                                 <div className="text-2xl mb-1">✊</div>
-                                <p className="text-[10px] font-bold text-primary uppercase">Carbs</p>
-                                <p className="text-[9px] text-muted-foreground">Fist-sized</p>
-                                <p className="text-[9px] text-primary mt-0.5">~120 cal</p>
+                                <p className="text-xs font-bold text-primary uppercase">Carbs</p>
+                                <p className="text-xs text-muted-foreground">Fist-sized</p>
+                                <p className="text-xs text-primary mt-0.5">~120 cal</p>
                               </div>
                               <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/30">
                                 <div className="text-2xl mb-1">✊</div>
-                                <p className="text-[10px] font-bold text-green-500 uppercase">Veggies</p>
-                                <p className="text-[9px] text-muted-foreground">Fist-sized</p>
-                                <p className="text-[9px] text-green-400 mt-0.5">~50 cal</p>
+                                <p className="text-xs font-bold text-green-500 uppercase">Veggies</p>
+                                <p className="text-xs text-muted-foreground">Fist-sized</p>
+                                <p className="text-xs text-green-400 mt-0.5">~50 cal</p>
                               </div>
                             </div>
                           )}
 
                           <ul className="space-y-1.5">
                             {PROTOCOL_SCIENCE[protocol].points.map((point, i) => (
-                              <li key={i} className="text-[11px] text-muted-foreground flex gap-2">
+                              <li key={i} className="text-xs text-muted-foreground flex gap-2">
                                 <span className="text-primary shrink-0 mt-0.5">•</span>
                                 <span>{point}</span>
                               </li>
@@ -205,14 +208,14 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
       {/* Actions */}
       <div className="flex gap-3 pt-4">
         {onBack && (
-          <Button variant="outline" onClick={onBack} className="flex-1 h-12">
+          <Button variant="outline" onClick={onBack} className="shrink-0 h-12 px-5">
             Back
           </Button>
         )}
         <Button
           onClick={handleComplete}
           disabled={!selectedProtocol}
-          className="flex-1 h-14 text-lg font-bold uppercase tracking-wider bg-primary text-white hover:bg-primary/90"
+          className="flex-1 min-w-0 h-12 text-base font-bold uppercase tracking-wide bg-primary text-white hover:bg-primary/90"
         >
           {submitLabel || 'Continue'} <ChevronRight className="ml-2 w-5 h-5" />
         </Button>

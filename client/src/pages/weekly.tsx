@@ -235,7 +235,7 @@ export default function Weekly() {
                 {currentPhase === 'Prep' ? 'PREP DAY — ZERO FIBER' : 'WATER LOADING ACTIVE'}
               </span>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {currentPhase === 'Prep'
                 ? "Last day of full water. Eliminate fiber to clear the GI tract before the cut."
                 : `${checkpoints.waterLoadingAdjustment} — this is expected and part of the protocol.`}
@@ -251,7 +251,7 @@ export default function Weekly() {
                   <th className="p-2 text-left font-bold">Day</th>
                   <th className="p-2 text-center font-bold">
                     <div>Target</div>
-                    <div className="text-[9px] font-normal text-muted-foreground">(w/ loading)</div>
+                    <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">w/ loading</div>
                   </th>
                   <th className="p-2 text-center font-bold">Logged</th>
                   <th className="p-2 text-center font-bold">Status</th>
@@ -297,14 +297,14 @@ export default function Weekly() {
                             "font-bold",
                             planDay.isToday && phaseStyle.text,
                             isCritical && !planDay.isToday && "text-orange-500"
-                          )}>{planDay.day.slice(0, 3)} <span className="text-[9px] text-muted-foreground font-normal">{dateLabel}</span></span>
-                          {planDay.isToday && <span className={cn("text-[10px] text-black px-1 rounded", phaseStyle.bg)}>TODAY</span>}
-                          {isCritical && !planDay.isToday && <span className="text-[10px] bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
+                          )}>{planDay.day.slice(0, 3)} <span className="text-xs text-muted-foreground font-normal">{dateLabel}</span></span>
+                          {planDay.isToday && <span className={cn("text-xs text-black px-1 rounded", phaseStyle.bg)}>TODAY</span>}
+                          {isCritical && !planDay.isToday && <span className="text-xs bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{planDay.phase}</span>
+                        <span className="text-xs text-muted-foreground">{planDay.phase}</span>
                         {planDay.waterLoadingNote && (
                           <div className={cn(
-                            "text-[9px]",
+                            "text-xs",
                             isLoadingDay ? "text-cyan-500" : isCritical ? "text-orange-500 font-bold" : "text-muted-foreground"
                           )}>
                             {planDay.waterLoadingNote}
@@ -337,7 +337,7 @@ export default function Weekly() {
             </table>
           </div>
         </Card>
-        <p className="text-[10px] text-muted-foreground mt-2">
+        <p className="text-xs text-muted-foreground mt-2">
           Loading day targets include water loading weight • 1 day out is critical checkpoint
         </p>
       </section>
@@ -375,8 +375,8 @@ export default function Weekly() {
                       )}
                     >
                       <td className="p-2">
-                        <span className={cn("font-bold", planDay.isToday && phaseStyle.text)}>{planDay.day.slice(0, 3)} <span className="text-[9px] text-muted-foreground font-normal">{dateLabel}</span></span>
-                        {planDay.isToday && <span className={cn("text-[10px] text-black px-1 rounded ml-1", phaseStyle.bg)}>TODAY</span>}
+                        <span className={cn("font-bold", planDay.isToday && phaseStyle.text)}>{planDay.day.slice(0, 3)} <span className="text-xs text-muted-foreground font-normal">{dateLabel}</span></span>
+                        {planDay.isToday && <span className={cn("text-xs text-black px-1 rounded ml-1", phaseStyle.bg)}>TODAY</span>}
                       </td>
                       <td className="p-2 text-center">
                         <span className={cn(
@@ -391,7 +391,7 @@ export default function Weekly() {
                       </td>
                       <td className="p-2 text-center">
                         <span className={cn(
-                          "text-[10px] font-mono font-bold",
+                          "text-xs font-mono font-bold",
                           sodiumInfo.color
                         )}>
                           {sodiumInfo.target > 0 ? `${(sodiumInfo.target / 1000).toFixed(1)}g` : '—'}
@@ -399,7 +399,7 @@ export default function Weekly() {
                       </td>
                       <td className="p-2 text-left">
                         <span className={cn(
-                          "text-[10px] whitespace-nowrap",
+                          "text-xs whitespace-nowrap",
                           sodiumInfo.color
                         )}>
                           {sodiumInfo.label}
@@ -412,7 +412,7 @@ export default function Weekly() {
             </table>
           </div>
         </Card>
-        <p className="text-[10px] text-muted-foreground mt-2">
+        <p className="text-xs text-muted-foreground mt-2">
           Based on Reale et al. acute weight management protocol (100 ml/kg peak loading) • Scaled to {athleteWeightLbs} lbs ({Math.round(athleteWeightLbs * 0.4536)} kg)
         </p>
       </section>
@@ -457,7 +457,7 @@ export default function Weekly() {
                     >
                       <td className="p-2">
                         <span className={cn("font-bold", isUserClass && phaseStyle.text)}>{row.class}</span>
-                        {isUserClass && <span className={cn("text-[10px] text-black px-1 rounded ml-1", phaseStyle.bg)}>YOU</span>}
+                        {isUserClass && <span className={cn("text-xs text-black px-1 rounded ml-1", phaseStyle.bg)}>YOU</span>}
                       </td>
                       <td className="p-2 text-center font-mono">{row.walk}</td>
                       <td className="p-2 text-center font-mono">{row.wed}</td>
@@ -469,7 +469,7 @@ export default function Weekly() {
             </table>
           </div>
         </Card>
-        <p className="text-[10px] text-muted-foreground mt-2">
+        <p className="text-xs text-muted-foreground mt-2">
           Walk-Around = Competition × 1.06-1.07 • All targets are morning weigh-in
         </p>
       </section>

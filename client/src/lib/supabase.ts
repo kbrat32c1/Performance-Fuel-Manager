@@ -155,3 +155,46 @@ export interface DbDailyTracking {
   created_at: string;
   updated_at: string;
 }
+
+export interface DbHealthData {
+  id: string;
+  user_id: string;
+  date: string;
+  // Heart metrics
+  resting_heart_rate: number | null;  // bpm
+  hrv: number | null;                 // ms (SDNN)
+  // Blood oxygen
+  spo2: number | null;                // 0-100 percentage
+  // Sleep
+  sleep_hours: number | null;         // total hours (actual, minus awake)
+  sleep_score: number | null;         // 0-100 computed
+  sleep_deep_minutes: number | null;  // deep sleep minutes
+  sleep_light_minutes: number | null; // light sleep minutes
+  sleep_rem_minutes: number | null;   // REM sleep minutes
+  sleep_awake_minutes: number | null; // awake-in-bed minutes
+  // Respiratory & advanced HRV
+  hrv_rmssd: number | null;           // ms (RMSSD — more sensitive than SDNN)
+  respiratory_rate: number | null;    // breaths per minute
+  // Temperature
+  body_temperature: number | null;    // degrees F
+  // Activity
+  active_energy: number | null;       // kcal
+  step_count: number | null;
+  // Heart rate zone tracking (from TRIMP strain computation)
+  peak_hr: number | null;             // bpm — highest HR observed today
+  avg_hr: number | null;              // bpm — average HR today
+  hr_zone1_minutes: number | null;    // minutes in zone 1 (50-60% max HR)
+  hr_zone2_minutes: number | null;    // minutes in zone 2 (60-70% max HR)
+  hr_zone3_minutes: number | null;    // minutes in zone 3 (70-80% max HR)
+  hr_zone4_minutes: number | null;    // minutes in zone 4 (80-90% max HR)
+  hr_zone5_minutes: number | null;    // minutes in zone 5 (90-100% max HR)
+  trimp_score: number | null;         // raw TRIMP value
+  // Computed scores
+  recovery_score: number | null;      // 0-100
+  strain_score: number | null;        // 0-100
+  // Metadata
+  source: 'healthkit' | 'manual' | 'v5-direct';
+  synced_at: string;
+  created_at: string;
+  updated_at: string;
+}

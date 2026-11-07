@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { requireUserWithinLimit } from "../_auth.js";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -19,6 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Paid AI call: signed-in athletes only, with a per-athlete limit
+  const userId = await requireUserWithinLimit(req, res, "coach", { perMinute: 10, perDay: 100 });
+  if (!userId) return;
+
   try {
     if (!ANTHROPIC_API_KEY) {
       return res.status(503).json({
@@ -26,6 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         message: "Add ANTHROPIC_API_KEY to environment variables to enable AI coaching.",
       });
     }
+
+    // The app's availability check: answer without spending an AI call
+    if (req.body?.ping === true) return res.status(200).json({ ok: true });
 
     const { question, context, history } = req.body;
 
@@ -253,10 +261,14 @@ The body has 5 "fuel tanks" that lose weight differently:
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "server-side-fallback-2026-07-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 600,
+        model: "claude-opus-5-5",
+        // Thinking is always on and shares max_tokens with the answer
+        max_tokens: 4000,
+        output_config: { effort: "low" },
+        fallbacks: "default",
         system: systemPrompt,
         messages: [
           // Include conversation history for multi-turn context
@@ -273,7 +285,8 @@ The body has 5 "fuel tanks" that lose weight differently:
     }
 
     const aiData = await response.json();
-    const reply = aiData.content?.[0]?.text || "Sorry, I couldn't generate a recommendation.";
+    // A thinking block comes before the answer; read the text block
+    const reply = aiData.content?.find((b: any) => b.type === "text")?.text || "Sorry, I couldn't generate a recommendation.";
 
     return res.json({ recommendation: reply });
   } catch (err: any) {

@@ -33,18 +33,17 @@ export default function Fuel() {
   const hydration = getHydrationTarget();
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
-  const isSparProtocol = protocol === '5' || protocol === '6';
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
   // todaysFoods/foodLists removed — embedded trackers replaced with AddFoodFlow
 
   const phaseInfo = getProtocolPhase(protocol, daysUntilWeighIn, macros.ratio);
 
-  // Guide data for P1-4
+  // Guide data — only shown in grams mode (sugar system food recommendations)
   const guide = useMemo(() => {
-    if (protocol === '5' || protocol === '6') return null;
+    if (isSparMode) return null;
     return getTodaysFuelGuide(protocol, daysUntilWeighIn);
-  }, [protocol, daysUntilWeighIn]);
+  }, [protocol, daysUntilWeighIn, isSparMode]);
 
   // ─── Progress calculations ───
   const carbProgress = macros.carbs.max > 0 ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100) : 0;
@@ -55,13 +54,13 @@ export default function Fuel() {
     const blocked: string[] = [];
     if (macros.carbs.max === 0 && macros.protein.max === 0) {
       blocked.push('protein', 'carb');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     } else if (macros.protein.max === 0) {
       blocked.push('protein');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     }
     return new Set(blocked);
-  }, [macros.carbs.max, macros.protein.max, isSparProtocol]);
+  }, [macros.carbs.max, macros.protein.max, isSparMode]);
 
   const isProteinBlocked = sparBlockedSet.has('protein');
   const isCarbBlocked = sparBlockedSet.has('carb');
@@ -173,7 +172,7 @@ export default function Fuel() {
               </span>
               {daysUntilWeighIn >= 0 && (
                 <span className={cn(
-                  "text-[11px] font-mono font-black flex items-center gap-0.5 px-1.5 py-0.5 rounded-md ml-auto",
+                  "text-xs font-mono font-black flex items-center gap-0.5 px-1.5 py-0.5 rounded-md ml-auto",
                   daysUntilWeighIn === 0 ? "text-yellow-500 bg-yellow-500/10" :
                   daysUntilWeighIn === 1 ? "text-red-500 bg-red-500/10" :
                   daysUntilWeighIn <= 3 ? "text-orange-500 bg-orange-500/10" :
@@ -184,7 +183,7 @@ export default function Fuel() {
                 </span>
               )}
             </div>
-            <p className="text-[10px] text-muted-foreground/60 mt-0.5">{phaseInfo.foodTip}</p>
+            <p className="text-xs text-muted-foreground/60 mt-0.5">{phaseInfo.foodTip}</p>
           </div>
         </div>
 
@@ -222,13 +221,13 @@ export default function Fuel() {
                 ) : (
                   <>
                     <span className="text-xl font-black text-foreground">{displayProgress}</span>
-                    <span className="text-[9px] font-bold text-muted-foreground/50 -mt-0.5">%</span>
+                    <span className="text-xs font-bold text-muted-foreground/50 -mt-0.5">%</span>
                   </>
                 )}
               </div>
               {/* Streak flame */}
               {loggingStreak >= 2 && (
-                <div className="absolute -top-1 -right-1 flex items-center gap-0.5 bg-orange-500/15 text-orange-500 rounded-full px-1.5 py-0.5 text-[10px] font-black border border-orange-500/30 animate-in zoom-in duration-300">
+                <div className="absolute -top-1 -right-1 flex items-center gap-0.5 bg-orange-500/15 text-orange-500 rounded-full px-1.5 py-0.5 text-xs font-black border border-orange-500/30 animate-in zoom-in duration-300">
                   <span>🔥</span>{loggingStreak}
                 </div>
               )}
@@ -281,14 +280,14 @@ export default function Fuel() {
           <div className="flex gap-2 pt-3 mt-3 border-t border-muted/10">
             <button
               onClick={openAddFood}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary/10 text-primary text-[11px] font-bold active:scale-[0.98] transition-all"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-primary/10 text-primary text-xs font-bold active:scale-[0.98] transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
               Log Food
             </button>
             <button
               onClick={() => setHistoryOpen(true)}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-muted/30 text-muted-foreground hover:bg-muted/50 text-[11px] font-bold transition-all"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-muted/30 text-muted-foreground hover:bg-muted/50 text-xs font-bold transition-all"
             >
               <History className="w-3.5 h-3.5" />
               Food Log{foodLogCount > 0 ? ` (${foodLogCount})` : ''}
@@ -311,7 +310,7 @@ export default function Fuel() {
                   key={tab.id}
                   onClick={() => setFuelTab(tab.id)}
                   className={cn(
-                    "flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-bold transition-all border-b-2 -mb-[1px]",
+                    "flex-1 flex items-center justify-center gap-1 py-2.5 text-xs font-bold transition-all border-b-2 -mb-[1px]",
                     tab.blocked
                       ? "text-muted-foreground/30 line-through border-transparent"
                       : fuelTab === tab.id
@@ -349,7 +348,7 @@ export default function Fuel() {
                     return (
                       <div className="flex gap-2 items-center bg-muted/10 rounded-lg px-2.5 py-1.5">
                         <span className="text-sm shrink-0">{current.icon}</span>
-                        <span className="text-[10px] text-foreground/60">{current.tip}</span>
+                        <span className="text-xs text-foreground/60">{current.tip}</span>
                       </div>
                     );
                   })()}
@@ -357,12 +356,12 @@ export default function Fuel() {
                   {/* Food pills (read-only: what to eat) */}
                   {guide.eatCarbs.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold text-amber-500/60 uppercase mb-1.5">What to eat</p>
+                      <p className="text-xs font-bold text-amber-500/60 uppercase mb-1.5">What to eat</p>
                       <div className="flex flex-wrap gap-1.5">
                         {guide.eatCarbs.map(f => (
                           <span
                             key={f.name}
-                            className="text-[11px] px-2.5 py-1.5 rounded-lg font-medium bg-amber-500/10 text-amber-400"
+                            className="text-xs px-2.5 py-1.5 rounded-lg font-medium bg-amber-500/10 text-amber-400"
                           >
                             {f.name} <span className="text-amber-500/50">{f.carbs}g</span>
                           </span>
@@ -402,12 +401,12 @@ export default function Fuel() {
                   {/* Food pills (read-only: what to eat) */}
                   {!isProteinBlocked && guide.eatProtein.length > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold text-orange-500/60 uppercase mb-1.5">What to eat</p>
+                      <p className="text-xs font-bold text-orange-500/60 uppercase mb-1.5">What to eat</p>
                       <div className="flex flex-wrap gap-1.5">
                         {guide.eatProtein.map(f => (
                           <span
                             key={f.name}
-                            className="text-[11px] px-2.5 py-1.5 rounded-lg font-medium bg-orange-500/10 text-orange-400"
+                            className="text-xs px-2.5 py-1.5 rounded-lg font-medium bg-orange-500/10 text-orange-400"
                           >
                             {f.name} <span className="text-orange-500/50">{f.protein}g</span>
                           </span>
@@ -468,8 +467,8 @@ export default function Fuel() {
                         <div key={time} className="flex gap-2 items-start">
                           <span className="text-sm shrink-0">{icon}</span>
                           <div>
-                            <span className="text-[10px] font-bold text-muted-foreground uppercase">{time}</span>
-                            <p className="text-[11px] text-foreground/80 leading-snug">{tip}</p>
+                            <span className="text-xs font-bold text-muted-foreground uppercase">{time}</span>
+                            <p className="text-xs text-foreground/80 leading-snug">{tip}</p>
                           </div>
                         </div>
                       ))}
@@ -480,21 +479,21 @@ export default function Fuel() {
                   <div className="flex items-center gap-2">
                     {(() => {
                       const ci = CARB_LABELS[guide.carbType] || CARB_LABELS.mixed;
-                      return <span className={cn("text-[10px] font-bold px-2 py-1 rounded-lg", ci.color, ci.bg)}>{ci.label}</span>;
+                      return <span className={cn("text-xs font-bold px-2 py-1 rounded-lg", ci.color, ci.bg)}>{ci.label}</span>;
                     })()}
                     {(() => {
                       const pi = PROTEIN_LABELS[guide.proteinStatus] || PROTEIN_LABELS.full;
-                      return <span className={cn("text-[10px] font-bold px-2 py-1 rounded-lg", pi.color, pi.bg)}>{pi.label}</span>;
+                      return <span className={cn("text-xs font-bold px-2 py-1 rounded-lg", pi.color, pi.bg)}>{pi.label}</span>;
                     })()}
                   </div>
 
                   {/* Avoid list */}
                   {guide.avoidFoods.length > 0 && (
                     <div className="bg-red-500/5 border border-red-500/20 rounded-lg px-3 py-2">
-                      <p className="text-[10px] font-bold text-red-400 uppercase mb-1 flex items-center gap-1">
+                      <p className="text-xs font-bold text-red-400 uppercase mb-1 flex items-center gap-1">
                         <Ban className="w-3 h-3" /> Avoid
                       </p>
-                      <p className="text-[10px] text-red-400/70 leading-snug">{guide.avoidSummary}</p>
+                      <p className="text-xs text-red-400/70 leading-snug">{guide.avoidSummary}</p>
                     </div>
                   )}
                 </div>
@@ -520,7 +519,7 @@ export default function Fuel() {
         {/* ── Weekly Compliance Summary ── */}
         {weeklyCompliance && weeklyCompliance.daysTracked > 0 && (
           <Card className="p-4 border-muted/30">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
               <Target className="w-3.5 h-3.5" /> 7-Day Compliance ({weeklyCompliance.daysTracked} days tracked)
             </p>
 
@@ -534,12 +533,12 @@ export default function Fuel() {
                 { label: 'Fats', data: weeklyCompliance.fat, color: 'bg-yellow-600' },
               ].filter(c => c.data.avgTarget > 0).map(({ label, data, color }) => (
                 <div key={label} className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-muted-foreground w-12 shrink-0">{label}</span>
+                  <span className="text-xs font-bold text-muted-foreground w-12 shrink-0">{label}</span>
                   <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
                     <div className={cn("h-full rounded-full transition-all", data.percentage >= 80 ? "bg-green-500" : color)}
                       style={{ width: `${Math.min(data.percentage, 100)}%` }} />
                   </div>
-                  <span className={cn("text-[10px] font-mono font-bold w-8 text-right",
+                  <span className={cn("text-xs font-mono font-bold w-8 text-right",
                     data.percentage >= 80 ? "text-green-500" : "text-muted-foreground"
                   )}>{data.percentage}%</span>
                 </div>
@@ -548,7 +547,7 @@ export default function Fuel() {
 
             {/* Insight */}
             <div className="mt-3 pt-2 border-t border-muted/10">
-              <p className="text-[10px] text-muted-foreground/70 leading-snug">{weeklyCompliance.insight}</p>
+              <p className="text-xs text-muted-foreground/70 leading-snug">{weeklyCompliance.insight}</p>
             </div>
           </Card>
         )}

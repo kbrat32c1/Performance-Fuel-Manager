@@ -45,7 +45,7 @@ export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInC
       </div>
       {/* Day before weigh-in critical target info */}
       {isDayBefore && dayBeforeTarget && (
-        <div className={cn("mt-2 pt-2 border-t text-[11px] text-muted-foreground", phaseStyle.border)}>
+        <div className={cn("mt-2 pt-2 border-t text-xs text-muted-foreground", phaseStyle.border)}>
           Must be <strong className={phaseStyle.text}>{dayBeforeTarget}</strong> by evening for safe overnight cut.
         </div>
       )}

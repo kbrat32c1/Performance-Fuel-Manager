@@ -5,15 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth';
+import { useHealthKitSync } from '@/hooks/use-healthkit-sync';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { hapticSuccess, hapticError, hapticTap } from '@/lib/haptics';
+import { isValidWeight, getWeightValidationError, MIN_WEIGHT_LBS, MAX_WEIGHT_LBS } from '@/lib/constants';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { QuickLogWaterTab } from './quick-log-water-tab';
 
 type FabTab = 'weight' | 'food' | 'water';
 
 const DURATION_PRESETS = [30, 45, 60, 90, 120] as const;
-const SLEEP_PRESETS = [5, 6, 7, 8, 9] as const;
 
 function getCurrentTimeStr(): string {
   const now = new Date();
@@ -43,8 +47,8 @@ const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; hint: string; ico
 
 const EXTRA_TYPES: LogTypeOption[] = ['extra-workout', 'check-in'];
 
-const LAST_WEIGHT_TYPE_KEY = 'pfm-last-weight-type';
-const LAST_WEIGHT_TYPE_DATE_KEY = 'pfm-last-weight-type-date';
+const LAST_WEIGHT_TYPE_KEY = STORAGE_KEYS.LAST_WEIGHT_TYPE;
+const LAST_WEIGHT_TYPE_DATE_KEY = STORAGE_KEYS.LAST_WEIGHT_TYPE_DATE;
 
 function getTimeBasedType(): LogTypeOption {
   const hour = new Date().getHours();
@@ -256,6 +260,28 @@ export function QuickLogFAB() {
   const beforeRef = useRef<HTMLInputElement>(null);
 
   const { profile, logs, addLog, updateLog, deleteLog, calculateTarget, getDaysUntilWeighIn } = useStore();
+  const { user } = useAuth();
+  const { healthData } = useHealthKitSync(user?.id ?? null);
+  const [sleepAutoFilled, setSleepAutoFilled] = useState(false);
+
+  // Auto-fill sleep hours from V5 band (preferred) or HealthKit when morning weigh-in selected
+  const needsSleepForType = selectedType === 'morning';
+  useEffect(() => {
+    if (!needsSleepForType || sleepHours || !healthData.length) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    // Prefer V5 band direct data, then fall back to any source
+    const v5Today = healthData.find(h => h.date === todayStr && h.source === 'v5-direct');
+    const v5Latest = healthData.find(h => h.source === 'v5-direct');
+    const anyToday = healthData.find(h => h.date === todayStr);
+    const bestData = v5Today || v5Latest || anyToday || healthData[0];
+    if (bestData?.sleep_hours != null && bestData.sleep_hours > 0) {
+      // Use exact value from band — no rounding. Stored as decimal string
+      // (e.g. "5.7") for parseFloat downstream, displayed as "5h 42m" in UI.
+      setSleepHours(bestData.sleep_hours.toString());
+      setCustomSleep(false);
+      setSleepAutoFilled(true);
+    }
+  }, [needsSleepForType, healthData, sleepHours]);
 
   const today = profile?.simulatedDate ? new Date(profile.simulatedDate) : new Date();
   const isHistorical = !!profile?.simulatedDate;
@@ -266,7 +292,7 @@ export function QuickLogFAB() {
   const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
-    const TOOLTIP_DISMISSED_KEY = 'pfm-fab-tooltip-dismissed';
+    const TOOLTIP_DISMISSED_KEY = STORAGE_KEYS.FAB_TOOLTIP_DISMISSED;
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
     // Check if tooltip was dismissed recently
@@ -297,7 +323,7 @@ export function QuickLogFAB() {
   const dismissTooltip = useCallback(() => {
     setShowTooltip(false);
     try {
-      localStorage.setItem('pfm-fab-tooltip-dismissed', Date.now().toString());
+      localStorage.setItem(STORAGE_KEYS.FAB_TOOLTIP_DISMISSED, Date.now().toString());
     } catch {
       // localStorage not available
     }
@@ -381,7 +407,6 @@ export function QuickLogFAB() {
     }
     if (logSleepHours) {
       setSleepHours(logSleepHours.toString());
-      if (!SLEEP_PRESETS.includes(logSleepHours as any)) setCustomSleep(true);
     }
     setShowMoreOptions(true); // Always show time picker in edit mode
     setDirectMode(true);
@@ -521,9 +546,10 @@ export function QuickLogFAB() {
         flashError("Enter a valid number");
         return;
       }
-      if (parsedWeight < 80 || parsedWeight > 350) {
-        toast({ title: "Weight out of range", description: "Enter a weight between 80 and 350 lbs" });
-        flashError("Weight must be 80–350 lbs");
+      if (!isValidWeight(parsedWeight)) {
+        const err = getWeightValidationError(parsedWeight) || `Weight must be ${MIN_WEIGHT_LBS}–${MAX_WEIGHT_LBS} lbs`;
+        toast({ title: "Weight out of range", description: err });
+        flashError(err);
         return;
       }
       // Wildcard weight warning: confirm if 10+ lbs different from most recent log
@@ -750,7 +776,7 @@ export function QuickLogFAB() {
           )}
         </div>
         <span className={cn(
-          "text-[10px] font-medium uppercase tracking-wider mt-0.5 transition-colors duration-300",
+          "text-xs font-medium uppercase tracking-wider mt-0.5 transition-colors duration-300",
           fabSuccess ? "text-green-500" : "text-primary"
         )}>
           {fabSuccess ? "Saved!" : "Log"}
@@ -879,8 +905,8 @@ export function QuickLogFAB() {
                             <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-green-500" aria-hidden="true" />
                           )}
                           <span aria-hidden="true">{opt.icon}</span>
-                          <span className="leading-tight text-center text-[11px] font-bold">{opt.label}</span>
-                          <span className="leading-tight text-center text-[9px] text-muted-foreground">{opt.hint}</span>
+                          <span className="leading-tight text-center text-xs font-bold">{opt.label}</span>
+                          <span className="leading-tight text-center text-xs text-muted-foreground">{opt.hint}</span>
                         </button>
                       );
                     })}
@@ -918,8 +944,8 @@ export function QuickLogFAB() {
                             aria-label={opt.label}
                           >
                             <span aria-hidden="true">{opt.icon}</span>
-                            <span className="leading-tight text-center text-[11px] font-bold">{opt.label}</span>
-                            <span className="leading-tight text-center text-[9px] text-muted-foreground">{opt.hint}</span>
+                            <span className="leading-tight text-center text-xs font-bold">{opt.label}</span>
+                            <span className="leading-tight text-center text-xs text-muted-foreground">{opt.hint}</span>
                           </button>
                         );
                       })}
@@ -941,7 +967,7 @@ export function QuickLogFAB() {
                   {/* Original values banner for extra workout edit mode */}
                   {isEditMode && editExtraIds && (originalBeforeWeight !== null || originalAfterWeight !== null) && (
                     <div className="bg-muted/30 border border-muted rounded-lg px-3 py-2 text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Original</p>
                       <p className="text-sm font-mono text-muted-foreground">
                         {originalBeforeWeight?.toFixed(1)} → {originalAfterWeight?.toFixed(1)} lbs
                       </p>
@@ -1000,7 +1026,7 @@ export function QuickLogFAB() {
                   {/* Original value banner for edit mode */}
                   {isEditMode && originalWeight !== null && (
                     <div className="bg-muted/30 border border-muted rounded-lg px-3 py-2 text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Original</p>
                       <p className="text-sm font-mono text-muted-foreground">{originalWeight.toFixed(1)} lbs</p>
                     </div>
                   )}
@@ -1103,7 +1129,7 @@ export function QuickLogFAB() {
                     <Clock className="w-3.5 h-3.5 text-orange-500" />
                     <Label className="text-xs font-bold text-orange-500">Workout Duration *</Label>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mb-2">Required — used to calculate your sweat rate (lbs/hr)</p>
+                  <p className="text-xs text-muted-foreground mb-2">Required — used to calculate your sweat rate (lbs/hr)</p>
                   <div className="flex gap-2 flex-wrap">
                     {DURATION_PRESETS.map((mins) => (
                       <button
@@ -1147,51 +1173,48 @@ export function QuickLogFAB() {
                 </div>
               )}
 
-              {/* Sleep Hours Picker — shown for morning weigh-in */}
+              {/* Sleep Hours — shown for morning weigh-in */}
               {needsSleep && (
                 <div className="mt-3 p-2.5 rounded-lg border border-purple-500/30 bg-purple-500/5">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Moon className="w-3.5 h-3.5 text-purple-500" />
-                    <Label className="text-xs font-bold text-purple-500">Hours of Sleep *</Label>
+                    <Label className="text-xs font-bold text-purple-500">Sleep</Label>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mb-2">Required — used to track overnight drift per hour</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {SLEEP_PRESETS.map((hrs) => (
+
+                  {/* Band auto-filled: show h:m display with edit option */}
+                  {sleepAutoFilled && sleepHours && !customSleep && (
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-purple-400">
+                          {(() => {
+                            const val = parseFloat(sleepHours);
+                            const h = Math.floor(val);
+                            const m = Math.round((val - h) * 60);
+                            return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                          })()}
+                        </span>
+                        <span className="text-xs text-muted-foreground/50">from V5 band</span>
+                      </div>
                       <button
-                        key={hrs}
-                        onClick={() => { setSleepHours(hrs.toString()); setCustomSleep(false); }}
-                        className={cn(
-                          "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
-                          sleepHours === hrs.toString() && !customSleep
-                            ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
-                            : "border-border text-muted-foreground active:scale-95"
-                        )}
+                        onClick={() => setCustomSleep(true)}
+                        className="text-xs text-purple-400/60 underline underline-offset-2"
                       >
-                        {hrs}hr
+                        Edit
                       </button>
-                    ))}
-                    <button
-                      onClick={() => { setCustomSleep(true); setSleepHours(''); }}
-                      className={cn(
-                        "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
-                        customSleep
-                          ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
-                          : "border-border text-muted-foreground active:scale-95"
-                      )}
-                    >
-                      Custom
-                    </button>
-                  </div>
-                  {customSleep && (
-                    <div className="mt-2 flex items-center gap-2">
+                    </div>
+                  )}
+
+                  {/* Manual / editing: simple hours input */}
+                  {(!sleepAutoFilled || customSleep) && (
+                    <div className="mt-1 flex items-center gap-2">
                       <Input
                         type="number"
                         inputMode="decimal"
                         step="0.5"
                         value={sleepHours}
-                        onChange={(e) => setSleepHours(e.target.value)}
-                        placeholder="Hours"
-                        className="font-mono text-center h-12 w-24 text-foreground"
+                        onChange={(e) => { setSleepHours(e.target.value); setSleepAutoFilled(false); }}
+                        placeholder="Hours (e.g. 7.5)"
+                        className="font-mono text-center h-12 flex-1 text-foreground"
                       />
                       <span className="text-xs text-muted-foreground">hrs</span>
                     </div>
@@ -1206,7 +1229,7 @@ export function QuickLogFAB() {
                     <Moon className="w-3.5 h-3.5 text-amber-500" />
                     <span className="text-xs font-bold text-amber-500">Missing Before-Bed Weight</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mb-3">
+                  <p className="text-xs text-muted-foreground mb-3">
                     No before-bed weigh-in found for last night. This is needed to calculate your overnight drift rate accurately.
                   </p>
                   <div className="flex gap-2">
@@ -1231,16 +1254,21 @@ export function QuickLogFAB() {
                       size="sm"
                       className="flex-1 h-11 text-xs border-muted-foreground/30"
                       onClick={() => {
-                        // Check if we have any historical before-bed data
-                        const bedLogs = logs.filter(l => l.type === 'before-bed');
-                        if (bedLogs.length === 0) {
+                        // Check if we have any historical before-bed data with valid weights
+                        const validBedLogs = logs
+                          .filter(l => l.type === 'before-bed' && typeof l.weight === 'number' && !isNaN(l.weight) && isValidWeight(l.weight));
+                        if (validBedLogs.length === 0) {
                           toast({ title: "No before-bed history", description: "You need at least one before-bed log to use an average. Please log it manually." });
                           return;
                         }
-                        const avgWeight = bedLogs
+                        const recent = validBedLogs
                           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                          .slice(0, 5)
-                          .reduce((sum, l) => sum + l.weight, 0) / Math.min(bedLogs.length, 5);
+                          .slice(0, 5);
+                        const avgWeight = recent.reduce((sum, l) => sum + l.weight, 0) / recent.length;
+                        if (!isValidWeight(avgWeight)) {
+                          toast({ title: "Unable to calculate average", description: "Before-bed data appears corrupted. Please log manually." });
+                          return;
+                        }
                         setMissingBeforeBed('confirm-avg');
                         toast({
                           title: `Average: ${avgWeight.toFixed(1)} lbs`,
@@ -1264,7 +1292,7 @@ export function QuickLogFAB() {
 
               {missingBeforeBed === 'confirm-avg' && (
                 <div className="mt-3 p-2.5 rounded-lg border border-green-500/30 bg-green-500/5">
-                  <p className="text-[11px] text-green-500 font-medium">
+                  <p className="text-xs text-green-500 font-medium">
                     ✓ Will auto-create before-bed log using your recent average. Tap Save to continue.
                   </p>
                 </div>

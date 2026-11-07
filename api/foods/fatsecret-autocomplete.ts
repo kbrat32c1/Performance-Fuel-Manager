@@ -78,7 +78,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const data = await response.json();
-    console.log(`FatSecret autocomplete raw response:`, JSON.stringify(data).substring(0, 500));
     const suggestions = data?.suggestions?.suggestion || [];
     // API returns either a string[] or a single string
     const list = Array.isArray(suggestions) ? suggestions : [suggestions];

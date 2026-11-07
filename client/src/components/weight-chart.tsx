@@ -67,14 +67,14 @@ export function WeightChart() {
                 dataKey="date" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} 
                 dy={10}
             />
             <YAxis 
                 domain={['dataMin - 2', 'dataMax + 2']} 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
             />
             <Tooltip 
                 contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}

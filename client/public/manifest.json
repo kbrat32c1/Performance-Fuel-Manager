@@ -29,6 +29,19 @@
   ],
   "shortcuts": [
     {
+      "name": "Weigh-ins",
+      "short_name": "Weigh-ins",
+      "description": "Enter today's morning, practice and before-bed weights",
+      "url": "/weigh-in",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "Log Weight",
       "short_name": "Log",
       "description": "Quickly log your weight",

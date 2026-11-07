@@ -48,7 +48,6 @@ export function FuelCard({
   // Determine nutrition mode
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
-  const isSparProtocol = protocol === '5' || protocol === '6';
   const showSliceTracker = isSparMode;
 
   // ─── Cross-sync reconciliation on mode switch ───
@@ -83,13 +82,13 @@ export function FuelCard({
     const blocked: string[] = [];
     if (macros.carbs.max === 0 && macros.protein.max === 0) {
       blocked.push('protein', 'carb');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     } else if (macros.protein.max === 0) {
       blocked.push('protein');
-      if (isSparProtocol) blocked.push('veg');
+      if (isSparMode) blocked.push('veg');
     }
     return new Set(blocked);
-  }, [macros.carbs.max, macros.protein.max, isSparProtocol]);
+  }, [macros.carbs.max, macros.protein.max, isSparMode]);
 
   const isProteinBlocked = sparBlockedSet.has('protein');
   const isCarbBlocked = sparBlockedSet.has('carb');
@@ -286,7 +285,7 @@ export function FuelCard({
                 ) : (
                   <>
                     <span className="text-lg font-black leading-none text-foreground">{displayProgress}</span>
-                    <span className="text-[7px] font-bold text-muted-foreground/50 uppercase tracking-widest">%</span>
+                    <span className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest">%</span>
                   </>
                 )}
               </div>
@@ -309,7 +308,7 @@ export function FuelCard({
               {/* Streak badge */}
               {loggingStreak > 0 && (
                 <div className={cn(
-                  "inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold",
+                  "inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs font-bold",
                   loggingStreak >= 7 ? "bg-orange-500/15 text-orange-500" :
                   loggingStreak >= 3 ? "bg-amber-500/15 text-amber-500" :
                   "bg-muted/30 text-muted-foreground"
@@ -323,7 +322,7 @@ export function FuelCard({
               {doNotEat && (
                 <div className="flex items-center gap-1.5 mt-1.5 text-red-400">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  <span className="text-[11px] font-bold uppercase">Do not eat</span>
+                  <span className="text-xs font-bold uppercase">Do not eat</span>
                 </div>
               )}
             </div>
@@ -337,7 +336,7 @@ export function FuelCard({
                 if (pill.blocked) {
                   return (
                     <div key={pill.label} className="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-muted/10 opacity-40">
-                      <span className="text-[9px] font-bold text-muted-foreground line-through block text-center">{pill.label}</span>
+                      <span className="text-xs font-bold text-muted-foreground line-through block text-center">{pill.label}</span>
                     </div>
                   );
                 }
@@ -352,12 +351,12 @@ export function FuelCard({
                       pill.done ? "bg-green-500" : c.fill
                     )} style={{ width: `${Math.min(pill.pct, 100)}%` }} />
                     <div className="text-center relative">
-                      <span className={cn("text-[9px] font-bold uppercase block leading-tight",
+                      <span className={cn("text-xs font-bold uppercase block leading-tight",
                         pill.done ? "text-green-500" : c.text
                       )}>
                         {pill.done ? '✓' : ''}{pill.label}
                       </span>
-                      <span className={cn("text-[11px] font-mono font-black leading-tight block",
+                      <span className={cn("text-xs font-mono font-black leading-tight block",
                         pill.done ? "text-green-500" : "text-foreground"
                       )}>
                         {pill.consumed}<span className="text-muted-foreground/40 font-normal">/{pill.target}</span>

@@ -13,6 +13,7 @@ import { useStore, type MealSection, inferMealSection } from "@/lib/store";
 import { FoodDiary } from "@/components/food-diary";
 import { AddFoodFlow } from "@/components/add-food-flow";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { SaveStatus } from "@/components/save-status";
 import {
   ChevronLeft, ChevronRight, CalendarDays,
   Droplets, Plus, Minus,
@@ -24,8 +25,7 @@ import { MacroBar } from "@/components/ui/macro-bar";
 export default function Food() {
   const {
     profile, getDailyTracking, updateDailyTracking,
-    getMacroTargets, getHydrationTarget, getNutritionMode,
-    getSliceTargets, getDaysUntilWeighIn,
+    getNutritionMode, getTargetsForDate,
   } = useStore();
   const { toast } = useToast();
 
@@ -36,14 +36,16 @@ export default function Food() {
   const isToday = dateOffset === 0;
 
   const tracking = getDailyTracking(dateKey);
-  const macros = getMacroTargets();
-  const hydration = getHydrationTarget();
+  // Targets for the day on screen, not today, so past days are judged fairly
+  const dayTargets = getTargetsForDate(dateKey);
+  const macros = dayTargets.macros;
+  const hydration = dayTargets.hydration;
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
   const isSparProtocol = profile.protocol === '5' || profile.protocol === '6';
   const showSliceTracker = isSparMode;
-  const sliceTargets = showSliceTracker ? getSliceTargets() : null;
-  const daysUntilWeighIn = getDaysUntilWeighIn();
+  const sliceTargets = showSliceTracker ? dayTargets.slices : null;
+  const daysUntilWeighIn = dayTargets.daysUntilWeighIn;
 
   // Blocked categories for protocol restrictions
   const blockedCategories = useMemo(() => {
@@ -172,6 +174,7 @@ export default function Food() {
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
+        <SaveStatus className="-mt-1" />
 
         {/* ── Macro Progress Bars ── */}
         <div className="px-1 space-y-2">
@@ -210,7 +213,7 @@ export default function Food() {
           {/* Water bar — tappable to edit */}
           {editingWater ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-muted-foreground w-14 shrink-0">Water</span>
+              <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">Water</span>
               <input
                 type="number"
                 autoFocus
@@ -224,7 +227,7 @@ export default function Food() {
                 className="flex-1 h-8 text-[12px] font-mono font-bold text-center bg-background border border-cyan-500/40 rounded-lg px-2"
                 placeholder="oz"
               />
-              <span className="text-[11px] text-muted-foreground/50">oz</span>
+              <span className="text-xs text-muted-foreground/50">oz</span>
             </div>
           ) : (
             <button
@@ -287,6 +290,7 @@ export default function Food() {
       <Sheet open={addFoodOpen} onOpenChange={setAddFoodOpen}>
         <SheetContent side="bottom" className="h-[92vh] p-0 rounded-t-2xl flex flex-col [&>button.absolute]:hidden">
           <AddFoodFlow
+            dateKey={dateKey}
             mealSection={addFoodMeal}
             mode={showSliceTracker ? 'spar' : 'sugar'}
             isV2={isV2}

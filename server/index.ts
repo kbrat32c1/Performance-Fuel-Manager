@@ -1,3 +1,4 @@
+import "./load-env";
 import express, { type Request, Response, NextFunction } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -29,7 +30,8 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Allow embedding for PWA
 }));
 
-// Global rate limiter - 100 requests per minute per IP
+// Global rate limiter - 100 API requests per minute per IP.
+// Mounted on /api only: a single page load in dev fetches more than 100 module files.
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 100,
@@ -56,7 +58,7 @@ export const foodSearchLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use(globalLimiter);
+app.use('/api', globalLimiter);
 
 app.use(
   express.json({

@@ -10,6 +10,7 @@ import {
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { Input } from "@/components/ui/input";
 
 
@@ -199,58 +200,58 @@ function ConfirmDialog({
 export default function Recovery() {
   // ─ State (all persisted to localStorage) ─
   const [mode, setMode] = useState<CompMode>(() => {
-    return (localStorage.getItem('pwm-comp-mode') as CompMode) || 'idle';
+    return (localStorage.getItem(STORAGE_KEYS.COMP_MODE) as CompMode) || 'idle';
   });
 
   const [elapsed, setElapsed] = useState(() => {
-    const startTime = localStorage.getItem('pwm-comp-start');
-    const isActive = localStorage.getItem('pwm-comp-active') === 'true';
+    const startTime = localStorage.getItem(STORAGE_KEYS.COMP_START);
+    const isActive = localStorage.getItem(STORAGE_KEYS.COMP_ACTIVE) === 'true';
     if (isActive && startTime) {
       return Math.floor((Date.now() - parseInt(startTime)) / 1000);
     }
-    const saved = localStorage.getItem('pwm-comp-elapsed');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_ELAPSED);
     return saved ? parseInt(saved) : 0;
   });
 
   const [active, setActive] = useState(() => {
-    return localStorage.getItem('pwm-comp-active') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.COMP_ACTIVE) === 'true';
   });
 
   const [matchNumber, setMatchNumber] = useState(() => {
-    const saved = localStorage.getItem('pwm-comp-match');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_MATCH);
     return saved ? parseInt(saved) : 0;
   });
 
   const [weighInWeight, setWeighInWeight] = useState(() => {
-    const saved = localStorage.getItem('pwm-recovery-weighin');
+    const saved = localStorage.getItem(STORAGE_KEYS.RECOVERY_WEIGHIN);
     if (saved) return saved;
     return '';
   });
 
   // Time to first match (minutes) — used to scale recovery phases
   const [timeToMatch, setTimeToMatch] = useState(() => {
-    const saved = localStorage.getItem('pwm-comp-time-to-match');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_TIME_TO_MATCH);
     return saved ? parseInt(saved) : 120; // default 2 hours
   });
 
   // Time between matches (minutes) — used to scale between-match recovery phases
   const [timeBetweenMatches, setTimeBetweenMatches] = useState(() => {
-    const saved = localStorage.getItem('pwm-comp-time-between');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_TIME_BETWEEN);
     return saved ? parseInt(saved) : 60; // default 1 hour
   });
 
   // Whether we've already used the post weigh-in recovery for this competition
   const [weighInRecoveryUsed, setWeighInRecoveryUsed] = useState(() => {
-    return localStorage.getItem('pwm-comp-wi-recovery-used') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.COMP_WI_RECOVERY_USED) === 'true';
   });
 
   const [checklist, setChecklist] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('pwm-comp-checklist');
+    const saved = localStorage.getItem(STORAGE_KEYS.COMP_CHECKLIST);
     return saved ? JSON.parse(saved) : {};
   });
 
   const [matchPrepChecklist, setMatchPrepChecklist] = useState<Record<string, boolean>>(() => {
-    const saved = localStorage.getItem('pwm-match-prep-checklist');
+    const saved = localStorage.getItem(STORAGE_KEYS.MATCH_PREP_CHECKLIST);
     return saved ? JSON.parse(saved) : {};
   });
 
@@ -265,12 +266,12 @@ export default function Recovery() {
 
   // Alerts (sound/vibration toggle)
   const [alertsEnabled, setAlertsEnabled] = useState(() => {
-    return localStorage.getItem('pwm-recovery-alerts') !== 'false'; // default ON
+    return localStorage.getItem(STORAGE_KEYS.RECOVERY_ALERTS) !== 'false'; // default ON
   });
 
   // Notifications
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
-    return localStorage.getItem('pwm-recovery-notifications') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.RECOVERY_NOTIFICATIONS) === 'true';
   });
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     typeof Notification !== 'undefined' ? Notification.permission : 'denied'
@@ -480,60 +481,60 @@ export default function Recovery() {
 
   // ─ Persistence ─
   useEffect(() => {
-    localStorage.setItem('pwm-comp-mode', mode);
+    localStorage.setItem(STORAGE_KEYS.COMP_MODE, mode);
   }, [mode]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-active', active.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_ACTIVE, active.toString());
     if (active) {
-      const existingStart = localStorage.getItem('pwm-comp-start');
+      const existingStart = localStorage.getItem(STORAGE_KEYS.COMP_START);
       if (!existingStart) {
-        localStorage.setItem('pwm-comp-start', (Date.now() - elapsed * 1000).toString());
+        localStorage.setItem(STORAGE_KEYS.COMP_START, (Date.now() - elapsed * 1000).toString());
       }
     } else {
-      localStorage.removeItem('pwm-comp-start');
+      localStorage.removeItem(STORAGE_KEYS.COMP_START);
     }
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-match', matchNumber.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_MATCH, matchNumber.toString());
   }, [matchNumber]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-time-to-match', timeToMatch.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_TIME_TO_MATCH, timeToMatch.toString());
   }, [timeToMatch]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-time-between', timeBetweenMatches.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_TIME_BETWEEN, timeBetweenMatches.toString());
   }, [timeBetweenMatches]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-wi-recovery-used', weighInRecoveryUsed.toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_WI_RECOVERY_USED, weighInRecoveryUsed.toString());
   }, [weighInRecoveryUsed]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-recovery-weighin', weighInWeight);
+    localStorage.setItem(STORAGE_KEYS.RECOVERY_WEIGHIN, weighInWeight);
   }, [weighInWeight]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-comp-checklist', JSON.stringify(checklist));
+    localStorage.setItem(STORAGE_KEYS.COMP_CHECKLIST, JSON.stringify(checklist));
   }, [checklist]);
 
   useEffect(() => {
-    localStorage.setItem('pwm-match-prep-checklist', JSON.stringify(matchPrepChecklist));
+    localStorage.setItem(STORAGE_KEYS.MATCH_PREP_CHECKLIST, JSON.stringify(matchPrepChecklist));
   }, [matchPrepChecklist]);
 
   // Timer tick — compute from start time to avoid drift when tab is backgrounded
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (active) {
-      const startTime = localStorage.getItem('pwm-comp-start');
+      const startTime = localStorage.getItem(STORAGE_KEYS.COMP_START);
       const startMs = startTime ? parseInt(startTime) : Date.now();
       interval = setInterval(() => {
         const newVal = Math.floor((Date.now() - startMs) / 1000);
         setElapsed(newVal);
         if (newVal % 5 === 0) {
-          localStorage.setItem('pwm-comp-elapsed', newVal.toString());
+          localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, newVal.toString());
         }
       }, 1000);
     }
@@ -543,7 +544,7 @@ export default function Recovery() {
   // Persist on unmount
   useEffect(() => {
     return () => {
-      if (elapsed > 0) localStorage.setItem('pwm-comp-elapsed', elapsed.toString());
+      if (elapsed > 0) localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, elapsed.toString());
     };
   }, [elapsed]);
 
@@ -633,8 +634,8 @@ export default function Recovery() {
     setChecklist({});
     setMatchPrepChecklist({});
     setWeighInRecoveryUsed(false);
-    localStorage.setItem('pwm-comp-start', Date.now().toString());
-    localStorage.setItem('pwm-comp-elapsed', '0');
+    localStorage.setItem(STORAGE_KEYS.COMP_START, Date.now().toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, '0');
   };
 
   const startMatch = () => {
@@ -644,8 +645,8 @@ export default function Recovery() {
     setActive(true);
     setChecklist({});
     setMatchPrepChecklist({});
-    localStorage.setItem('pwm-comp-start', Date.now().toString());
-    localStorage.setItem('pwm-comp-elapsed', '0');
+    localStorage.setItem(STORAGE_KEYS.COMP_START, Date.now().toString());
+    localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, '0');
     setConfirmMatchOpen(false);
   };
 
@@ -657,8 +658,8 @@ export default function Recovery() {
     setChecklist({});
     setMatchPrepChecklist({});
     setWeighInRecoveryUsed(false);
-    localStorage.removeItem('pwm-comp-start');
-    localStorage.removeItem('pwm-comp-elapsed');
+    localStorage.removeItem(STORAGE_KEYS.COMP_START);
+    localStorage.removeItem(STORAGE_KEYS.COMP_ELAPSED);
     setConfirmEndOpen(false);
   };
 
@@ -671,12 +672,12 @@ export default function Recovery() {
       setNotificationPermission(perm);
       if (perm === 'granted') {
         setNotificationsEnabled(true);
-        localStorage.setItem('pwm-recovery-notifications', 'true');
+        localStorage.setItem(STORAGE_KEYS.RECOVERY_NOTIFICATIONS, 'true');
       }
     } else if (Notification.permission === 'granted') {
       const next = !notificationsEnabled;
       setNotificationsEnabled(next);
-      localStorage.setItem('pwm-recovery-notifications', next.toString());
+      localStorage.setItem(STORAGE_KEYS.RECOVERY_NOTIFICATIONS, next.toString());
     }
   };
 
@@ -720,13 +721,13 @@ export default function Recovery() {
               <div className="w-full max-w-xs space-y-3">
                 <div className="bg-muted/20 border border-muted rounded-xl p-4 space-y-2">
                   <p className="text-xs font-bold text-foreground">You're on SPAR Nutrition (General)</p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     This mode is for everyday eating without a competition schedule. To use competition day recovery, switch to <span className="font-bold text-foreground">SPAR Competition</span> in Settings and set a weigh-in date.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground text-center tracking-wider">What you get with SPAR Competition</p>
+                  <p className="text-xs uppercase font-bold text-muted-foreground text-center tracking-wider">What you get with SPAR Competition</p>
                   {[
                     { icon: <Scale className="w-3.5 h-3.5" />, text: 'Auto water loading & cut schedule', color: 'text-cyan-500' },
                     { icon: <Utensils className="w-3.5 h-3.5" />, text: 'Calorie targets adjust to weigh-in', color: 'text-primary' },
@@ -793,7 +794,7 @@ export default function Recovery() {
           <div className="space-y-4 pb-6 pt-6">
             {/* Weigh-in weight input */}
             <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-bold text-muted-foreground block text-center tracking-wider">
+              <label className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
                 Weigh-in Weight (lbs)
               </label>
               <Input
@@ -809,7 +810,7 @@ export default function Recovery() {
 
             {/* Time pickers */}
             <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-bold text-muted-foreground block text-center tracking-wider">
+              <label className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
                 Time to 1st Match
               </label>
               <div className="relative max-w-[200px] mx-auto">
@@ -846,24 +847,24 @@ export default function Recovery() {
             {/* Notification / Alerts UI — compact */}
             <div className="flex justify-center">
               {typeof Notification === 'undefined' ? (
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Bell className="w-3 h-3 text-cyan-500" />
                   <span>Sound & on-screen alerts active</span>
                 </div>
               ) : notificationPermission === 'denied' ? (
-                <div className="flex items-center gap-1.5 text-[10px] text-yellow-500">
+                <div className="flex items-center gap-1.5 text-xs text-yellow-500">
                   <BellOff className="w-3 h-3" />
                   <span>Push blocked — sound & on-screen alerts active</span>
                 </div>
               ) : notificationPermission === 'granted' && notificationsEnabled ? (
-                <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                <div className="flex items-center gap-1.5 text-xs text-primary">
                   <Bell className="w-3 h-3" />
                   <span>All alerts enabled</span>
                 </div>
               ) : (
                 <button
                   onClick={requestNotificationPermission}
-                  className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Bell className="w-3 h-3" />
                   <span className="underline underline-offset-2">Enable push notifications</span>
@@ -891,11 +892,11 @@ export default function Recovery() {
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2 min-w-0">
               {mode === 'weigh-in' ? (
-                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider truncate">
+                <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider truncate">
                   Post Weigh-In Recovery
                 </span>
               ) : (
-                <span className="text-[10px] uppercase font-bold tracking-wider truncate">
+                <span className="text-xs uppercase font-bold tracking-wider truncate">
                   <span className="text-orange-500">Match #{matchNumber}</span>
                   <span className="text-muted-foreground"> Recovery</span>
                 </span>
@@ -906,7 +907,7 @@ export default function Recovery() {
                 onClick={() => {
                   const next = !alertsEnabled;
                   setAlertsEnabled(next);
-                  localStorage.setItem('pwm-recovery-alerts', next.toString());
+                  localStorage.setItem(STORAGE_KEYS.RECOVERY_ALERTS, next.toString());
                   if (next) {
                     // Play a quick test sound so user knows it's on
                     playAlertSound();
@@ -950,7 +951,7 @@ export default function Recovery() {
             </div>
             {/* Phase badge */}
             <div className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0",
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0",
               currentPhase.bgColor, currentPhase.color
             )}>
               {currentPhase.icon}
@@ -1008,24 +1009,24 @@ export default function Recovery() {
         {mode === 'weigh-in' && weighInWeight && lostWeight > 0 && (
           <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-cyan-500 flex items-center gap-1.5 tracking-wider">
+              <span className="text-xs uppercase font-bold text-cyan-500 flex items-center gap-1.5 tracking-wider">
                 <Droplets className="w-3.5 h-3.5" /> Rehydration
               </span>
-              <span className="text-[10px] font-mono text-muted-foreground">
+              <span className="text-xs font-mono text-muted-foreground">
                 {lostWeight.toFixed(1)} lbs lost
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-cyan-500/5 rounded-lg p-2 text-center">
-                <span className="text-[9px] uppercase text-muted-foreground block mb-0.5">Fluids</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Fluids</span>
                 <span className="text-sm font-mono font-bold text-cyan-500">{plan.fluidRange}</span>
               </div>
               <div className="bg-muted/20 rounded-lg p-2 text-center">
-                <span className="text-[9px] uppercase text-muted-foreground block mb-0.5">Sodium</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Sodium</span>
                 <span className="text-sm font-mono font-bold text-foreground">{plan.sodiumRange}</span>
               </div>
               <div className="bg-primary/5 rounded-lg p-2 text-center">
-                <span className="text-[9px] uppercase text-muted-foreground block mb-0.5">Glycogen</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Glycogen</span>
                 <span className="text-sm font-mono font-bold text-primary">{plan.glycogen}</span>
               </div>
             </div>
@@ -1076,7 +1077,7 @@ export default function Recovery() {
             onClick={() => setShowAllFuel(!showAllFuel)}
             className="w-full flex items-center justify-between p-3 active:bg-primary/10 transition-colors"
           >
-            <span className="text-[10px] uppercase font-bold text-primary flex items-center gap-1.5 tracking-wider">
+            <span className="text-xs uppercase font-bold text-primary flex items-center gap-1.5 tracking-wider">
               <Utensils className="w-3.5 h-3.5" /> All Fueling Options
             </span>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", showAllFuel && "rotate-180")} />
@@ -1087,15 +1088,15 @@ export default function Recovery() {
                 <div key={i} className="flex items-center justify-between bg-background/50 rounded-lg px-3 py-2.5">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium">{food.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">({food.serving})</span>
+                    <span className="text-xs text-muted-foreground ml-1.5">({food.serving})</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs shrink-0 ml-2">
                     <span className="font-mono text-primary font-bold">{food.carbs}g</span>
-                    <span className="text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">{food.timing}</span>
+                    <span className="text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded text-xs">{food.timing}</span>
                   </div>
                 </div>
               ))}
-              <p className="text-[10px] text-muted-foreground pt-2 border-t border-muted">
+              <p className="text-xs text-muted-foreground pt-2 border-t border-muted">
                 Target: 30–50 g carbs/hr · 16–24 oz electrolyte drink/hr
               </p>
             </div>
@@ -1106,11 +1107,11 @@ export default function Recovery() {
         {mode === 'between-matches' && (
           <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between p-3 pb-2">
-              <span className="text-[10px] uppercase font-bold text-orange-500 flex items-center gap-1.5 tracking-wider">
+              <span className="text-xs uppercase font-bold text-orange-500 flex items-center gap-1.5 tracking-wider">
                 <Swords className="w-3.5 h-3.5" /> Match Prep
               </span>
               {Object.values(matchPrepChecklist).filter(Boolean).length > 0 && (
-                <span className="text-[10px] font-mono text-muted-foreground">
+                <span className="text-xs font-mono text-muted-foreground">
                   {Object.values(matchPrepChecklist).filter(Boolean).length}/{MATCH_PREP_ITEMS.length}
                 </span>
               )}
@@ -1155,7 +1156,7 @@ export default function Recovery() {
               <span className="text-xs text-yellow-500 font-medium">
                 Min 30 min rest recommended
               </span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">
+              <span className="text-xs text-muted-foreground ml-1.5">
                 ({formatCountdown(1800 - elapsed)} remaining)
               </span>
             </div>
@@ -1189,8 +1190,8 @@ export default function Recovery() {
                     setActive(true);
                     setChecklist({});
                     setWeighInRecoveryUsed(true);
-                    localStorage.setItem('pwm-comp-start', Date.now().toString());
-                    localStorage.setItem('pwm-comp-elapsed', '0');
+                    localStorage.setItem(STORAGE_KEYS.COMP_START, Date.now().toString());
+                    localStorage.setItem(STORAGE_KEYS.COMP_ELAPSED, '0');
                   }}
                   variant="outline"
                   className="h-12 text-sm font-bold uppercase border-primary/50 text-primary rounded-xl"
@@ -1238,7 +1239,7 @@ export default function Recovery() {
 
             {/* Time between matches picker */}
             <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-bold text-muted-foreground block tracking-wider">
+              <label className="text-xs uppercase font-bold text-muted-foreground block tracking-wider">
                 Expected time until next match
               </label>
               <div className="relative">
@@ -1338,7 +1339,7 @@ function PhaseCard({
               {phase.title}
             </span>
             <span className={cn(
-              "text-[10px] block truncate",
+              "text-xs block truncate",
               isCompleted ? "text-muted-foreground/60" : "text-muted-foreground"
             )}>
               {phase.subtitle}
@@ -1347,9 +1348,9 @@ function PhaseCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {allDone ? (
-            <span className="text-[10px] font-bold text-green-500">Done</span>
+            <span className="text-xs font-bold text-green-500">Done</span>
           ) : (
-            <span className="text-[10px] font-mono text-muted-foreground">{done}/{total}</span>
+            <span className="text-xs font-mono text-muted-foreground">{done}/{total}</span>
           )}
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
         </div>
@@ -1384,14 +1385,14 @@ function PhaseCard({
               <span className={cn("text-sm font-bold", isCurrent && phase.color)}>{phase.title}</span>
               {isCurrent && (
                 <span className={cn(
-                  "text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md animate-pulse",
+                  "text-xs font-black uppercase px-1.5 py-0.5 rounded-md animate-pulse",
                   phase.bgColor, phase.color
                 )}>
                   NOW
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-muted-foreground">{phase.subtitle}</span>
+            <span className="text-xs text-muted-foreground">{phase.subtitle}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1456,7 +1457,7 @@ function PhaseCard({
       {showFoods && foods && foods.length > 0 && (
         <div className="px-3 pb-3">
           <div className="bg-background/40 rounded-lg p-2.5 space-y-1.5">
-            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Quick fuel for now</span>
+            <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Quick fuel for now</span>
             {foods.map((food, i) => (
               <div key={i} className="flex items-center justify-between text-xs">
                 <span className="font-medium">{food.name} <span className="text-muted-foreground">({food.serving})</span></span>

@@ -9,9 +9,10 @@ import { useStore, type FoodLogEntry, type MealSection, inferMealSection } from 
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import {
-  Plus, X, Check, ChevronDown, ChevronUp, ArrowRightLeft,
+  Plus, Check, ChevronDown, ChevronUp, Pencil, ArrowRightLeft, Trash2,
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
+import { SwipeableRow } from "@/components/ui/swipeable-row";
 
 interface FoodDiaryProps {
   dateKey: string;
@@ -65,14 +66,20 @@ function getEntryAccent(entry: FoodLogEntry): string {
 }
 
 export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood }: FoodDiaryProps) {
-  const { getDailyTracking, updateDailyTracking } = useStore();
+  const { getDailyTracking, updateDailyTracking, profile } = useStore();
   const tracking = getDailyTracking(dateKey);
+  const dayLabel = (() => {
+    if (dateKey === format(profile.simulatedDate || new Date(), 'yyyy-MM-dd')) return 'today';
+    const [y, m, d] = dateKey.split('-').map(Number);
+    return `on ${format(new Date(y, m - 1, d), 'EEE, MMM d')}`;
+  })();
   const foodLog = tracking.foodLog || [];
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<MealSection>>(new Set());
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [swipedId, setSwipedId] = useState<string | null>(null);
   const [undoEntry, setUndoEntry] = useState<FoodLogEntry | null>(null);
   const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -320,7 +327,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                   {meal.label}
                 </span>
                 {hasEntries && (
-                  <span className="text-[10px] text-muted-foreground/60 font-mono">
+                  <span className="text-xs text-muted-foreground/60 font-mono">
                     {entries.length} {entries.length === 1 ? 'item' : 'items'}
                     {mode === 'spar' && totals.slices > 0 && ` · ${totals.slices} slices`}
                   </span>
@@ -345,7 +352,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                 {entries.length === 0 ? (
                   <button
                     onClick={() => { hapticTap(); onAddFood(meal.id); }}
-                    className="w-full px-3 py-3 text-[11px] text-muted-foreground/40 text-center hover:bg-muted/5 transition-colors"
+                    className="w-full px-3 py-3 text-xs text-muted-foreground/40 text-center hover:bg-muted/5 transition-colors"
                   >
                     Tap + to add food
                   </button>
@@ -367,88 +374,104 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
 
                       return (
                         <div key={entry.id}>
-                          <div
-                            className="flex items-center gap-2 px-3 py-2 min-h-[44px] hover:bg-muted/5 transition-colors"
+                          <SwipeableRow
+                            actions={[
+                              {
+                                icon: <Pencil className="w-4 h-4" />,
+                                label: "Edit",
+                                bgColor: "bg-blue-600",
+                                textColor: "text-white",
+                                onClick: () => {
+                                  setEditingId(entry.id);
+                                  setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
+                                  setSwipedId(null);
+                                },
+                              },
+                              {
+                                icon: <ArrowRightLeft className="w-4 h-4" />,
+                                label: "Move",
+                                bgColor: "bg-amber-600",
+                                textColor: "text-white",
+                                onClick: () => {
+                                  setMovingId(isMoving ? null : entry.id);
+                                  setSwipedId(null);
+                                  hapticTap();
+                                },
+                              },
+                              {
+                                icon: <Trash2 className="w-4 h-4" />,
+                                label: "Delete",
+                                bgColor: "bg-red-600",
+                                textColor: "text-white",
+                                onClick: () => {
+                                  setSwipedId(null);
+                                  handleDelete(entry.id);
+                                },
+                              },
+                            ]}
+                            isOpen={swipedId === entry.id}
+                            onOpenChange={(open) => setSwipedId(open ? entry.id : null)}
                           >
-                            {/* Category dot */}
-                            <div className={cn("w-2 h-2 rounded-full shrink-0", BG_DOT[accent] || 'bg-muted-foreground')} />
+                            <div className="flex items-center gap-2 px-3 py-2 min-h-[44px]">
+                              {/* Category dot */}
+                              <div className={cn("w-2 h-2 rounded-full shrink-0", BG_DOT[accent] || 'bg-muted-foreground')} />
 
-                            {/* Food name + time */}
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[12px] font-medium truncate block leading-tight">{entry.name}</span>
-                              <span className="text-[10px] text-muted-foreground/50 font-mono">
-                                {(() => { try { return format(new Date(entry.timestamp), 'h:mm a'); } catch { return ''; } })()}
-                              </span>
-                            </div>
+                              {/* Food name + time */}
+                              <div className="flex-1 min-w-0">
+                                <span className="text-[12px] font-medium truncate block leading-tight">{entry.name}</span>
+                                <span className="text-xs text-muted-foreground/50 font-mono">
+                                  {(() => { try { return format(new Date(entry.timestamp), 'h:mm a'); } catch { return ''; } })()}
+                                </span>
+                              </div>
 
-                            {/* Amount + move + delete */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              {isEditing ? (
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    value={editingValue}
-                                    onChange={(e) => setEditingValue(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0));
-                                      if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
-                                    }}
-                                    autoFocus
-                                    className="w-14 h-7 text-[11px] font-mono font-bold text-center bg-background border border-primary rounded px-1"
-                                  />
-                                  <button
-                                    onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
-                                    className="w-7 h-7 flex items-center justify-center rounded bg-primary/20 text-primary"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      setEditingId(entry.id);
-                                      setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
-                                    }}
-                                    className={cn(
-                                      "text-[11px] font-mono font-bold px-2 py-0.5 rounded hover:ring-1 hover:ring-current transition-all",
+                              {/* Amount display (or edit input) */}
+                              <div className="flex items-center gap-1 shrink-0">
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      value={editingValue}
+                                      onChange={(e) => setEditingValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0));
+                                        if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
+                                      }}
+                                      autoFocus
+                                      className="w-14 h-7 text-xs font-mono font-bold text-center bg-background border border-primary rounded px-1"
+                                    />
+                                    <button
+                                      onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
+                                      className="w-7 h-7 flex items-center justify-center rounded bg-primary/20 text-primary"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span className={cn(
+                                      "text-xs font-mono font-bold px-2 py-0.5",
                                       TEXT_ACCENT[accent] || 'text-muted-foreground'
+                                    )}>
+                                      {displayAmount} {displayUnit}
+                                    </span>
+                                    {entry.liquidOz && (
+                                      <span className="text-xs font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
                                     )}
-                                  >
-                                    {displayAmount} {displayUnit}
-                                  </button>
-                                  {entry.liquidOz && (
-                                    <span className="text-[9px] font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
-                                  )}
-                                  <button
-                                    onClick={() => { setMovingId(isMoving ? null : entry.id); hapticTap(); }}
-                                    className={cn(
-                                      "p-1 rounded transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center",
-                                      isMoving ? "bg-primary/15 text-primary" : "text-muted-foreground/30 hover:text-muted-foreground/60"
-                                    )}
-                                  >
-                                    <ArrowRightLeft className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(entry.id)}
-                                    className="p-1 rounded hover:bg-destructive/10 text-muted-foreground/30 hover:text-destructive transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </>
-                              )}
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          </SwipeableRow>
 
                           {/* Move-to-meal inline bar */}
                           {isMoving && (
                             <div className="flex items-center gap-1 px-3 py-1.5 bg-muted/10 border-t border-muted/10">
-                              <span className="text-[10px] text-muted-foreground/50 mr-1 shrink-0">Move to</span>
+                              <span className="text-xs text-muted-foreground/50 mr-1 shrink-0">Move to</span>
                               {MEAL_CONFIG.filter(m => m.id !== currentSection).map(m => (
                                 <button
                                   key={m.id}
                                   onClick={() => handleMove(entry.id, m.id)}
-                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-background text-[10px] font-bold text-foreground hover:bg-primary/10 hover:text-primary active:scale-95 transition-all border border-muted/20"
+                                  className="flex items-center gap-1 px-2 py-1 rounded-md bg-background text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary active:scale-95 transition-all border border-muted/20"
                                 >
                                   <span>{m.emoji}</span>
                                   {m.label}
@@ -470,12 +493,12 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
       {/* Inline undo bar */}
       {undoEntry && (
         <div className="flex items-center justify-between px-3 py-2.5 bg-primary/15 rounded-xl border border-primary/30 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <span className="text-[11px] text-foreground/70 truncate mr-2">
+          <span className="text-xs text-foreground/70 truncate mr-2">
             Removed {undoEntry.name.length > 25 ? undoEntry.name.slice(0, 25) + '...' : undoEntry.name}
           </span>
           <button
             onClick={handleUndo}
-            className="text-[11px] font-bold text-primary bg-primary/20 px-3 py-1 rounded-lg hover:bg-primary/30 active:scale-95 transition-all shrink-0"
+            className="text-xs font-bold text-primary bg-primary/20 px-3 py-1 rounded-lg hover:bg-primary/30 active:scale-95 transition-all shrink-0"
           >
             Undo
           </button>
@@ -484,8 +507,8 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
 
       {/* Entry count */}
       {foodLog.length > 0 && !undoEntry && (
-        <p className="text-[10px] text-muted-foreground/40 text-center pt-1">
-          {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged today
+        <p className="text-xs text-muted-foreground/40 text-center pt-1">
+          {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged {dayLabel}
         </p>
       )}
     </div>
