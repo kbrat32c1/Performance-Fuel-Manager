@@ -139,8 +139,10 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading uppercase tracking-wide;
   }
-  /* Eliminate iOS 300ms tap delay on all interactive elements */
-  button, a, [role="button"], input, select, textarea, label, summary {
+  /* Eliminate iOS 300ms tap delay globally — not just on interactive elements.
+     Without this on parent containers, iOS WKWebView delays click events
+     waiting for a potential double-tap zoom, causing a "two taps required" bug. */
+  * {
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }

@@ -54,6 +54,14 @@ export const STORAGE_KEYS = {
   // ─── Recent Foods ────────────────────────────────────────────────────────
   MACRO_RECENT_FOODS: 'pwm-macro-recent-foods',
 
+  // ─── Caching ────────────────────────────────────────────────────────────
+  /** Cached profile for instant startup (updated after Supabase fetch) */
+  PROFILE_CACHE: 'pwm-profile-cache',
+  /** Cached weight logs for instant startup */
+  WEIGHT_LOGS_CACHE: 'pwm-weight-logs-cache',
+  /** Daily-tracking rows not yet confirmed by Supabase, per user */
+  trackingUnsynced: (userId: string) => `pwm-tracking-unsynced-${userId}` as const,
+
   // ─── Preferences ─────────────────────────────────────────────────────────
   THEME: 'pwm-theme',
   HAPTICS_ENABLED: 'pwm-haptics-enabled',
@@ -67,6 +75,8 @@ export const STORAGE_KEYS = {
   LAST_WEIGHT_TYPE: 'pfm-last-weight-type',
   LAST_WEIGHT_TYPE_DATE: 'pfm-last-weight-type-date',
   FUEL_GUIDE_AVOID_COLLAPSED: 'fuel-guide-avoid-collapsed',
+  /** Health day date when recovery-ready modal was last shown (prevents re-trigger) */
+  RECOVERY_READY_SHOWN: 'pwm-recovery-ready-shown',
 } as const;
 
 /** Prefix for all PWM keys — used in "clear all data" */

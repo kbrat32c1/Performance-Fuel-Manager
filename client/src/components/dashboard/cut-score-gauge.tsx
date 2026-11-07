@@ -123,7 +123,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
               "text-2xl font-bold font-mono leading-none animate-number-pop",
               colors.text
             )}>
-              {result.score}
+              {Math.round(result.score)}
             </span>
             <span className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground/60 mt-0.5">
               Cut Score

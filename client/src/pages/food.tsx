@@ -13,6 +13,7 @@ import { useStore, type MealSection, inferMealSection } from "@/lib/store";
 import { FoodDiary } from "@/components/food-diary";
 import { AddFoodFlow } from "@/components/add-food-flow";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { SaveStatus } from "@/components/save-status";
 import {
   ChevronLeft, ChevronRight, CalendarDays,
   Droplets, Plus, Minus,
@@ -172,6 +173,7 @@ export default function Food() {
             <ChevronRight className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
+        <SaveStatus className="-mt-1" />
 
         {/* ── Macro Progress Bars ── */}
         <div className="px-1 space-y-2">

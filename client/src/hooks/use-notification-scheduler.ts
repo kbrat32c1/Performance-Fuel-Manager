@@ -35,21 +35,21 @@ export function useNotificationScheduler(todayLogs: LogsForToday) {
       // Check each reminder slot
       if (prefs.morningReminder && !logs.morning && !wasFiredToday('morning')) {
         if (isTimeToFire(currentTime, prefs.morningTime)) {
-          fireNotification('Morning Weigh-in', 'Time to log your morning weight');
+          fireNotification('Morning Weigh-in', 'Time to check your weight — step on the scale and log it');
           markFired('morning');
         }
       }
 
       if (prefs.prePracticeReminder && !logs.prePractice && !wasFiredToday('pre-practice')) {
         if (isTimeToFire(currentTime, prefs.prePracticeTime)) {
-          fireNotification('Pre-Practice Weigh-in', 'Log your weight before practice');
+          fireNotification('Pre-Practice Weigh-in', 'Time to check your weight before practice');
           markFired('pre-practice');
         }
       }
 
       if (prefs.beforeBedReminder && !logs.beforeBed && !wasFiredToday('before-bed')) {
         if (isTimeToFire(currentTime, prefs.beforeBedTime)) {
-          fireNotification('Before Bed Weigh-in', 'Log your weight before going to sleep');
+          fireNotification('Before Bed Weigh-in', 'Time to check your weight before bed');
           markFired('before-bed');
         }
       }

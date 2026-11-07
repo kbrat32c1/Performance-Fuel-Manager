@@ -6,26 +6,24 @@ import { Button } from "@/components/ui/button";
 
 import {
   Droplets, Scale, Dumbbell, Moon, Sun,
-  ChevronRight, ChevronDown, ChevronUp, Info,
+  ChevronRight, ChevronDown, ChevronUp,
   AlertTriangle, Flame, Zap, Trash2,
   Calendar, Clock, ArrowDownToLine, ArrowUpFromLine, Plus,
-  TrendingDown, TrendingUp, HelpCircle, X, WifiOff, RefreshCw, Target
+  TrendingDown, TrendingUp, HelpCircle, X, WifiOff, RefreshCw, Target, Bluetooth, CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
 import { getPhaseStyleForDaysUntil, PHASE_STYLES, getPhaseStyle } from "@/lib/phase-colors";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt } from "@/components/dashboard";
+import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt, InfoDialog } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useCarouselSwipe } from "@/hooks/use-carousel-swipe";
 import { useOnlineStatus } from "@/hooks/use-online-status";
-// pull-to-refresh removed
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { HelpTip } from "@/components/ui/help-tip";
 import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
-// pull-to-refresh indicator removed
+import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
 import { DashboardTour } from "@/components/dashboard/tour";
 import { DashboardSkeleton } from "@/components/ui/dashboard-skeletons";
@@ -33,6 +31,222 @@ import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { AiCoachProactive } from "@/components/ai-coach-proactive";
 import { CutScoreGauge } from "@/components/dashboard/cut-score-gauge";
 import { ProtocolSwitchBanner } from "@/components/dashboard/protocol-switch-banner";
+import { HealthMetricsCard } from "@/components/dashboard/health-metrics-card";
+import { RecoveryScoreCard } from "@/components/dashboard/recovery-score-card";
+import { StrainScoreCard } from "@/components/dashboard/strain-score-card";
+import { RecoveryReadyModal } from "@/components/dashboard/recovery-ready-modal";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
+import { useV5BandContext } from "@/lib/v5band-context";
+import { getHealthDay } from "@/lib/strain-service";
+import type { DbHealthData } from "@/lib/supabase";
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SPAR TRIANGLE LOADER — Animated triangle that draws itself (replaces spinners)
+// ═══════════════════════════════════════════════════════════════════════════════
+function SparTriangleLoader({ size = 24, color = '#E8501E', className }: { size?: number; color?: string; className?: string }) {
+  // Triangle perimeter for stroke-dasharray animation
+  // Equilateral triangle with side ~26 units in a 30x30 viewBox → perimeter ≈ 78
+  const perimeter = 78;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 30 30"
+      fill="none"
+      className={className}
+      style={{ overflow: 'visible' }}
+    >
+      <polygon
+        points="15,3 28,27 2,27"
+        stroke={color}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+        style={{
+          strokeDasharray: perimeter,
+          strokeDashoffset: perimeter,
+          animation: 'spar-tri-draw 1.8s ease-in-out infinite',
+        }}
+      />
+      <style>{`
+        @keyframes spar-tri-draw {
+          0% { stroke-dashoffset: ${perimeter}; opacity: 0.3; }
+          50% { stroke-dashoffset: 0; opacity: 1; }
+          70% { stroke-dashoffset: 0; opacity: 1; }
+          100% { stroke-dashoffset: -${perimeter}; opacity: 0.3; }
+        }
+      `}</style>
+    </svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// V5 SYNCING BANNER — Shows elapsed time during data sync with stage messages
+// ═══════════════════════════════════════════════════════════════════════════════
+function V5SyncingBanner({ deviceName }: { deviceName: string }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const syncStages = [
+    { at: 0, label: 'Reading health data from band...' },
+    { at: 3, label: 'Processing heart rate & HRV...' },
+    { at: 6, label: 'Analyzing sleep data...' },
+    { at: 10, label: 'Computing recovery score...' },
+    { at: 14, label: 'Saving to cloud...' },
+    { at: 20, label: 'Almost done...' },
+  ];
+
+  const currentStage = [...syncStages].reverse().find(s => elapsed >= s.at)?.label ?? syncStages[0].label;
+
+  return (
+    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mb-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        {/* SPAR triangle draw animation */}
+        <SparTriangleLoader size={14} color="#22c55e" />
+        <span className="text-green-500 text-xs font-bold flex-1">
+          Syncing {deviceName || 'V5 Band'}
+        </span>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          {elapsed}s
+        </span>
+      </div>
+      <div className="text-[11px] text-muted-foreground ml-5">
+        {currentStage}
+      </div>
+      <div className="h-1 bg-muted/20 rounded-full overflow-hidden mt-2 ml-5">
+        <div
+          className="h-full bg-green-500/60 rounded-full transition-all duration-1000"
+          style={{ width: `${Math.min(95, elapsed * 4)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// V5 BAND STATUS BAR — Unified WHOOP-style connection/sync status banner
+// ═══════════════════════════════════════════════════════════════════════════════
+function V5BandStatusBar({ v5band }: { v5band: ReturnType<typeof useV5BandContext> }) {
+  const { connected, connecting, scanning, syncing, deviceName,
+    lastSyncAt, batteryLevel, deviceId } = v5band;
+  const [caughtUpVisible, setCaughtUpVisible] = useState(true);
+  const caughtUpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Format last sync time: "12:06 PM"
+  const syncTimeLabel = lastSyncAt
+    ? format(new Date(lastSyncAt), 'h:mm a')
+    : null;
+
+  // Auto-fade "DATA CAUGHT UP" after 5 seconds
+  useEffect(() => {
+    if (connected && syncTimeLabel && !syncing) {
+      setCaughtUpVisible(true);
+      if (caughtUpTimer.current) clearTimeout(caughtUpTimer.current);
+      caughtUpTimer.current = setTimeout(() => setCaughtUpVisible(false), 5000);
+    }
+    return () => { if (caughtUpTimer.current) clearTimeout(caughtUpTimer.current); };
+  }, [connected, syncTimeLabel, syncing]);
+
+  // Reset visibility when syncing starts
+  useEffect(() => {
+    if (syncing) setCaughtUpVisible(true);
+  }, [syncing]);
+
+  // State: Syncing — show progress with stage messages
+  if (connected && syncing) {
+    return <V5SyncingBanner deviceName={deviceName} />;
+  }
+
+  // State: Connected and synced — auto-fading "DATA CAUGHT UP"
+  if (connected && syncTimeLabel) {
+    return (
+      <div
+        className="bg-green-500/10 rounded-lg px-3 py-2.5 mb-3 flex items-center justify-between transition-all duration-700"
+        style={{
+          opacity: caughtUpVisible ? 1 : 0,
+          maxHeight: caughtUpVisible ? '48px' : '0px',
+          marginBottom: caughtUpVisible ? '12px' : '0px',
+          padding: caughtUpVisible ? undefined : '0 12px',
+          overflow: 'hidden',
+        }}
+      >
+        <div className="flex items-center gap-2.5">
+          <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+          <span className="text-[12px] font-bold text-green-500 tracking-wider">
+            DATA CAUGHT UP
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {batteryLevel != null && (
+            <span className="text-[10px] text-muted-foreground font-medium">{batteryLevel}%</span>
+          )}
+          <span className="text-[10px] text-green-500/70 font-medium">
+            {syncTimeLabel.toUpperCase()} ✓
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // State: Connected but never synced
+  if (connected && !syncTimeLabel) {
+    return (
+      <div className="bg-green-500/10 rounded-lg px-3 py-2.5 mb-3 flex items-center gap-2.5">
+        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+        <span className="text-[12px] font-bold text-green-500 tracking-wider">
+          {(deviceName || 'V5 BAND').toUpperCase()} CONNECTED
+        </span>
+      </div>
+    );
+  }
+
+  // State: Connecting — SPAR triangle draw animation (only when NOT yet connected)
+  if (!connected && (connecting || scanning)) {
+    return (
+      <div className="bg-muted/80 rounded-lg px-3 py-2.5 mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <Bluetooth className="w-4 h-4 text-foreground/70 flex-shrink-0" />
+          <span className="text-[12px] font-bold text-foreground/80 tracking-wider">
+            CONNECTING...
+          </span>
+        </div>
+        {/* SPAR triangle that draws itself */}
+        <SparTriangleLoader size={20} color="currentColor" className="text-foreground/50" />
+      </div>
+    );
+  }
+
+  // State: Disconnected with saved device — tap to reconnect
+  if (deviceId && !connected && !connecting) {
+    return (
+      <div
+        className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2.5 mb-3 flex items-center justify-between cursor-pointer active:bg-orange-500/20 transition-colors"
+        onClick={async () => {
+          await v5band.scan();
+          if (v5band.deviceId) await v5band.connect(v5band.deviceId);
+        }}
+      >
+        <div className="flex items-center gap-2.5">
+          <WifiOff className="w-4 h-4 text-orange-500 flex-shrink-0" />
+          <span className="text-[12px] font-bold text-orange-500 tracking-wider">
+            DISCONNECTED
+          </span>
+        </div>
+        <span className="text-[10px] text-orange-400/70 font-medium">
+          TAP TO RECONNECT
+        </span>
+      </div>
+    );
+  }
+
+  return null;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPAR PROTOCOL SELECTOR — clickable phase label with protocol switcher popover
@@ -907,7 +1121,14 @@ export default function Dashboard() {
   } = useStore();
 
   const phase = getPhase();
-  const displayDate = profile.simulatedDate || new Date();
+  // WHOOP-style health day: before wake-up (midnight–9AM), "today" is still yesterday.
+  // This ensures the dashboard shows Friday's data when it's 12:53 AM Saturday but
+  // the user hasn't slept yet. getHealthDay() returns the WHOOP-style day, not calendar date.
+  const healthDayStr = getHealthDay();
+  // Parse health day string into a Date. Use T12:00:00 to avoid DST edge cases,
+  // then startOfDay normalizes to midnight. This is safer than T00:00:00.
+  const healthDayDate = startOfDay(new Date(healthDayStr + 'T12:00:00'));
+  const displayDate = profile.simulatedDate || healthDayDate;
   const daysUntilWeighIn = getDaysUntilWeighIn();
   const isViewingHistorical = !!profile.simulatedDate;
   const [compDayDismissed, setCompDayDismissed] = useState(() => sessionStorage.getItem('compDayBannerDismissed') === 'true');
@@ -916,8 +1137,19 @@ export default function Dashboard() {
   const { celebration, dismiss: dismissCelebration } = useCelebrations();
   const isOnline = useOnlineStatus();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const v5bandDash = useV5BandContext();
+  const { healthData, refreshData } = useHealthKitSync(user?.id ?? null);
 
-  // Pull-to-refresh removed — no server data to refresh, all state is local
+  // Pull-to-refresh: reload cached data from Supabase (no BLE sync).
+  // Recovery is an overnight metric locked in from the morning auto-sync.
+  // Re-syncing later in the day would overwrite morning values with skewed data.
+  const pullToRefresh = usePullToRefresh({
+    onRefresh: async () => {
+      await refreshData();
+    },
+    disabled: isViewingHistorical,
+  });
 
   // Reset sip-only banner each day (check date stored vs. today)
   useEffect(() => {
@@ -929,6 +1161,23 @@ export default function Dashboard() {
       sessionStorage.setItem('sipOnlyBannerDate', todayStr);
       setSipOnlyDismissed(false);
     }
+  }, []);
+
+  // ── Recovery Ready modal (WHOOP-style wake-up overlay) ──
+  const [recoveryReadyScore, setRecoveryReadyScore] = useState<number | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { score, healthDay } = (e as CustomEvent).detail;
+      // Only show once per health day
+      const shown = localStorage.getItem(STORAGE_KEYS.RECOVERY_READY_SHOWN);
+      if (shown !== healthDay) {
+        setRecoveryReadyScore(score);
+        localStorage.setItem(STORAGE_KEYS.RECOVERY_READY_SHOWN, healthDay);
+      }
+    };
+    window.addEventListener('recovery-ready', handler);
+    return () => window.removeEventListener('recovery-ready', handler);
   }, []);
 
   // Handle date navigation
@@ -1289,6 +1538,13 @@ export default function Dashboard() {
 
   return (
     <MobileLayout showNav={true}>
+      {/* Pull-to-refresh: swipe down to re-sync V5 band (WHOOP-style) */}
+      <PullToRefreshIndicator
+        pullDistance={pullToRefresh.pullDistance}
+        pullProgress={pullToRefresh.pullProgress}
+        isRefreshing={pullToRefresh.isRefreshing}
+      />
+
       {/* Celebration system */}
       <Confetti active={!!celebration?.confetti} onComplete={undefined} />
       <CelebrationBanner
@@ -1301,6 +1557,14 @@ export default function Dashboard() {
 
       {/* Dashboard feature tour for new users */}
       {!isViewingHistorical && <DashboardTour />}
+
+      {/* WHOOP-style Recovery Ready modal (shows on morning wake-up sync) */}
+      {recoveryReadyScore != null && (
+        <RecoveryReadyModal
+          score={recoveryReadyScore}
+          onDismiss={() => setRecoveryReadyScore(null)}
+        />
+      )}
 
       {/* Carousel container - Apple-style swipe with full preview */}
       <div ref={containerRef} className="relative overflow-hidden">
@@ -1445,6 +1709,7 @@ export default function Dashboard() {
               currentDate={displayDate}
               onDateChange={handleDateChange}
               className="mb-1"
+              isLiveView={!isViewingHistorical}
             />
             <h1 className="text-2xl font-heading font-bold uppercase italic">
               {isViewingHistorical ? "Day Review" : (
@@ -1506,6 +1771,11 @@ export default function Dashboard() {
       {/* Protocol Switch Banner — shows when wrestler should switch to Extreme Cut */}
       {!isViewingHistorical && !isSparGeneral && (
         <ProtocolSwitchBanner />
+      )}
+
+      {/* V5 Band Status Bar — Unified WHOOP-style connection/sync status */}
+      {!isViewingHistorical && v5bandDash.available && v5bandDash.deviceId && (
+        <V5BandStatusBar v5band={v5bandDash} />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -1607,7 +1877,7 @@ export default function Dashboard() {
       {/* WEEK OVERVIEW — collapsed by default, tap to see week plan */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isSparGeneral && daysUntilWeighIn >= 0 && !profile.weighInCleared && (
-        <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} descentData={descentData} timeUntilWeighIn={daysUntilWeighIn >= 0 ? (() => { const t = getTimeUntilWeighIn(); return t === 'WEIGH-IN TIME' ? null : t; })() : null} daysUntilWeighIn={daysUntilWeighIn} />
+        <WhatsNextCard getTomorrowPlan={getTomorrowPlan} getWeeklyPlan={getWeeklyPlan} descentData={descentData} timeUntilWeighIn={daysUntilWeighIn >= 0 ? (() => { const t = getTimeUntilWeighIn(); return t === 'WEIGH-IN TIME' ? null : t; })() : null} daysUntilWeighIn={daysUntilWeighIn} healthData={healthData} refreshData={refreshData} healthDayStr={healthDayStr} />
       )}
 
       {/* ═══════════════════════════════════════════════════════ */}
@@ -2414,107 +2684,13 @@ function HeroWeight({
   );
 }
 
-function InfoDialog() {
-  const { getFoodLists } = useStore();
-  const fuelTanks = getFoodLists().fuelTanks;
-
-  const tankColors: Record<string, string> = {
-    'Water': 'text-cyan-500',
-    'Glycogen': 'text-primary',
-    'Gut Content': 'text-yellow-500',
-    'Fat': 'text-orange-500',
-    'Muscle': 'text-destructive',
-  };
-
-  const costColors: Record<string, string> = {
-    'High': 'bg-destructive/20 text-destructive',
-    'None': 'bg-green-500/20 text-green-500',
-    'Critical': 'bg-red-600/30 text-red-400',
-  };
-
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-          <Info className="w-5 h-5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="w-[95%] max-w-lg rounded-xl bg-card border-muted max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-heading uppercase italic text-xl">System Guide</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-5 py-4 text-sm">
-          {/* The 5 Fuel Tanks */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-base uppercase tracking-wide">The 5 Fuel Tanks</h4>
-            <p className="text-xs text-muted-foreground">
-              Your body weight consists of 5 distinct "tanks" that change at different rates with different performance impacts. We manage weight by manipulating these in order of performance cost.
-            </p>
-
-            <div className="space-y-2">
-              {fuelTanks?.map((tank: any, i: number) => (
-                <div key={i} className="bg-muted/30 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className={cn("font-bold", tankColors[tank.name] || 'text-foreground')}>
-                      {i + 1}. {tank.name}
-                    </span>
-                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", costColors[tank.performanceCost] || 'bg-muted')}>
-                      {tank.performanceCost} COST
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <div>
-                      <span className="text-muted-foreground block">How Fast You Lose</span>
-                      <span className="font-medium">{tank.loseRate}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">How Fast It Refills</span>
-                      <span className="font-medium">{tank.replenishRate}</span>
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-muted-foreground border-t border-muted pt-1.5 mt-1">
-                    <span className="font-bold text-foreground">Performance Decline: </span>
-                    {tank.declinePoint}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Daily Steps */}
-          <div className="space-y-2 border-t border-muted pt-4">
-            <h4 className="font-bold">Daily Steps:</h4>
-            <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-              <li>Log your morning weight</li>
-              <li>Follow the fuel guide for what to eat</li>
-              <li>Hit your hydration target</li>
-              <li>Log pre-practice and post-practice weights</li>
-              <li>Log before bed weight</li>
-              <li>Add extra workouts if needed</li>
-            </ol>
-          </div>
-
-          {/* The Protocols */}
-          <div className="space-y-2 border-t border-muted pt-4">
-            <h4 className="font-bold">The Protocols:</h4>
-            <ul className="space-y-2 text-muted-foreground text-xs">
-              <li><strong className="text-destructive">Extreme Cut:</strong> 12%+ above class. Multi-day depletion, strict oversight required.</li>
-              <li><strong className="text-primary">Rapid Cut:</strong> 7-12% above class. Short-term glycogen + water manipulation.</li>
-              <li><strong className="text-primary">Optimal Cut:</strong> Within 6-7% of class. Glycogen management, performance protected.</li>
-              <li><strong className="text-primary">Gain:</strong> Off-season. Performance and strength focus.</li>
-            </ul>
-          </div>
-
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // Visual Weekly Calendar with tap-to-expand day details
-function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilWeighIn, daysUntilWeighIn }: {
+function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilWeighIn, daysUntilWeighIn, healthData, refreshData, healthDayStr }: {
   getTomorrowPlan: () => any;
   getWeeklyPlan: () => any[];
+  healthData: DbHealthData[];
+  refreshData: () => Promise<void>;
+  healthDayStr: string;
   descentData: {
     avgOvernightDrift: number | null;
     avgDriftRateOzPerHr: number | null;
@@ -2597,20 +2773,58 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   daysUntilWeighIn: number;
 }) {
   const { getExtraWorkoutStats, logs, profile, isWaterLoadingDay, getCutScore, hasTodayMorningWeight } = useStore();
+  const { user } = useAuth();
+  const v5band = useV5BandContext();
   const [isExpanded, setIsExpanded] = useState(true);
   const [flippedCard, setFlippedCard] = useState<'sleep' | 'practice' | 'awake' | 'extras' | null>(null);
 
+  // Refresh health data after V5 band sync completes
+  // V5 band writes to the same Supabase health_data table, but useHealthKitSync
+  // doesn't know about it — so we manually refresh when syncing transitions false→complete.
+  const prevV5Syncing = useRef(false);
+  useEffect(() => {
+    if (prevV5Syncing.current && !v5band.syncing) {
+      // V5 sync just finished — reload health data from Supabase
+      refreshData();
+    }
+    prevV5Syncing.current = v5band.syncing;
+  }, [v5band.syncing, refreshData]);
+
+  // Get today's health data for cut score premium tier
+  // Priority: V5 direct data > HealthKit data
+  // Use health day (WHOOP-style) so at 12:53 AM Saturday we look up Friday's data
+  const todayStr = profile.simulatedDate ? format(profile.simulatedDate, 'yyyy-MM-dd') : healthDayStr;
+  const hkTodayHealth = healthData.find(h => h.date === todayStr);
+
+  // V5 band syncs to the same health_data table with source='v5-direct'
+  // The loadHealthData query returns all sources, so we can prefer v5-direct rows
+  const allHealthRows = [...healthData];
+  const v5Today = allHealthRows.find(h => h.date === todayStr && h.source === 'v5-direct');
+  const todayHealth = v5Today || hkTodayHealth;
+
+  // Fall back to most recent health data if nothing for today
+  const latestHealth = todayHealth || healthData[0]; // healthData already sorted newest-first
+  const healthIsStale = !!latestHealth && latestHealth.date !== todayStr;
+
+  const healthDataForCutScore = latestHealth ? {
+    hrv: latestHealth.hrv,
+    restingHeartRate: latestHealth.resting_heart_rate,
+    sleepScore: latestHealth.sleep_score,
+    recoveryScore: latestHealth.recovery_score,
+    strainScore: latestHealth.strain_score,
+  } : undefined;
+
   // Detect historical competition day: if a weigh-in log exists for this day
   const hasWeighInLogForDay = useMemo(() => {
-    const displayDate = profile.simulatedDate || new Date();
+    const checkDate = profile.simulatedDate || startOfDay(new Date(healthDayStr + 'T12:00:00'));
     return logs.some(l => {
       const ld = new Date(l.date);
       return l.type === 'weigh-in' &&
-        ld.getFullYear() === displayDate.getFullYear() &&
-        ld.getMonth() === displayDate.getMonth() &&
-        ld.getDate() === displayDate.getDate();
+        ld.getFullYear() === checkDate.getFullYear() &&
+        ld.getMonth() === checkDate.getMonth() &&
+        ld.getDate() === checkDate.getDate();
     });
-  }, [logs, profile.simulatedDate]);
+  }, [logs, profile.simulatedDate, healthDayStr]);
   const effectiveCompDay = daysUntilWeighIn === 0 || hasWeighInLogForDay;
 
   // Phase styling for header badge only
@@ -2619,7 +2833,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
   // Card border/bg driven by Cut Score zone — matches the gauge ring color
   // Don't show Cut Score when no active weigh-in or no morning weight logged today
-  const cutScore = !effectiveCompDay && daysUntilWeighIn > 0 && !profile.weighInCleared && hasTodayMorningWeight() ? getCutScore() : null;
+  const cutScore = !effectiveCompDay && daysUntilWeighIn > 0 && !profile.weighInCleared && hasTodayMorningWeight() ? getCutScore(healthDataForCutScore) : null;
   // On comp day (no Cut Score), use weight vs goal for card color
   const compDayZone = effectiveCompDay && descentData.currentWeight !== null
     ? (descentData.currentWeight <= descentData.targetWeight ? 'green' : 'yellow')
@@ -2686,7 +2900,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ CUT SCORE GAUGE — locked until morning weight logged ═══ */}
               {!effectiveCompDay && daysUntilWeighIn > 0 && (
                 hasTodayMorningWeight()
-                  ? <CutScoreGauge result={getCutScore()} />
+                  ? <CutScoreGauge result={getCutScore(healthDataForCutScore)} />
                   : <CutScoreGauge locked />
               )}
 
@@ -3245,6 +3459,36 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                   </>
                 );
               })()}
+
+              {/* ═══ RECOVERY SCORE — flagship health metric ═══ */}
+              {latestHealth && latestHealth.recovery_score != null && (
+                <div className="px-4 pt-3">
+                  <RecoveryScoreCard
+                    latestHealth={latestHealth}
+                    healthHistory={healthData}
+                    isStale={healthIsStale}
+                  />
+                </div>
+              )}
+
+              {/* ═══ DAY STRAIN — WHOOP-style TRIMP strain tracking ═══ */}
+              {v5band.currentStrain && v5band.currentStrain.score > 0 && (
+                <div className="px-4 pt-2">
+                  <StrainScoreCard
+                    strain={v5band.currentStrain}
+                    healthHistory={healthData}
+                    isLive={v5band.hrMonitoringActive}
+                    recoveryScore={latestHealth?.recovery_score}
+                  />
+                </div>
+              )}
+
+              {/* ═══ HEALTH METRICS — from V5 band ═══ */}
+              {latestHealth && (
+                <div className="px-4 pt-2">
+                  <HealthMetricsCard healthData={latestHealth} healthHistory={healthData} isStale={healthIsStale} />
+                </div>
+              )}
 
               {/* Bottom padding */}
               <div className="pb-3" />

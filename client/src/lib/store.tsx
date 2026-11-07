@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { addDays, subDays, differenceInDays, getDay, parseISO, format, startOfDay } from 'date-fns';
-import { supabase, type UserFoodsJson, type MacroCustomFood, type MacroCustomMeal, type SparCustomFood, type SparCustomMealData } from './supabase';
+import { addDays, differenceInDays, getDay, parseISO, format, startOfDay } from 'date-fns';
+import { supabase, type UserFoodsJson } from './supabase';
 import { useAuth } from './auth';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -31,471 +31,67 @@ import {
 } from './spar-calculator-v2';
 import { getCompetitionCalorieAdjustment } from './spar-competition-adjuster';
 import { computeCutScore, type CutScoreInput } from './cut-score';
+import { computeWeekDescentData } from './stores/week-descent-calculator';
+import { computeDriftMetrics, computeExtraWorkoutStats, computeHistoryInsights, computeAdaptiveAdjustment, computeWeeklyCompliance } from './stores/analytics-calculator';
+import {
+  loadUnsyncedRows,
+  saveUnsyncedRows,
+  mergeCloudWithUnsynced,
+  toFullPayload,
+  toCorePayload,
+  retryDelayMs,
+  deriveSyncState,
+  type UnsyncedRows,
+  type TrackingSyncStatus,
+} from './stores/tracking-sync';
 
-// ─── Supabase Database Row Types ───────────────────────────────────────────
-interface SupabaseDailyTrackingRow {
-  date: string;
-  water_consumed: number;
-  carbs_consumed: number;
-  protein_consumed: number;
-  no_practice?: boolean;
-  protein_slices?: number;
-  carb_slices?: number;
-  veg_slices?: number;
-  fruit_slices?: number;
-  fat_slices?: number;
-  nutrition_mode?: 'spar' | 'sugar';
-  food_log?: FoodLogEntry[];
-}
-
-interface SupabaseWeightLogRow {
-  id: string;
-  weight: number;
-  date: string;
-  type: string;
-}
-
-// Types
-export type Protocol = '1' | '2' | '3' | '4' | '5' | '6';
-// 1: Extreme Cut Phase (12%+ above class, multi-day depletion)
-// 2: Rapid Cut Phase (7-12% above class, short-term glycogen + water manipulation)
-// 3: Optimal Cut Phase (Within 6-7% of class, glycogen management, performance protected)
-// 4: Gain Phase (Off-season, performance and strength focus)
-// 5: SPAR Nutrition (Balanced eating — slice-based portion counting)
-// 6: SPAR Competition (SPAR nutrition + competition water loading & cycle timing)
-
-export type Status = 'on-track' | 'borderline' | 'risk';
-
-export type Phase = 'metabolic' | 'transition' | 'performance-prep' | 'last-24h' | 'recovery';
-
-export interface FuelTanks {
-  water: number;    // lbs
-  glycogen: number; // lbs
-  gut: number;      // lbs
-  fat: number;      // lbs
-  muscle: number;   // lbs
-}
-
-export interface AthleteProfile {
-  name: string;
-  lastName: string;
-  currentWeight: number;
-  targetWeightClass: number;
-  targetWeight?: number; // Custom target weight for SPAR users (optional, defaults to targetWeightClass)
-  weighInDate: Date;
-  weighInTime: string; // "HH:MM" format, e.g. "07:00"
-  matchDate: Date;
-  dashboardMode: 'pro';
-  protocol: Protocol;
-  status: Status;
-  simulatedDate: Date | null;
-  hasCompletedOnboarding?: boolean;
-  // SPAR Nutrition profile fields
-  heightInches?: number;
-  age?: number;
-  gender?: 'male' | 'female';
-  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
-  nutritionPreference: 'spar' | 'sugar'; // slices or grams
-  trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
-
-  // SPAR v2 fields
-  sparV2?: boolean; // Flag to indicate using v2 calculator
-  sparGoal?: SparV2Goal; // 'lose' | 'maintain' | 'gain'
-  goalIntensity?: GoalIntensity; // 'lean' | 'aggressive' - for lose/gain
-  maintainPriority?: MaintainPriority; // 'general' | 'performance' - for maintain
-  trainingSessions?: TrainingSessions; // '1-2' | '3-4' | '5-6' | '7+'
-  workdayActivity?: WorkdayActivity; // 'mostly_sitting' | 'on_feet_some' | 'on_feet_most'
-  goalWeightLbs?: number; // Target weight for lose/gain goals
-  // Nerd mode options
-  bodyFatPercent?: number; // Enables Cunningham formula (0-100)
-  customProteinPerLb?: number; // Override protein g/lb
-  customFatPercent?: number; // Override fat % of remaining calories
-  customCarbPercent?: number; // Override carb % of remaining calories
-  // Weight tracking for smart features
-  lastCalcWeight?: number; // Weight used for last slice calculation
-  lastCheckInDate?: string; // ISO date of last check-in prompt
-  weighInCleared?: boolean; // True when user has no active weigh-in date
-  nextCyclePromptDismissed?: boolean; // True when user dismissed the post-comp prompt (one-time)
-}
-
-export interface WeightLog {
-  id: string;
-  date: Date;
-  weight: number;
-  type: 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-before' | 'extra-after' | 'check-in' | 'weigh-in';
-  urineColor?: number; // 1-8
-  notes?: string;
-  duration?: number; // workout duration in minutes (stored on post-practice and extra-after logs)
-  sleepHours?: number; // hours of sleep (stored on morning logs for drift rate calculation)
-}
-
-export interface WaterLog {
-  id: string;
-  date: Date;
-  amount: number; // in oz
-}
-
-// Meal section for FatSecret-style diary grouping
-export type MealSection = 'breakfast' | 'lunch' | 'dinner' | 'snacks';
-
-/** Infer meal section from a timestamp based on hour of day */
-export function inferMealSection(timestamp: string): MealSection {
-  const hour = new Date(timestamp).getHours();
-  if (hour >= 5 && hour < 11) return 'breakfast';
-  if (hour >= 11 && hour < 14) return 'lunch';
-  if (hour >= 17 && hour < 21) return 'dinner';
-  return 'snacks';
-}
-
-// Unified food log entry — works for both SPAR and Sugar modes
-export interface FoodLogEntry {
-  id: string;
-  name: string;
-  timestamp: string; // ISO string
-  mode: 'spar' | 'sugar';
-  mealSection?: MealSection;   // FatSecret-style meal grouping (auto-inferred if missing)
-  // SPAR mode fields (v2 adds 'fruit' and 'fat')
-  sliceType?: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat';
-  sliceCount?: number;         // usually 1, but could be 0.5 or 2
-  // Sugar mode fields
-  macroType?: 'carbs' | 'protein';
-  amount?: number;             // grams
-  category?: string;           // fructose, glucose, zerofiber, protein, custom, meals
-  liquidOz?: number;           // for juices/liquids that also count as water
-  gramAmount?: number;         // gram equivalent per slice for cross-sync undo
-}
-
-export interface DailyTracking {
-  date: string; // YYYY-MM-DD format
-  waterConsumed: number; // oz
-  carbsConsumed: number; // grams
-  proteinConsumed: number; // grams
-  noPractice?: boolean; // rest day — hides PRE/POST slots
-  // SPAR slice tracking
-  proteinSlices: number;
-  carbSlices: number;
-  vegSlices: number;
-  // SPAR v2 additional slice types
-  fruitSlices?: number;
-  fatSlices?: number;
-  nutritionMode?: 'spar' | 'sugar'; // which mode was active when food was logged
-  foodLog?: FoodLogEntry[];          // persisted food log
-}
-
-// Synced user foods data — mirrors UserFoodsJson but with client-friendly types
-export interface UserFoodsData {
-  customFoods: MacroCustomFood[];       // MacroTracker custom foods
-  customMeals: MacroCustomMeal[];       // MacroTracker custom meals
-  sparCustomFoods: SparCustomFood[];    // SparTracker custom foods
-  sparCustomMeals: SparCustomMealData[];// SparTracker custom meals
-  favorites: string[];                  // Composite keys like "spar:Chicken Breast"
-}
-
-const defaultUserFoods: UserFoodsData = {
-  customFoods: [],
-  customMeals: [],
-  sparCustomFoods: [],
-  sparCustomMeals: [],
-  favorites: [],
-};
-
-export interface DayPlan {
-  day: string;
-  dayNum: number;
-  date: Date;
-  phase: string;
-  weightTarget: number; // Morning weigh-in target (primary data point)
-  water: { amount: string; targetOz: number; type: string };
-  carbs: { min: number; max: number };
-  protein: { min: number; max: number };
-  isToday: boolean;
-  isTomorrow: boolean;
-  waterLoadingNote?: string;
-  isCriticalCheckpoint?: boolean;
-  weightWarning?: string;
-}
-
-interface StoreContextType {
-  profile: AthleteProfile;
-  fuelTanks: FuelTanks;
-  logs: WeightLog[];
-  dailyTracking: DailyTracking[];
-  userFoods: UserFoodsData;
-  isLoading: boolean;
-  updateProfile: (updates: Partial<AthleteProfile>) => void;
-  updateUserFoods: (updates: Partial<UserFoodsData>) => void;
-  addLog: (log: Omit<WeightLog, 'id'>) => void;
-  updateLog: (id: string, updates: Partial<WeightLog>) => void;
-  deleteLog: (id: string) => void;
-  updateDailyTracking: (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => void;
-  getDailyTracking: (date: string) => DailyTracking;
-  resetData: () => Promise<void>;
-  clearLogs: () => Promise<void>;
-  migrateLocalStorageToSupabase: () => Promise<void>;
-  hasLocalStorageData: () => boolean;
-  calculateTarget: () => number;
-  getWaterLoadBonus: () => number;
-  isWaterLoadingDay: () => boolean;
-  getDaysUntilWeighIn: () => number;
-  getDaysUntilForDay: (dayNum: number) => number;
-  getTimeUntilWeighIn: () => string;
-  getPhase: () => Phase;
-  getTodaysFocus: () => { title: string; actions: string[], warning?: string };
-  getHydrationTarget: () => { amount: string; type: string; note: string; targetOz: number };
-  getMacroTargets: () => { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string; note?: string; weightWarning?: string };
-  getFuelingGuide: () => { allowed: string[]; avoid: string[]; ratio: string; protein?: string; carbs?: string };
-  getNutritionMode: () => 'spar' | 'sugar';
-  getSliceTargets: () => {
-    protein: number;
-    carb: number;
-    veg: number;
-    fruit: number;
-    fat: number;
-    totalCalories: number;
-    bmr?: number;
-    tdee?: number;
-    activityLevel?: string;
-    calorieAdjustment?: number;
-    // v2 additional fields
-    isV2?: boolean;
-    proteinGrams?: number;
-    carbGramsTotal?: number;
-    fatGrams?: number;
-    proteinPerLb?: number;
-  };
-  getCheckpoints: () => {
-    walkAround: string;
-    wedTarget: string;
-    friTarget: string;
-    waterLoadingAdjustment: string;
-    isWaterLoadingDay: boolean;
-    currentDayContext: string;
-  };
-  getRehydrationPlan: (lostWeight: number) => { fluidRange: string; sodiumRange: string; glycogen: string };
-  getWeeklyPlan: () => DayPlan[];
-  getTomorrowPlan: () => DayPlan | null;
-  getNextTarget: () => { label: string; weight: number; description: string } | null;
-  getDriftMetrics: () => { overnight: number | null; session: number | null };
-  getStatus: () => {
-    status: Status;
-    label: string;
-    color: string;
-    bgColor: string;
-    contextMessage: string;
-    waterLoadingNote?: string;
-    projectionWarning?: string;
-    recommendation?: {
-      extraWorkoutsNeeded: number;
-      totalWorkoutsNeeded: number;
-      todayWorkoutsDone: number;
-      todayLoss: number;
-      message: string;
-      urgency: 'moderate' | 'high' | 'critical';
-      switchProtocol: boolean;
-      avgExtraWorkoutLoss: number | null;
-    };
-  };
-  getExtraWorkoutStats: () => { avgLoss: number | null; avgSweatRateOzPerHr: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number };
-  getDailyPriority: () => { priority: string; urgency: 'normal' | 'high' | 'critical'; icon: string };
-  getWeekDescentData: () => {
-    startWeight: number | null;
-    currentWeight: number | null;
-    targetWeight: number;
-    daysRemaining: number;
-    totalLost: number | null;
-    dailyAvgLoss: number | null; // Net morning-to-morning (includes food/water intake)
-    grossDailyLoss: number | null; // Gross loss capacity (drift + practice)
-    avgOvernightDrift: number | null;
-    avgDriftRateOzPerHr: number | null;
-    avgLoadingDrift: number | null;
-    avgCutDrift: number | null;
-    avgPracticeLoss: number | null;
-    avgSweatRateOzPerHr: number | null;
-    daytimeBmrDrift: number;         // Estimated metabolic loss during awake non-active hours
-    emaSleepHours: number;           // EMA-weighted average sleep hours per night
-    emaPracticeHours: number;        // EMA-weighted average practice duration in hours
-    todayRemainingComponents: { sleep: number; practice: number } | null; // Individual components of today's remaining loss
-    projectedSaturday: number | null; // Phase-aware projection
-    pace: 'ahead' | 'on-track' | 'behind' | null;
-    morningWeights: Array<{ day: string; weight: number; date: Date }>;
-    // Recent raw data for detail cards (newest first, up to 5)
-    recentDrifts: number[];           // Last 5 overnight drift values (lbs)
-    recentDriftRates: number[];       // Last 5 drift rates (lbs/hr)
-    recentSleepHours: number[];       // Last 5 sleep durations (hours)
-    recentPracticeLosses: number[];   // Last 5 practice losses (lbs)
-    recentPracticeSweatRates: number[]; // Last 5 practice sweat rates (lbs/hr)
-    recentPracticeDurations: number[]; // Last 5 practice durations (hours)
-    // Trend direction for each metric ('up' = improving/losing more, 'down' = declining, 'stable')
-    trends: {
-      drift: 'up' | 'down' | 'stable';
-      practice: 'up' | 'down' | 'stable';
-      driftRate: 'up' | 'down' | 'stable';
-      sweatRate: 'up' | 'down' | 'stable';
-    };
-    // Confidence: how many data points back each projection metric
-    confidence: {
-      driftSamples: number;
-      practiceSamples: number;
-      level: 'high' | 'medium' | 'low' | 'none';
-    };
-    // Monte Carlo make-weight probability
-    makeWeightProb: {
-      probability: number;         // 0-100
-      worstCase: number;           // 90th percentile — worst realistic outcome
-      median: number;              // 50th percentile — most likely outcome
-      includesExtraWork: boolean;  // true if extra workout was factored in
-    } | null;
-    // Today's progress: how much lost so far vs expected
-    todayProgress: {
-      lostSoFar: number;
-      expectedTotal: number;
-      pctComplete: number;
-    } | null;
-    // Logging streak
-    loggingStreak: number;         // consecutive days with at least 1 log
-    todayCoreLogged: number;       // how many of core types logged today
-    todayCoreTotal: number;        // expected core types (3 on comp day, 4 otherwise)
-    // Week-over-week comparison
-    weekOverWeek: {
-      thisWeekAvgDrift: number | null;
-      lastWeekAvgDrift: number | null;
-      thisWeekAvgPractice: number | null;
-      lastWeekAvgPractice: number | null;
-    } | null;
-    // All weigh-ins this week for velocity sparkline (oldest first)
-    weekWeighIns: Array<{ day: string; weight: number; type: string }>;
-    // Personal records
-    personalRecords: {
-      bestDrift: number | null;         // biggest single-night drift
-      bestPracticeLoss: number | null;  // biggest single practice loss
-      bestDriftRate: number | null;     // highest lbs/hr while sleeping
-      bestSweatRate: number | null;     // highest practice sweat rate
-      totalLostThisWeek: number | null; // total weight lost this comp week
-    };
-    // Time-to-target: when they'll hit weight class based on current drift rate
-    timeToTarget: {
-      etaHours: number | null;         // hours from now to hit target
-      etaTime: string | null;          // formatted time (e.g. "4:30 AM")
-      lbsRemaining: number;            // how much left to lose
-      ratePerHour: number | null;      // current loss rate lbs/hr
-    } | null;
-    // Historical fallback (all-time EMA) — for display when cycle has no data yet
-    historicalDrift: number | null;
-    historicalDriftRate: number | null;
-    historicalPracticeLoss: number | null;
-    historicalSweatRate: number | null;
-    cycleHasOwnDriftData: boolean;
-    cycleHasOwnPracticeData: boolean;
-  };
-  hasTodayMorningWeight: () => boolean;
-  getFoodLists: () => {
-    highFructose: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
-    balanced: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
-    highGlucose: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
-    zeroFiber: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
-    recovery: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string }>;
-    protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }>;
-    avoid: Array<{ name: string; reason: string }>;
-    tournament: Array<{ name: string; ratio: string; serving: string; carbs: number; timing?: string; note?: string }>;
-    supplements: Array<{ name: string; serving: string; note?: string }>;
-    fuelTanks: Array<{ name: string; loseRate: string; replenishRate: string; performanceCost: string; declinePoint: string }>;
-  };
-  getTodaysFoods: () => {
-    carbs: Array<{ name: string; ratio: string; serving: string; carbs: number; note?: string; timing?: string }>;
-    protein: Array<{ name: string; serving: string; protein: number; note?: string; timing?: string }>;
-    avoid: Array<{ name: string; reason: string }>;
-    carbsLabel: string;
-    proteinLabel: string;
-  };
-  getHistoryInsights: () => {
-    avgOvernightDrift: number | null;
-    avgDriftRateOzPerHr: number | null;
-    avgPracticeLoss: number | null;
-    avgSweatRateOzPerHr: number | null;
-    avgFridayCut: number | null;
-    weeklyTrend: number | null;
-    projectedSaturday: number | null;
-    daysUntilSat: number;
-    totalLogsThisWeek: number;
-    hasEnoughData: boolean;
-    lastFridayWeight: number | null;
-    lastSaturdayWeight: number | null;
-    madeWeightLastWeek: boolean;
-  };
-  getAdaptiveAdjustment: () => {
-    isPlateaued: boolean;
-    plateauDays: number;
-    suggestedAdjustment: number; // negative = reduce calories, positive = increase
-    reason: string;
-    recentWeights: Array<{ date: string; weight: number }>;
-    variance: number;
-    expectedLoss: number;
-    actualLoss: number;
-  };
-  getWeeklyCompliance: () => {
-    protein: { percentage: number; avgConsumed: number; avgTarget: number };
-    carb: { percentage: number; avgConsumed: number; avgTarget: number };
-    veg: { percentage: number; avgConsumed: number; avgTarget: number };
-    fruit: { percentage: number; avgConsumed: number; avgTarget: number };
-    fat: { percentage: number; avgConsumed: number; avgTarget: number };
-    daysTracked: number;
-    bestCategory: string;
-    worstCategory: string;
-    insight: string;
-  };
-  getCutScore: () => import('./cut-score').CutScoreResult;
-}
-
-/**
- * Exponential Moving Average — gives more weight to recent values.
- * Alpha=0.4: most recent value gets ~40%, next ~24%, next ~14%, etc.
- * Expects values in newest-first order (from sortedLogs).
- */
-const EMA_ALPHA = 0.4;
-function computeEMA(values: number[]): number | null {
-  if (values.length === 0) return null;
-  if (values.length === 1) return values[0];
-  // Start from oldest, accumulate toward newest
-  let ema = values[values.length - 1];
-  for (let i = values.length - 2; i >= 0; i--) {
-    ema = EMA_ALPHA * values[i] + (1 - EMA_ALPHA) * ema;
-  }
-  return ema;
-}
-
-const defaultProfile: AthleteProfile = {
-  name: 'Athlete',
-  lastName: '',
-  currentWeight: 0,
-  targetWeightClass: 157,
-  weighInDate: addDays(new Date(), 5), // 5 days out
-  weighInTime: '07:00', // Default 7 AM weigh-in
-  matchDate: addDays(new Date(), 5),
-  dashboardMode: 'pro',
-  protocol: '2', // Default to Rapid Cut Phase
-  status: 'on-track',
-  simulatedDate: null,
-  hasCompletedOnboarding: false,
-  nutritionPreference: 'spar', // Default to slices
-};
-
-const defaultTanks: FuelTanks = {
-  water: 4.5,    // Variable
-  glycogen: 1.2, // Variable
-  gut: 1.8,      // Variable
-  fat: 12.0,     // Semi-fixed
-  muscle: 148.9, // Protected
-};
+// ─── Types (re-exported from stores/types.ts) ──────────────────────────────
+export type { Protocol, Status, Phase, FuelTanks, AthleteProfile, WeightLog, WaterLog, MealSection, FoodLogEntry, DailyTracking, UserFoodsData, DayPlan, SupabaseDailyTrackingRow, SupabaseWeightLogRow, StoreContextType } from './stores/types';
+export { inferMealSection, defaultUserFoods, defaultProfile, defaultTanks } from './stores/types';
+import type { Protocol, Status, Phase, FuelTanks, AthleteProfile, WeightLog, WaterLog, MealSection, FoodLogEntry, DailyTracking, UserFoodsData, DayPlan, SupabaseDailyTrackingRow, SupabaseWeightLogRow, StoreContextType } from './stores/types';
+import { inferMealSection, defaultUserFoods, defaultProfile, defaultTanks } from './stores/types';
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+
+  // ── Instant startup from localStorage caches ──
+  // Load cached data immediately so the UI renders without waiting for Supabase.
+  // The Supabase fetch will update state in the background once it completes.
+  //
+  // IMPORTANT: isLoading must ALWAYS start true so ProtectedRoute waits for
+  // Supabase to confirm the real profile before making routing decisions.
+  // Without this, stale/missing cache causes redirect to onboarding.
   const [isLoading, setIsLoading] = useState(true);
 
-  const [profile, setProfile] = useState<AthleteProfile>(defaultProfile);
+  const [profile, setProfile] = useState<AthleteProfile>(() => {
+    try {
+      const cached = localStorage.getItem(STORAGE_KEYS.PROFILE_CACHE);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    return defaultProfile;
+  });
   const [fuelTanks, setFuelTanks] = useState<FuelTanks>(defaultTanks);
-  const [logs, setLogs] = useState<WeightLog[]>([]);
+  const [logs, setLogs] = useState<WeightLog[]>(() => {
+    try {
+      const cached = localStorage.getItem(STORAGE_KEYS.WEIGHT_LOGS_CACHE);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          // Restore Date objects from ISO strings
+          return parsed.map((log: any) => ({
+            ...log,
+            date: new Date(log.date),
+          }));
+        }
+      }
+    } catch {}
+    return [];
+  });
   const [dailyTracking, setDailyTracking] = useState<DailyTracking[]>(() => {
     // Restore from localStorage cache immediately so food data is visible before Supabase loads
     try {
@@ -508,6 +104,123 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return [];
   });
   const [userFoods, setUserFoods] = useState<UserFoodsData>(defaultUserFoods);
+
+  // ── Daily tracking cloud sync ──
+  // Every change is recorded in a per-user "unsynced" store before it is sent.
+  // A row leaves that store only after Supabase confirms the exact version we sent,
+  // so a failed save survives reloads and is retried instead of being overwritten.
+  const userIdRef = useRef<string | null>(user?.id ?? null);
+  userIdRef.current = user?.id ?? null;
+  const trackingRef = useRef<DailyTracking[]>(dailyTracking);
+  useEffect(() => { trackingRef.current = dailyTracking; }, [dailyTracking]);
+  const unsyncedRef = useRef<UnsyncedRows>({});
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const failuresRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const failureToastShownRef = useRef(false);
+  const [trackingSyncStatus, setTrackingSyncStatus] = useState<TrackingSyncStatus>({ state: 'saved', pendingCount: 0 });
+
+  const refreshSyncStatus = useCallback(() => {
+    const pendingCount = Object.keys(unsyncedRef.current).length;
+    const online = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+    setTrackingSyncStatus({ state: deriveSyncState(pendingCount, inFlightRef.current.size > 0, online), pendingCount });
+  }, []);
+
+  const upsertTrackingRow = useCallback(async (userId: string, row: DailyTracking): Promise<boolean> => {
+    try {
+      const { error } = await supabase.from('daily_tracking').upsert(toFullPayload(userId, row), { onConflict: 'user_id,date' });
+      if (!error) return true;
+      if (error.message?.includes('column') || error.code === '42703') {
+        console.warn('SPAR columns not in DB yet, falling back to core fields:', error.message);
+        const { error: fallbackError } = await supabase.from('daily_tracking').upsert(toCorePayload(userId, row), { onConflict: 'user_id,date' });
+        if (!fallbackError) return true;
+        console.error('Error updating daily tracking (fallback):', fallbackError);
+        return false;
+      }
+      console.error('Error updating daily tracking:', error);
+      return false;
+    } catch (error) {
+      console.error('Error updating daily tracking:', error);
+      return false;
+    }
+  }, []);
+
+  const pushTrackingDateRef = useRef<(date: string) => Promise<void>>(async () => {});
+
+  const flushUnsyncedTracking = useCallback(() => {
+    for (const date of Object.keys(unsyncedRef.current)) {
+      if (!inFlightRef.current.has(date)) void pushTrackingDateRef.current(date);
+    }
+  }, []);
+
+  const scheduleTrackingRetry = useCallback(() => {
+    if (retryTimerRef.current) return;
+    retryTimerRef.current = setTimeout(() => {
+      retryTimerRef.current = null;
+      flushUnsyncedTracking();
+    }, retryDelayMs(failuresRef.current));
+  }, [flushUnsyncedTracking]);
+
+  pushTrackingDateRef.current = async (date: string) => {
+    const userId = userIdRef.current;
+    if (!userId || inFlightRef.current.has(date)) return;
+    const row = unsyncedRef.current[date];
+    if (!row) return;
+
+    inFlightRef.current.add(date);
+    refreshSyncStatus();
+    const ok = await upsertTrackingRow(userId, row);
+    inFlightRef.current.delete(date);
+
+    if (userIdRef.current !== userId) { refreshSyncStatus(); return; }
+
+    if (ok) {
+      failuresRef.current = 0;
+      if (unsyncedRef.current[date] === row) {
+        const { [date]: _saved, ...rest } = unsyncedRef.current;
+        unsyncedRef.current = rest;
+        saveUnsyncedRows(userId, rest);
+      } else {
+        // A newer edit arrived while this one was in flight — send it now.
+        void pushTrackingDateRef.current(date);
+      }
+      if (Object.keys(unsyncedRef.current).length === 0) failureToastShownRef.current = false;
+    } else {
+      failuresRef.current += 1;
+      if (!failureToastShownRef.current) {
+        failureToastShownRef.current = true;
+        toast({
+          title: "Not saved to cloud yet",
+          description: "Your log is kept on this device and will retry automatically.",
+          variant: "destructive",
+        });
+      }
+      scheduleTrackingRetry();
+    }
+    refreshSyncStatus();
+  };
+
+  const retryTrackingSync = useCallback(() => {
+    failuresRef.current = 0;
+    if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+    flushUnsyncedTracking();
+  }, [flushUnsyncedTracking]);
+
+  useEffect(() => {
+    const onOnline = () => retryTrackingSync();
+    const onOffline = () => refreshSyncStatus();
+    const onVisible = () => { if (document.visibilityState === 'visible') flushUnsyncedTracking(); };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [retryTrackingSync, refreshSyncStatus, flushUnsyncedTracking]);
+
+  useEffect(() => () => { if (retryTimerRef.current) clearTimeout(retryTimerRef.current); }, []);
 
   // Check if there's localStorage data that could be migrated
   const hasLocalStorageData = useCallback(() => {
@@ -530,7 +243,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const loadFromSupabase = useCallback(async () => {
     if (!user) return;
 
+    // Always ensure loading is true while fetching from Supabase.
+    // isLoading already starts as true, but set it again in case of re-fetch.
     setIsLoading(true);
+
     try {
       // Load profile
       const { data: profileData, error: profileError } = await supabase
@@ -558,7 +274,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from('profiles').update({ name: loadedName, last_name: loadedLastName }).eq('user_id', user.id);
         }
 
-        setProfile({
+        const loadedProfile: AthleteProfile = {
           name: loadedName,
           lastName: loadedLastName,
           currentWeight: profileData.current_weight || 0,
@@ -596,7 +312,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // UI state flags stored in localStorage (no Supabase column)
           weighInCleared: (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.WEIGH_IN_CLEARED) || 'false'); } catch { return false; } })(),
           nextCyclePromptDismissed: (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.NEXT_CYCLE_DISMISSED) || 'false'); } catch { return false; } })(),
-        });
+        };
+        setProfile(loadedProfile);
+        // Cache profile for instant startup next time
+        try { localStorage.setItem(STORAGE_KEYS.PROFILE_CACHE, JSON.stringify(loadedProfile)); } catch {}
         // Load user_foods from the same profile row
         const uf = (profileData.user_foods && typeof profileData.user_foods === 'object')
           ? profileData.user_foods as UserFoodsJson
@@ -675,7 +394,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         .order('date', { ascending: false });
 
       if (logsData && !logsError) {
-        setLogs(logsData.map(log => {
+        const mappedLogs = logsData.map(log => {
           // Handle both full ISO timestamps and date-only strings from Supabase
           // Date-only strings like "2024-01-15" get parsed as UTC midnight by new Date(),
           // which shifts back a day in negative UTC offsets. Detect and fix this.
@@ -694,7 +413,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             ...(log.duration !== undefined && log.duration !== null && { duration: log.duration }),
             ...(log.sleep_hours !== undefined && log.sleep_hours !== null && { sleepHours: log.sleep_hours }),
           };
-        }));
+        });
+        setLogs(mappedLogs);
+        // Cache weight logs for instant startup next time
+        try { localStorage.setItem(STORAGE_KEYS.WEIGHT_LOGS_CACHE, JSON.stringify(mappedLogs)); } catch {}
       }
 
       // Load daily tracking
@@ -718,16 +440,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           nutritionMode: t.nutrition_mode || undefined,
           foodLog: t.food_log || [],
         }));
-        setDailyTracking(mapped);
-        // Update localStorage cache with authoritative Supabase data
-        try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(mapped)); } catch {}
+        // Unsaved local edits are newer than the cloud copy — keep them and re-send.
+        const unsynced = loadUnsyncedRows(user.id);
+        unsyncedRef.current = unsynced;
+        const merged = mergeCloudWithUnsynced(mapped, unsynced);
+        trackingRef.current = merged;
+        setDailyTracking(merged);
+        try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(merged)); } catch {}
+        refreshSyncStatus();
+        flushUnsyncedTracking();
+      } else {
+        // Cloud unreachable — keep the cached rows and layer unsaved edits on top.
+        const unsynced = loadUnsyncedRows(user.id);
+        unsyncedRef.current = unsynced;
+        const merged = mergeCloudWithUnsynced(trackingRef.current, unsynced);
+        trackingRef.current = merged;
+        setDailyTracking(merged);
+        refreshSyncStatus();
+        if (Object.keys(unsynced).length > 0) scheduleTrackingRetry();
       }
     } catch (error) {
       console.error('Error loading from Supabase:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, refreshSyncStatus, flushUnsyncedTracking, scheduleTrackingRetry]);
 
   // Migrate localStorage data to Supabase
   const migrateLocalStorageToSupabase = async () => {
@@ -830,17 +567,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (user) {
       loadFromSupabase();
     } else {
-      // Reset to defaults when logged out
+      // Reset to defaults when logged out. Unsynced rows stay in that user's
+      // localStorage entry and are sent the next time they sign in.
+      unsyncedRef.current = {};
+      if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+      refreshSyncStatus();
       setProfile(defaultProfile);
       setLogs([]);
       setDailyTracking([]);
       setUserFoods(defaultUserFoods);
       setIsLoading(false);
     }
-  }, [user, loadFromSupabase]);
+  }, [user, loadFromSupabase, refreshSyncStatus]);
 
   // Save profile to Supabase
-  const updateProfile = async (updates: Partial<AthleteProfile>) => {
+  const updateProfile = async (updates: Partial<AthleteProfile>, options?: { silent?: boolean }) => {
     // Check if this is ONLY a simulatedDate change (date navigation, not a real settings change)
     const isOnlySimulatedDateChange = Object.keys(updates).length === 1 && 'simulatedDate' in updates;
 
@@ -925,8 +666,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         let { error: upsertError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'user_id' });
 
         if (!upsertError) {
-          // Only show toast for real settings changes, not date navigation
-          if (!isOnlySimulatedDateChange) {
+          // Only show toast for real settings changes, not date navigation or silent updates
+          if (!isOnlySimulatedDateChange && !options?.silent) {
             toast({ title: 'Settings saved', description: 'Your changes have been saved.', duration: 2000 });
           }
         }
@@ -1061,7 +802,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (log.duration !== undefined) insertData.duration = log.duration;
           if (log.sleepHours !== undefined) insertData.sleep_hours = log.sleepHours;
 
-          const { data, error } = await supabase.from('weight_logs').insert(insertData).select().single();
+          // The DB unique index uses DATE(date) in UTC. To avoid constraint violations,
+          // delete any existing record that falls on the same UTC date for this type.
+          // insertData.date is already an ISO string (UTC).
+          const utcDate = insertData.date.split('T')[0]; // "2025-02-18"
+          await supabase
+            .from('weight_logs')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('type', log.type)
+            .gte('date', `${utcDate}T00:00:00.000Z`)
+            .lte('date', `${utcDate}T23:59:59.999Z`);
+
+          const { data, error } = await supabase
+            .from('weight_logs')
+            .insert(insertData)
+            .select()
+            .single();
 
           if (error) {
             // Rollback on error
@@ -1230,91 +987,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, noPractice: false, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, foodLog: [] };
   };
 
-  const updateDailyTracking = async (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => {
-    // Compute merged values BEFORE setState to avoid stale read
-    const existing = getDailyTracking(date);
-    const merged = {
-      waterConsumed: updates.waterConsumed ?? existing.waterConsumed,
-      carbsConsumed: updates.carbsConsumed ?? existing.carbsConsumed,
-      proteinConsumed: updates.proteinConsumed ?? existing.proteinConsumed,
-      noPractice: updates.noPractice ?? existing.noPractice,
-      proteinSlices: updates.proteinSlices ?? existing.proteinSlices,
-      carbSlices: updates.carbSlices ?? existing.carbSlices,
-      vegSlices: updates.vegSlices ?? existing.vegSlices,
-      fruitSlices: updates.fruitSlices ?? existing.fruitSlices,
-      fatSlices: updates.fatSlices ?? existing.fatSlices,
-      nutritionMode: updates.nutritionMode ?? existing.nutritionMode,
-      foodLog: updates.foodLog ?? existing.foodLog,
+  const updateDailyTracking = (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => {
+    // Ignore keys explicitly set to undefined so they never wipe existing values.
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([, v]) => v !== undefined)
+    ) as Partial<Omit<DailyTracking, 'date'>>;
+
+    // Read from the ref, not render-time state, so back-to-back calls build on each other.
+    const current = trackingRef.current;
+    const found = current.find(d => d.date === date);
+    const base: DailyTracking = found ?? {
+      date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, noPractice: false,
+      proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, foodLog: [],
     };
+    const row: DailyTracking = { ...base, ...cleanUpdates, date };
+    const next = found ? current.map(d => (d.date === date ? row : d)) : [...current, row];
 
-    setDailyTracking(prev => {
-      const found = prev.find(d => d.date === date);
-      let next: DailyTracking[];
-      if (found) {
-        next = prev.map(d => d.date === date ? { ...d, ...updates } : d);
-      } else {
-        next = [...prev, { date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0, proteinSlices: 0, carbSlices: 0, vegSlices: 0, fruitSlices: 0, fatSlices: 0, ...updates }];
-      }
-      // Persist to localStorage as offline fallback
-      try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(next)); } catch {}
-      return next;
-    });
+    trackingRef.current = next;
+    setDailyTracking(next);
+    try { localStorage.setItem(STORAGE_KEYS.DAILY_TRACKING_CACHE, JSON.stringify(next)); } catch {}
 
-    if (user) {
-      try {
-        // Try full upsert with all columns (including SPAR fields)
-        const fullPayload: Record<string, any> = {
-          user_id: user.id,
-          date: date,
-          carbs_consumed: merged.carbsConsumed,
-          protein_consumed: merged.proteinConsumed,
-          water_consumed: merged.waterConsumed,
-          no_practice: merged.noPractice ?? false,
-          protein_slices: merged.proteinSlices ?? 0,
-          carb_slices: merged.carbSlices ?? 0,
-          veg_slices: merged.vegSlices ?? 0,
-          fruit_slices: merged.fruitSlices ?? 0,
-          fat_slices: merged.fatSlices ?? 0,
-          nutrition_mode: merged.nutritionMode ?? null,
-          food_log: merged.foodLog ?? [],
-        };
-
-        const { error } = await supabase.from('daily_tracking').upsert(fullPayload, { onConflict: 'user_id,date' });
-
-        if (error) {
-          // If the error mentions missing columns, fall back to core fields only
-          if (error.message?.includes('column') || error.code === '42703') {
-            console.warn('SPAR columns not in DB yet, falling back to core fields:', error.message);
-            const { error: fallbackError } = await supabase.from('daily_tracking').upsert({
-              user_id: user.id,
-              date: date,
-              carbs_consumed: merged.carbsConsumed,
-              protein_consumed: merged.proteinConsumed,
-              water_consumed: merged.waterConsumed,
-              no_practice: merged.noPractice ?? false,
-              food_log: merged.foodLog ?? [],
-            }, { onConflict: 'user_id,date' });
-
-            if (fallbackError) {
-              // Don't rollback — keep localStorage as source of truth
-              console.error('Error updating daily tracking (fallback):', fallbackError);
-            }
-          } else {
-            // Don't rollback — keep localStorage as source of truth
-            console.error('Error updating daily tracking:', error);
-          }
-        }
-      } catch (error) {
-        // Don't rollback — keep localStorage as source of truth
-        console.error('Error updating daily tracking:', error);
-      }
+    const userId = userIdRef.current;
+    if (userId) {
+      unsyncedRef.current = { ...unsyncedRef.current, [date]: row };
+      saveUnsyncedRows(userId, unsyncedRef.current);
+      refreshSyncStatus();
+      void pushTrackingDateRef.current(date);
     }
   };
 
   const resetData = async () => {
+    unsyncedRef.current = {};
+    if (retryTimerRef.current) { clearTimeout(retryTimerRef.current); retryTimerRef.current = null; }
+    if (user) saveUnsyncedRows(user.id, {});
+    refreshSyncStatus();
     setProfile(defaultProfile);
     setFuelTanks(defaultTanks);
     setLogs([]);
+    trackingRef.current = [];
     setDailyTracking([]);
     setUserFoods(defaultUserFoods);
 
@@ -3015,132 +2725,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { label: "Tomorrow AM", weight: tomorrowTarget, description: "Morning Target" };
   };
 
-  const getDriftMetrics = () => {
-    // Sort logs newest-first by date
-    const sorted = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    let overnightSum = 0;
-    let overnightCount = 0;
-    let sessionSum = 0;
-    let sessionCount = 0;
-
-    // For each morning log, find the most recent preceding post-practice (overnight drift)
-    // For each post-practice log, find the most recent preceding pre-practice (session loss)
-    const morningLogs = sorted.filter(l => l.type === 'morning');
-    const postPracticeLogs = sorted.filter(l => l.type === 'post-practice');
-    const prePracticeLogs = sorted.filter(l => l.type === 'pre-practice');
-
-    // Overnight drift: morning weight vs previous day's post-practice
-    for (const morning of morningLogs) {
-      const morningTime = new Date(morning.date).getTime();
-      // Find the closest post-practice BEFORE this morning (6-16 hours prior)
-      const match = postPracticeLogs.find(pp => {
-        const ppTime = new Date(pp.date).getTime();
-        const diffHours = (morningTime - ppTime) / (1000 * 60 * 60);
-        return diffHours > 6 && diffHours < 16;
-      });
-      if (match) {
-        overnightSum += (match.weight - morning.weight);
-        overnightCount++;
-      }
-    }
-
-    // Session loss: pre-practice vs post-practice (same session, within 4 hours)
-    const usedPostIds = new Set<string>();
-    for (const pre of prePracticeLogs) {
-      const preTime = new Date(pre.date).getTime();
-      // Find the closest post-practice AFTER this pre-practice (within 4 hours)
-      const match = postPracticeLogs.find(pp => {
-        if (usedPostIds.has(pp.id)) return false;
-        const ppTime = new Date(pp.date).getTime();
-        const diffHours = (ppTime - preTime) / (1000 * 60 * 60);
-        return diffHours > 0 && diffHours < 4;
-      });
-      if (match) {
-        usedPostIds.add(match.id);
-        sessionSum += (pre.weight - match.weight);
-        sessionCount++;
-      }
-    }
-
-    return {
-        overnight: overnightCount > 0 ? (overnightSum / overnightCount) : null,
-        session: sessionCount > 0 ? (sessionSum / sessionCount) : null
-    };
-  };
+  const getDriftMetrics = () => computeDriftMetrics(logs);
 
   // Calculate extra workout statistics from logged extra-before/extra-after pairs
-  const getExtraWorkoutStats = (): { avgLoss: number | null; avgSweatRateOzPerHr: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number } => {
-    const today = startOfDay(profile.simulatedDate || new Date());
-    const todayStr = format(today, 'yyyy-MM-dd');
-
-    // Find all extra-before logs and pair them with their extra-after
-    const extraBeforeLogs = logs.filter(l => l.type === 'extra-before')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const extraAfterLogs = logs.filter(l => l.type === 'extra-after')
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    const workoutLosses: number[] = [];
-    const sweatRates: number[] = [];
-    let todayWorkouts = 0;
-    let todayLoss = 0;
-    const usedAfterIds = new Set<string>();
-
-    for (const before of extraBeforeLogs) {
-      const beforeTime = new Date(before.date).getTime();
-      const beforeDay = format(startOfDay(new Date(before.date)), 'yyyy-MM-dd');
-
-      // Find the closest matching after log on the same day, within 3 hours, not already used
-      let bestAfter: typeof extraAfterLogs[0] | null = null;
-      let bestTimeDiff = Infinity;
-
-      for (const a of extraAfterLogs) {
-        if (usedAfterIds.has(a.id)) continue;
-        const afterTime = new Date(a.date).getTime();
-        const afterDay = format(startOfDay(new Date(a.date)), 'yyyy-MM-dd');
-        // Must be same day
-        if (afterDay !== beforeDay) continue;
-        const timeDiff = afterTime - beforeTime;
-        // Must be after the before log, within 3 hours (workout + logging time)
-        if (timeDiff >= 0 && timeDiff < 3 * 60 * 60 * 1000 && timeDiff < bestTimeDiff) {
-          bestAfter = a;
-          bestTimeDiff = timeDiff;
-        }
-      }
-
-      if (bestAfter) {
-        usedAfterIds.add(bestAfter.id);
-        const loss = before.weight - bestAfter.weight;
-        if (loss > 0) { // Only count if weight was lost
-          workoutLosses.push(loss);
-
-          // Calculate sweat rate (lbs/hr) if duration is available
-          if (bestAfter.duration && bestAfter.duration > 0) {
-            const ozPerHr = loss / (bestAfter.duration / 60);
-            sweatRates.push(ozPerHr);
-          }
-
-          // Check if this workout is from today
-          if (beforeDay === todayStr) {
-            todayWorkouts++;
-            todayLoss += loss;
-          }
-        }
-      }
-    }
-
-    // Reverse so newest is first for EMA (recency bias)
-    workoutLosses.reverse();
-    sweatRates.reverse();
-
-    return {
-      avgLoss: computeEMA(workoutLosses),
-      avgSweatRateOzPerHr: computeEMA(sweatRates),
-      totalWorkouts: workoutLosses.length,
-      todayWorkouts,
-      todayLoss
-    };
-  };
+  const getExtraWorkoutStats = () => computeExtraWorkoutStats(profile, logs);
 
   const getStatus = (): {
     status: Status;
@@ -3536,925 +3124,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (weekDescentCacheRef.current.key === wdCacheKey && weekDescentCacheRef.current.value) {
       return weekDescentCacheRef.current.value;
     }
-    const targetWeight = profile.targetWeightClass;
-    const daysRemaining = Math.max(0, differenceInDays(startOfDay(profile.weighInDate), today));
-
-    const morningWeights: Array<{ day: string; weight: number; date: Date }> = [];
-
-    // ═══ CYCLE START — anchored to weigh-in date, not day of week ═══
-    // The cycle starts the day after the last competition, or N days before weigh-in.
-    // No Monday dependency — competitions can be on any day.
-    const todayHasWeighIn = logs.some(l => {
-      const ld = new Date(l.date);
-      return l.type === 'weigh-in' &&
-        ld.getFullYear() === today.getFullYear() &&
-        ld.getMonth() === today.getMonth() &&
-        ld.getDate() === today.getDate();
+    const result = computeWeekDescentData({
+      profile,
+      logs,
+      daysUntilWeighIn: daysUntilWeighInMemo,
+      calculateTarget,
+      getDailyTracking,
     });
-    const effectiveWeighInDate = todayHasWeighIn ? new Date(today) : new Date(profile.weighInDate);
-
-    let cycleStart: Date;
-    // Find the most recent weigh-in BEFORE today to mark end of previous cycle
-    const lastCompWeighIn = [...logs]
-      .filter(l => l.type === 'weigh-in' && startOfDay(new Date(l.date)).getTime() < today.getTime())
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-
-    if (lastCompWeighIn) {
-      // Start from the day after the last competition
-      cycleStart = new Date(startOfDay(new Date(lastCompWeighIn.date)));
-      cycleStart.setDate(cycleStart.getDate() + 1);
-      cycleStart.setHours(0, 0, 0, 0);
-    } else {
-      // No previous competition — use weigh-in date minus 6 days or today minus 6 days
-      const wiMinus6 = new Date(startOfDay(effectiveWeighInDate));
-      wiMinus6.setDate(wiMinus6.getDate() - 6);
-      const todayMinus6 = new Date(today);
-      todayMinus6.setDate(today.getDate() - 6);
-      cycleStart = new Date(Math.max(wiMinus6.getTime(), todayMinus6.getTime()));
-      cycleStart.setHours(0, 0, 0, 0);
-    }
-
-    // Clamp: never look back more than 13 days (avoid stale data contamination)
-    const maxLookback = new Date(today);
-    maxLookback.setDate(today.getDate() - 13);
-    maxLookback.setHours(0, 0, 0, 0);
-    if (cycleStart.getTime() < maxLookback.getTime()) {
-      cycleStart = maxLookback;
-    }
-    // Must be <= today
-    if (cycleStart.getTime() > today.getTime()) {
-      cycleStart = new Date(today);
-    }
-
-    // Collect morning weights from cycle start through today
-    const cycleDays = differenceInDays(today, cycleStart) + 1;
-    const weighInDateStart = startOfDay(effectiveWeighInDate);
-    for (let i = 0; i < cycleDays; i++) {
-      const checkDate = new Date(cycleStart);
-      checkDate.setDate(cycleStart.getDate() + i);
-      if (checkDate > today) break;
-
-      const morningLog = logs.find(log => {
-        const logDate = new Date(log.date);
-        return (log.type === 'morning' || log.type === 'weigh-in') &&
-          logDate.getFullYear() === checkDate.getFullYear() &&
-          logDate.getMonth() === checkDate.getMonth() &&
-          logDate.getDate() === checkDate.getDate();
-      });
-
-      if (morningLog) {
-        const daysOut = differenceInDays(weighInDateStart, checkDate);
-        morningWeights.push({
-          day: daysOut > 0 ? `${daysOut}d` : daysOut === 0 ? 'WI' : 'R',
-          weight: morningLog.weight,
-          date: new Date(checkDate)
-        });
-      }
-    }
-
-    const startWeight = morningWeights.length > 0 ? morningWeights[0].weight : null;
-    const latestMorningWeight = morningWeights.length > 0 ? morningWeights[morningWeights.length - 1].weight : null;
-
-    // For projections, use the most recent weigh-in of ANY type (morning, check-in, post-practice, etc.)
-    // This gives real-time projection updates whenever they step on the scale
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const allTodayLogs = logs.filter(l => {
-      const logDate = new Date(l.date);
-      return format(startOfDay(logDate), 'yyyy-MM-dd') === todayStr;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    // Check if this day has an official weigh-in log (competition day indicator)
-    const officialWeighInLog = allTodayLogs.find(l => l.type === 'weigh-in');
-    const isCompDay = daysRemaining === 0 || !!officialWeighInLog;
-
-    // On competition day, use the official weigh-in weight (not BED rehydration weight)
-    // During training phase (6+ days out), use morning weight — before-bed weight is
-    // inflated from food/water and isn't representative of actual progress.
-    // During comp week, use latest weight for real-time projection updates.
-    const mostRecentWeighIn = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
-    const todayMorningLog = allTodayLogs.find(l => l.type === 'morning');
-    const todayMorningWeight = todayMorningLog?.weight ?? null;
-    const isTrainingPhaseForWeight = daysRemaining > 5;
-    const currentWeight = (isCompDay && officialWeighInLog)
-      ? officialWeighInLog.weight
-      : (isTrainingPhaseForWeight && todayMorningWeight !== null)
-        ? todayMorningWeight
-        : mostRecentWeighIn;
-
-    // Total lost: start weight to current (most recent weigh-in of any type)
-    const totalLost = startWeight && currentWeight ? startWeight - currentWeight : null;
-
-    // Net daily average (morning-to-morning, includes food/water intake)
-    let dailyAvgLoss: number | null = null;
-    if (morningWeights.length >= 2 && startWeight && latestMorningWeight) {
-      const firstDate = morningWeights[0].date;
-      const lastDate = morningWeights[morningWeights.length - 1].date;
-      const actualDaysBetween = Math.max(1, Math.round((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)));
-      dailyAvgLoss = (startWeight - latestMorningWeight) / actualDaysBetween;
-    }
-
-    // Calculate gross loss capacity from drift and practice metrics
-    // Only use THIS cycle's data. Previous cycles may reflect a completely different
-    // body state (dehydrated, bad cut, different approach). Each cycle is its own context.
-    // Early in the cycle with few data points, we fall back to historical data for display.
-    const sortedLogs = [...logs]
-      .filter(l => l.date.getTime() >= cycleStart.getTime())
-      .sort((a, b) => b.date.getTime() - a.date.getTime());
-
-    // === Phase-aware overnight drift with EMA recency weighting ===
-    // Separate loading-day drifts (3+ days out) from cut-day drifts (1-2 days out)
-    // because athletes lose significantly less overnight as they get closer to weight class.
-    // EMA (alpha=0.4) gives ~40% weight to most recent, ~24% to next, ~14% to next, etc.
-
-    const loadingDrifts: number[] = []; // 3+ days out
-    const cutDrifts: number[] = [];     // 1-2 days out
-    const allDrifts: number[] = [];     // all drifts for overall average
-    const driftRates: number[] = [];    // lbs/hr drift rates (when sleep hours available)
-
-    for (let i = 0; i < sortedLogs.length - 1; i++) {
-      const current = sortedLogs[i]; // morning log
-      const prev = sortedLogs[i + 1]; // previous night's log
-      if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
-        const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
-        if (hoursDiff > 4 && hoursDiff < 16) {
-          const drift = prev.weight - current.weight;
-          allDrifts.push(drift);
-
-          // Calculate overnight drift rate (lbs/hr)
-          // Only use before-bed → morning pairs where we can isolate the overnight period.
-          // IMPORTANT: Use the timestamp gap (hoursDiff) instead of reported sleepHours.
-          // sleepHours only captures actual sleep, but the weigh-in gap includes awake time
-          // before falling asleep. Using sleepHours inflates the rate because the numerator
-          // (total weight lost overnight) includes awake drift that the denominator misses.
-          // hoursDiff = actual elapsed time between before-bed and morning weigh-ins.
-          if (drift > 0 && prev.type === 'before-bed') {
-            if (hoursDiff > 0) {
-              const lbsPerHr = drift / hoursDiff;
-              driftRates.push(lbsPerHr);
-            }
-          }
-
-          // Classify by phase: which day was the "night" (prev log) on?
-          const prevDate = startOfDay(new Date(prev.date));
-          const daysOut = differenceInDays(startOfDay(profile.weighInDate), prevDate);
-          if (daysOut >= 3) {
-            loadingDrifts.push(drift);
-          } else if (daysOut >= 1) {
-            cutDrifts.push(drift);
-          }
-        }
-      }
-    }
-
-    // Practice losses (sweat rate) with EMA
-    const practiceLosses: number[] = [];
-    const practiceSweatRates: number[] = [];
-    for (let i = 0; i < sortedLogs.length - 1; i++) {
-      const post = sortedLogs[i];
-      const pre = sortedLogs[i + 1];
-      if (post.type === 'post-practice' && pre.type === 'pre-practice') {
-        const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
-        if (hoursDiff < 6) {
-          const loss = pre.weight - post.weight;
-          practiceLosses.push(loss);
-          // Calculate sweat rate (lbs/hr): use explicit duration if available, otherwise estimate from timestamps
-          // Minimum 15 min (0.25 hr) for timestamp fallback to avoid division by near-zero
-          if (loss > 0) {
-            const practiceHrs = post.duration && post.duration > 0
-              ? post.duration / 60
-              : (hoursDiff >= 0.25 ? hoursDiff : null); // fallback with minimum threshold
-            if (practiceHrs !== null && practiceHrs > 0) {
-              const ozPerHr = loss / practiceHrs;
-              // Sanity check: reject rates above 6 lbs/hr (physiologically impossible)
-              if (ozPerHr <= 6) {
-                practiceSweatRates.push(ozPerHr);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // EMA-weighted averages (recency-biased)
-    const avgOvernightDrift = computeEMA(allDrifts);
-    const avgLoadingDrift = computeEMA(loadingDrifts);
-    const avgCutDrift = computeEMA(cutDrifts);
-    const avgPracticeLoss = computeEMA(practiceLosses);
-    const avgSweatRateOzPerHr = computeEMA(practiceSweatRates);
-    const avgDriftRateOzPerHr = computeEMA(driftRates);
-
-    // === EMA averages for sleep & practice hours ===
-    // These are used for daytime BMR drift, projection breakdown, and displayed as stats.
-    const sleepHoursData: number[] = [];
-    for (const log of sortedLogs) {
-      if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
-        sleepHoursData.push(log.sleepHours);
-        if (sleepHoursData.length >= 5) break;
-      }
-    }
-    const emaSleepHours = sleepHoursData.length > 0 ? (computeEMA(sleepHoursData) || 8) : 8;
-
-    const practiceDurations: number[] = [];
-    for (const log of sortedLogs) {
-      if (log.type === 'post-practice' && log.duration && log.duration > 0) {
-        practiceDurations.push(log.duration / 60); // convert min to hours
-        if (practiceDurations.length >= 5) break;
-      }
-    }
-    const emaPracticeHours = practiceDurations.length > 0 ? (computeEMA(practiceDurations) || 2) : 2;
-
-    // === Daytime BMR drift for cut days ===
-    // On cut days, athletes lose weight through BMR even while awake and not practicing.
-    // This is separate from overnight drift (already tracked) and practice sweat (already tracked).
-    // awake BMR hours = 24 - sleep - practice - extra workouts
-    // We use the overnight drift rate (lbs/hr) as a proxy for daytime metabolic rate.
-    //
-    // For TODAY: use actual logged sleep hours and actual practice duration (if logged).
-    // For FUTURE days: use EMA averages since those haven't happened yet.
-    let daytimeBmrDrift = 0;       // today's drift (uses actual data where available)
-    let futureDaytimeBmrDrift = 0; // future cut day drift (uses EMA averages)
-    if (avgDriftRateOzPerHr !== null && avgDriftRateOzPerHr > 0) {
-      // Future cut day drift (all EMA, no extras since we can't predict those)
-      const futureAwakeHours = Math.max(0, 24 - emaSleepHours - emaPracticeHours);
-      futureDaytimeBmrDrift = futureAwakeHours * avgDriftRateOzPerHr;
-
-      // --- Today's drift: use actual logged data where available ---
-      // Sleep: use today's morning log sleepHours if available, else EMA
-      const todayMorningLog = allTodayLogs.find(l => l.type === 'morning' && l.sleepHours && l.sleepHours > 0);
-      const todaySleepHours = todayMorningLog ? todayMorningLog.sleepHours! : emaSleepHours;
-
-      // Practice: use today's post-practice duration if already logged, else EMA
-      const todayPracticeLog = allTodayLogs.find(l => l.type === 'post-practice' && l.duration && l.duration > 0);
-      const todayPracticeHours = todayPracticeLog ? todayPracticeLog.duration! / 60 : emaPracticeHours;
-
-      // Extra workouts: always actual from today's logs
-      const todayExtraMinutes = allTodayLogs
-        .filter(l => l.type === 'extra-after' && l.duration && l.duration > 0)
-        .reduce((sum, l) => sum + (l.duration || 0), 0);
-      const todayExtraHours = todayExtraMinutes / 60;
-
-      // Today's awake non-active hours
-      const todayAwakeHours = Math.max(0, 24 - todaySleepHours - todayPracticeHours - todayExtraHours);
-      daytimeBmrDrift = todayAwakeHours * avgDriftRateOzPerHr;
-    }
-
-    // Gross daily loss capacity = overnight drift + practice loss
-    // Now phase-aware: loading days use loading drift, cut days use cut drift
-    // Use absolute values since these represent weight LOST (always positive capacity)
-    let grossDailyLoss: number | null = null;
-    if (avgOvernightDrift !== null) {
-      grossDailyLoss = Math.abs(avgOvernightDrift) + Math.abs(avgPracticeLoss || 0);
-    }
-    // Phase-specific gross capacity for more accurate projections
-    const loadingDrift = avgLoadingDrift !== null ? Math.abs(avgLoadingDrift) : (avgOvernightDrift !== null ? Math.abs(avgOvernightDrift) : 0);
-    const cutDrift = avgCutDrift !== null ? Math.abs(avgCutDrift) : (avgOvernightDrift !== null ? Math.abs(avgOvernightDrift) * 0.6 : 0);
-    const practice = avgPracticeLoss !== null ? Math.abs(avgPracticeLoss) : 0;
-
-    // Hybrid projection: uses different strategies for loading vs cut days.
-    //
-    // LOADING DAYS (3+ days out): Project from latest MORNING weight using net daily loss.
-    //   Mid-day weights are misleadingly low because the athlete eats/drinks back after practice.
-    //   Post-practice weight of 142 doesn't mean tomorrow's morning will be 142 - drift.
-    //   Tomorrow morning = today's morning - net daily loss (accounts for eating back).
-    //
-    // CUT DAYS (1-2 days out): Project from most recent weigh-in using remaining losses.
-    //   The athlete is NOT eating/drinking back, so every loss sticks.
-    //   Post-practice 142 → overnight drift → tomorrow morning ≈ 142 - 1.8 = 140.2
-    //   This is the real-time approach — updates with every weigh-in.
-    let projectedSaturday: number | null = null;
-    // Track individual components of today's remaining loss for breakdown display
-    let todayRemainingComponents: { sleep: number; practice: number } | null = null;
-
-    if (daysRemaining > 0) {
-      const hasDriftData = avgOvernightDrift !== null && Math.abs(avgOvernightDrift!) > 0;
-      const hasNetData = dailyAvgLoss !== null && dailyAvgLoss > 0;
-      const hasGrossData = grossDailyLoss !== null && grossDailyLoss > 0;
-      const isLoadingToday = daysRemaining >= 3;
-
-      // Phase-aware drift: use the right drift for today's phase
-      const todayDrift = isLoadingToday ? loadingDrift : cutDrift;
-
-      if (hasDriftData || hasNetData) {
-        let projected: number;
-
-        // Step 1: Handle today based on phase
-        if (isLoadingToday && latestMorningWeight) {
-          // LOADING DAY: start from morning weight, apply net daily loss for today
-          // This ignores mid-day dips because athlete eats/drinks back
-          projected = latestMorningWeight;
-          const todayLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
-          projected -= todayLoss;
-        } else if (currentWeight) {
-          // CUT DAY (or no morning weight): start from most recent weigh-in
-          // Apply only remaining losses based on what's already happened
-          // Projection uses sleep drift + practice only (conservative, measurable).
-          // Daytime BMR drift is shown as informational but NOT included in projections
-          // because the overnight drift rate is too noisy to reliably extrapolate across 16+ awake hours.
-          projected = currentWeight;
-          const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
-          let todayRemainingLoss = 0;
-          let remainingSleep = 0;
-          let remainingPractice = 0;
-
-          if (lastLogType) {
-            if (lastLogType === 'morning' || lastLogType === 'weigh-in' || lastLogType === 'pre-practice') {
-              remainingSleep = todayDrift;
-              remainingPractice = practice;
-              todayRemainingLoss = practice + todayDrift;
-            } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-              remainingSleep = todayDrift;
-              remainingPractice = 0;
-              todayRemainingLoss = todayDrift;
-            } else if (lastLogType === 'extra-after') {
-              // Extra workout done — check if regular practice already happened today
-              const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-              remainingSleep = todayDrift;
-              remainingPractice = hasPracticeLog ? 0 : practice;
-              todayRemainingLoss = hasPracticeLog ? todayDrift : (practice + todayDrift);
-            } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
-              const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-              remainingSleep = todayDrift;
-              remainingPractice = hasPracticeLog ? 0 : practice;
-              todayRemainingLoss = hasPracticeLog ? todayDrift : (practice + todayDrift);
-            }
-          } else {
-            remainingSleep = todayDrift;
-            remainingPractice = practice;
-            todayRemainingLoss = practice + todayDrift;
-          }
-          todayRemainingComponents = { sleep: remainingSleep, practice: remainingPractice };
-          projected -= todayRemainingLoss;
-        } else if (latestMorningWeight) {
-          projected = latestMorningWeight;
-        } else {
-          // No weight data at all — can't project
-          projected = 0;
-        }
-
-        // Only calculate future days and set projection if we have a real starting weight
-        if (projected > 0) {
-          // Step 2: Future full days — use phase-specific drift for each day
-          for (let d = daysRemaining - 1; d > 0; d--) {
-            if (d >= 3) {
-              // Future loading day: net morning-to-morning loss
-              const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
-              projected -= loadingLoss;
-            } else {
-              // Future cut day: drift + practice only (conservative — daytime BMR excluded from projections)
-              const cutDayGross = cutDrift + practice;
-              if (cutDayGross > 0) {
-                projected -= cutDayGross;
-              } else if (hasGrossData) {
-                projected -= grossDailyLoss!;
-              } else if (hasNetData) {
-                projected -= dailyAvgLoss! * 2.5;
-              }
-            }
-          }
-
-          projectedSaturday = projected;
-        }
-      } else if (latestMorningWeight) {
-        // No trend data yet - use latest morning weight as baseline
-        projectedSaturday = latestMorningWeight;
-      } else if (currentWeight) {
-        projectedSaturday = currentWeight;
-      }
-    }
-
-    let pace: 'ahead' | 'on-track' | 'behind' | null = null;
-    if (currentWeight && targetWeight) {
-      const daysUntil = getDaysUntilWeighIn();
-      const isTraining = daysUntil > 5;
-
-      if (isTraining) {
-        // Training phase: compare to walk-around weight, not daily target
-        // Being 5-10 lbs above target weight class is expected
-        const walkAround = profile.targetWeightClass * 1.07;
-        const walkDiff = currentWeight - walkAround;
-
-        if (walkDiff <= 0) pace = 'ahead';
-        else if (walkDiff <= 3) pace = 'on-track';
-        else pace = 'behind';  // Only "behind" if well above walk-around
-      } else {
-        // Comp week: precise tracking against daily target
-        // calculateTarget() already includes water loading for protocols 1 & 2
-        const effectiveTarget = calculateTarget();
-        const diff = currentWeight - effectiveTarget;
-
-        // Small tolerance for measurement variance (1.5 lbs)
-        const tolerance = 1.5;
-
-        if (diff <= -1) pace = 'ahead';
-        else if (diff <= tolerance) pace = 'on-track';
-        else pace = 'behind';
-      }
-    }
-
-    // ═══ TREND ARROWS: compare recent 2 vs previous 2 ═══
-    const computeTrend = (arr: number[]): 'up' | 'down' | 'stable' => {
-      if (arr.length < 3) return 'stable';
-      // arr is newest-first; recent = avg of [0,1], previous = avg of [2,3]
-      const recent = (arr[0] + arr[1]) / 2;
-      const prev = arr.length >= 4 ? (arr[2] + arr[3]) / 2 : arr[2];
-      const pctChange = (recent - prev) / Math.max(Math.abs(prev), 0.01);
-      if (pctChange > 0.08) return 'up';   // >8% increase = trending up (more loss)
-      if (pctChange < -0.08) return 'down'; // >8% decrease = trending down (less loss)
-      return 'stable';
-    };
-    const trends = {
-      drift: computeTrend(allDrifts),
-      practice: computeTrend(practiceLosses),
-      driftRate: computeTrend(driftRates),
-      sweatRate: computeTrend(practiceSweatRates),
-    };
-
-    // ═══ CONFIDENCE: based on data point counts ═══
-    const driftSamples = allDrifts.length;
-    const practiceSamples = practiceLosses.length;
-    const minSamples = Math.min(driftSamples, practiceSamples);
-    const confidenceLevel: 'high' | 'medium' | 'low' | 'none' =
-      minSamples >= 5 ? 'high' : minSamples >= 3 ? 'medium' : minSamples >= 1 ? 'low' : 'none';
-    const confidence = { driftSamples, practiceSamples, level: confidenceLevel };
-
-    // ═══ MONTE CARLO MAKE-WEIGHT PROBABILITY ═══
-    // Runs 2000 simulations using actual variance in drift & practice data.
-    // Uses the SAME phase-specific means as the deterministic projection.
-    // When the projection says the athlete is BEHIND, the Monte Carlo includes the
-    // recommended extra workout (using sweat rate × time needed) so the probability
-    // answers "how likely to make weight IF you do the recommended work?"
-    // This prevents showing 0% next to "38 min of extra work needed" — contradictory UX.
-    let makeWeightProb: { probability: number; worstCase: number; median: number; includesExtraWork: boolean } | null = null;
-    if (projectedSaturday !== null && currentWeight && daysRemaining > 0 && allDrifts.length >= 1) {
-      // EMA-weighted standard deviation: recent data points contribute more to variance,
-      // matching how the mean is calculated. Alpha=0.4 same as computeEMA.
-      const emaStdDev = (arr: number[], emaMean: number): number => {
-        if (arr.length < 2) return 0;
-        const alpha = 0.4;
-        let weightedSum = 0;
-        let totalWeight = 0;
-        for (let i = 0; i < arr.length; i++) {
-          const w = Math.pow(1 - alpha, i); // newest first: i=0 gets weight 1, i=1 gets 0.6, etc.
-          weightedSum += w * (arr[i] - emaMean) ** 2;
-          totalWeight += w;
-        }
-        return Math.sqrt(weightedSum / totalWeight);
-      };
-      // Cap std dev at a fraction of the mean to keep variance realistic.
-      // 25% cap means a 1.3 lb mean drift has max std of 0.325 —
-      // so 95% of draws fall in ~0.65 to ~1.95 lbs (reasonable night-to-night range).
-      const cappedStd = (rawStd: number, mean: number, maxFrac = 0.25): number => {
-        const cap = Math.abs(mean) * maxFrac;
-        return Math.min(rawStd, Math.max(cap, 0.05));
-      };
-      // Seeded PRNG (mulberry32) — deterministic results for same inputs, no flickering
-      let seed = Math.round(
-        (currentWeight || 0) * 1000 +
-        (targetWeight || 0) * 100 +
-        daysRemaining * 10 +
-        allDrifts.length +
-        practiceLosses.length
-      );
-      const seededRandom = (): number => {
-        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-        return ((t ^ t >>> 14) >>> 0) / 4294967296;
-      };
-      // Box-Muller transform for normal random (using seeded PRNG)
-      const randn = (): number => {
-        let u = 0, v = 0;
-        while (u === 0) u = seededRandom();
-        while (v === 0) v = seededRandom();
-        return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-      };
-
-      // Phase-specific means (matching deterministic projection)
-      // When we have <2 phase-specific samples, use 20% of the mean as default std dev
-      // instead of falling back to allDrifts — allDrifts mixes loading + cut phases
-      // and the wildly different values inflate variance unrealistically.
-      const cutDriftMean = cutDrift;
-      const cutDriftStd = cappedStd(
-        cutDrifts.length >= 2 ? emaStdDev(cutDrifts, cutDriftMean) : cutDriftMean * 0.2,
-        cutDriftMean
-      );
-      const loadDriftMean = loadingDrift;
-      const loadDriftStd = cappedStd(
-        loadingDrifts.length >= 2 ? emaStdDev(loadingDrifts, loadDriftMean) : loadDriftMean * 0.2,
-        loadDriftMean
-      );
-      const practiceMean = practice;
-      const practiceStd = cappedStd(
-        practiceLosses.length >= 2 ? emaStdDev(practiceLosses, practiceMean) : 0,
-        practiceMean
-      );
-      const netDailyMean = dailyAvgLoss || 0;
-
-      // Simulate a loss value: normal distribution around the mean.
-      // Only floor at 0 — you can't gain weight from sleeping or working out.
-      // The capped std dev (25% of mean) already prevents wild draws.
-      // No asymmetric floor: draws below the mean are just as valid as draws above.
-      const simLoss = (mean: number, std: number): number => {
-        const draw = mean + randn() * std;
-        return Math.max(0, draw);
-      };
-
-      const SIMS = 2000;
-      const results: number[] = [];
-      const isLoadingToday = daysRemaining >= 3;
-
-      // If the deterministic projection says they're behind, include the recommended
-      // extra workout in the simulation. No buffers — exact gap coverage.
-      // The Monte Carlo gives the honest probability of making weight with the plan.
-      const sweatRate = avgSweatRateOzPerHr; // lbs/hr (name is legacy)
-      let extraWorkoutMean = 0;
-      let extraWorkoutStd = 0;
-      if (projectedSaturday > targetWeight && sweatRate && sweatRate > 0) {
-        const gap = projectedSaturday - targetWeight;
-        const minutesNeeded = Math.round((gap / sweatRate) * 60);
-        const cappedMinutes = Math.min(minutesNeeded, 60);
-        extraWorkoutMean = sweatRate * (cappedMinutes / 60);
-        extraWorkoutStd = cappedStd(extraWorkoutMean * 0.15, extraWorkoutMean);
-      }
-
-      for (let s = 0; s < SIMS; s++) {
-        let w: number;
-
-        // Step 1: Today — use same remaining-component logic as projection
-        if (isLoadingToday && latestMorningWeight) {
-          w = latestMorningWeight;
-          w -= netDailyMean > 0 ? simLoss(netDailyMean, loadDriftStd) : 0;
-        } else if (currentWeight && todayRemainingComponents) {
-          w = currentWeight;
-          if (todayRemainingComponents.sleep > 0) {
-            w -= simLoss(todayRemainingComponents.sleep, cutDriftStd);
-          }
-          if (todayRemainingComponents.practice > 0) {
-            w -= simLoss(todayRemainingComponents.practice, practiceStd);
-          }
-        } else if (currentWeight) {
-          w = currentWeight;
-        } else {
-          w = latestMorningWeight || 0;
-        }
-
-        // Step 1b: Extra workout — included when projection says behind
-        if (extraWorkoutMean > 0) {
-          w -= simLoss(extraWorkoutMean, extraWorkoutStd);
-        }
-
-        // Step 2: Future full days
-        for (let d = daysRemaining - 1; d > 0; d--) {
-          if (d >= 3) {
-            w -= netDailyMean > 0
-              ? simLoss(netDailyMean, loadDriftStd)
-              : simLoss(loadDriftMean * 0.2, loadDriftStd * 0.3);
-          } else {
-            w -= simLoss(cutDriftMean, cutDriftStd);
-            w -= simLoss(practiceMean, practiceStd);
-          }
-        }
-        results.push(w);
-      }
-
-      results.sort((a, b) => a - b);
-      const madeWeight = results.filter(r => r <= targetWeight).length;
-      let rawProb = Math.round((madeWeight / SIMS) * 100);
-
-      // No artificial floors — let the Monte Carlo speak honestly.
-      // The simulation already uses EMA-weighted means and capped variance,
-      // so the probability reflects the real data.
-
-      makeWeightProb = {
-        probability: rawProb,
-        worstCase: results[Math.floor(SIMS * 0.90)],
-        median: results[Math.floor(SIMS * 0.5)],
-        includesExtraWork: extraWorkoutMean > 0,
-      };
-    }
-
-    // ═══ TODAY'S PROGRESS ═══
-    let todayProgress: { lostSoFar: number; expectedTotal: number; pctComplete: number } | null = null;
-    if (allTodayLogs.length > 0 && latestMorningWeight) {
-      const morningLog = allTodayLogs.find(l => l.type === 'morning' || l.type === 'weigh-in');
-      const morningW = morningLog?.weight || latestMorningWeight;
-      const latestW = allTodayLogs[0].weight;
-      const lostSoFar = Math.max(0, morningW - latestW);
-      // Expected total for today = drift + practice (if cut day) or net daily (if loading)
-      const isLoadingToday = daysRemaining >= 3;
-      const expectedTotal = isLoadingToday
-        ? (dailyAvgLoss || 0)
-        : ((avgOvernightDrift || 0) + (avgPracticeLoss || 0));
-      const pctComplete = expectedTotal > 0 ? Math.min(100, Math.round((lostSoFar / expectedTotal) * 100)) : 0;
-      todayProgress = { lostSoFar, expectedTotal, pctComplete };
-    }
-
-    // ═══ LOGGING STREAK ═══
-    let loggingStreak = 0;
-    {
-      const todayDate = startOfDay(profile.simulatedDate || new Date());
-      for (let d = 0; d < 60; d++) { // check up to 60 days back
-        const checkDate = new Date(todayDate);
-        checkDate.setDate(todayDate.getDate() - d);
-        const hasLog = logs.some(l => {
-          const ld = startOfDay(new Date(l.date));
-          return ld.getTime() === checkDate.getTime();
-        });
-        if (hasLog) loggingStreak++;
-        else break;
-      }
-    }
-    const isCompetitionDayForCore = daysRemaining === 0 || !!officialWeighInLog;
-    // Determine if practice weigh-ins should count today
-    const todayTrack = getDailyTracking(todayStr);
-    const isRestDay = todayTrack.noPractice ?? false;
-    const isSpar = profile.protocol === '5' || profile.protocol === '6';
-    const hasPracticeLogs = allTodayLogs.some(l => l.type === 'pre-practice' || l.type === 'post-practice');
-    const shouldCountPractice = isSpar
-      ? (profile.trackPracticeWeighIns && !isRestDay) || hasPracticeLogs
-      : (!isRestDay || hasPracticeLogs);
-    const todayCoreTypes = isCompetitionDayForCore
-      ? ['morning', 'weigh-in', 'before-bed']   // comp day: AM, Official, BED
-      : shouldCountPractice
-        ? ['morning', 'pre-practice', 'post-practice', 'before-bed']  // practice day: 4
-        : ['morning', 'before-bed'];  // rest day or SPAR without practice tracking: 2
-    const todayCoreLogged = todayCoreTypes
-      .filter(t => allTodayLogs.some(l => l.type === t || (t === 'morning' && l.type === 'weigh-in'))).length;
-    const todayCoreTotal = todayCoreTypes.length;
-
-    // ═══ WEEK-OVER-WEEK COMPARISON ═══
-    let weekOverWeek: { thisWeekAvgDrift: number | null; lastWeekAvgDrift: number | null; thisWeekAvgPractice: number | null; lastWeekAvgPractice: number | null } | null = null;
-    {
-      const todayDate = startOfDay(profile.simulatedDate || new Date());
-      const dayOfWeek = todayDate.getDay(); // 0=Sun
-      const thisWeekStart = new Date(todayDate);
-      thisWeekStart.setDate(todayDate.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Monday
-      const lastWeekStart = new Date(thisWeekStart);
-      lastWeekStart.setDate(thisWeekStart.getDate() - 7);
-      const lastWeekEnd = new Date(thisWeekStart);
-
-      const isInRange = (date: Date, start: Date, end: Date) => {
-        const d = startOfDay(new Date(date));
-        return d >= start && d < end;
-      };
-
-      // Split drifts by week (use the morning log date as the reference)
-      const thisWeekDrifts: number[] = [];
-      const lastWeekDrifts: number[] = [];
-      const thisWeekPractice: number[] = [];
-      const lastWeekPractice: number[] = [];
-
-      for (let i = 0; i < sortedLogs.length - 1; i++) {
-        const current = sortedLogs[i];
-        const prev = sortedLogs[i + 1];
-        // Overnight drift
-        if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
-          const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
-          if (hoursDiff > 4 && hoursDiff < 16) {
-            const drift = prev.weight - current.weight;
-            if (isInRange(current.date, thisWeekStart, new Date(todayDate.getTime() + 86400000))) {
-              thisWeekDrifts.push(drift);
-            } else if (isInRange(current.date, lastWeekStart, lastWeekEnd)) {
-              lastWeekDrifts.push(drift);
-            }
-          }
-        }
-        // Practice loss
-        if (current.type === 'post-practice' && prev.type === 'pre-practice') {
-          const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
-          if (hoursDiff < 6) {
-            const loss = prev.weight - current.weight;
-            if (isInRange(current.date, thisWeekStart, new Date(todayDate.getTime() + 86400000))) {
-              thisWeekPractice.push(loss);
-            } else if (isInRange(current.date, lastWeekStart, lastWeekEnd)) {
-              lastWeekPractice.push(loss);
-            }
-          }
-        }
-      }
-
-      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null;
-      weekOverWeek = {
-        thisWeekAvgDrift: avg(thisWeekDrifts),
-        lastWeekAvgDrift: avg(lastWeekDrifts),
-        thisWeekAvgPractice: avg(thisWeekPractice),
-        lastWeekAvgPractice: avg(lastWeekPractice),
-      };
-    }
-
-    // ═══ CYCLE WEIGH-INS (for velocity sparkline) ═══
-    // All weigh-ins this cycle, oldest first, for plotting the descent curve
-    const weekWeighIns: Array<{ day: string; weight: number; type: string }> = [];
-    {
-      // Collect the first weigh-in of each day this cycle (morning preferred)
-      for (let i = 0; i < cycleDays; i++) {
-        const checkDate = new Date(cycleStart);
-        checkDate.setDate(cycleStart.getDate() + i);
-        if (checkDate > today) break;
-
-        const dayLogs = logs.filter(l => {
-          const ld = startOfDay(new Date(l.date));
-          return ld.getTime() === checkDate.getTime();
-        }).sort((a, b) => {
-          // Prefer morning, then earliest
-          const typePriority = (t: string) => t === 'weigh-in' ? 0 : t === 'morning' ? 0 : t === 'pre-practice' ? 1 : 2;
-          const pa = typePriority(a.type), pb = typePriority(b.type);
-          return pa !== pb ? pa - pb : new Date(a.date).getTime() - new Date(b.date).getTime();
-        });
-
-        if (dayLogs.length > 0) {
-          const daysOut = differenceInDays(weighInDateStart, checkDate);
-          weekWeighIns.push({
-            day: daysOut > 0 ? `${daysOut}d` : daysOut === 0 ? 'WI' : 'R',
-            weight: dayLogs[0].weight,
-            type: dayLogs[0].type,
-          });
-        }
-      }
-    }
-
-    // ═══ PERSONAL RECORDS ═══
-    const personalRecords = {
-      bestDrift: allDrifts.length > 0 ? Math.max(...allDrifts) : null,
-      bestPracticeLoss: practiceLosses.length > 0 ? Math.max(...practiceLosses) : null,
-      bestDriftRate: driftRates.length > 0 ? Math.max(...driftRates) : null,
-      bestSweatRate: practiceSweatRates.length > 0 ? Math.max(...practiceSweatRates) : null,
-      totalLostThisWeek: weekWeighIns.length >= 2
-        ? weekWeighIns[0].weight - weekWeighIns[weekWeighIns.length - 1].weight
-        : null,
-    };
-
-    // ═══ TIME-TO-TARGET COUNTDOWN ═══
-    // Based on drift rate (lbs/hr), estimate when they'll hit target weight
-    let timeToTarget: { etaHours: number | null; etaTime: string | null; lbsRemaining: number; ratePerHour: number | null } | null = null;
-    if (currentWeight && currentWeight > targetWeight) {
-      const lbsRemaining = currentWeight - targetWeight;
-      // Use drift rate as the passive loss rate; if practice is still expected, factor it in
-      const driftRatePerHr = avgDriftRateOzPerHr; // lbs/hr while sleeping
-      const remainingComp = todayRemainingComponents;
-
-      if (driftRatePerHr && driftRatePerHr > 0) {
-        // Estimate: remaining practice loss happens instantly (during practice),
-        // then drift rate covers the rest over time
-        const practiceRemaining = remainingComp ? remainingComp.practice : 0;
-        const afterPractice = lbsRemaining - practiceRemaining;
-
-        if (afterPractice <= 0) {
-          // Practice alone will get them there
-          timeToTarget = { etaHours: 0, etaTime: 'After practice', lbsRemaining, ratePerHour: driftRatePerHr };
-        } else {
-          const hoursNeeded = afterPractice / driftRatePerHr;
-          const now = profile.simulatedDate || new Date();
-          const etaDate = new Date(now.getTime() + hoursNeeded * 3600000);
-          const hours = etaDate.getHours();
-          const minutes = etaDate.getMinutes();
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          const h12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-          const etaTime = `${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-
-          timeToTarget = { etaHours: hoursNeeded, etaTime, lbsRemaining, ratePerHour: driftRatePerHr };
-        }
-      } else {
-        timeToTarget = { etaHours: null, etaTime: null, lbsRemaining, ratePerHour: null };
-      }
-    }
-
-    // ═══ HISTORICAL FALLBACK — for display when cycle has no data yet ═══
-    // When the current cycle is fresh (no drift/practice pairs), compute from ALL logs
-    // so the Cut Lab shows historical physiology instead of being empty.
-    // NOT used for projections — only for display.
-    const cycleHasOwnDriftData = allDrifts.length > 0;
-    const cycleHasOwnPracticeData = practiceLosses.length > 0;
-
-    let historicalDrift: number | null = null;
-    let historicalDriftRate: number | null = null;
-    let historicalPracticeLoss: number | null = null;
-    let historicalSweatRate: number | null = null;
-    let historicalRecentDrifts: number[] = [];
-    let historicalRecentPracticeLosses: number[] = [];
-    let historicalRecentSweatRates: number[] = [];
-    let historicalRecentDriftRates: number[] = [];
-    let historicalRecentSleepHours: number[] = [];
-
-    if (!cycleHasOwnDriftData || !cycleHasOwnPracticeData) {
-      // Compute from ALL logs (no cycle filter)
-      const allSortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
-      const histDrifts: number[] = [];
-      const histDriftRates: number[] = [];
-      const histPracticeLosses: number[] = [];
-      const histSweatRates: number[] = [];
-      const histSleepHours: number[] = [];
-
-      // Overnight drifts from all history
-      for (let i = 0; i < allSortedLogs.length - 1; i++) {
-        const morning = allSortedLogs[i];
-        const prev = allSortedLogs[i + 1];
-        if ((morning.type === 'morning' || morning.type === 'weigh-in') &&
-            (prev.type === 'before-bed' || prev.type === 'post-practice')) {
-          const hoursDiff = (morning.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
-          if (hoursDiff >= 4 && hoursDiff <= 16) {
-            const drift = prev.weight - morning.weight;
-            if (drift > 0 && drift < 8) {
-              histDrifts.push(drift);
-              if (morning.sleepHours && morning.sleepHours > 0) {
-                histDriftRates.push(drift / morning.sleepHours);
-              }
-            }
-          }
-        }
-        if (histDrifts.length >= 10) break;
-      }
-
-      // Practice losses from all history
-      for (let i = 0; i < allSortedLogs.length - 1; i++) {
-        const post = allSortedLogs[i];
-        const pre = allSortedLogs[i + 1];
-        if (post.type === 'post-practice' && pre.type === 'pre-practice') {
-          const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
-          if (hoursDiff < 6) {
-            const loss = pre.weight - post.weight;
-            histPracticeLosses.push(loss);
-            if (loss > 0) {
-              const hrs = post.duration && post.duration > 0 ? post.duration / 60 : (hoursDiff >= 0.25 ? hoursDiff : null);
-              if (hrs !== null && hrs > 0) {
-                const rate = loss / hrs;
-                if (rate <= 6) histSweatRates.push(rate);
-              }
-            }
-          }
-        }
-        if (histPracticeLosses.length >= 10) break;
-      }
-
-      // Sleep hours from all history
-      for (const log of allSortedLogs) {
-        if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
-          histSleepHours.push(log.sleepHours);
-          if (histSleepHours.length >= 5) break;
-        }
-      }
-
-      if (!cycleHasOwnDriftData && histDrifts.length > 0) {
-        historicalDrift = computeEMA(histDrifts);
-        historicalDriftRate = computeEMA(histDriftRates);
-        historicalRecentDrifts = histDrifts.slice(0, 5);
-        historicalRecentDriftRates = histDriftRates.slice(0, 5);
-        historicalRecentSleepHours = histSleepHours;
-      }
-      if (!cycleHasOwnPracticeData && histPracticeLosses.length > 0) {
-        historicalPracticeLoss = computeEMA(histPracticeLosses);
-        historicalSweatRate = computeEMA(histSweatRates);
-        historicalRecentPracticeLosses = histPracticeLosses.slice(0, 5);
-        historicalRecentSweatRates = histSweatRates.slice(0, 5);
-      }
-    }
-
-    const result = {
-      startWeight,
-      currentWeight,
-      targetWeight,
-      daysRemaining,
-      totalLost,
-      dailyAvgLoss,
-      grossDailyLoss,
-      avgOvernightDrift,
-      avgDriftRateOzPerHr,
-      avgLoadingDrift,
-      avgCutDrift,
-      avgPracticeLoss,
-      avgSweatRateOzPerHr,
-      daytimeBmrDrift,
-      emaSleepHours,
-      emaPracticeHours,
-      todayRemainingComponents,
-      projectedSaturday,
-      pace,
-      morningWeights,
-      recentDrifts: allDrifts.length > 0 ? allDrifts.slice(0, 5) : historicalRecentDrifts,
-      recentDriftRates: driftRates.length > 0 ? driftRates.slice(0, 5) : historicalRecentDriftRates,
-      recentSleepHours: sleepHoursData.length > 0 ? sleepHoursData.slice(0, 5) : historicalRecentSleepHours,
-      recentPracticeLosses: practiceLosses.length > 0 ? practiceLosses.slice(0, 5) : historicalRecentPracticeLosses,
-      recentPracticeSweatRates: practiceSweatRates.length > 0 ? practiceSweatRates.slice(0, 5) : historicalRecentSweatRates,
-      recentPracticeDurations: practiceDurations.slice(0, 5),
-      trends,
-      confidence,
-      makeWeightProb,
-      todayProgress,
-      loggingStreak,
-      todayCoreLogged,
-      todayCoreTotal,
-      weekOverWeek,
-      weekWeighIns,
-      personalRecords,
-      timeToTarget,
-      // Historical fallback fields
-      historicalDrift,
-      historicalDriftRate,
-      historicalPracticeLoss,
-      historicalSweatRate,
-      cycleHasOwnDriftData,
-      cycleHasOwnPracticeData,
-    };
     weekDescentCacheRef.current = { key: wdCacheKey, value: result };
     return result;
   };
@@ -4471,492 +3147,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Uses daysUntilWeighIn for all timing to support any weigh-in day
-  const getHistoryInsights = () => {
-    const now = profile.simulatedDate || new Date();
-    const daysUntilWeighIn = getDaysUntilWeighIn();
-    const weighInDate = startOfDay(profile.weighInDate);
-
-    // Get all logs sorted by date (newest first)
-    const sortedLogs = [...logs].sort((a, b) => b.date.getTime() - a.date.getTime());
-
-    // Separate morning weights by week (include official weigh-ins)
-    const morningLogs = sortedLogs.filter(l => l.type === 'morning' || l.type === 'weigh-in');
-
-    // Calculate overnight drift (morning weight - previous night's weight)
-    const overnightDrifts: number[] = [];
-    const historyDriftRates: number[] = [];
-    for (let i = 0; i < sortedLogs.length - 1; i++) {
-      const current = sortedLogs[i];
-      const prev = sortedLogs[i + 1];
-
-      if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
-        const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
-        if (hoursDiff > 4 && hoursDiff < 16) {
-          const drift = prev.weight - current.weight;
-          overnightDrifts.push(drift);
-          // Overnight drift rate — only from before-bed → morning pairs (mirrors getWeekDescentData)
-          // Use timestamp gap (hoursDiff) not sleepHours to avoid inflated rates
-          if (drift > 0 && prev.type === 'before-bed') {
-            if (hoursDiff > 0) {
-              const lbsPerHr = drift / hoursDiff;
-              historyDriftRates.push(lbsPerHr);
-            }
-          }
-        }
-      }
-    }
-
-    // Calculate practice weight loss (pre - post) and sweat rate
-    const practiceLosses: number[] = [];
-    const historySweatRates: number[] = [];
-    for (let i = 0; i < sortedLogs.length - 1; i++) {
-      const post = sortedLogs[i];
-      const pre = sortedLogs[i + 1];
-
-      if (post.type === 'post-practice' && pre.type === 'pre-practice') {
-        const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
-        if (hoursDiff < 6) {
-          const loss = pre.weight - post.weight;
-          practiceLosses.push(loss);
-          if (loss > 0) {
-            const practiceHrs = post.duration && post.duration > 0
-              ? post.duration / 60
-              : (hoursDiff >= 0.25 ? hoursDiff : null);
-            if (practiceHrs !== null && practiceHrs > 0) {
-              const ozPerHr = loss / practiceHrs;
-              if (ozPerHr <= 6) {
-                historySweatRates.push(ozPerHr);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Get weights from 1 day before weigh-in (final cut day) - relative to weigh-in date
-    const dayBeforeWeighInWeights = morningLogs.filter(l => {
-      const logDate = startOfDay(l.date);
-      const daysBeforeWeighIn = differenceInDays(weighInDate, logDate);
-      return daysBeforeWeighIn === 1;
-    }).slice(0, 4);
-
-    // Get competition day weights (weigh-in day)
-    const competitionDayWeights = morningLogs.filter(l => {
-      const logDate = startOfDay(l.date);
-      const daysBeforeWeighIn = differenceInDays(weighInDate, logDate);
-      return daysBeforeWeighIn === 0;
-    }).slice(0, 4);
-
-    // Calculate final cut success (how much lost on day before weigh-in)
-    const finalCuts: number[] = [];
-    for (const dayBefore of dayBeforeWeighInWeights) {
-      const twoDaysBeforeLog = morningLogs.find(l => {
-        const daysDiff = (dayBefore.date.getTime() - l.date.getTime()) / (1000 * 60 * 60 * 24);
-        return daysDiff > 0 && daysDiff < 2;
-      });
-      if (twoDaysBeforeLog) {
-        finalCuts.push(twoDaysBeforeLog.weight - dayBefore.weight);
-      }
-    }
-
-    // Calculate week-over-week trend (same day comparison across weeks)
-    const weekAgoLogs = morningLogs.filter(l => {
-      const daysDiff = differenceInDays(now, l.date);
-      return daysDiff >= 6 && daysDiff <= 8;
-    });
-    const weeklyTrend = weekAgoLogs.length > 0 && morningLogs.length > 0
-      ? weekAgoLogs[0].weight - morningLogs[0].weight
-      : null;
-
-    // Real-time phase-aware projection (mirrors getWeekDescentData logic)
-    // Starts from most recent weigh-in, applies remaining today losses + future day losses
-    const latestMorningWeight = morningLogs.length > 0 ? morningLogs[0].weight : null;
-
-    // Calculate net daily loss from morning weights
-    let netDailyLoss: number | null = null;
-    if (morningLogs.length >= 2) {
-      const oldestMorning = morningLogs[morningLogs.length - 1];
-      const newestMorning = morningLogs[0];
-      const daysBetween = Math.max(1, Math.round(
-        (newestMorning.date.getTime() - oldestMorning.date.getTime()) / (1000 * 60 * 60 * 24)
-      ));
-      netDailyLoss = (oldestMorning.weight - newestMorning.weight) / daysBetween;
-      if (netDailyLoss <= 0) netDailyLoss = null;
-    }
-
-    // Calculate gross capacity components (EMA-weighted)
-    const avgOvernightLoss = computeEMA(overnightDrifts);
-    const avgPracticeLossVal = computeEMA(practiceLosses);
-    const grossCapacity = avgOvernightLoss !== null
-      ? Math.abs(avgOvernightLoss) + Math.abs(avgPracticeLossVal || 0)
-      : null;
-    const hasDriftData = avgOvernightLoss !== null && Math.abs(avgOvernightLoss) > 0;
-    const hasPracticeData = avgPracticeLossVal !== null && Math.abs(avgPracticeLossVal) > 0;
-    const hasGrossData = grossCapacity !== null && grossCapacity > 0;
-    const hasNetData = netDailyLoss !== null;
-
-    // Daytime BMR drift for cut days (mirrors getWeekDescentData logic)
-    const avgHistoryDriftRate = computeEMA(historyDriftRates);
-    let historyDaytimeBmr = 0;
-    if (avgHistoryDriftRate !== null && avgHistoryDriftRate > 0) {
-      const sleepData: number[] = [];
-      for (const log of sortedLogs) {
-        if (log.type === 'morning' && log.sleepHours && log.sleepHours > 0) {
-          sleepData.push(log.sleepHours);
-          if (sleepData.length >= 5) break;
-        }
-      }
-      const avgSleep = sleepData.length > 0 ? (computeEMA(sleepData) || 8) : 8;
-      const pracDurations: number[] = [];
-      for (const log of sortedLogs) {
-        if (log.type === 'post-practice' && log.duration && log.duration > 0) {
-          pracDurations.push(log.duration / 60);
-          if (pracDurations.length >= 5) break;
-        }
-      }
-      const avgPracHrs = pracDurations.length > 0 ? (computeEMA(pracDurations) || 2) : 2;
-      const awakeNonActive = Math.max(0, 24 - avgSleep - avgPracHrs);
-      historyDaytimeBmr = awakeNonActive * avgHistoryDriftRate;
-    }
-
-    // Hybrid projection (mirrors getWeekDescentData logic)
-    // Loading days: project from morning weight (mid-day dips are temporary — athlete eats back)
-    // Cut days: project from most recent weigh-in (losses stick — no eating back)
-    const today = startOfDay(profile.simulatedDate || new Date());
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const allTodayLogs = logs.filter(l => {
-      const logDate = new Date(l.date);
-      return format(startOfDay(logDate), 'yyyy-MM-dd') === todayStr;
-    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const mostRecentWeight = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
-    const isLoadingToday = daysUntilWeighIn >= 3;
-
-    let projectedSaturday: number | null = null;
-    if (daysUntilWeighIn > 0 && (hasDriftData || hasNetData)) {
-      const drift = hasDriftData ? Math.abs(avgOvernightLoss!) : 0;
-      const practice = hasPracticeData ? Math.abs(avgPracticeLossVal!) : 0;
-      let projected: number;
-
-      // Step 1: Handle today based on phase
-      if (isLoadingToday && latestMorningWeight) {
-        // Loading day: start from morning weight, apply net daily loss
-        projected = latestMorningWeight;
-        const todayLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
-        projected -= todayLoss;
-      } else if (mostRecentWeight) {
-        // Cut day: start from most recent weigh-in, apply remaining losses + daytime BMR
-        projected = mostRecentWeight;
-        const lastLogType = allTodayLogs.length > 0 ? allTodayLogs[0].type : null;
-        let todayRemainingLoss = 0;
-
-        // Projection uses sleep drift + practice only (daytime BMR excluded — too noisy)
-        if (lastLogType) {
-          if (lastLogType === 'morning' || lastLogType === 'weigh-in' || lastLogType === 'pre-practice') {
-            todayRemainingLoss = practice + drift;
-          } else if (lastLogType === 'post-practice' || lastLogType === 'before-bed') {
-            todayRemainingLoss = drift;
-          } else if (lastLogType === 'extra-after') {
-            todayRemainingLoss = practice + drift;
-          } else if (lastLogType === 'check-in' || lastLogType === 'extra-before') {
-            const hasPracticeLog = allTodayLogs.some(l => l.type === 'post-practice');
-            todayRemainingLoss = hasPracticeLog ? drift : (practice + drift);
-          }
-        } else {
-          todayRemainingLoss = practice + drift;
-        }
-        projected -= todayRemainingLoss;
-      } else if (latestMorningWeight) {
-        projected = latestMorningWeight;
-      } else {
-        projected = 0;
-      }
-
-      // Only calculate future days if we have a real starting weight
-      if (projected > 0) {
-        // Step 2: Future full days
-        for (let d = daysUntilWeighIn - 1; d > 0; d--) {
-          if (d >= 3) {
-            const loadingLoss = hasNetData ? netDailyLoss! : (hasGrossData ? grossCapacity! * 0.2 : 0);
-            projected -= loadingLoss;
-          } else {
-            // Future cut day: gross capacity only (daytime BMR excluded from projections)
-            if (hasGrossData) {
-              projected -= grossCapacity!;
-            } else if (hasNetData) {
-              projected -= netDailyLoss! * 2.5;
-            }
-          }
-        }
-      }
-
-      if (projected > 0) {
-        projectedSaturday = projected;
-      }
-    }
-
-    return {
-      avgOvernightDrift: computeEMA(overnightDrifts),
-      avgDriftRateOzPerHr: computeEMA(historyDriftRates),
-      avgPracticeLoss: computeEMA(practiceLosses),
-      avgSweatRateOzPerHr: computeEMA(historySweatRates),
-      avgFridayCut: finalCuts.length > 0
-        ? finalCuts.reduce((a, b) => a + b, 0) / finalCuts.length
-        : null,
-      weeklyTrend,
-      projectedSaturday,
-      daysUntilSat: daysUntilWeighIn, // Keep old property name for backward compat
-      totalLogsThisWeek: sortedLogs.filter(l => {
-        const daysDiff = (now.getTime() - l.date.getTime()) / (1000 * 60 * 60 * 24);
-        return daysDiff <= 7;
-      }).length,
-      hasEnoughData: overnightDrifts.length >= 2 || practiceLosses.length >= 2,
-      lastFridayWeight: dayBeforeWeighInWeights.length > 0 ? dayBeforeWeighInWeights[0].weight : null,
-      lastSaturdayWeight: competitionDayWeights.length > 0 ? competitionDayWeights[0].weight : null,
-      madeWeightLastWeek: competitionDayWeights.length > 0 && competitionDayWeights[0].weight <= profile.targetWeightClass
-    };
-  };
+  const getHistoryInsights = () => computeHistoryInsights({ profile, logs, daysUntilWeighIn: daysUntilWeighInMemo });
 
   // ═══════════════════════════════════════════════════════════════════════════════
   // ADAPTIVE MACRO ADJUSTMENT — detects plateaus and suggests calorie changes
   // ═══════════════════════════════════════════════════════════════════════════════
-  const getAdaptiveAdjustment = () => {
-    const now = profile.simulatedDate || new Date();
-
-    // Get last 5 morning weights
-    const morningLogs = logs
-      .filter(l => l.type === 'morning' || l.type === 'weigh-in')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
-
-    const recentWeights = morningLogs.map(l => ({
-      date: format(new Date(l.date), 'yyyy-MM-dd'),
-      weight: l.weight,
-    }));
-
-    // Need at least 3 days of data
-    if (morningLogs.length < 3) {
-      return {
-        isPlateaued: false,
-        plateauDays: 0,
-        suggestedAdjustment: 0,
-        reason: 'Need at least 3 days of weight data',
-        recentWeights,
-        variance: 0,
-        expectedLoss: 0,
-        actualLoss: 0,
-      };
-    }
-
-    // Calculate variance (standard deviation)
-    const weights = morningLogs.map(l => l.weight);
-    const mean = weights.reduce((a, b) => a + b, 0) / weights.length;
-    const squaredDiffs = weights.map(w => Math.pow(w - mean, 2));
-    const variance = Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / weights.length);
-
-    // Calculate actual weight change over the period
-    const oldestWeight = morningLogs[morningLogs.length - 1].weight;
-    const newestWeight = morningLogs[0].weight;
-    const daysBetween = Math.max(1, differenceInDays(
-      new Date(morningLogs[0].date),
-      new Date(morningLogs[morningLogs.length - 1].date)
-    ));
-    const actualLoss = oldestWeight - newestWeight;
-    const actualDailyLoss = actualLoss / daysBetween;
-
-    // Expected loss based on calorie deficit (3500 cal = 1 lb)
-    // Get current calorie adjustment from profile
-    const sliceTargets = getSliceTargets();
-    const calorieAdjustment = sliceTargets.calorieAdjustment || 0;
-    const expectedDailyLoss = Math.abs(calorieAdjustment) / 3500; // lbs per day
-    const expectedLoss = expectedDailyLoss * daysBetween;
-
-    // Plateau detection: variance < 0.3 lbs AND actual loss much less than expected
-    const isPlateaued = variance < 0.35 && daysBetween >= 3 && (
-      (calorieAdjustment < 0 && actualLoss < expectedLoss * 0.3) || // Cutting but not losing
-      (calorieAdjustment > 0 && actualLoss > -expectedLoss * 0.3)   // Building but gaining too fast
-    );
-
-    // Count plateau days (consecutive days with minimal change)
-    let plateauDays = 0;
-    if (isPlateaued) {
-      for (let i = 0; i < weights.length - 1; i++) {
-        if (Math.abs(weights[i] - weights[i + 1]) < 0.3) {
-          plateauDays++;
-        } else {
-          break;
-        }
-      }
-      plateauDays = Math.max(plateauDays, daysBetween);
-    }
-
-    // Calculate suggested adjustment
-    let suggestedAdjustment = 0;
-    let reason = '';
-
-    if (isPlateaued) {
-      if (calorieAdjustment < 0) {
-        // On a cut, weight stalled → reduce by 100 cal
-        suggestedAdjustment = -100;
-        reason = `Weight stalled at ~${mean.toFixed(1)} lbs for ${plateauDays}+ days. Consider reducing calories by 100.`;
-      } else if (calorieAdjustment > 0) {
-        // On a bulk, gaining too fast → reduce surplus
-        suggestedAdjustment = -50;
-        reason = `Gaining faster than expected. Consider reducing surplus by 50 cal to stay lean.`;
-      } else {
-        // Maintenance, but weight drifting
-        if (actualLoss < -0.5) {
-          suggestedAdjustment = 100;
-          reason = `Unintentional weight gain detected. Consider reducing by 100 cal.`;
-        } else if (actualLoss > 0.5) {
-          suggestedAdjustment = 100;
-          reason = `Unintentional weight loss detected. Consider adding 100 cal.`;
-        }
-      }
-    } else if (calorieAdjustment < 0 && actualDailyLoss > expectedDailyLoss * 1.5) {
-      // Losing faster than expected — might want to slow down to preserve muscle
-      suggestedAdjustment = 50;
-      reason = `Losing faster than expected (${(actualDailyLoss * 7).toFixed(1)} lbs/week). Consider adding 50 cal to preserve muscle.`;
-    }
-
-    return {
-      isPlateaued,
-      plateauDays,
-      suggestedAdjustment,
-      reason,
-      recentWeights,
-      variance: Math.round(variance * 100) / 100,
-      expectedLoss: Math.round(expectedLoss * 100) / 100,
-      actualLoss: Math.round(actualLoss * 100) / 100,
-    };
-  };
-
+  const getAdaptiveAdjustment = () => computeAdaptiveAdjustment({ profile, logs, getSliceTargets });
   // ═══════════════════════════════════════════════════════════════════════════════
   // WEEKLY COMPLIANCE REPORT — tracks how well user hits macro targets
   // ═══════════════════════════════════════════════════════════════════════════════
-  const getWeeklyCompliance = () => {
-    const now = profile.simulatedDate || new Date();
-    const targets = getSliceTargets();
-
-    // Get last 7 days of daily tracking
-    const weekData: Array<{
-      date: string;
-      protein: { consumed: number; target: number };
-      carb: { consumed: number; target: number };
-      veg: { consumed: number; target: number };
-      fruit: { consumed: number; target: number };
-      fat: { consumed: number; target: number };
-    }> = [];
-
-    for (let i = 0; i < 7; i++) {
-      const date = subDays(now, i);
-      const dateKey = format(date, 'yyyy-MM-dd');
-      const tracking = getDailyTracking(dateKey);
-
-      // Only count days where user logged something
-      const hasData = tracking.proteinSlices > 0 || tracking.carbSlices > 0 ||
-                      tracking.vegSlices > 0 || (tracking.fruitSlices || 0) > 0 ||
-                      (tracking.fatSlices || 0) > 0;
-
-      if (hasData) {
-        weekData.push({
-          date: dateKey,
-          protein: { consumed: tracking.proteinSlices, target: targets.protein },
-          carb: { consumed: tracking.carbSlices, target: targets.carb },
-          veg: { consumed: tracking.vegSlices, target: targets.veg },
-          fruit: { consumed: tracking.fruitSlices || 0, target: targets.fruit },
-          fat: { consumed: tracking.fatSlices || 0, target: targets.fat },
-        });
-      }
-    }
-
-    const daysTracked = weekData.length;
-
-    // Calculate compliance for each category
-    const calcCompliance = (category: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat') => {
-      if (daysTracked === 0) return { percentage: 0, avgConsumed: 0, avgTarget: 0 };
-
-      const totalConsumed = weekData.reduce((sum, d) => sum + d[category].consumed, 0);
-      const totalTarget = weekData.reduce((sum, d) => sum + d[category].target, 0);
-      const avgConsumed = totalConsumed / daysTracked;
-      const avgTarget = totalTarget / daysTracked;
-
-      // Percentage: how close to target (cap at 100% if over)
-      const percentage = totalTarget > 0
-        ? Math.min(100, Math.round((totalConsumed / totalTarget) * 100))
-        : 0;
-
-      return {
-        percentage,
-        avgConsumed: Math.round(avgConsumed * 10) / 10,
-        avgTarget: Math.round(avgTarget * 10) / 10,
-      };
-    };
-
-    const compliance = {
-      protein: calcCompliance('protein'),
-      carb: calcCompliance('carb'),
-      veg: calcCompliance('veg'),
-      fruit: calcCompliance('fruit'),
-      fat: calcCompliance('fat'),
-    };
-
-    // Find best and worst categories
-    const categories = ['protein', 'carb', 'veg', 'fruit', 'fat'] as const;
-    const validCategories = categories.filter(c => compliance[c].avgTarget > 0);
-
-    let bestCategory = 'protein';
-    let worstCategory = 'protein';
-    let bestPct = 0;
-    let worstPct = 100;
-
-    for (const cat of validCategories) {
-      if (compliance[cat].percentage > bestPct) {
-        bestPct = compliance[cat].percentage;
-        bestCategory = cat;
-      }
-      if (compliance[cat].percentage < worstPct) {
-        worstPct = compliance[cat].percentage;
-        worstCategory = cat;
-      }
-    }
-
-    // Generate insight
-    let insight = '';
-    if (daysTracked === 0) {
-      insight = 'Start tracking to see your weekly compliance stats!';
-    } else if (daysTracked < 3) {
-      insight = `Only ${daysTracked} day${daysTracked === 1 ? '' : 's'} tracked. Log more for accurate insights.`;
-    } else if (worstPct < 70) {
-      const catLabel = worstCategory === 'protein' ? 'protein' :
-                       worstCategory === 'carb' ? 'carbs' :
-                       worstCategory === 'veg' ? 'veggies' :
-                       worstCategory === 'fruit' ? 'fruit' : 'fats';
-      insight = `You're under-hitting ${catLabel} (${worstPct}%). Try adding 1 extra serving at dinner.`;
-    } else if (bestPct > 100) {
-      const catLabel = bestCategory === 'protein' ? 'protein' :
-                       bestCategory === 'carb' ? 'carbs' :
-                       bestCategory === 'veg' ? 'veggies' :
-                       bestCategory === 'fruit' ? 'fruit' : 'fats';
-      insight = `Great ${catLabel} intake! Make sure other macros are balanced too.`;
-    } else if (worstPct >= 85) {
-      insight = 'Excellent compliance across all categories! Keep it up.';
-    } else {
-      insight = `Focus on ${worstCategory} — currently at ${worstPct}% of target.`;
-    }
-
-    return {
-      ...compliance,
-      daysTracked,
-      bestCategory,
-      worstCategory,
-      insight,
-    };
-  };
+  const getWeeklyCompliance = () => computeWeeklyCompliance({ profile, getSliceTargets, getDailyTracking });
 
   // ═══ CUT SCORE ═══
   // Maps store data → CutScoreInput → computeCutScore()
-  const getCutScore = () => {
+  // Optional healthData parameter adds Premium tier wearable metrics
+  const getCutScore = (healthData?: {
+    hrv?: number | null;
+    restingHeartRate?: number | null;
+    sleepScore?: number | null;
+    recoveryScore?: number | null;
+    strainScore?: number | null;
+  }) => {
     const descentData = getWeekDescentData();
     const daysUntil = getDaysUntilWeighIn();
     const hydration = getHydrationTarget();
@@ -4991,7 +3202,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Recovery pillar — basic tier
       recentSleepHours: descentData.recentSleepHours,
       avgOvernightDrift: descentData.avgOvernightDrift,
-      // Enhanced/Premium tiers — future (fields are optional, omitted = undefined)
+      // Premium tier — wearable/HealthKit data (when available)
+      hrv: healthData?.hrv ?? undefined,
+      restingHeartRate: healthData?.restingHeartRate ?? undefined,
+      sleepScore: healthData?.sleepScore ?? undefined,
+      recoveryScore: healthData?.recoveryScore ?? undefined,
+      strainScore: healthData?.strainScore ?? undefined,
 
       // Protocol pillar — basic tier
       foodServingsLogged,
@@ -5019,6 +3235,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     deleteLog,
     updateDailyTracking,
     getDailyTracking,
+    trackingSyncStatus,
+    retryTrackingSync,
     resetData,
     clearLogs,
     migrateLocalStorageToSupabase,
@@ -5055,7 +3273,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     getCutScore
   }), [profile, fuelTanks, logs, dailyTracking, userFoods, isLoading,
        updateProfile, updateUserFoods, addLog, updateLog, deleteLog,
-       updateDailyTracking, getDailyTracking, resetData, clearLogs,
+       updateDailyTracking, getDailyTracking, trackingSyncStatus, retryTrackingSync, resetData, clearLogs,
        migrateLocalStorageToSupabase, hasLocalStorageData,
        calculateTarget, getWaterLoadBonus, isWaterLoadingDay,
        getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn,

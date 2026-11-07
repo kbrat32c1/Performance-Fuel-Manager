@@ -1,4 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import {
+  getFatSecretToken,
+  searchFatSecret,
+  pickBestServing,
+  scoreMatchConfidence,
+  autoSparCategory,
+  type MatchedFood,
+} from "./_fatsecret-utils";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -56,6 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const mediaType = `image/${match[1]}` as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
     const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
 
+    // ─── Step 1: AI extracts food names + quantities from photo ───
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -82,37 +91,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 type: "text",
                 text: `Analyze this food photo. Identify each distinct food item visible.
 
-For EACH food item, estimate:
-- name: common food name (e.g., "Grilled Chicken Breast", "Brown Rice")
+For EACH food item, extract:
+- name: the most common/searchable food name (e.g., "chicken breast", "brown rice", "banana"). Use plain names suitable for food database search.
+- quantity: estimated quantity description (e.g., "1 large piece", "about 1 cup")
 - estimatedGrams: estimated weight in grams for the visible portion
-- calories: estimated calories for that portion
-- protein: grams of protein
-- carbs: grams of carbs
-- fat: grams of fat
-- fiber: grams of fiber
-- sparCategory: one of "protein", "carb", "veg", "fruit", or "fat" — based on which macronutrient dominates
-- sliceCount: SPAR portion count (1 palm of protein = 1, 1 fist of carbs = 1, 1 fist of veg = 1, 1 piece of fruit = 1, 1 thumb of fat = 1). Use 0.5 for small portions, 2 for large.
 
-Respond ONLY with valid JSON in this exact format (no markdown, no explanation):
-{
-  "foods": [
-    {
-      "name": "Grilled Chicken Breast",
-      "estimatedGrams": 170,
-      "calories": 284,
-      "protein": 53,
-      "carbs": 0,
-      "fat": 6,
-      "fiber": 0,
-      "sparCategory": "protein",
-      "sliceCount": 2
-    }
-  ],
-  "confidence": "high"
-}
+Also provide fallback nutrition estimates in case the food can't be found in our database:
+- fallbackCalories, fallbackProtein, fallbackCarbs, fallbackFat, fallbackFiber
 
-confidence should be "high", "medium", or "low" based on how clearly you can identify the foods.
-If you cannot identify any food in the image, return: {"foods": [], "confidence": "low", "error": "No food detected in image"}`,
+Respond ONLY with valid JSON (no markdown, no explanation):
+{"foods": [{"name":"...","quantity":"...","estimatedGrams":0,"fallbackCalories":0,"fallbackProtein":0,"fallbackCarbs":0,"fallbackFat":0,"fallbackFiber":0}], "confidence":"high|medium|low"}
+
+If you cannot identify any food in the image, return: {"foods": [], "confidence": "low"}`,
               },
             ],
           },
@@ -129,7 +119,6 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
     const aiData = await response.json();
     const rawText = aiData.content?.[0]?.text || "";
 
-    // Parse JSON from response (handle potential markdown wrapping)
     let parsed;
     try {
       const jsonStr = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -139,28 +128,117 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
       return res.status(502).json({ error: "AI returned invalid response format" });
     }
 
-    // Validate structure
     if (!parsed.foods || !Array.isArray(parsed.foods)) {
       return res.status(502).json({ error: "AI returned unexpected structure" });
     }
 
-    // Sanitize and validate each food item
-    const foods = parsed.foods.map((f: any) => ({
-      name: String(f.name || "Unknown food").slice(0, 100),
-      estimatedGrams: Math.max(0, Math.round(Number(f.estimatedGrams) || 0)),
-      calories: Math.max(0, Math.round(Number(f.calories) || 0)),
-      protein: Math.max(0, Math.round(Number(f.protein) || 0)),
-      carbs: Math.max(0, Math.round(Number(f.carbs) || 0)),
-      fat: Math.max(0, Math.round(Number(f.fat) || 0)),
-      fiber: Math.max(0, Math.round(Number(f.fiber) || 0)),
-      sparCategory: ["protein", "carb", "veg", "fruit", "fat"].includes(f.sparCategory)
-        ? f.sparCategory
-        : "carb",
-      sliceCount: Math.max(0.5, Math.min(10, Number(f.sliceCount) || 1)),
-    }));
+    // ─── Step 2: Parallel FatSecret lookups for each food ───
+    let token: string | null = null;
+    try {
+      token = await getFatSecretToken();
+    } catch (err: any) {
+      console.error(`FatSecret token error: ${err.message}`);
+    }
+
+    const matchedFoods: MatchedFood[] = await Promise.all(
+      parsed.foods.map(async (food: any): Promise<MatchedFood> => {
+        const name = String(food.name || "").trim();
+        const quantity = String(food.quantity || "1 serving");
+        const estimatedGrams = Math.max(0, Math.round(Number(food.estimatedGrams) || 0));
+
+        // Build AI fallback
+        const fbCal = Math.max(0, Math.round(Number(food.fallbackCalories) || 0));
+        const fbPro = Math.max(0, Math.round(Number(food.fallbackProtein) || 0));
+        const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
+        const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
+        const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
+        const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber) || 'carb';
+        const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
+
+        let fbSliceCount = 0;
+        if (!isNegligible) {
+          if (fbCategory === 'protein') fbSliceCount = fbPro >= 5 ? Math.max(1, Math.round(fbPro / 25)) : 0;
+          else if (fbCategory === 'carb') fbSliceCount = fbCarbs >= 5 ? Math.max(1, Math.round(fbCarbs / 26)) : 0;
+          else fbSliceCount = 1;
+        }
+
+        const aiFallback = {
+          name: name || "Unknown food",
+          estimatedGrams,
+          calories: fbCal,
+          protein: fbPro,
+          carbs: fbCarbs,
+          fat: fbFat,
+          fiber: fbFiber,
+          sparCategory: fbCategory,
+          sliceCount: fbSliceCount,
+        };
+
+        if (!token || !name) {
+          return {
+            originalName: name || "Unknown food",
+            quantity,
+            estimatedGrams,
+            fsMatch: null,
+            selectedServing: null,
+            servingQty: 1,
+            alternatives: [],
+            aiFallback,
+            matchConfidence: 'none',
+          };
+        }
+
+        try {
+          const result = await searchFatSecret(name, token, { maxResults: 5 });
+
+          if (result.foods.length === 0) {
+            return {
+              originalName: name,
+              quantity,
+              estimatedGrams,
+              fsMatch: null,
+              selectedServing: null,
+              servingQty: 1,
+              alternatives: [],
+              aiFallback,
+              matchConfidence: 'none',
+            };
+          }
+
+          const bestMatch = result.foods[0];
+          const { serving, qty } = pickBestServing(bestMatch.servings, estimatedGrams);
+          const confidence = scoreMatchConfidence(name, bestMatch.name);
+
+          return {
+            originalName: name,
+            quantity,
+            estimatedGrams,
+            fsMatch: bestMatch,
+            selectedServing: serving,
+            servingQty: qty,
+            alternatives: result.foods.slice(1, 5),
+            aiFallback: null,
+            matchConfidence: confidence,
+          };
+        } catch (err) {
+          console.error(`FatSecret search failed for "${name}":`, err);
+          return {
+            originalName: name,
+            quantity,
+            estimatedGrams,
+            fsMatch: null,
+            selectedServing: null,
+            servingQty: 1,
+            alternatives: [],
+            aiFallback,
+            matchConfidence: 'none',
+          };
+        }
+      })
+    );
 
     return res.json({
-      foods,
+      foods: matchedFoods,
       confidence: ["high", "medium", "low"].includes(parsed.confidence) ? parsed.confidence : "medium",
     });
   } catch (err: any) {

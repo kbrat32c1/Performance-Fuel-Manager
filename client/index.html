@@ -30,6 +30,94 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Branded splash — one smooth animation that stays until the dashboard is ready -->
+    <div id="spar-splash" style="
+      position: fixed; inset: 0; z-index: 99999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #0d0f17;
+    ">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 20px;">
+        <!-- Logo: gentle fade + scale -->
+        <img src="/spar-icon.png" alt="" style="
+          width: 72px; height: 72px; border-radius: 18px;
+          opacity: 0; transform: scale(0.85);
+          animation: spar-logo-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s forwards;
+        " />
+        <!-- Letters: slow staggered reveal -->
+        <div style="display: flex; gap: 3px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; letter-spacing: 0.14em;">
+          <span class="spar-letter" style="color: #fafafa; --i:0">S</span>
+          <span class="spar-letter" style="color: #fafafa; --i:1">P</span>
+          <span class="spar-letter" style="color: #fafafa; --i:2">A</span>
+          <span class="spar-letter" style="color: #fafafa; --i:3">R</span>
+          <span style="width: 10px"></span>
+          <span class="spar-letter" style="color: #E8501E; --i:5">N</span>
+          <span class="spar-letter" style="color: #E8501E; --i:6">U</span>
+          <span class="spar-letter" style="color: #E8501E; --i:7">T</span>
+          <span class="spar-letter" style="color: #E8501E; --i:8">R</span>
+          <span class="spar-letter" style="color: #E8501E; --i:9">I</span>
+          <span class="spar-letter" style="color: #E8501E; --i:10">T</span>
+          <span class="spar-letter" style="color: #E8501E; --i:11">I</span>
+          <span class="spar-letter" style="color: #E8501E; --i:12">O</span>
+          <span class="spar-letter" style="color: #E8501E; --i:13">N</span>
+        </div>
+        <!-- Shimmer bar: subtle loading indicator (no spinning circles) -->
+        <div style="
+          margin-top: 16px; width: 48px; height: 3px;
+          border-radius: 2px; background: rgba(232,80,30,0.15);
+          overflow: hidden; opacity: 0;
+          animation: spar-fade-in 0.5s ease 1.6s forwards;
+        ">
+          <div style="
+            width: 50%; height: 100%;
+            border-radius: 2px; background: #E8501E;
+            animation: spar-shimmer 1.4s ease-in-out infinite;
+          "></div>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes spar-logo-in {
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes spar-letter-in {
+        0% { opacity: 0; transform: translateY(14px) scale(0.92); filter: blur(4px); }
+        100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+      }
+      @keyframes spar-fade-in {
+        to { opacity: 1; }
+      }
+      @keyframes spar-shimmer {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(220%); }
+      }
+      .spar-letter {
+        display: inline-block;
+        opacity: 0;
+        animation: spar-letter-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        animation-delay: calc(0.6s + var(--i) * 0.06s);
+      }
+    </style>
+    <script>
+      // Simple splash dismiss — called by React when dashboard content is ready
+      var __splashGone = false;
+      window.__dismissSplash = function() {
+        if (__splashGone) return;
+        __splashGone = true;
+        var s = document.getElementById('spar-splash');
+        if (!s) return;
+        s.style.transition = 'opacity 0.5s ease-out';
+        s.style.opacity = '0';
+        setTimeout(function() { if (s.parentNode) s.remove(); }, 500);
+      };
+      // Minimum 2s so the full letter animation plays out nicely
+      window.__splashMinTime = Date.now() + 2000;
+      window.__splashReady = function() {
+        var wait = Math.max(0, window.__splashMinTime - Date.now());
+        setTimeout(window.__dismissSplash, wait);
+      };
+      // Fallback: always dismiss after 6s
+      setTimeout(window.__dismissSplash, 6000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       // Register service worker for offline support

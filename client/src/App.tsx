@@ -2,6 +2,7 @@ import { Switch, Route } from "wouter";
 import { AuthProvider } from "./lib/auth";
 import { StoreProvider } from "./lib/store";
 import { ThemeProvider } from "./lib/theme";
+import { V5BandProvider } from "./lib/v5band-context";
 import { Toaster } from "@/components/ui/toaster";
 import { ProtectedRoute } from "./components/protected-route";
 import { ErrorBoundary, PageErrorBoundary } from "./components/error-boundary";
@@ -114,9 +115,11 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <StoreProvider>
-            <Toaster />
-            <Router />
-            <NotificationScheduler />
+            <V5BandProvider>
+              <Toaster />
+              <Router />
+              <NotificationScheduler />
+            </V5BandProvider>
           </StoreProvider>
         </AuthProvider>
       </ThemeProvider>

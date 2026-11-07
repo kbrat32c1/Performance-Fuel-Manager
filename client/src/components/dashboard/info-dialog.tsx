@@ -1,4 +1,5 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,15 +22,15 @@ const COST_COLORS: Record<string, string> = {
 export function InfoDialog() {
   const { getFoodLists } = useStore();
   const fuelTanks = getFoodLists().fuelTanks;
+  const [open, setOpen] = useState(false);
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open system guide">
-          <Info className="w-5 h-5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="w-[95%] max-w-lg rounded-xl bg-card border-muted max-h-[85vh] overflow-y-auto">
+    <>
+      <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open system guide" onClick={() => setOpen(true)}>
+        <Info className="w-5 h-5" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[95%] max-w-lg rounded-xl bg-card border-muted max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-heading uppercase italic text-xl">System Guide</DialogTitle>
         </DialogHeader>
@@ -96,7 +97,8 @@ export function InfoDialog() {
           </div>
 
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

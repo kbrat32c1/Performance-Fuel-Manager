@@ -9,3 +9,11 @@ vite.config.ts.*
 .env.local
 .env.*.local
 .env*.local
+
+# iOS build artifacts (Capacitor)
+ios/App/Pods
+ios/App/App/public
+ios/App/build
+*.xcworkspace/xcuserdata
+*.xcodeproj/xcuserdata
+DerivedData

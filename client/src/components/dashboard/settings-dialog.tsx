@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders, Brain, ChevronDown, ChevronUp, Briefcase } from "lucide-react";
+import { Settings, Weight, Target, Trash2, LogOut, Sun, Moon, Monitor, Calendar, Clock, Check, X, Bell, BellOff, Share2, Copy, RefreshCw, Link2, User, RotateCcw, HelpCircle, Utensils, Scale, Zap, Activity, TrendingDown, Flame, Dumbbell, Sliders, Brain, ChevronDown, ChevronUp, Briefcase, Heart, Smartphone, Bluetooth, BatteryMedium, Search, Loader2 } from "lucide-react";
 import { format, differenceInDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -30,10 +30,11 @@ import {
   saveNotificationPrefs,
   getPermissionState,
   requestPermission as requestNotifPermission,
-  getTimeOptions,
   type NotificationPreferences,
 } from "@/lib/notifications";
 import { isHapticsEnabled, setHapticsEnabled } from "@/lib/haptics";
+import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
+import { useV5BandContext } from "@/lib/v5band-context";
 
 /** Profile updates use Record<string, any> because settings-dialog
  *  accesses fields dynamically via getValue(key) and Select returns string. */
@@ -50,6 +51,8 @@ interface SettingsDialogProps {
 export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }: SettingsDialogProps) {
   const { signOut, user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const hkSync = useHealthKitSync(user?.id ?? null);
+  const v5band = useV5BandContext();
   const [, navigate] = useLocation();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showWeightClassConfirm, setShowWeightClassConfirm] = useState(false);
@@ -187,20 +190,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
   );
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open settings">
-          <Settings className="w-5 h-5" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent
+    <>
+      <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open settings" onClick={() => setOpen(true)}>
+        <Settings className="w-5 h-5" />
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
         className="w-[92%] max-w-md rounded-xl bg-card border-muted max-h-[80vh] flex flex-col !top-[8%] !translate-y-0 p-0"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement;
-          if (target?.closest?.('[role="listbox"], [role="option"], [data-radix-select-viewport]')) {
-            e.preventDefault();
-          }
-        }}
       >
         {/* Fixed Header */}
         <DialogHeader className="px-4 pt-4 pb-2 border-b border-muted shrink-0">
@@ -210,9 +206,10 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-4" : "grid-cols-5")}>
+            <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-5" : "grid-cols-6")}>
               <TabsTrigger value="profile" className="text-[11px]">Profile</TabsTrigger>
               {!isSparGeneral && <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>}
+              <TabsTrigger value="health" className="text-[11px]">Health</TabsTrigger>
               <TabsTrigger value="alerts" className="text-[11px]">Alerts</TabsTrigger>
               <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
               <TabsTrigger value="data" className="text-[11px]">Data</TabsTrigger>
@@ -276,19 +273,22 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   </div>
                   <div className="space-y-1">
                     <Label className="text-[11px]">Target Class</Label>
-                    <Select
-                      value={getValue('targetWeightClass').toString()}
-                      onValueChange={(v) => handleChange({ targetWeightClass: parseInt(v) })}
-                    >
-                      <SelectTrigger className="h-10 font-mono">
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {WEIGHT_CLASSES.map(w => (
-                          <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                      {WEIGHT_CLASSES.map(w => (
+                        <button
+                          key={w}
+                          onClick={() => handleChange({ targetWeightClass: w })}
+                          className={cn(
+                            "shrink-0 h-10 px-3 rounded-lg border-2 font-mono text-sm font-bold transition-all",
+                            getValue('targetWeightClass') === w
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-muted hover:border-muted-foreground/50"
+                          )}
+                        >
+                          {w}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -352,27 +352,27 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   );
                 })()}
 
-                <Select
-                  value={getValue('protocol')}
-                  onValueChange={(v) => {
-                    // If switching protocols, show confirmation first
-                    if (v !== profile.protocol) {
-                      setShowProtocolSwitchConfirm(v);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={PROTOCOLS.EXTREME_CUT}>{PROTOCOL_NAMES[PROTOCOLS.EXTREME_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.RAPID_CUT}>{PROTOCOL_NAMES[PROTOCOLS.RAPID_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.OPTIMAL_CUT}>{PROTOCOL_NAMES[PROTOCOLS.OPTIMAL_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.GAIN}>{PROTOCOL_NAMES[PROTOCOLS.GAIN]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.SPAR}>{PROTOCOL_NAMES[PROTOCOLS.SPAR]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.SPAR_COMPETITION}>{PROTOCOL_NAMES[PROTOCOLS.SPAR_COMPETITION]}</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1">
+                  {[PROTOCOLS.EXTREME_CUT, PROTOCOLS.RAPID_CUT, PROTOCOLS.OPTIMAL_CUT, PROTOCOLS.GAIN, PROTOCOLS.SPAR, PROTOCOLS.SPAR_COMPETITION].map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        if (p !== profile.protocol) {
+                          setShowProtocolSwitchConfirm(p);
+                        }
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between px-3 py-2 rounded-lg border-2 transition-all text-left",
+                        getValue('protocol') === p
+                          ? "border-primary bg-primary/10"
+                          : "border-muted hover:border-muted-foreground/50"
+                      )}
+                    >
+                      <span className="text-xs font-bold">{PROTOCOL_NAMES[p]}</span>
+                      {getValue('protocol') === p && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                    </button>
+                  ))}
+                </div>
                 <p className="text-[10px] text-muted-foreground">
                   {getValue('protocol') === PROTOCOLS.EXTREME_CUT && '12%+ above class. Multi-day depletion, strict oversight required.'}
                   {getValue('protocol') === PROTOCOLS.RAPID_CUT && '7-12% above class. Short-term glycogen + water manipulation.'}
@@ -394,6 +394,24 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     Help Me Choose
                   </Button>
                 )}
+              </div>
+
+              {/* Age — needed for strain HR zone calculations (all protocols) */}
+              <div className="flex items-center gap-3 pt-2 border-t border-muted">
+                <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Age</Label>
+                <Input
+                  type="number"
+                  min="10"
+                  max="100"
+                  placeholder="Enter age"
+                  className="h-7 font-mono text-xs w-20 text-center"
+                  value={getValue('age') || ''}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    handleChange({ age: !isNaN(val) && val > 0 ? val : undefined });
+                  }}
+                />
+                <span className="text-[9px] text-muted-foreground/60">Max HR: {getValue('age') ? 220 - Number(getValue('age')) : '—'} bpm</span>
               </div>
 
               {/* Nutrition Mode Toggle */}
@@ -902,33 +920,12 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <Label className="text-[11px]">Weigh-in Time</Label>
                 <div className="relative">
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
-                  <Select
+                  <Input
+                    type="time"
+                    className="pl-10 h-10 font-mono"
                     value={getValue('weighInTime') || '07:00'}
-                    onValueChange={(v) => handleChange({ weighInTime: v })}
-                  >
-                    <SelectTrigger className="pl-10 h-10 font-mono">
-                      <SelectValue>
-                        {(() => {
-                          const val = getValue('weighInTime') || '07:00';
-                          const [h, m] = val.split(':').map(Number);
-                          const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
-                          const ampm = h < 12 ? 'AM' : 'PM';
-                          return `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}`;
-                        })()}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[200px]">
-                      {Array.from({ length: 48 }, (_, i) => {
-                        const hour = Math.floor(i / 2);
-                        const min = i % 2 === 0 ? '00' : '30';
-                        const value = `${hour.toString().padStart(2, '0')}:${min}`;
-                        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-                        const ampm = hour < 12 ? 'AM' : 'PM';
-                        const label = `${displayHour}:${min} ${ampm}`;
-                        return <SelectItem key={value} value={value}>{label}</SelectItem>;
-                      })}
-                    </SelectContent>
-                  </Select>
+                    onChange={(e) => handleChange({ weighInTime: e.target.value })}
+                  />
                 </div>
               </div>
 
@@ -986,6 +983,253 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     );
                   })}
                 </div>
+              </div>
+            </TabsContent>
+
+            {/* ═══ HEALTH TRACKER TAB ═══ */}
+            <TabsContent value="health" className="px-4 pb-4 space-y-4 mt-0">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  <span className="text-sm font-semibold">Health Tracker</span>
+                </div>
+
+                {/* ── V5 SMART BAND SECTION ── */}
+                {v5band.available ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Bluetooth className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-xs font-semibold">JCVital V5 Band</span>
+                      <span className="text-[9px] text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded-full font-medium">Direct BLE</span>
+                    </div>
+
+                    {/* Connection Status */}
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          v5band.connected ? "bg-green-500" :
+                          v5band.connecting ? "bg-yellow-500 animate-pulse" :
+                          "bg-muted-foreground"
+                        )} />
+                        <div>
+                          <span className="text-xs font-medium block">
+                            {v5band.connected ? v5band.deviceName || "V5 Band Connected" :
+                             v5band.connecting ? "Connecting..." :
+                             v5band.scanning ? "Scanning..." :
+                             "Not connected"}
+                          </span>
+                          {v5band.connected && v5band.batteryLevel != null && (
+                            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                              <BatteryMedium className="w-3 h-3" />
+                              {v5band.batteryLevel}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {v5band.connected ? (
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            disabled={v5band.syncing}
+                            onClick={() => v5band.syncNow()}
+                          >
+                            <RefreshCw className={cn("w-3 h-3 mr-1", v5band.syncing && "animate-spin")} />
+                            {v5band.syncing ? "Syncing" : "Sync"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs text-destructive"
+                            onClick={() => v5band.disconnect()}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ) : !v5band.scanning ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          disabled={v5band.connecting}
+                          onClick={() => v5band.scan()}
+                        >
+                          <Search className="w-3 h-3 mr-1" />
+                          Scan
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => v5band.stopScan()}
+                        >
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Stop
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Discovered Devices */}
+                    {!v5band.connected && v5band.devices.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px]">Discovered Bands</Label>
+                        {v5band.devices.map((device) => (
+                          <button
+                            key={device.deviceId}
+                            onClick={() => v5band.connect(device.deviceId)}
+                            disabled={v5band.connecting}
+                            className="w-full flex items-center justify-between bg-muted/20 hover:bg-muted/40 rounded-lg p-2.5 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Bluetooth className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="text-xs font-medium">{device.name}</span>
+                            </div>
+                            <span className="text-[10px] text-primary font-medium">Connect</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* No devices found */}
+                    {!v5band.connected && !v5band.scanning && v5band.devices.length === 0 && (
+                      <p className="text-[10px] text-muted-foreground text-center py-1">
+                        Tap Scan to search for your V5 band. Make sure Bluetooth is on and the band is nearby.
+                      </p>
+                    )}
+
+                    {/* Last Sync */}
+                    {v5band.connected && v5band.lastSyncAt && (
+                      <div className="text-[10px] text-muted-foreground/60 text-center">
+                        Last synced: {new Date(v5band.lastSyncAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* ── DIVIDER between V5 Band and Apple Health ── */}
+                {v5band.available && hkSync.available && (
+                  <div className="flex items-center gap-2 py-1">
+                    <div className="flex-1 h-px bg-muted" />
+                    <span className="text-[9px] text-muted-foreground uppercase tracking-wider">or</span>
+                    <div className="flex-1 h-px bg-muted" />
+                  </div>
+                )}
+
+                {/* ── APPLE HEALTH SECTION ── */}
+                {hkSync.available ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Heart className="w-3.5 h-3.5 text-red-400" />
+                      <span className="text-xs font-semibold">Apple Health</span>
+                      <span className="text-[9px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded-full font-medium">Fallback</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {v5band.available
+                        ? "Apple Health is used as a fallback when the V5 band is not directly connected."
+                        : "Connect Apple Health to sync heart rate, HRV, sleep, and activity data into your Cut Score."}
+                    </p>
+
+                    {/* Authorization */}
+                    <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-2 h-2 rounded-full",
+                          hkSync.authorized ? "bg-green-500" : "bg-muted-foreground"
+                        )} />
+                        <span className="text-xs font-medium">
+                          {hkSync.authorized ? "Connected to Apple Health" : "Not connected"}
+                        </span>
+                      </div>
+                      {!hkSync.authorized ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="h-7 text-xs"
+                          onClick={async () => {
+                            const success = await hkSync.authorize();
+                            if (success) {
+                              toast({ title: "Connected!", description: "Apple Health data will now sync to your Cut Score." });
+                            }
+                          }}
+                        >
+                          Connect
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={hkSync.syncing}
+                          onClick={() => hkSync.syncNow()}
+                        >
+                          <RefreshCw className={cn("w-3 h-3 mr-1", hkSync.syncing && "animate-spin")} />
+                          {hkSync.syncing ? "Syncing..." : "Sync Now"}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Last Sync */}
+                    {hkSync.authorized && hkSync.lastSyncAt && (
+                      <div className="text-[10px] text-muted-foreground/60 text-center">
+                        Last synced: {new Date(hkSync.lastSyncAt).toLocaleString()}
+                        {hkSync.lastSyncCount > 0 && ` (${hkSync.lastSyncCount} day${hkSync.lastSyncCount > 1 ? 's' : ''} updated)`}
+                      </div>
+                    )}
+
+                    {/* Data Types */}
+                    {hkSync.authorized && (
+                      <div className="space-y-1.5">
+                        <Label className="text-[11px]">Syncing from Apple Health</Label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { icon: "❤️", label: "Heart Rate (HRV)" },
+                            { icon: "💤", label: "Sleep Analysis" },
+                            { icon: "🫁", label: "Blood Oxygen (SpO2)" },
+                            { icon: "🌡️", label: "Body Temperature" },
+                            { icon: "🏃", label: "Active Energy" },
+                            { icon: "👟", label: "Step Count" },
+                          ].map((item) => (
+                            <div key={item.label} className="flex items-center gap-1.5 bg-muted/20 rounded px-2 py-1.5">
+                              <span className="text-xs">{item.icon}</span>
+                              <span className="text-[10px] text-muted-foreground">{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : !v5band.available ? (
+                  /* Not running in Capacitor — web/PWA mode */
+                  <div className="bg-muted/30 rounded-lg p-4 text-center space-y-3">
+                    <Smartphone className="w-8 h-8 text-muted-foreground/40 mx-auto" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium">Native App Required</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Install the SPAR Nutrition iOS app to connect your V5 band directly or use Apple Health to sync health data.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Cut Score Integration Note — show when any source is connected */}
+                {(v5band.connected || (hkSync.available && hkSync.authorized)) && (
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Zap className="w-3 h-3 text-green-500" />
+                      <span className="text-[11px] font-semibold text-green-500">Premium Cut Score</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {v5band.connected
+                        ? "V5 band data is feeding directly into your Cut Score recovery pillar. HRV, heart rate, and sleep quality drive your recovery readiness."
+                        : "Apple Health data is feeding into the Cut Score recovery pillar. HRV, heart rate, and sleep quality are used to calculate your recovery readiness."}
+                    </p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -1200,38 +1444,50 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   {/* Training Frequency */}
                   <div className="space-y-1">
                     <Label className="text-[11px]">Training Sessions / Week</Label>
-                    <Select
-                      value={pendingChanges.trainingSessions || profile.trainingSessions || '3-4'}
-                      onValueChange={(v) => handleChange({ trainingSessions: v })}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1-2">1-2 sessions</SelectItem>
-                        <SelectItem value="3-4">3-4 sessions</SelectItem>
-                        <SelectItem value="5-6">5-6 sessions</SelectItem>
-                        <SelectItem value="7+">7+ sessions</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="grid grid-cols-4 gap-1">
+                      {(['1-2', '3-4', '5-6', '7+'] as const).map((sessions) => {
+                        const isSelected = (pendingChanges.trainingSessions || profile.trainingSessions || '3-4') === sessions;
+                        return (
+                          <button
+                            key={sessions}
+                            onClick={() => handleChange({ trainingSessions: sessions })}
+                            className={cn(
+                              "p-1.5 rounded border-2 text-center transition-all",
+                              isSelected ? "border-primary bg-primary/10" : "border-muted"
+                            )}
+                          >
+                            <span className="text-[11px] font-bold">{sessions}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Workday Activity */}
                   <div className="space-y-1">
                     <Label className="text-[11px]">Daily Activity Level</Label>
-                    <Select
-                      value={pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting'}
-                      onValueChange={(v) => handleChange({ workdayActivity: v })}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mostly_sitting">Mostly sitting (desk job)</SelectItem>
-                        <SelectItem value="on_feet_some">On feet some of the day</SelectItem>
-                        <SelectItem value="on_feet_most">On feet most of the day</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-1">
+                      {([
+                        { value: 'mostly_sitting', label: 'Mostly Sitting' },
+                        { value: 'on_feet_some', label: 'On Feet Some' },
+                        { value: 'on_feet_most', label: 'On Feet Most' },
+                      ] as const).map((opt) => {
+                        const isSelected = (pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting') === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => handleChange({ workdayActivity: opt.value })}
+                            className={cn(
+                              "w-full p-1.5 rounded border-2 text-left transition-all flex items-center justify-between",
+                              isSelected ? "border-primary bg-primary/10" : "border-muted"
+                            )}
+                          >
+                            <span className="text-[10px] font-medium">{opt.label}</span>
+                            {isSelected && <Check className="w-3 h-3 text-primary" />}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1315,8 +1571,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             </Button>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1324,7 +1581,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 function AlertsTab() {
   const [prefs, setPrefs] = useState<NotificationPreferences>(getNotificationPrefs());
   const [permission, setPermission] = useState(getPermissionState());
-  const timeOptions = getTimeOptions();
 
   const update = (changes: Partial<NotificationPreferences>) => {
     const next = { ...prefs, ...changes };
@@ -1389,7 +1645,7 @@ function AlertsTab() {
             time={prefs.morningTime}
             onToggle={(v) => update({ morningReminder: v })}
             onTimeChange={(v) => update({ morningTime: v })}
-            timeOptions={timeOptions}
+
           />
           <ReminderRow
             label="Pre-Practice"
@@ -1398,7 +1654,7 @@ function AlertsTab() {
             time={prefs.prePracticeTime}
             onToggle={(v) => update({ prePracticeReminder: v })}
             onTimeChange={(v) => update({ prePracticeTime: v })}
-            timeOptions={timeOptions}
+
           />
           <ReminderRow
             label="Before Bed"
@@ -1407,7 +1663,7 @@ function AlertsTab() {
             time={prefs.beforeBedTime}
             onToggle={(v) => update({ beforeBedReminder: v })}
             onTimeChange={(v) => update({ beforeBedTime: v })}
-            timeOptions={timeOptions}
+
           />
         </div>
       )}
@@ -1415,14 +1671,13 @@ function AlertsTab() {
   );
 }
 
-function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeOptions }: {
+function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange }: {
   label: string;
   icon: React.ReactNode;
   enabled: boolean;
   time: string;
   onToggle: (v: boolean) => void;
   onTimeChange: (v: string) => void;
-  timeOptions: { value: string; label: string }[];
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -1437,16 +1692,12 @@ function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeO
         <span className="text-xs font-medium">{label}</span>
       </button>
       {enabled && (
-        <Select value={time} onValueChange={onTimeChange}>
-          <SelectTrigger className="w-[90px] h-8 text-[10px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent position="popper" className="max-h-[200px] z-[100]">
-            {timeOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Input
+          type="time"
+          className="w-[90px] h-8 text-[10px] font-mono px-2"
+          value={time}
+          onChange={(e) => onTimeChange(e.target.value)}
+        />
       )}
     </div>
   );

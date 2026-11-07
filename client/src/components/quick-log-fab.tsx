@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth';
+import { useHealthKitSync } from '@/hooks/use-healthkit-sync';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { hapticSuccess, hapticError, hapticTap } from '@/lib/haptics';
 import { isValidWeight, getWeightValidationError, MIN_WEIGHT_LBS, MAX_WEIGHT_LBS } from '@/lib/constants';
@@ -15,7 +18,6 @@ import { QuickLogWaterTab } from './quick-log-water-tab';
 type FabTab = 'weight' | 'food' | 'water';
 
 const DURATION_PRESETS = [30, 45, 60, 90, 120] as const;
-const SLEEP_PRESETS = [5, 6, 7, 8, 9] as const;
 
 function getCurrentTimeStr(): string {
   const now = new Date();
@@ -258,6 +260,28 @@ export function QuickLogFAB() {
   const beforeRef = useRef<HTMLInputElement>(null);
 
   const { profile, logs, addLog, updateLog, deleteLog, calculateTarget, getDaysUntilWeighIn } = useStore();
+  const { user } = useAuth();
+  const { healthData } = useHealthKitSync(user?.id ?? null);
+  const [sleepAutoFilled, setSleepAutoFilled] = useState(false);
+
+  // Auto-fill sleep hours from V5 band (preferred) or HealthKit when morning weigh-in selected
+  const needsSleepForType = selectedType === 'morning';
+  useEffect(() => {
+    if (!needsSleepForType || sleepHours || !healthData.length) return;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    // Prefer V5 band direct data, then fall back to any source
+    const v5Today = healthData.find(h => h.date === todayStr && h.source === 'v5-direct');
+    const v5Latest = healthData.find(h => h.source === 'v5-direct');
+    const anyToday = healthData.find(h => h.date === todayStr);
+    const bestData = v5Today || v5Latest || anyToday || healthData[0];
+    if (bestData?.sleep_hours != null && bestData.sleep_hours > 0) {
+      // Use exact value from band — no rounding. Stored as decimal string
+      // (e.g. "5.7") for parseFloat downstream, displayed as "5h 42m" in UI.
+      setSleepHours(bestData.sleep_hours.toString());
+      setCustomSleep(false);
+      setSleepAutoFilled(true);
+    }
+  }, [needsSleepForType, healthData, sleepHours]);
 
   const today = profile?.simulatedDate ? new Date(profile.simulatedDate) : new Date();
   const isHistorical = !!profile?.simulatedDate;
@@ -383,7 +407,6 @@ export function QuickLogFAB() {
     }
     if (logSleepHours) {
       setSleepHours(logSleepHours.toString());
-      if (!SLEEP_PRESETS.includes(logSleepHours as any)) setCustomSleep(true);
     }
     setShowMoreOptions(true); // Always show time picker in edit mode
     setDirectMode(true);
@@ -1150,51 +1173,48 @@ export function QuickLogFAB() {
                 </div>
               )}
 
-              {/* Sleep Hours Picker — shown for morning weigh-in */}
+              {/* Sleep Hours — shown for morning weigh-in */}
               {needsSleep && (
                 <div className="mt-3 p-2.5 rounded-lg border border-purple-500/30 bg-purple-500/5">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Moon className="w-3.5 h-3.5 text-purple-500" />
-                    <Label className="text-xs font-bold text-purple-500">Hours of Sleep *</Label>
+                    <Label className="text-xs font-bold text-purple-500">Sleep</Label>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mb-2">Required — used to track overnight drift per hour</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {SLEEP_PRESETS.map((hrs) => (
+
+                  {/* Band auto-filled: show h:m display with edit option */}
+                  {sleepAutoFilled && sleepHours && !customSleep && (
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-purple-400">
+                          {(() => {
+                            const val = parseFloat(sleepHours);
+                            const h = Math.floor(val);
+                            const m = Math.round((val - h) * 60);
+                            return m > 0 ? `${h}h ${m}m` : `${h}h`;
+                          })()}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/50">from V5 band</span>
+                      </div>
                       <button
-                        key={hrs}
-                        onClick={() => { setSleepHours(hrs.toString()); setCustomSleep(false); }}
-                        className={cn(
-                          "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
-                          sleepHours === hrs.toString() && !customSleep
-                            ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
-                            : "border-border text-muted-foreground active:scale-95"
-                        )}
+                        onClick={() => setCustomSleep(true)}
+                        className="text-[10px] text-purple-400/60 underline underline-offset-2"
                       >
-                        {hrs}hr
+                        Edit
                       </button>
-                    ))}
-                    <button
-                      onClick={() => { setCustomSleep(true); setSleepHours(''); }}
-                      className={cn(
-                        "px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium border transition-all",
-                        customSleep
-                          ? "border-purple-500 bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30"
-                          : "border-border text-muted-foreground active:scale-95"
-                      )}
-                    >
-                      Custom
-                    </button>
-                  </div>
-                  {customSleep && (
-                    <div className="mt-2 flex items-center gap-2">
+                    </div>
+                  )}
+
+                  {/* Manual / editing: simple hours input */}
+                  {(!sleepAutoFilled || customSleep) && (
+                    <div className="mt-1 flex items-center gap-2">
                       <Input
                         type="number"
                         inputMode="decimal"
                         step="0.5"
                         value={sleepHours}
-                        onChange={(e) => setSleepHours(e.target.value)}
-                        placeholder="Hours"
-                        className="font-mono text-center h-12 w-24 text-foreground"
+                        onChange={(e) => { setSleepHours(e.target.value); setSleepAutoFilled(false); }}
+                        placeholder="Hours (e.g. 7.5)"
+                        className="font-mono text-center h-12 flex-1 text-foreground"
                       />
                       <span className="text-xs text-muted-foreground">hrs</span>
                     </div>

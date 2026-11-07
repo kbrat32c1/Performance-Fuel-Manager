@@ -10,12 +10,16 @@ interface DateNavigatorProps {
   currentDate: Date;
   onDateChange: (date: Date | null) => void;
   className?: string;
+  /** When true, treat currentDate as "today" even if it's not the calendar date.
+   *  Used for WHOOP-style health day where "today" may be yesterday before wake-up. */
+  isLiveView?: boolean;
 }
 
-export function DateNavigator({ currentDate, onDateChange, className }: DateNavigatorProps) {
+export function DateNavigator({ currentDate, onDateChange, className, isLiveView }: DateNavigatorProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const today = startOfDay(new Date());
-  const viewingToday = isToday(currentDate);
+  // If isLiveView is explicitly set, use it. Otherwise fall back to calendar isToday check.
+  const viewingToday = isLiveView ?? isToday(currentDate);
 
   const handlePreviousDay = () => {
     const prevDay = subDays(currentDate, 1);

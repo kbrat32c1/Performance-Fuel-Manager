@@ -5,7 +5,7 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Card } from "@/components/ui/card";
 import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp, Pencil, Check, Sliders } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
@@ -66,7 +66,7 @@ export default function Onboarding() {
   // Apply protocol immediately when switching from settings
   useEffect(() => {
     if (switchingProtocol) {
-      updateProfile({ protocol: switchingProtocol as Protocol });
+      silentUpdate({ protocol: switchingProtocol as Protocol });
     }
   }, []);
 
@@ -90,10 +90,14 @@ export default function Onboarding() {
   const [editingWeight, setEditingWeight] = useState(false);
   const [tempWeight, setTempWeight] = useState(profile.currentWeight.toString());
 
+  // Silent wrapper — suppress "Settings saved" toast during onboarding
+  const silentUpdate = (updates: Parameters<typeof updateProfile>[0]) =>
+    updateProfile(updates, { silent: true });
+
   const updateName = (first: string, last: string) => {
     setFirstName(first);
     setLastName(last);
-    updateProfile({ name: first.trim(), lastName: last.trim() });
+    silentUpdate({ name: first.trim(), lastName: last.trim() });
   };
 
   // Validation
@@ -283,7 +287,7 @@ export default function Onboarding() {
                       placeholder="Enter your weight"
                       className={cn("pl-10 text-lg h-12 bg-muted/30 font-mono", showValidation && !isWeightValid && "border-destructive/50")}
                       value={profile.currentWeight === 0 ? '' : profile.currentWeight}
-                      onChange={(e) => updateProfile({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
+                      onChange={(e) => silentUpdate({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
                     />
                   </div>
                   {showValidation && !isWeightValid && (
@@ -326,7 +330,7 @@ export default function Onboarding() {
                           onClick={() => {
                             const newWeight = parseFloat(tempWeight);
                             if (!isNaN(newWeight) && newWeight > 0) {
-                              updateProfile({ currentWeight: newWeight });
+                              silentUpdate({ currentWeight: newWeight });
                             }
                             setEditingWeight(false);
                           }}
@@ -384,7 +388,7 @@ export default function Onboarding() {
                   )}
                   onClick={() => {
                     setUserGoal('spar-competition');
-                    updateProfile({ protocol: '6' as Protocol });
+                    silentUpdate({ protocol: '6' as Protocol });
                   }}
                 >
                   <div className="flex items-start gap-4">
@@ -417,7 +421,7 @@ export default function Onboarding() {
                   )}
                   onClick={() => {
                     setUserGoal('spar');
-                    updateProfile({ protocol: '5' });
+                    silentUpdate({ protocol: '5' });
                   }}
                 >
                   <div className="flex items-start gap-4">
@@ -453,21 +457,21 @@ export default function Onboarding() {
               {/* Weight Class Selection */}
               <div className="space-y-2">
                 <Label>Target Weight Class</Label>
-                <div className="relative">
-                  <Target className="absolute left-3 top-3 text-muted-foreground w-5 h-5 z-10" />
-                  <Select
-                    value={profile.targetWeightClass.toString()}
-                    onValueChange={(v) => updateProfile({ targetWeightClass: parseInt(v) })}
-                  >
-                    <SelectTrigger className="pl-10 text-lg h-12 bg-muted/30 font-mono">
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEIGHT_CLASSES.map(w => (
-                        <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                  {WEIGHT_CLASSES.map(w => (
+                    <button
+                      key={w}
+                      onClick={() => silentUpdate({ targetWeightClass: w })}
+                      className={cn(
+                        "shrink-0 h-12 px-4 rounded-lg border-2 font-mono text-lg font-bold transition-all",
+                        profile.targetWeightClass === w
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-muted bg-muted/30 hover:border-muted-foreground/50"
+                      )}
+                    >
+                      {w}
+                    </button>
+                  ))}
                 </div>
                 {profile.targetWeightClass > 0 && (
                   <p className="text-[10px] text-muted-foreground">
@@ -510,7 +514,7 @@ export default function Onboarding() {
                           "p-3 border-2 cursor-pointer transition-all",
                           isSelected ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground/50"
                         )}
-                        onClick={() => updateProfile({ protocol: p.id })}
+                        onClick={() => silentUpdate({ protocol: p.id })}
                       >
                         <div className="flex items-center gap-3">
                           <Icon className={cn("w-5 h-5 shrink-0", p.color)} />
@@ -570,21 +574,21 @@ export default function Onboarding() {
               {/* Weight Class Selection */}
               <div className="space-y-2">
                 <Label>Target Weight Class</Label>
-                <div className="relative">
-                  <Target className="absolute left-3 top-3 text-muted-foreground w-5 h-5 z-10" />
-                  <Select
-                    value={profile.targetWeightClass.toString()}
-                    onValueChange={(v) => updateProfile({ targetWeightClass: parseInt(v) })}
-                  >
-                    <SelectTrigger className="pl-10 text-lg h-12 bg-muted/30 font-mono">
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {WEIGHT_CLASSES.map(w => (
-                        <SelectItem key={w} value={w.toString()}>{w} lbs</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                  {WEIGHT_CLASSES.map(w => (
+                    <button
+                      key={w}
+                      onClick={() => silentUpdate({ targetWeightClass: w })}
+                      className={cn(
+                        "shrink-0 h-12 px-4 rounded-lg border-2 font-mono text-lg font-bold transition-all",
+                        profile.targetWeightClass === w
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-muted bg-muted/30 hover:border-muted-foreground/50"
+                      )}
+                    >
+                      {w}
+                    </button>
+                  ))}
                 </div>
                 {profile.targetWeightClass > 0 && (
                   <p className="text-[10px] text-muted-foreground">
@@ -613,7 +617,7 @@ export default function Onboarding() {
                         onChange={(e) => {
                           const feet = parseInt(e.target.value) || 0;
                           const inches = (profile.heightInches || 0) % 12;
-                          updateProfile({ heightInches: feet * 12 + inches });
+                          silentUpdate({ heightInches: feet * 12 + inches });
                         }}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ft</span>
@@ -628,7 +632,7 @@ export default function Onboarding() {
                         onChange={(e) => {
                           const inches = Math.min(parseInt(e.target.value) || 0, 11);
                           const feet = Math.floor((profile.heightInches || 0) / 12);
-                          updateProfile({ heightInches: feet * 12 + inches });
+                          silentUpdate({ heightInches: feet * 12 + inches });
                         }}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">in</span>
@@ -646,20 +650,27 @@ export default function Onboarding() {
                       min="10" max="80"
                       className="h-11 bg-muted/30 font-mono"
                       value={profile.age || ''}
-                      onChange={(e) => updateProfile({ age: parseInt(e.target.value) || undefined })}
+                      onChange={(e) => silentUpdate({ age: parseInt(e.target.value) || undefined })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs">Sex</Label>
-                    <Select value={profile.gender || 'male'} onValueChange={(v) => updateProfile({ gender: v as any })}>
-                      <SelectTrigger className="h-11 bg-muted/30">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-1">
+                      {(['male', 'female'] as const).map((sex) => (
+                        <button
+                          key={sex}
+                          onClick={() => silentUpdate({ gender: sex })}
+                          className={cn(
+                            "flex-1 h-11 rounded-lg border-2 font-bold text-sm transition-all",
+                            (profile.gender || 'male') === sex
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-muted bg-muted/30 hover:border-muted-foreground/50"
+                          )}
+                        >
+                          {sex === 'male' ? 'Male' : 'Female'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -679,7 +690,7 @@ export default function Onboarding() {
                             "p-3 border-2 cursor-pointer transition-all text-center",
                             isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
                           )}
-                          onClick={() => updateProfile({ trainingSessions: sessions })}
+                          onClick={() => silentUpdate({ trainingSessions: sessions })}
                         >
                           <span className="font-bold text-lg">{sessions}</span>
                           <p className="text-[9px] text-muted-foreground">per week</p>
@@ -710,7 +721,7 @@ export default function Onboarding() {
                             "p-3 border-2 cursor-pointer transition-all",
                             isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
                           )}
-                          onClick={() => updateProfile({ workdayActivity: activity })}
+                          onClick={() => silentUpdate({ workdayActivity: activity })}
                         >
                           <div className="flex items-center justify-between">
                             <div>
@@ -752,7 +763,7 @@ export default function Onboarding() {
                         onChange={(e) => {
                           const feet = parseInt(e.target.value) || 0;
                           const inches = (profile.heightInches || 0) % 12;
-                          updateProfile({ heightInches: feet * 12 + inches });
+                          silentUpdate({ heightInches: feet * 12 + inches });
                         }}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ft</span>
@@ -767,7 +778,7 @@ export default function Onboarding() {
                         onChange={(e) => {
                           const inches = Math.min(parseInt(e.target.value) || 0, 11);
                           const feet = Math.floor((profile.heightInches || 0) / 12);
-                          updateProfile({ heightInches: feet * 12 + inches });
+                          silentUpdate({ heightInches: feet * 12 + inches });
                         }}
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">in</span>
@@ -785,20 +796,27 @@ export default function Onboarding() {
                       min="10" max="80"
                       className="h-11 bg-muted/30 font-mono"
                       value={profile.age || ''}
-                      onChange={(e) => updateProfile({ age: parseInt(e.target.value) || undefined })}
+                      onChange={(e) => silentUpdate({ age: parseInt(e.target.value) || undefined })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs">Sex</Label>
-                    <Select value={profile.gender || 'male'} onValueChange={(v) => updateProfile({ gender: v as any })}>
-                      <SelectTrigger className="h-11 bg-muted/30">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="flex gap-1">
+                      {(['male', 'female'] as const).map((sex) => (
+                        <button
+                          key={sex}
+                          onClick={() => silentUpdate({ gender: sex })}
+                          className={cn(
+                            "flex-1 h-11 rounded-lg border-2 font-bold text-sm transition-all",
+                            (profile.gender || 'male') === sex
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-muted bg-muted/30 hover:border-muted-foreground/50"
+                          )}
+                        >
+                          {sex === 'male' ? 'Male' : 'Female'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -818,7 +836,7 @@ export default function Onboarding() {
                             "p-3 border-2 cursor-pointer transition-all text-center",
                             isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
                           )}
-                          onClick={() => updateProfile({ trainingSessions: sessions })}
+                          onClick={() => silentUpdate({ trainingSessions: sessions })}
                         >
                           <span className="font-bold text-lg">{sessions}</span>
                           <p className="text-[9px] text-muted-foreground">per week</p>
@@ -849,7 +867,7 @@ export default function Onboarding() {
                             "p-3 border-2 cursor-pointer transition-all",
                             isSelected ? "border-primary bg-primary/10" : "border-muted hover:border-muted-foreground/50"
                           )}
-                          onClick={() => updateProfile({ workdayActivity: activity })}
+                          onClick={() => silentUpdate({ workdayActivity: activity })}
                         >
                           <div className="flex items-center justify-between">
                             <div>
@@ -884,7 +902,7 @@ export default function Onboarding() {
                     value={format(profile.weighInDate, 'yyyy-MM-dd')}
                     onChange={(e) => {
                       const [y, m, d] = e.target.value.split('-').map(Number);
-                      updateProfile({ weighInDate: new Date(y, m - 1, d) });
+                      silentUpdate({ weighInDate: new Date(y, m - 1, d) });
                     }}
                   />
                   {(() => {
@@ -908,7 +926,7 @@ export default function Onboarding() {
                       type="time"
                       className="pl-10 text-lg h-12 bg-muted/30 font-mono"
                       value={profile.weighInTime || '07:00'}
-                      onChange={(e) => updateProfile({ weighInTime: e.target.value })}
+                      onChange={(e) => silentUpdate({ weighInTime: e.target.value })}
                     />
                   </div>
                 </div>
@@ -931,7 +949,7 @@ export default function Onboarding() {
                     "p-4 border-2 cursor-pointer transition-all",
                     profile.sparGoal === 'lose' ? "border-orange-500 bg-orange-500/10" : "border-muted hover:border-muted-foreground/50"
                   )}
-                  onClick={() => updateProfile({ sparGoal: 'lose', goalIntensity: profile.goalIntensity || 'aggressive', maintainPriority: undefined })}
+                  onClick={() => silentUpdate({ sparGoal: 'lose', goalIntensity: profile.goalIntensity || 'aggressive', maintainPriority: undefined })}
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
@@ -950,7 +968,7 @@ export default function Onboarding() {
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'lean' ? "border-orange-500 bg-orange-500/10" : "border-muted"
                         )}
-                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'lean' }); }}
+                        onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'lean' }); }}
                       >
                         <span className="text-sm font-bold">Lean</span>
                         <p className="text-[9px] text-muted-foreground">-250 cal/day</p>
@@ -961,7 +979,7 @@ export default function Onboarding() {
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'aggressive' ? "border-orange-500 bg-orange-500/10" : "border-muted"
                         )}
-                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'aggressive' }); }}
+                        onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'aggressive' }); }}
                       >
                         <span className="text-sm font-bold">Aggressive</span>
                         <p className="text-[9px] text-muted-foreground">-500 cal/day</p>
@@ -977,7 +995,7 @@ export default function Onboarding() {
                     "p-4 border-2 cursor-pointer transition-all",
                     profile.sparGoal === 'maintain' ? "border-blue-500 bg-blue-500/10" : "border-muted hover:border-muted-foreground/50"
                   )}
-                  onClick={() => updateProfile({ sparGoal: 'maintain', maintainPriority: profile.maintainPriority || 'general', goalIntensity: undefined })}
+                  onClick={() => silentUpdate({ sparGoal: 'maintain', maintainPriority: profile.maintainPriority || 'general', goalIntensity: undefined })}
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
@@ -996,7 +1014,7 @@ export default function Onboarding() {
                           "p-2 border cursor-pointer text-center",
                           profile.maintainPriority === 'general' ? "border-blue-500 bg-blue-500/10" : "border-muted"
                         )}
-                        onClick={(e) => { e.stopPropagation(); updateProfile({ maintainPriority: 'general' }); }}
+                        onClick={(e) => { e.stopPropagation(); silentUpdate({ maintainPriority: 'general' }); }}
                       >
                         <span className="text-sm font-bold">General</span>
                         <p className="text-[9px] text-muted-foreground">Balanced macros</p>
@@ -1007,7 +1025,7 @@ export default function Onboarding() {
                           "p-2 border cursor-pointer text-center",
                           profile.maintainPriority === 'performance' ? "border-blue-500 bg-blue-500/10" : "border-muted"
                         )}
-                        onClick={(e) => { e.stopPropagation(); updateProfile({ maintainPriority: 'performance' }); }}
+                        onClick={(e) => { e.stopPropagation(); silentUpdate({ maintainPriority: 'performance' }); }}
                       >
                         <span className="text-sm font-bold">Performance</span>
                         <p className="text-[9px] text-muted-foreground">Higher carbs</p>
@@ -1023,7 +1041,7 @@ export default function Onboarding() {
                     "p-4 border-2 cursor-pointer transition-all",
                     profile.sparGoal === 'gain' ? "border-green-500 bg-green-500/10" : "border-muted hover:border-muted-foreground/50"
                   )}
-                  onClick={() => updateProfile({ sparGoal: 'gain', goalIntensity: profile.goalIntensity || 'aggressive', maintainPriority: undefined })}
+                  onClick={() => silentUpdate({ sparGoal: 'gain', goalIntensity: profile.goalIntensity || 'aggressive', maintainPriority: undefined })}
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
@@ -1042,7 +1060,7 @@ export default function Onboarding() {
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'lean' ? "border-green-500 bg-green-500/10" : "border-muted"
                         )}
-                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'lean' }); }}
+                        onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'lean' }); }}
                       >
                         <span className="text-sm font-bold">Lean</span>
                         <p className="text-[9px] text-muted-foreground">+250 cal/day</p>
@@ -1053,7 +1071,7 @@ export default function Onboarding() {
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'aggressive' ? "border-green-500 bg-green-500/10" : "border-muted"
                         )}
-                        onClick={(e) => { e.stopPropagation(); updateProfile({ goalIntensity: 'aggressive' }); }}
+                        onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'aggressive' }); }}
                       >
                         <span className="text-sm font-bold">Aggressive</span>
                         <p className="text-[9px] text-muted-foreground">+500 cal/day</p>
@@ -1078,7 +1096,7 @@ export default function Onboarding() {
                     value={profile.goalWeightLbs || ''}
                     onChange={(e) => {
                       const val = parseFloat(e.target.value);
-                      updateProfile({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
+                      silentUpdate({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
                     }}
                   />
                   <p className="text-[10px] text-muted-foreground">

@@ -1,8 +1,15 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { useStore } from '@/lib/store';
-import { Loader2 } from 'lucide-react';
+
+// Augment window for splash control
+declare global {
+  interface Window {
+    __splashReady?: () => void;
+    __dismissSplash?: () => void;
+  }
+}
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -13,25 +20,30 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
   const { user, loading: authLoading } = useAuth();
   const { profile, logs, isLoading: storeLoading } = useStore();
   const [location, setLocation] = useLocation();
+  const splashDismissed = useRef(false);
 
   const isLoading = authLoading || storeLoading;
 
   // Treat onboarding as complete if user has real data (name + weight class + logs)
-  // This prevents getting stuck in onboarding after a botched wizard re-run
-  // Exclude defaults (name='Athlete') so partial profiles don't skip onboarding
   const hasRealData = !!(profile.name && profile.name !== 'Athlete' && profile.targetWeightClass && logs.length > 0);
   const effectivelyOnboarded = profile.hasCompletedOnboarding || hasRealData;
+
+  // Helper: dismiss splash once (respects minimum display time)
+  const dismissSplash = () => {
+    if (splashDismissed.current) return;
+    splashDismissed.current = true;
+    window.__splashReady?.();
+  };
 
   useEffect(() => {
     if (isLoading) return;
 
-    // If not logged in, redirect to landing page
     if (!user) {
+      dismissSplash();
       setLocation('/');
       return;
     }
 
-    // Determine the correct destination and redirect once
     const isRerunWizard = typeof window !== 'undefined' && sessionStorage.getItem('rerunWizard') === 'true';
     if (requireOnboarding && !effectivelyOnboarded) {
       if (location !== '/onboarding') {
@@ -42,24 +54,17 @@ export function ProtectedRoute({ children, requireOnboarding = true }: Protected
     }
   }, [isLoading, user, effectivelyOnboarded, location, setLocation, requireOnboarding]);
 
-  // Show loading while checking auth or store
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+  // Dismiss splash when content is ready to show
+  useEffect(() => {
+    if (!isLoading && user) {
+      dismissSplash();
+    }
+  }, [isLoading, user]);
+
+  // While loading, render background-only — the HTML splash covers the screen
+  if (isLoading || !user) {
+    return <div className="min-h-screen bg-background" />;
   }
 
-  // If not logged in, show loading while redirecting
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  // User is authenticated, render children
   return <>{children}</>;
 }
