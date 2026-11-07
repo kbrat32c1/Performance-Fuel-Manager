@@ -20,29 +20,50 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.sparnutrition.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.sparnutrition.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>SPAR Nutrition uses Bluetooth to connect directly to your V5 smart band for syncing heart rate, HRV, sleep, SpO2, and activity data.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>SPAR Nutrition connects to your V5 smart band via Bluetooth to read health metrics.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>bluetooth-central</string>
-	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>SPAR Nutrition uses the camera to photograph meals and scan food barcodes so you can log what you eat.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>SPAR Nutrition reads your health data to track recovery metrics like heart rate, HRV, sleep, and activity for your Cut Score.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>SPAR Nutrition may write workout data to Apple Health.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SPAR Nutrition uses the microphone so you can log food by speaking.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SPAR Nutrition lets you choose a meal photo from your library to log what you ate.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SPAR Nutrition turns what you say into food log entries.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -59,16 +80,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.sparnutrition.app</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.sparnutrition.app</string>
-			</array>
-		</dict>
-	</array>
 </dict>
 </plist>

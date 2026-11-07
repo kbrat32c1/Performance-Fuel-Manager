@@ -7,6 +7,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { apiUrl } from "@/lib/api";
 import { authHeaders } from "@/lib/auth-headers";
 import { cn } from "@/lib/utils";
 import { Mic, MicOff, Loader2, X, Send, Keyboard, Check, Trash2, RotateCcw, Minus, Plus, ChevronDown, ArrowLeftRight, AlertTriangle } from "lucide-react";
@@ -81,7 +82,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
     setError(null);
 
     try {
-      const response = await fetch('/api/foods/voice-parse', {
+      const response = await fetch(apiUrl('/api/foods/voice-parse'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ transcript: submitText }),

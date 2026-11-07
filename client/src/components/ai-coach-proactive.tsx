@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { apiUrl } from "@/lib/api";
 import { authHeaders } from "@/lib/auth-headers";
 import { Sparkles, Send, X, Scale, Dumbbell, ChevronRight, RotateCcw, Mic, Square } from "lucide-react";
 import { useSpeechInput } from "@/hooks/use-speech-input";
@@ -323,7 +324,7 @@ export function AiCoachProactive() {
     setLoading(true);
     try {
       const context = buildContext();
-      const res = await fetch("/api/ai/coach", {
+      const res = await fetch(apiUrl("/api/ai/coach"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
@@ -354,7 +355,7 @@ export function AiCoachProactive() {
 
     try {
       const context = buildContext();
-      const res = await fetch("/api/ai/coach", {
+      const res = await fetch(apiUrl("/api/ai/coach"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ question: userMessage, context }),

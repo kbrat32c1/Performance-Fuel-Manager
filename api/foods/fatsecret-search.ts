@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { applyCors } from "../_cors.js";
 import { getFatSecretToken, searchFatSecret } from "./_fatsecret-utils.js";
 
 /**
@@ -9,6 +10,7 @@ import { getFatSecretToken, searchFatSecret } from "./_fatsecret-utils.js";
  */
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res, "GET")) return;
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }

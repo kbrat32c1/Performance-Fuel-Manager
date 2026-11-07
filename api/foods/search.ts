@@ -1,9 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { applyCors } from "../_cors.js";
 
 // No fallback key - return error if not configured
 const USDA_API_KEY = process.env.USDA_API_KEY || "";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res, "GET")) return;
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }

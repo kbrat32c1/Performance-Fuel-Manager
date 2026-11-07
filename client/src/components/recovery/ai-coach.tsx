@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { apiUrl } from "@/lib/api";
 import { Bot, Send, Loader2, X, ChevronDown, Sparkles, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -53,7 +54,7 @@ export function AiCoach({
 
   const checkAiAvailability = async () => {
     try {
-      const res = await fetch("/api/ai/recommend", {
+      const res = await fetch(apiUrl("/api/ai/recommend"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: "ping" }),
@@ -79,7 +80,7 @@ export function AiCoach({
         .map(([id]) => id)
         .join(", ");
 
-      const res = await fetch("/api/ai/recommend", {
+      const res = await fetch(apiUrl("/api/ai/recommend"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
