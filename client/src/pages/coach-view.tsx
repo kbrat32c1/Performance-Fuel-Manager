@@ -87,6 +87,9 @@ export default function CoachView() {
     }
   };
 
+  // Public page (no sign-in): hide the startup splash once the first load finishes.
+  useEffect(() => { if (!loading) window.__splashReady?.(); }, [loading]);
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 5 * 60 * 1000);

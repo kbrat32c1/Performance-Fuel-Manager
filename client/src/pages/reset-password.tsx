@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Eye, EyeOff, Loader2, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,9 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+
+  // Public page: hide the startup splash once the reset link has been checked.
+  useEffect(() => { if (!loading) window.__splashReady?.(); }, [loading]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
