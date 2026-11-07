@@ -19,7 +19,7 @@ Use the theme tokens (`bg-primary`, `text-muted-foreground`, …), not raw hex o
 
 | Role | Token | Dark | Light |
 |---|---|---|---|
-| Brand orange: main actions, wordmark | `primary` | #EE5F2B | #E95620 |
+| Brand orange: main actions, wordmark | `primary` | #EE5F2B | #C84414 (darker so white text passes 4.5:1) |
 | Brand blue: water and hydration | `secondary` | #3366FF | #245BFF |
 | Background | `background` | #0B0C14 | #FAFAFA |
 | Cards | `card` | #11131D | #FFFFFF |

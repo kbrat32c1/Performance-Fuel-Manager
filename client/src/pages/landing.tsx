@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { validatePassword } from "@/lib/password";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowRight, Loader2, Mail, Lock, Eye, EyeOff, CheckCircle } from "lucide-react";
@@ -73,15 +74,6 @@ export default function Landing() {
   const [resetSent, setResetSent] = useState(false);
   const [showMigration, setShowMigration] = useState(false);
 
-  // Password validation - 12+ chars, uppercase, lowercase, number, special char
-  const validatePassword = (pwd: string): string | null => {
-    if (pwd.length < 12) return 'Password must be at least 12 characters';
-    if (!/[A-Z]/.test(pwd)) return 'Password must include an uppercase letter';
-    if (!/[a-z]/.test(pwd)) return 'Password must include a lowercase letter';
-    if (!/[0-9]/.test(pwd)) return 'Password must include a number';
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(pwd)) return 'Password must include a special character';
-    return null;
-  };
 
   // Signed out: this page is what shows, so lift the HTML splash (signed-in users are redirected
   // and the protected page lifts it instead).

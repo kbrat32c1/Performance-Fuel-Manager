@@ -382,7 +382,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
                 <div className="flex items-center gap-1.5 shrink-0">
                   {isEditing ? (
                     <div className="flex items-center gap-1">
-                      <input
+                      <input aria-label="Amount"
                         type="number"
                         value={editingValue}
                         onChange={(e) => setEditingValue(e.target.value)}
@@ -394,10 +394,11 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
                         className="w-16 h-8 text-[12px] font-mono font-bold text-center bg-background border border-primary rounded px-1"
                       />
                       <button
+                        aria-label="Save amount"
                         onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
-                        className="w-8 h-8 flex items-center justify-center rounded bg-primary/20 text-primary hover:bg-primary/30"
+                        className="w-8 h-8 relative after:absolute after:-inset-1.5 flex items-center justify-center rounded bg-primary/20 text-primary hover:bg-primary/30"
                       >
-                        <Check className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
                     </div>
                   ) : (

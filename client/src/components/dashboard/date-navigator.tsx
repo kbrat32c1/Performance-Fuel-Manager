@@ -62,11 +62,11 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 relative after:absolute after:-inset-1.5"
         onClick={handlePreviousDay}
         aria-label="Previous day"
       >
-        <ChevronLeft className="w-5 h-5" />
+        <ChevronLeft className="w-5 h-5" aria-hidden="true" />
       </Button>
 
       {/* Date Display with Calendar Picker */}
@@ -126,7 +126,7 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
         variant="ghost"
         size="icon"
         className={cn(
-          "h-8 w-8 shrink-0",
+          "h-8 w-8 shrink-0 relative after:absolute after:-inset-1.5",
           viewingToday
             ? "text-muted-foreground/30 cursor-not-allowed"
             : "text-muted-foreground hover:text-foreground"
@@ -135,7 +135,7 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
         disabled={viewingToday}
         aria-label="Next day"
       >
-        <ChevronRight className="w-5 h-5" />
+        <ChevronRight className="w-5 h-5" aria-hidden="true" />
       </Button>
     </div>
   );

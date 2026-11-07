@@ -112,6 +112,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
         <div className="flex items-center gap-4 mb-3">
           {/* Large score number — tappable for recovery detail */}
           <button
+            aria-label={`Recovery score ${score}. Show details`}
             className="relative flex-shrink-0 active:scale-95 transition-transform"
             onClick={() => setSelectedMetric('recovery')}
           >

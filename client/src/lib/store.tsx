@@ -17,7 +17,7 @@ import {
   isValidWeight,
   getWeightValidationError,
 } from './constants';
-import { STORAGE_KEYS, STORAGE_PREFIX } from './storage-keys';
+import { STORAGE_KEYS, STORAGE_PREFIX, claimAccountCache, clearAccountCache } from './storage-keys';
 import { SUGAR_FOODS } from './food-data';
 import {
   calculateSparSlicesV2,
@@ -52,6 +52,205 @@ import type { Protocol, Status, Phase, FuelTanks, AthleteProfile, WeightLog, Wat
 import { inferMealSection, defaultUserFoods, defaultProfile, defaultTanks } from './stores/types';
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
+
+type MacroRange = { min: number; max: number };
+/**
+ * Protocol macro tables by days until weigh-in (FGF21 FINAL 13). The daily targets and the
+ * weekly plan both read this, so the two screens always show the same numbers.
+ */
+export function baseMacroTargets(protocol: string, w: number, daysUntilWeighIn: number): { carbs: MacroRange; protein: MacroRange; ratio: string } {
+
+    // Protocol 1: Extreme Cut (AGGRESSIVE)
+    // Extended 0 protein period, maximum FGF21 activation
+    if (protocol === '1') {
+      // Recovery: day after competition (1.4g/lb full recovery)
+      if (daysUntilWeighIn < 0) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
+          ratio: "Full Recovery"
+        };
+      }
+      // Competition day: 1.0g/lb protein (aggressive refeed post-weigh-in)
+      if (daysUntilWeighIn === 0) {
+        return {
+          carbs: { min: 150, max: 300 },
+          protein: { min: Math.round(w * 1.0), max: Math.round(w * 1.0) },
+          ratio: "Low Carb / Protein Refeed"
+        };
+      }
+      // 1 day out (performance prep): 0.20g/lb protein evening only - GDF15 peak
+      if (daysUntilWeighIn === 1) {
+        return {
+          carbs: { min: 200, max: 300 },
+          protein: { min: Math.round(w * 0.2), max: Math.round(w * 0.2) },
+          ratio: "Fructose + MCT (Evening Protein)"
+        };
+      }
+      // 2-5 days out (water loading / metabolic): 0g protein (fructose only - max fat burning)
+      if (daysUntilWeighIn >= 2 && daysUntilWeighIn <= 5) {
+        return {
+          carbs: { min: 250, max: 400 },
+          protein: { min: 0, max: 0 },
+          ratio: "Fructose Only (60:40)"
+        };
+      }
+      // 6+ days out: maintenance with moderate protein
+      return {
+        carbs: { min: 300, max: 450 },
+        protein: { min: 75, max: 100 },
+        ratio: "Maintenance"
+      };
+    }
+
+    // Protocol 2: Rapid Cut (STANDARD weekly cut)
+    if (protocol === '2') {
+      // Recovery: day after competition (1.4g/lb recovery refeed)
+      if (daysUntilWeighIn < 0) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
+          ratio: "Full Recovery"
+        };
+      }
+      // Competition day: 0.5g/lb (post-weigh-in rebuild)
+      if (daysUntilWeighIn === 0) {
+        return {
+          carbs: { min: 200, max: 400 },
+          protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
+          ratio: "Fast Carbs (Between Matches)"
+        };
+      }
+      // 1-2 days out (transition/performance prep): 60g protein (collagen + seafood)
+      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2) {
+        return {
+          carbs: { min: 300, max: 400 },
+          protein: { min: 60, max: 60 },
+          ratio: "Glucose Heavy (Switch to Starch)"
+        };
+      }
+      // 3 days out: 25g protein (collagen + leucine at dinner)
+      if (daysUntilWeighIn === 3) {
+        return {
+          carbs: { min: 325, max: 450 },
+          protein: { min: 25, max: 25 },
+          ratio: "Fructose Heavy (60:40)"
+        };
+      }
+      // 4-5 days out (water loading): 0g protein (fructose only)
+      if (daysUntilWeighIn >= 4 && daysUntilWeighIn <= 5) {
+        return {
+          carbs: { min: 325, max: 450 },
+          protein: { min: 0, max: 0 },
+          ratio: "Fructose Heavy (60:40)"
+        };
+      }
+      // 6+ days out: maintenance with moderate protein
+      return {
+        carbs: { min: 300, max: 450 },
+        protein: { min: 75, max: 100 },
+        ratio: "Maintenance"
+      };
+    }
+
+    // Protocol 3: Optimal Cut Phase
+    if (protocol === '3') {
+      // Recovery: day after competition (1.4g/lb)
+      if (daysUntilWeighIn < 0) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
+          ratio: "Full Recovery"
+        };
+      }
+      // Competition day: 0.5g/lb
+      if (daysUntilWeighIn === 0) {
+        return {
+          carbs: { min: 200, max: 400 },
+          protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
+          ratio: "Competition Day"
+        };
+      }
+      // 1-2 days out: 100g protein (performance glucose)
+      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: 100, max: 100 },
+          ratio: "Performance (Glucose)"
+        };
+      }
+      // 3-4 days out: 75g protein (mixed)
+      if (daysUntilWeighIn >= 3 && daysUntilWeighIn <= 4) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: 75, max: 75 },
+          ratio: "Mixed Fructose/Glucose"
+        };
+      }
+      // 5 days out: 25g protein (fructose heavy)
+      if (daysUntilWeighIn === 5) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: 25, max: 25 },
+          ratio: "Fructose Heavy"
+        };
+      }
+      // 6+ days out: maintenance
+      return {
+        carbs: { min: 300, max: 450 },
+        protein: { min: 100, max: 100 },
+        ratio: "Maintenance"
+      };
+    }
+
+    // Protocol 4: Gain Phase (Off-season)
+    if (protocol === '4') {
+      // Recovery: day after competition (1.6g/lb max protein)
+      if (daysUntilWeighIn < 0) {
+        return {
+          carbs: { min: 300, max: 450 },
+          protein: { min: Math.round(w * 1.6), max: Math.round(w * 1.6) },
+          ratio: "Full Recovery (Max Protein)"
+        };
+      }
+      // Competition day: 0.8g/lb
+      if (daysUntilWeighIn === 0) {
+        return {
+          carbs: { min: 200, max: 400 },
+          protein: { min: Math.round(w * 0.8), max: Math.round(w * 0.8) },
+          ratio: "Competition Day"
+        };
+      }
+      // 1-4 days out: 125g protein (glucose emphasis)
+      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 4) {
+        return {
+          carbs: { min: 350, max: 600 },
+          protein: { min: 125, max: 125 },
+          ratio: "Glucose Emphasis"
+        };
+      }
+      // 5 days out: 100g protein (balanced carbs)
+      if (daysUntilWeighIn === 5) {
+        return {
+          carbs: { min: 350, max: 600 },
+          protein: { min: 100, max: 100 },
+          ratio: "Balanced Carbs"
+        };
+      }
+      // 6+ days out: build phase maintenance
+      return {
+        carbs: { min: 350, max: 600 },
+        protein: { min: 125, max: 150 },
+        ratio: "Gain Phase"
+      };
+    }
+
+    return {
+      carbs: { min: 300, max: 400 },
+      protein: { min: 75, max: 100 },
+      ratio: "Balanced"
+    };
+}
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -569,8 +768,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authLoading) return;
     if (user) {
+      // Shared phone: if the cached data on this device is someone else's, drop it
+      // (from storage and from what's on screen) before loading this account.
+      if (claimAccountCache(user.id)) {
+        setProfile(defaultProfile);
+        setLogs([]);
+        setDailyTracking([]);
+        setUserFoods(defaultUserFoods);
+        setIsLoading(true);
+      }
       loadFromSupabase();
     } else {
+      clearAccountCache();
       // Reset to defaults when logged out. Unsynced rows stay in that user's
       // localStorage entry and are sent the next time they sign in.
       unsyncedRef.current = {};
@@ -1320,7 +1529,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Add contextual note based on days out
     let note = "Maintenance hydration";
-    if (!(profile.waterLoading !== false) && daysUntilWeighIn > 0) note = "Water loading off — drink normally";
+    if (profile.protocol === PROTOCOLS.GAIN && daysUntilWeighIn > 0) note = "Gain phase — drink normally, no water cut";
+    else if (!(profile.waterLoading !== false) && daysUntilWeighIn > 0) note = "Water loading off — drink normally";
     else if (daysUntilWeighIn < 0) note = "Rehydrate fully";
     else if (daysUntilWeighIn === 0) note = "Post-weigh-in rehydration";
     else if (daysUntilWeighIn === 1) note = "Sip only — final cut";
@@ -1358,7 +1568,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           : Math.round(profile.targetWeightClass * 1.07);
     }
 
-    const loading = profile.waterLoading !== false;
+    // Gain phase never cuts water, whatever the switch says.
+    const loading = profile.waterLoading !== false && profile.protocol !== PROTOCOLS.GAIN;
     const targetOz = getWaterTargetOz(daysUntil, athleteWeight, loading);
     const amount = getWaterTargetGallons(daysUntil, athleteWeight, loading);
 
@@ -1608,200 +1819,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return result;
     };
 
-    // Get base targets from protocol, then apply weight adjustment
-    const getBaseTargets = (): { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string } => {
-
-    // Protocol 1: Extreme Cut (AGGRESSIVE)
-    // Extended 0 protein period, maximum FGF21 activation
-    if (protocol === '1') {
-      // Recovery: day after competition (1.4g/lb full recovery)
-      if (daysUntilWeighIn < 0) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
-          ratio: "Full Recovery"
-        };
-      }
-      // Competition day: 1.0g/lb protein (aggressive refeed post-weigh-in)
-      if (daysUntilWeighIn === 0) {
-        return {
-          carbs: { min: 150, max: 300 },
-          protein: { min: Math.round(w * 1.0), max: Math.round(w * 1.0) },
-          ratio: "Low Carb / Protein Refeed"
-        };
-      }
-      // 1 day out (performance prep): 0.20g/lb protein evening only - GDF15 peak
-      if (daysUntilWeighIn === 1) {
-        return {
-          carbs: { min: 200, max: 300 },
-          protein: { min: Math.round(w * 0.2), max: Math.round(w * 0.2) },
-          ratio: "Fructose + MCT (Evening Protein)"
-        };
-      }
-      // 2-5 days out (water loading / metabolic): 0g protein (fructose only - max fat burning)
-      if (daysUntilWeighIn >= 2 && daysUntilWeighIn <= 5) {
-        return {
-          carbs: { min: 250, max: 400 },
-          protein: { min: 0, max: 0 },
-          ratio: "Fructose Only (60:40)"
-        };
-      }
-      // 6+ days out: maintenance with moderate protein
-      return {
-        carbs: { min: 300, max: 450 },
-        protein: { min: 75, max: 100 },
-        ratio: "Maintenance"
-      };
-    }
-
-    // Protocol 2: Rapid Cut (STANDARD weekly cut)
-    if (protocol === '2') {
-      // Recovery: day after competition (1.4g/lb recovery refeed)
-      if (daysUntilWeighIn < 0) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
-          ratio: "Full Recovery"
-        };
-      }
-      // Competition day: 0.5g/lb (post-weigh-in rebuild)
-      if (daysUntilWeighIn === 0) {
-        return {
-          carbs: { min: 200, max: 400 },
-          protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
-          ratio: "Fast Carbs (Between Matches)"
-        };
-      }
-      // 1-2 days out (transition/performance prep): 60g protein (collagen + seafood)
-      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2) {
-        return {
-          carbs: { min: 300, max: 400 },
-          protein: { min: 60, max: 60 },
-          ratio: "Glucose Heavy (Switch to Starch)"
-        };
-      }
-      // 3 days out: 25g protein (collagen + leucine at dinner)
-      if (daysUntilWeighIn === 3) {
-        return {
-          carbs: { min: 325, max: 450 },
-          protein: { min: 25, max: 25 },
-          ratio: "Fructose Heavy (60:40)"
-        };
-      }
-      // 4-5 days out (water loading): 0g protein (fructose only)
-      if (daysUntilWeighIn >= 4 && daysUntilWeighIn <= 5) {
-        return {
-          carbs: { min: 325, max: 450 },
-          protein: { min: 0, max: 0 },
-          ratio: "Fructose Heavy (60:40)"
-        };
-      }
-      // 6+ days out: maintenance with moderate protein
-      return {
-        carbs: { min: 300, max: 450 },
-        protein: { min: 75, max: 100 },
-        ratio: "Maintenance"
-      };
-    }
-
-    // Protocol 3: Optimal Cut Phase
-    if (protocol === '3') {
-      // Recovery: day after competition (1.4g/lb)
-      if (daysUntilWeighIn < 0) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.4), max: Math.round(w * 1.4) },
-          ratio: "Full Recovery"
-        };
-      }
-      // Competition day: 0.5g/lb
-      if (daysUntilWeighIn === 0) {
-        return {
-          carbs: { min: 200, max: 400 },
-          protein: { min: Math.round(w * 0.5), max: Math.round(w * 0.5) },
-          ratio: "Competition Day"
-        };
-      }
-      // 1-2 days out: 100g protein (performance glucose)
-      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 2) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: 100, max: 100 },
-          ratio: "Performance (Glucose)"
-        };
-      }
-      // 3-4 days out: 75g protein (mixed)
-      if (daysUntilWeighIn >= 3 && daysUntilWeighIn <= 4) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: 75, max: 75 },
-          ratio: "Mixed Fructose/Glucose"
-        };
-      }
-      // 5 days out: 25g protein (fructose heavy)
-      if (daysUntilWeighIn === 5) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: 25, max: 25 },
-          ratio: "Fructose Heavy"
-        };
-      }
-      // 6+ days out: maintenance
-      return {
-        carbs: { min: 300, max: 450 },
-        protein: { min: 100, max: 100 },
-        ratio: "Maintenance"
-      };
-    }
-
-    // Protocol 4: Gain Phase (Off-season)
-    if (protocol === '4') {
-      // Recovery: day after competition (1.6g/lb max protein)
-      if (daysUntilWeighIn < 0) {
-        return {
-          carbs: { min: 300, max: 450 },
-          protein: { min: Math.round(w * 1.6), max: Math.round(w * 1.6) },
-          ratio: "Full Recovery (Max Protein)"
-        };
-      }
-      // Competition day: 0.8g/lb
-      if (daysUntilWeighIn === 0) {
-        return {
-          carbs: { min: 200, max: 400 },
-          protein: { min: Math.round(w * 0.8), max: Math.round(w * 0.8) },
-          ratio: "Competition Day"
-        };
-      }
-      // 1-4 days out: 125g protein (glucose emphasis)
-      if (daysUntilWeighIn >= 1 && daysUntilWeighIn <= 4) {
-        return {
-          carbs: { min: 350, max: 600 },
-          protein: { min: 125, max: 125 },
-          ratio: "Glucose Emphasis"
-        };
-      }
-      // 5 days out: 100g protein (balanced carbs)
-      if (daysUntilWeighIn === 5) {
-        return {
-          carbs: { min: 350, max: 600 },
-          protein: { min: 100, max: 100 },
-          ratio: "Balanced Carbs"
-        };
-      }
-      // 6+ days out: build phase maintenance
-      return {
-        carbs: { min: 350, max: 600 },
-        protein: { min: 125, max: 150 },
-        ratio: "Gain Phase"
-      };
-    }
-
-    return {
-      carbs: { min: 300, max: 400 },
-      protein: { min: 75, max: 100 },
-      ratio: "Balanced"
-    };
-    }; // end getBaseTargets
+    // Base targets come from the protocol tables (shared with the weekly plan), then the weight adjustment
+    const getBaseTargets = () => baseMacroTargets(protocol, w, daysUntilWeighIn);
 
     return getWeightAdjustedResult(getBaseTargets());
   };
@@ -2346,6 +2365,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getWeeklyPlan = (): DayPlan[] => {
     const w = profile.targetWeightClass;
+    // Same body weight the daily targets use for g/lb protein.
+    const bodyW = profile.currentWeight || profile.targetWeightClass;
     const today = startOfDay(profile.simulatedDate || new Date());
     const currentDayOfWeek = getDay(today);
     const protocol = profile.protocol;
@@ -2506,38 +2527,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const dayNum = getDay(date);
         const daysUntil = differenceInDays(weighIn, date);
 
-        // Determine phase based on days until weigh-in
+        // Macros from the shared protocol table; Gain never cuts water (getHydrationForDaysUntil).
         let phase = 'Train';
-        let carbs = { min: 350, max: 600 };
-        let protein = { min: 125, max: 125 };
-        let water = {
-          amount: isHeavy ? '1.5 gal' : isMedium ? '1.25 gal' : '1.0 gal',
-          targetOz: galToOz(isHeavy ? 1.5 : isMedium ? 1.25 : 1.0),
-          type: 'Regular'
-        };
+        const { carbs, protein } = baseMacroTargets(protocol, bodyW, daysUntil);
+        const hydration = getHydrationForDaysUntil(daysUntil);
+        const water = { amount: hydration.amount, targetOz: hydration.targetOz, type: hydration.type };
 
-        if (daysUntil < 0) {
-          // Recovery day (day after competition)
-          phase = 'Recover';
-          carbs = { min: 300, max: 450 };
-          protein = { min: Math.round(w * 1.6), max: Math.round(w * 1.6) };
-        } else if (daysUntil === 0) {
-          // Competition day
-          phase = 'Compete';
-          carbs = { min: 200, max: 400 };
-          protein = { min: Math.round(w * 0.8), max: Math.round(w * 0.8) };
-        } else if (daysUntil === 1) {
-          // Day before competition - light training
-          phase = 'Light';
-          water = {
-            amount: isHeavy ? '1.25 gal' : isMedium ? '1.0 gal' : '0.75 gal',
-            targetOz: galToOz(isHeavy ? 1.25 : isMedium ? 1.0 : 0.75),
-            type: 'Regular'
-          };
-        } else if (daysUntil === 5) {
-          // 5 days out - slightly lower protein
-          protein = { min: 100, max: 100 };
-        }
+        if (daysUntil < 0) phase = 'Recover';
+        else if (daysUntil === 0) phase = 'Compete';
+        else if (daysUntil === 1) phase = 'Light';
 
         return {
           day: dayNames[dayNum],
@@ -2581,40 +2579,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Default values — P3 maintenance-level macros
         let phase = getPhaseForDays(daysUntil);
-        let carbs = { min: 300, max: 450 };
-        let protein = { min: 75, max: 75 };
+        let carbs = baseMacroTargets(protocol, bodyW, daysUntil).carbs; // shared protocol table
+        let protein = baseMacroTargets(protocol, bodyW, daysUntil).protein;
         let water = { amount: hydration.amount, targetOz: hydration.targetOz, type: hydration.type };
         let waterLoadingNote: string | undefined;
         let isCriticalCheckpoint = false;
 
         if (daysUntil < 0) {
           // Recovery day
-          protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
           waterLoadingNote = 'Recovery day - return to walk-around weight with protein refeed';
         } else if (daysUntil === 0) {
           // Competition day
-          carbs = { min: 200, max: 400 };
-          protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
         } else if (daysUntil === 1) {
           // Day before competition - sips only
-          protein = { min: 100, max: 100 };
           isCriticalCheckpoint = true;
           waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs before practice`;
         } else if (daysUntil === 2) {
           // 2 days out - water restriction day
-          protein = { min: 100, max: 100 };
           waterLoadingNote = (profile.waterLoading !== false ? `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.` : undefined);
         } else if (daysUntil === 3) {
           // Last load day
-          protein = { min: 25, max: 25 };
           waterLoadingNote = (profile.waterLoading !== false ? `Last load day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Water restriction starts tomorrow.` : undefined);
         } else if (daysUntil === 4) {
           // Peak water loading day
-          protein = { min: 0, max: 0 };
           waterLoadingNote = (profile.waterLoading !== false ? `Peak loading day - heaviest day is normal (+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs)` : undefined);
         } else if (daysUntil === 5) {
           // First water loading day
-          protein = { min: 0, max: 0 };
           waterLoadingNote = (profile.waterLoading !== false ? `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : undefined);
         }
         // 6+ days out stays at defaults (maintenance)
@@ -2669,46 +2659,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       // Default values
       let phase = getPhaseForDays(daysUntil);
-      let carbs = { min: 300, max: 450 };
-      let protein = { min: 75, max: 100 };
+      let carbs = baseMacroTargets(protocol, bodyW, daysUntil).carbs; // shared protocol table
+      let protein = baseMacroTargets(protocol, bodyW, daysUntil).protein;
       let water = { amount: hydration.amount, targetOz: hydration.targetOz, type: hydration.type };
       let waterLoadingNote: string | undefined;
       let isCriticalCheckpoint = false;
 
       if (daysUntil < 0) {
         // Recovery day (day after competition)
-        carbs = { min: 300, max: 450 };
-        protein = { min: Math.round(w * 1.4), max: Math.round(w * 1.4) };
         waterLoadingNote = 'Recovery day - return to walk-around weight with protein refeed';
       } else if (daysUntil === 0) {
         // Competition day
-        carbs = { min: 200, max: 400 };
-        protein = { min: Math.round(w * 0.5), max: Math.round(w * 0.5) };
       } else if (daysUntil === 1) {
         // Critical checkpoint - day before competition (sip only)
-        carbs = { min: 250, max: 350 };
-        protein = { min: 50, max: 60 };
         isCriticalCheckpoint = true;
         waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs before practice`;
       } else if (daysUntil === 2) {
         // 2 days out - water RESTRICTION day. ADH still suppressed from loading → high urine output continues.
-        carbs = { min: 325, max: 450 };
-        protein = { min: 50, max: 60 };
         waterLoadingNote = (profile.waterLoading !== false ? `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.` : undefined);
       } else if (daysUntil === 3) {
         // Last load day (day 3 of loading)
-        carbs = { min: 325, max: 450 };
-        protein = { min: 25, max: 25 };
         waterLoadingNote = (profile.waterLoading !== false ? `Last load day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Water restriction starts tomorrow.` : undefined);
       } else if (daysUntil === 4) {
         // Peak water loading day
-        carbs = { min: 325, max: 450 };
-        protein = { min: 0, max: 0 };
         waterLoadingNote = (profile.waterLoading !== false ? `Peak loading day - heaviest day is normal (+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs)` : undefined);
       } else if (daysUntil === 5) {
         // First water loading day
-        carbs = { min: 325, max: 450 };
-        protein = { min: 0, max: 0 };
         waterLoadingNote = (profile.waterLoading !== false ? `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : undefined);
       }
       // 6+ days out stays at defaults (maintenance)

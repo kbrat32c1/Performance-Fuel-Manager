@@ -136,10 +136,11 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
           )}
         </div>
         <button
+          aria-label="Close"
           onClick={() => { setPlate([]); setSearchQuery(''); onClose(); }}
-          className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"
+          className="w-8 h-8 rounded-full relative after:absolute after:-inset-1.5 bg-muted flex items-center justify-center"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 
@@ -177,15 +178,15 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
       <div className="px-3 pt-2">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input
+          <input aria-label="Search foods"
             placeholder={`Search ${CATEGORIES.find(c => c.key === activeCategory)?.label || ''}...`}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full h-9 pl-8 pr-8 text-xs bg-muted/20 rounded-lg border border-muted"
           />
           {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2">
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
+            <button aria-label="Clear search" onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 after:absolute after:-inset-3.5">
+              <X className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -250,27 +251,30 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
                   <span className="max-w-[80px] truncate">{item.name}</span>
 
                   {/* Quantity controls */}
-                  <div className="flex items-center gap-0.5 ml-1">
+                  <div className="flex items-center gap-2 ml-1">
                     <button
+                      aria-label="Decrease servings"
                       onClick={() => adjustQuantity(item.name, item.category, -1)}
-                      className="w-5 h-5 rounded-full bg-muted/40 flex items-center justify-center active:scale-90"
+                      className="w-5 h-5 rounded-full relative after:absolute after:-inset-3 bg-muted/40 flex items-center justify-center active:scale-90"
                     >
-                      <Minus className="w-2.5 h-2.5" />
+                      <Minus className="w-2.5 h-2.5" aria-hidden="true" />
                     </button>
                     <span className="font-bold font-mono min-w-[14px] text-center">{item.quantity}</span>
                     <button
+                      aria-label="Increase servings"
                       onClick={() => adjustQuantity(item.name, item.category, 1)}
-                      className="w-5 h-5 rounded-full bg-muted/40 flex items-center justify-center active:scale-90"
+                      className="w-5 h-5 rounded-full relative after:absolute after:-inset-3 bg-muted/40 flex items-center justify-center active:scale-90"
                     >
-                      <Plus className="w-2.5 h-2.5" />
+                      <Plus className="w-2.5 h-2.5" aria-hidden="true" />
                     </button>
                   </div>
 
                   <button
+                    aria-label="Remove from plate"
                     onClick={() => removeFromPlate(item.name, item.category)}
-                    className="w-4 h-4 rounded-full flex items-center justify-center ml-0.5 hover:bg-red-500/20"
+                    className="w-4 h-4 rounded-full flex items-center justify-center ml-2 relative after:absolute after:-inset-3.5 hover:bg-red-500/20"
                   >
-                    <X className="w-2.5 h-2.5" />
+                    <X className="w-2.5 h-2.5" aria-hidden="true" />
                   </button>
                 </div>
               );

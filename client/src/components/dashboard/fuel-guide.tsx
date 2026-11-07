@@ -333,15 +333,16 @@ function FoodRow({
         {grams}g {gramLabel}
       </span>
       <button
+        aria-label={isFlashed ? `Logged ${name}` : `Log ${name}`}
         onClick={(e) => { e.stopPropagation(); onLog(); }}
         className={cn(
-          "w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-all active:scale-90",
+          "w-7 h-7 rounded-md relative after:absolute after:-inset-2 flex items-center justify-center shrink-0 transition-all active:scale-90",
           isFlashed
             ? "bg-green-500/30 text-green-400"
             : "bg-muted/40 text-muted-foreground hover:bg-primary/20 hover:text-primary"
         )}
       >
-        {isFlashed ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+        {isFlashed ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
       </button>
     </div>
   );

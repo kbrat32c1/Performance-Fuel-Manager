@@ -38,10 +38,11 @@ export function RecoveryReadyModal({ score, onDismiss }: RecoveryReadyModalProps
     >
       {/* Close button */}
       <button
-        className="absolute top-4 right-4 text-white/40 hover:text-white/70 transition-colors p-2"
+        aria-label="Close"
+        className="absolute top-4 right-4 text-white/40 hover:text-white/70 transition-colors p-2 after:absolute after:-inset-1"
         onClick={onDismiss}
       >
-        <X className="w-5 h-5" />
+        <X className="w-5 h-5" aria-hidden="true" />
       </button>
 
       {/* Title */}
@@ -130,10 +131,10 @@ function getColor(score: number): string {
 }
 
 function getStrokeColor(score: number): string {
-  if (score >= 80) return "#4ade80";
-  if (score >= 60) return "#facc15";
-  if (score >= 40) return "#fb923c";
-  return "#f87171";
+  if (score >= 80) return "hsl(var(--chart-5))";
+  if (score >= 60) return "hsl(var(--chart-3))";
+  if (score >= 40) return "hsl(var(--chart-3))";
+  return "hsl(var(--chart-4))";
 }
 
 function getGlow(score: number): string {

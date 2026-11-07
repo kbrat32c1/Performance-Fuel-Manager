@@ -109,7 +109,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
           {/* Search input */}
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
+            <Input aria-label="Search foods"
               ref={inputRef}
               type="text"
               placeholder="Search any food (e.g. banana, rice)..."
@@ -119,15 +119,16 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
             />
             {query && (
               <button
+                aria-label="Clear search"
                 onClick={() => {
                   setQuery("");
                   setResults([]);
                   setSearched(false);
                   inputRef.current?.focus();
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-muted/50"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded after:absolute after:-inset-3 hover:bg-muted/50"
               >
-                <X className="w-3.5 h-3.5 text-muted-foreground" />
+                <X className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
               </button>
             )}
           </div>

@@ -121,10 +121,11 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
           </span>
         </div>
         <button
+          aria-label="Close"
           onClick={() => { setSelectedDay(null); onClose(); }}
-          className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"
+          className="w-8 h-8 rounded-full relative after:absolute after:-inset-1.5 bg-muted flex items-center justify-center"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" aria-hidden="true" />
         </button>
       </div>
 

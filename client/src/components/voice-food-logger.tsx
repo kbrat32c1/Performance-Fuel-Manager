@@ -332,8 +332,8 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wide">Review Foods</h3>
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all">
-            <X className="w-5 h-5" />
+          <button aria-label="Close" onClick={onClose} className="w-10 h-10 rounded-full relative after:absolute after:-inset-0.5 bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -442,29 +442,32 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                   {mf.fsMatch && (
                     <div className="flex items-center gap-1 shrink-0">
                       <button
+                        aria-label="Decrease servings"
                         onClick={() => updateServingQty(idx, -0.5)}
-                        className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center active:scale-90"
+                        className="w-7 h-7 rounded relative after:absolute after:-inset-2 bg-muted/50 flex items-center justify-center active:scale-90"
                       >
-                        <Minus className="w-3 h-3" />
+                        <Minus className="w-3 h-3" aria-hidden="true" />
                       </button>
                       <span className={cn("text-sm font-bold font-mono min-w-[24px] text-center", color.text)}>
                         {qty}
                       </span>
                       <button
+                        aria-label="Increase servings"
                         onClick={() => updateServingQty(idx, 0.5)}
-                        className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center active:scale-90"
+                        className="w-7 h-7 rounded relative after:absolute after:-inset-2 bg-muted/50 flex items-center justify-center active:scale-90"
                       >
-                        <Plus className="w-3 h-3" />
+                        <Plus className="w-3 h-3" aria-hidden="true" />
                       </button>
                     </div>
                   )}
 
                   {/* Delete */}
                   <button
+                    aria-label="Remove food"
                     onClick={() => toggleRemove(idx)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all"
+                    className="w-8 h-8 rounded-full relative after:absolute after:-inset-1.5 flex items-center justify-center shrink-0 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                   </button>
                 </div>
 
@@ -583,8 +586,8 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
         <h3 className="text-sm font-bold uppercase tracking-wide">
           {textMode ? 'Type Your Food' : 'Voice Log'}
         </h3>
-        <button onClick={onClose} className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all">
-          <X className="w-5 h-5" />
+        <button aria-label="Close" onClick={onClose} className="w-10 h-10 rounded-full relative after:absolute after:-inset-0.5 bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all">
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
@@ -611,6 +614,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
               </>
             )}
             <button
+              aria-label={isListening ? "Stop listening" : "Start listening"}
               onClick={isListening ? stopListening : startListening}
               disabled={isProcessing}
               className={cn(
@@ -623,11 +627,11 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
               )}
             >
               {isProcessing ? (
-                <Loader2 className="w-8 h-8 animate-spin" />
+                <Loader2 className="w-8 h-8 animate-spin" aria-hidden="true" />
               ) : isListening ? (
-                <MicOff className="w-8 h-8" />
+                <MicOff className="w-8 h-8" aria-hidden="true" />
               ) : (
-                <Mic className="w-8 h-8" />
+                <Mic className="w-8 h-8" aria-hidden="true" />
               )}
             </button>
           </div>
@@ -655,7 +659,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
             ? 'Your words will appear here...'
             : 'Speak or type what you ate'}
         </p>
-        <textarea
+        <textarea aria-label="What you ate"
           value={transcript || interimTranscript}
           onChange={(e) => {
             setTranscript(e.target.value);

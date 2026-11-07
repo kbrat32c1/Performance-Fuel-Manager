@@ -157,8 +157,8 @@ export default function Food() {
 
         {/* ── Date Nav ── */}
         <div className="flex items-center justify-between px-1">
-          <button onClick={() => setDateOffset(d => d - 1)} className="p-2 rounded-lg hover:bg-muted/20 active:scale-95 transition-all">
-            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+          <button aria-label="Previous day" onClick={() => setDateOffset(d => d - 1)} className="p-2 rounded-lg relative after:absolute after:-inset-1 hover:bg-muted/20 active:scale-95 transition-all">
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
           </button>
           <button
             onClick={() => setDateOffset(0)}
@@ -167,11 +167,12 @@ export default function Food() {
             {isToday ? 'Today' : format(currentDate, 'EEE, MMM d')}
           </button>
           <button
+            aria-label="Next day"
             onClick={() => dateOffset < 0 && setDateOffset(d => d + 1)}
             disabled={dateOffset >= 0}
-            className={cn("p-2 rounded-lg hover:bg-muted/20 active:scale-95 transition-all", dateOffset >= 0 && "opacity-30")}
+            className={cn("p-2 rounded-lg relative after:absolute after:-inset-1 hover:bg-muted/20 active:scale-95 transition-all", dateOffset >= 0 && "opacity-30")}
           >
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
           </button>
         </div>
         <SaveStatus className="-mt-1" />
@@ -214,7 +215,7 @@ export default function Food() {
           {editingWater ? (
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">Water</span>
-              <input
+              <input aria-label="Water in ounces"
                 type="number"
                 autoFocus
                 value={waterInput}
@@ -268,10 +269,11 @@ export default function Food() {
           )}
           {hasYesterday && (
             <button
+              aria-label="Repeat yesterday's food"
               onClick={handleRepeatYesterday}
               className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-muted/15 text-muted-foreground text-[12px] font-bold hover:bg-muted/25 active:scale-[0.98] transition-all"
             >
-              <CalendarDays className="w-3.5 h-3.5" />
+              <CalendarDays className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           )}
         </div>

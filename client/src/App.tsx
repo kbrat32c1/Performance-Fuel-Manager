@@ -23,6 +23,7 @@ import Reports from "@/pages/reports";
 import WeighIn from "@/pages/weigh-in";
 import Descent from "@/pages/descent";
 import TeamPage from "@/pages/team";
+import ResetPassword from "@/pages/reset-password";
 import { rememberPendingTeamCode } from "@/lib/team-schedule";
 
 rememberPendingTeamCode(window.location.search, window.location.pathname);
@@ -32,6 +33,7 @@ function Router() {
     <Switch>
       <Route path="/coach/:token" component={CoachView} />
       <Route path="/" component={Landing} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/onboarding">
         <ProtectedRoute>
           <PageErrorBoundary pageName="Onboarding">

@@ -137,10 +137,11 @@ export function ProtocolSwitchBanner() {
             </div>
           </div>
           <button
+            aria-label="Dismiss"
             onClick={handleDismiss}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 relative after:absolute after:-inset-2.5 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </CardContent>

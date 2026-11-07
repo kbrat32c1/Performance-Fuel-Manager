@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from './supabase';
+import { getApiOrigin } from './api';
 
 interface AuthContextType {
   user: User | null;
@@ -117,7 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      // The app runs at capacitor://localhost, which an email link can't open, so send it to the website.
+      redirectTo: `${getApiOrigin() || window.location.origin}/reset-password`,
     });
     return { error: error as Error | null };
   };

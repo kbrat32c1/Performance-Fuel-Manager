@@ -159,10 +159,11 @@ export default function Fuel() {
         {/* ── Header: Back + Phase Identity ── */}
         <div className="flex items-center gap-3">
           <button
+            aria-label="Back to dashboard"
             onClick={() => setLocation('/dashboard')}
-            className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center hover:bg-muted/50 active:scale-95 transition-all"
+            className="w-9 h-9 rounded-xl relative after:absolute after:-inset-1 bg-muted/30 flex items-center justify-center hover:bg-muted/50 active:scale-95 transition-all"
           >
-            <ArrowLeft className="w-4 h-4 text-muted-foreground" />
+            <ArrowLeft className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
           </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">

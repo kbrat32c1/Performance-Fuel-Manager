@@ -412,10 +412,11 @@ export function AiCoachGlobal() {
               </div>
             </div>
             <button
+              aria-label="Close AI coach"
               onClick={() => setOpen(false)}
-              className="p-1.5 rounded-lg hover:bg-muted/50 active:bg-muted transition-colors"
+              className="p-1.5 rounded-lg relative after:absolute after:-inset-1.5 hover:bg-muted/50 active:bg-muted transition-colors"
             >
-              <X className="w-4 h-4 text-muted-foreground" />
+              <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
             </button>
           </div>
 
@@ -506,7 +507,7 @@ export function AiCoachGlobal() {
 
               {speech.error && <p role="alert" className="mb-1 text-xs text-destructive">{speech.error}</p>}
               <form onSubmit={handleSubmit} className="flex gap-1.5">
-                <Input
+                <Input aria-label="Message the AI coach"
                   ref={inputRef}
                   type="text"
                   placeholder="Ask a question..."
@@ -531,16 +532,17 @@ export function AiCoachGlobal() {
                   </button>
                 )}
                 <button
+                  aria-label="Send message"
                   type="submit"
                   disabled={!input.trim() || loading || speech.listening}
                   className={cn(
-                    "p-2 rounded-lg transition-all active:scale-95 shrink-0",
+                    "p-2 rounded-lg relative after:absolute after:-inset-1 transition-all active:scale-95 shrink-0",
                     input.trim() && !loading
                       ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20"
                       : "bg-muted/30 text-muted-foreground"
                   )}
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4" aria-hidden="true" />
                 </button>
               </form>
             </div>

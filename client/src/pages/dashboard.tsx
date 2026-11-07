@@ -43,6 +43,7 @@ import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useV5BandContext } from "@/lib/v5band-context";
 import { getHealthDay } from "@/lib/strain-service";
 import type { DbHealthData } from "@/lib/supabase";
+import { activateOnKey } from "@/lib/a11y";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPAR TRIANGLE LOADER — Animated triangle that draws itself (replaces spinners)
@@ -229,6 +230,7 @@ function V5BandStatusBar({ v5band }: { v5band: ReturnType<typeof useV5BandContex
   if (deviceId && !connected && !connecting) {
     return (
       <div
+        role="button" tabIndex={0} onKeyDown={activateOnKey}
         className="bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2.5 mb-3 flex items-center justify-between cursor-pointer active:bg-orange-500/20 transition-colors"
         onClick={async () => {
           await v5band.scan();
@@ -421,10 +423,11 @@ function AdaptiveAdjustmentBanner() {
             </div>
           </div>
           <button
+            aria-label="Dismiss"
             onClick={handleDismiss}
-            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+            className="p-1 relative after:absolute after:-inset-2.5 text-muted-foreground hover:text-foreground transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </CardContent>
@@ -762,14 +765,14 @@ function TodayFlow({
             <button
               type="button"
               onClick={() => navigateTo('/weigh-in')}
-              className="text-xs font-bold text-primary underline-offset-2 hover:underline"
+              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
             >
               Enter all
             </button>
             <button
               type="button"
               onClick={() => navigateTo('/descent')}
-              className="text-xs font-bold text-primary underline-offset-2 hover:underline"
+              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
             >
               Descent plan
             </button>
@@ -866,7 +869,7 @@ function TodayFlow({
               onClick={onToggleRestDay}
               disabled={hasPracticeLog}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide transition-colors",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide transition-colors relative after:absolute after:inset-x-0 after:-inset-y-2.5",
                 hasPracticeLog
                   ? "text-muted-foreground/40 cursor-not-allowed"
                   : isRestDay
@@ -934,13 +937,14 @@ function TodayFlow({
                       </button>
                     ) : (
                       <button
+                        aria-label="Delete weight check"
                         onClick={() => {
                           setConfirmDeleteCheckIn(ci.id);
                           setTimeout(() => setConfirmDeleteCheckIn(null), 3000);
                         }}
-                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                        className="p-1 rounded relative after:absolute after:-inset-3 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3 h-3" aria-hidden="true" />
                       </button>
                     )}
                   </div>
@@ -1066,7 +1070,7 @@ function WeightProjectionCard({ profile, logs }: {
             <span>{format(selectedProjection.date, 'MMM d, yyyy')}</span>
             <span>12 weeks</span>
           </div>
-          <input
+          <input aria-label="Weeks ahead"
             type="range"
             min="0"
             max="12"
@@ -1728,7 +1732,7 @@ export default function Dashboard() {
         {/* SIP-ONLY WARNING BANNER — Only when projection says fluids must be 0 */}
         {/* Uses store's projection to check if athlete has any fluid buffer     */}
         {/* ═══════════════════════════════════════════════════════ */}
-        {!isViewingHistorical && profile.waterLoading !== false && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
+        {!isViewingHistorical && profile.waterLoading !== false && profile.protocol !== '4' && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
           // Check projection-based fluid buffer — only show if truly no room for fluids
           try {
             const descentData = getWeekDescentData();
@@ -1803,7 +1807,7 @@ export default function Dashboard() {
               size="sm"
               variant="outline"
               onClick={() => handleDateChange(null)}
-              className="h-6 text-xs border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+              className="h-6 text-xs border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20 relative after:absolute after:inset-x-0 after:-inset-y-2.5"
             >
               Back to Today
             </Button>
@@ -2009,20 +2013,20 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="mb-3 rounded-xl border-2 border-orange-500/50 bg-gradient-to-br from-orange-500/15 via-orange-500/10 to-rose-500/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+    <div className="mb-3 rounded-xl border-2 border-chart-3/50 bg-chart-3/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
       {/* Header — always visible */}
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             {/* Animated droplet icon */}
             <div className="relative shrink-0 mt-0.5">
-              <Droplets className="w-6 h-6 text-orange-500" />
-              <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse" />
+              <Droplets className="w-6 h-6 text-chart-3" />
+              <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-chart-3 rounded-full animate-pulse" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-orange-500 uppercase tracking-wide flex items-center gap-2">
+              <h3 className="font-bold text-base text-chart-3 uppercase tracking-wide flex items-center gap-2">
                 Sip Only Mode
-                <span className="text-xs font-bold bg-orange-500/30 text-orange-400 px-1.5 py-0.5 rounded animate-pulse">
+                <span className="text-xs font-bold bg-chart-3/30 text-chart-3 px-1.5 py-0.5 rounded animate-pulse">
                   ACTIVE
                 </span>
               </h3>
@@ -2033,7 +2037,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
           </div>
           <button
             onClick={onDismiss}
-            className="p-2 -mr-1 -mt-1 rounded-lg hover:bg-orange-500/20 text-orange-400/60 hover:text-orange-500 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="p-2 -mr-1 -mt-1 rounded-lg hover:bg-chart-3/20 text-chart-3/60 hover:text-chart-3 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Dismiss"
           >
             <X className="w-5 h-5" />
@@ -2042,7 +2046,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
 
         {/* Quick rules — always visible */}
         <div className="flex flex-wrap gap-2 mt-3">
-          <span className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-500 text-xs font-bold px-2.5 py-1 rounded-full">
+          <span className="inline-flex items-center gap-1.5 bg-chart-3/20 text-chart-3 text-xs font-bold px-2.5 py-1 rounded-full">
             <AlertTriangle className="w-3 h-3" /> Max 8oz at a time
           </span>
           <span className="inline-flex items-center gap-1.5 bg-rose-500/20 text-rose-400 text-xs font-bold px-2.5 py-1 rounded-full">
@@ -2065,7 +2069,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
 
       {/* Expanded explanation */}
       {expanded && (
-        <div className="px-4 pb-4 pt-2 border-t border-orange-500/20 bg-orange-500/5 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="px-4 pb-4 pt-2 border-t border-chart-3/20 bg-chart-3/5 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="space-y-3">
             <div className="flex items-start gap-2">
               <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
@@ -2080,7 +2084,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
             </div>
 
             <div className="flex items-start gap-2">
-              <div className="w-5 h-5 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
+              <div className="w-5 h-5 rounded-full bg-chart-3/20 flex items-center justify-center shrink-0 mt-0.5">
                 <span className="text-xs">⚡</span>
               </div>
               <div>
@@ -2107,7 +2111,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
             <div className="bg-muted/30 border border-muted rounded-lg p-2.5 mt-2">
               <p className="text-xs text-muted-foreground">
                 <span className="font-bold text-foreground">Total allowed today:</span> ~{' '}
-                <span className="font-mono font-bold text-orange-500">12-16 oz</span> spread throughout the day.
+                <span className="font-mono font-bold text-chart-3">12-16 oz</span> spread throughout the day.
                 Track every sip in the hydration card below.
               </p>
             </div>
@@ -2226,8 +2230,9 @@ function StatusExplanation({ statusInfo, className }: {
             <div className="flex items-center justify-between mb-2">
               <span className={cn("font-bold text-sm", info.color)}>{info.title}</span>
               <button
+                aria-label="Close"
                 onClick={() => setIsOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1"
+                className="text-muted-foreground hover:text-foreground p-1 relative after:absolute after:-inset-3"
               >
                 ✕
               </button>
@@ -2606,13 +2611,14 @@ function TodayTimeline({
                         </button>
                       ) : (
                         <button
+                          aria-label="Delete weight check"
                           onClick={() => {
                             setConfirmDeleteCheckIn(ci.id);
                             setTimeout(() => setConfirmDeleteCheckIn(null), 3000);
                           }}
-                          className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                          className="p-1 rounded relative after:absolute after:-inset-3 hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3 h-3" aria-hidden="true" />
                         </button>
                       )
                     )}
@@ -2663,7 +2669,7 @@ function HeroWeight({
 
   const progressBarColor = status === 'on-track' ? 'bg-green-500' :
     status === 'borderline' ? 'bg-yellow-500' :
-    status === 'risk' ? 'bg-orange-500' : 'bg-primary';
+    status === 'risk' ? 'bg-chart-4' : 'bg-primary';
 
   return (
     <div className="mb-3">
@@ -3297,8 +3303,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                           <>
                             <div className="flex items-center justify-between mb-3">
                               <span className="text-xs font-bold text-foreground uppercase tracking-wide">Sleep Drift History</span>
-                              <button onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 rounded-lg hover:bg-muted/50">
-                                <ChevronRight className="w-4 h-4 rotate-90" />
+                              <button aria-label="Back to summary" onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 relative after:absolute after:-inset-2.5 rounded-lg hover:bg-muted/50">
+                                <ChevronRight className="w-4 h-4 rotate-90" aria-hidden="true" />
                               </button>
                             </div>
                             {descentData.recentDrifts.length > 0 ? (
@@ -3366,8 +3372,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                           <>
                             <div className="flex items-center justify-between mb-3">
                               <span className="text-xs font-bold text-foreground uppercase tracking-wide">Practice Loss History</span>
-                              <button onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 rounded-lg hover:bg-muted/50">
-                                <ChevronRight className="w-4 h-4 rotate-90" />
+                              <button aria-label="Back to summary" onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 relative after:absolute after:-inset-2.5 rounded-lg hover:bg-muted/50">
+                                <ChevronRight className="w-4 h-4 rotate-90" aria-hidden="true" />
                               </button>
                             </div>
                             {descentData.recentPracticeLosses.length > 0 ? (
@@ -3430,8 +3436,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                           <>
                             <div className="flex items-center justify-between mb-3">
                               <span className="text-xs font-bold text-foreground uppercase tracking-wide">Awake Drift Estimate</span>
-                              <button onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 rounded-lg hover:bg-muted/50">
-                                <ChevronRight className="w-4 h-4 rotate-90" />
+                              <button aria-label="Back to summary" onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 relative after:absolute after:-inset-2.5 rounded-lg hover:bg-muted/50">
+                                <ChevronRight className="w-4 h-4 rotate-90" aria-hidden="true" />
                               </button>
                             </div>
                             <div className="bg-background/50 rounded-lg p-3 mb-3">
@@ -3467,8 +3473,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                           <>
                             <div className="flex items-center justify-between mb-3">
                               <span className="text-xs font-bold text-foreground uppercase tracking-wide">Extra Workouts</span>
-                              <button onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 rounded-lg hover:bg-muted/50">
-                                <ChevronRight className="w-4 h-4 rotate-90" />
+                              <button aria-label="Back to summary" onClick={() => setFlippedCard(null)} className="text-muted-foreground hover:text-foreground p-1 -mr-1 relative after:absolute after:-inset-2.5 rounded-lg hover:bg-muted/50">
+                                <ChevronRight className="w-4 h-4 rotate-90" aria-hidden="true" />
                               </button>
                             </div>
                             <div className="grid grid-cols-2 gap-2 mb-2">

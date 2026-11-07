@@ -339,10 +339,11 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                 )}
               </button>
               <button
+                aria-label={`Add food to ${meal.label}`}
                 onClick={() => { hapticTap(); onAddFood(meal.id); }}
-                className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 active:scale-90 transition-all ml-2 shrink-0"
+                className="w-7 h-7 rounded-full relative after:absolute after:-inset-2 bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 active:scale-90 transition-all ml-2 shrink-0"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
 
@@ -428,7 +429,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                               <div className="flex items-center gap-1 shrink-0">
                                 {isEditing ? (
                                   <div className="flex items-center gap-1">
-                                    <input
+                                    <input aria-label="Amount"
                                       type="number"
                                       value={editingValue}
                                       onChange={(e) => setEditingValue(e.target.value)}
@@ -440,10 +441,11 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                       className="w-14 h-7 text-xs font-mono font-bold text-center bg-background border border-primary rounded px-1"
                                     />
                                     <button
+                                      aria-label="Save amount"
                                       onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
-                                      className="w-7 h-7 flex items-center justify-center rounded bg-primary/20 text-primary"
+                                      className="w-7 h-7 relative after:absolute after:-inset-2 flex items-center justify-center rounded bg-primary/20 text-primary"
                                     >
-                                      <Check className="w-3 h-3" />
+                                      <Check className="w-3 h-3" aria-hidden="true" />
                                     </button>
                                   </div>
                                 ) : (

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Protocol } from "@/lib/store";
 import { PROTOCOL_SCIENCE, PROTOCOL_CONFIG, getProtocolRecommendation } from "@/lib/protocol-utils";
+import { activateOnKey } from "@/lib/a11y";
 
 interface ProtocolWizardProps {
   currentWeight: number;
@@ -105,6 +106,7 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
 
           return (
             <Card
+              role="button" tabIndex={0} onKeyDown={activateOnKey}
               key={protocol}
               className={cn(
                 "p-4 border-2 transition-all cursor-pointer",

@@ -205,6 +205,34 @@ export default function Weekly() {
     return { count, totalLoss };
   };
 
+  // No weigh-in coming up (date passed or cleared): a week of "Recovery" rows tells the
+  // athlete nothing, so point them at setting the next date instead.
+  if (profile.weighInCleared || daysUntil < 0) {
+    return (
+      <MobileLayout showNav={true}>
+        <header className="mb-4">
+          <h1 className="text-2xl font-heading font-bold uppercase italic">The Plan</h1>
+        </header>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <p className="font-bold">No weigh-in coming up</p>
+            <p className="text-sm text-muted-foreground">
+              Set your next weigh-in date (on Today, or Settings → Schedule) and this page lays out each day before it: weight, water, carbs and protein.
+              {daysUntil === -1 && " Today is the day after your weigh-in — eat and drink normally to recover."}
+            </p>
+            <button
+              type="button"
+              onClick={() => setLocation('/dashboard')}
+              className="w-full min-h-11 rounded-lg bg-primary text-primary-foreground text-sm font-bold"
+            >
+              Go to Today
+            </button>
+          </CardContent>
+        </Card>
+      </MobileLayout>
+    );
+  }
+
   return (
     <MobileLayout showNav={true}>
       {/* Header */}
