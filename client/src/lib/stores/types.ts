@@ -248,6 +248,13 @@ export interface StoreContextType {
     fatGrams?: number;
     proteinPerLb?: number;
   };
+  /** Targets as they applied on a given day (yyyy-MM-dd), for viewing or grading past days */
+  getTargetsForDate: (dateKey: string) => {
+    daysUntilWeighIn: number;
+    macros: ReturnType<StoreContextType['getMacroTargets']>;
+    slices: ReturnType<StoreContextType['getSliceTargets']>;
+    hydration: ReturnType<StoreContextType['getHydrationTarget']>;
+  };
   getCheckpoints: () => {
     walkAround: string;
     wedTarget: string;

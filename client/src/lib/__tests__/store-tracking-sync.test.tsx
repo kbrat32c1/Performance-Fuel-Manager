@@ -210,3 +210,63 @@ describe('weight log cloud cleanup', () => {
     expect(db.weightLogDeletes).toEqual([{ table: 'weight_logs', user_id: 'athlete-1', type: 'morning' }]);
   });
 });
+
+describe('targets for a past day', () => {
+  const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const noonOffset = (days: number) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days); return d; };
+
+  async function storeTwoDaysOut() {
+    const hook = await renderLoadedStore();
+    await act(async () => {
+      await hook.result.current.updateProfile({
+        protocol: '2', targetWeightClass: 157, currentWeight: 168,
+        weighInDate: noonOffset(2), simulatedDate: null, weighInCleared: false,
+      });
+    });
+    return hook;
+  }
+
+  it('uses that day\'s distance from weigh-in', async () => {
+    const { result } = await storeTwoDaysOut();
+    expect(result.current.getTargetsForDate(key(noonOffset(0))).daysUntilWeighIn).toBe(2);
+    expect(result.current.getTargetsForDate(key(noonOffset(-1))).daysUntilWeighIn).toBe(3);
+    expect(result.current.getTargetsForDate(key(noonOffset(-5))).daysUntilWeighIn).toBe(7);
+  });
+
+  it('matches what the app shows when its date is set to that day', async () => {
+    const { result } = await storeTwoDaysOut();
+    const yesterday = noonOffset(-1);
+    // A heavy weigh-in yesterday changes yesterday's macro targets only
+    await act(async () => {
+      await result.current.addLog({ weight: 175, date: yesterday, type: 'morning' });
+    });
+
+    const fromHelper = result.current.getTargetsForDate(key(yesterday));
+
+    await act(async () => { await result.current.updateProfile({ simulatedDate: yesterday }); });
+    const viaSimulatedDate = {
+      macros: result.current.getMacroTargets(),
+      slices: result.current.getSliceTargets(),
+      hydration: result.current.getHydrationTarget(),
+    };
+
+    expect(fromHelper.macros).toEqual(viaSimulatedDate.macros);
+    expect(fromHelper.slices).toEqual(viaSimulatedDate.slices);
+    expect(fromHelper.hydration).toEqual(viaSimulatedDate.hydration);
+  });
+
+  it('gives a past day different targets from today when the plan changed', async () => {
+    const { result } = await storeTwoDaysOut();
+    const today = result.current.getTargetsForDate(key(noonOffset(0)));
+    const weekAgo = result.current.getTargetsForDate(key(noonOffset(-7)));
+    expect(weekAgo.hydration.targetOz).not.toBe(today.hydration.targetOz);
+  });
+
+  it('leaves today\'s getters untouched afterwards', async () => {
+    const { result } = await storeTwoDaysOut();
+    const before = result.current.getMacroTargets();
+    result.current.getTargetsForDate(key(noonOffset(-6)));
+    expect(result.current.getDaysUntilWeighIn()).toBe(2);
+    expect(result.current.getMacroTargets()).toEqual(before);
+  });
+});

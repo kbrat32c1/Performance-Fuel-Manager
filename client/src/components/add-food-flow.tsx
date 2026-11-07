@@ -33,6 +33,8 @@ interface AddFoodFlowProps {
   onClose: () => void;
   /** If omitted, component manages its own meal selector */
   hideMealSelector?: boolean;
+  /** Day to log into (yyyy-MM-dd). Defaults to today. */
+  dateKey?: string;
 }
 
 const MEAL_OPTIONS: { id: MealSection; label: string; emoji: string }[] = [
@@ -42,20 +44,21 @@ const MEAL_OPTIONS: { id: MealSection; label: string; emoji: string }[] = [
   { id: 'snacks', label: 'Snacks', emoji: '🍿' },
 ];
 
-export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCategories, onClose, hideMealSelector }: AddFoodFlowProps) {
+export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCategories, onClose, hideMealSelector, dateKey: dateKeyProp }: AddFoodFlowProps) {
   const {
     profile, getDailyTracking, updateDailyTracking,
-    getMacroTargets, getSliceTargets, getNutritionMode,
+    getNutritionMode, getTargetsForDate,
   } = useStore();
   const { toast } = useToast();
   const today = profile.simulatedDate || new Date();
-  const dateKey = format(today, 'yyyy-MM-dd');
+  const dateKey = dateKeyProp ?? format(today, 'yyyy-MM-dd');
   const tracking = getDailyTracking(dateKey);
-  const macros = getMacroTargets();
+  const dayTargets = getTargetsForDate(dateKey);
+  const macros = dayTargets.macros;
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
   const showSliceTracker = isSparMode;
-  const sliceTargets = showSliceTracker ? getSliceTargets() : null;
+  const sliceTargets = showSliceTracker ? dayTargets.slices : null;
 
   const [activeMeal, setActiveMeal] = useState<MealSection>(initialMeal);
   const [activeTab, setActiveTab] = useState<FlowTab>('recent');

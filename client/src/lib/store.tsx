@@ -1190,7 +1190,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const weighIn = startOfDay(profile.weighInDate);
     return differenceInDays(weighIn, today);
   }, [profile.weighInCleared, profile.simulatedDate, profile.weighInDate]);
-  const getDaysUntilWeighIn = useCallback((): number => daysUntilWeighInMemo, [daysUntilWeighInMemo]);
+
+  // While getTargetsForDate runs, the target getters treat this date as "today".
+  const referenceDateRef = useRef<Date | null>(null);
+  const getReferenceDate = (): Date => referenceDateRef.current ?? (profile.simulatedDate || new Date());
+
+  const getDaysUntilWeighIn = useCallback((): number => {
+    const ref = referenceDateRef.current;
+    if (!ref) return daysUntilWeighInMemo;
+    if (profile.weighInCleared) return 999;
+    return differenceInDays(startOfDay(profile.weighInDate), startOfDay(ref));
+  }, [daysUntilWeighInMemo, profile.weighInCleared, profile.weighInDate]);
 
   // Helper: Get formatted time until weigh-in at 30-min granularity
   const getTimeUntilWeighIn = (): string => {
@@ -1360,7 +1370,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const getSliceTargets = () => {
     const protocol = profile.protocol;
     // Cache key: all profile fields that affect slice calculation
-    const cacheKey = `${protocol}|${profile.currentWeight}|${profile.targetWeightClass}|${profile.gender}|${profile.age}|${profile.heightInches}|${profile.trainingSessions}|${profile.workdayActivity}|${profile.sparGoal}|${profile.goalIntensity}|${profile.maintainPriority}|${profile.goalWeightLbs}|${profile.bodyFatPercent}|${profile.customProteinPerLb}|${profile.customFatPercent}|${profile.customCarbPercent}|${profile.sparV2}|${daysUntilWeighInMemo}`;
+    const cacheKey = `${protocol}|${profile.currentWeight}|${profile.targetWeightClass}|${profile.gender}|${profile.age}|${profile.heightInches}|${profile.trainingSessions}|${profile.workdayActivity}|${profile.sparGoal}|${profile.goalIntensity}|${profile.maintainPriority}|${profile.goalWeightLbs}|${profile.bodyFatPercent}|${profile.customProteinPerLb}|${profile.customFatPercent}|${profile.customCarbPercent}|${profile.sparV2}|${getDaysUntilWeighIn()}`;
     if (sliceTargetsCacheRef.current.key === cacheKey && sliceTargetsCacheRef.current.value) {
       return sliceTargetsCacheRef.current.value;
     }
@@ -1527,8 +1537,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Only apply weight adjustments on days 1-3 (cut & prep days)
       if (daysUntilWeighIn < 1 || daysUntilWeighIn > 3) return result;
 
-      // Get latest weight from today's logs
-      const today = startOfDay(profile.simulatedDate || new Date());
+      // Get latest weight from that day's logs
+      const today = startOfDay(getReferenceDate());
       const todayStr = format(today, 'yyyy-MM-dd');
       const todayLogs = logs
         .filter(l => format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr)
@@ -3221,6 +3231,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return computeCutScore(input);
   };
 
+  /**
+   * Nutrition and hydration targets as they applied on a given day (yyyy-MM-dd),
+   * using that day's distance from weigh-in and that day's weigh-ins. Profile
+   * settings (protocol, weight class, current weight) are today's — the app does
+   * not keep a history of those.
+   */
+  const getTargetsForDate = (dateKey: string) => {
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const previous = referenceDateRef.current;
+    referenceDateRef.current = new Date(y, m - 1, d, 12, 0, 0);
+    try {
+      return {
+        daysUntilWeighIn: getDaysUntilWeighIn(),
+        macros: getMacroTargets(),
+        slices: getSliceTargets(),
+        hydration: getHydrationTarget(),
+      };
+    } finally {
+      referenceDateRef.current = previous;
+    }
+  };
+
   // Memoize context value to prevent unnecessary re-renders of consumers
   // Only re-creates when actual state or function references change
   const contextValue = useMemo(() => ({
@@ -3256,6 +3288,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     getFuelingGuide,
     getNutritionMode,
     getSliceTargets,
+    getTargetsForDate,
     getRehydrationPlan,
     getCheckpoints,
     getWeeklyPlan,
@@ -3280,7 +3313,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
        calculateTarget, getWaterLoadBonus, isWaterLoadingDay,
        getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn,
        getPhase, getTodaysFocus, getHydrationTarget, getMacroTargets,
-       getFuelingGuide, getNutritionMode, getSliceTargets,
+       getFuelingGuide, getNutritionMode, getSliceTargets, getTargetsForDate,
        getRehydrationPlan, getCheckpoints, getWeeklyPlan, getTomorrowPlan,
        getNextTarget, getDriftMetrics, getExtraWorkoutStats, getStatus,
        getDailyPriority, getWeekDescentData, hasTodayMorningWeight,

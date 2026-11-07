@@ -25,8 +25,7 @@ import { MacroBar } from "@/components/ui/macro-bar";
 export default function Food() {
   const {
     profile, getDailyTracking, updateDailyTracking,
-    getMacroTargets, getHydrationTarget, getNutritionMode,
-    getSliceTargets, getDaysUntilWeighIn,
+    getNutritionMode, getTargetsForDate,
   } = useStore();
   const { toast } = useToast();
 
@@ -37,14 +36,16 @@ export default function Food() {
   const isToday = dateOffset === 0;
 
   const tracking = getDailyTracking(dateKey);
-  const macros = getMacroTargets();
-  const hydration = getHydrationTarget();
+  // Targets for the day on screen, not today, so past days are judged fairly
+  const dayTargets = getTargetsForDate(dateKey);
+  const macros = dayTargets.macros;
+  const hydration = dayTargets.hydration;
   const nutritionMode = getNutritionMode();
   const isSparMode = nutritionMode === 'spar';
   const isSparProtocol = profile.protocol === '5' || profile.protocol === '6';
   const showSliceTracker = isSparMode;
-  const sliceTargets = showSliceTracker ? getSliceTargets() : null;
-  const daysUntilWeighIn = getDaysUntilWeighIn();
+  const sliceTargets = showSliceTracker ? dayTargets.slices : null;
+  const daysUntilWeighIn = dayTargets.daysUntilWeighIn;
 
   // Blocked categories for protocol restrictions
   const blockedCategories = useMemo(() => {
@@ -289,6 +290,7 @@ export default function Food() {
       <Sheet open={addFoodOpen} onOpenChange={setAddFoodOpen}>
         <SheetContent side="bottom" className="h-[92vh] p-0 rounded-t-2xl flex flex-col [&>button.absolute]:hidden">
           <AddFoodFlow
+            dateKey={dateKey}
             mealSection={addFoodMeal}
             mode={showSliceTracker ? 'spar' : 'sugar'}
             isV2={isV2}

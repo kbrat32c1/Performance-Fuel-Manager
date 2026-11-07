@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets } = useStore();
+  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets, getTargetsForDate } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
@@ -920,14 +920,14 @@ export default function History() {
 
       {/* Hydration Tab Content */}
       {activeTab === 'hydration' && (
-        <HydrationHistory dailyTracking={dailyTracking} targetOz={hydrationTarget.targetOz} />
+        <HydrationHistory dailyTracking={dailyTracking} targetOz={hydrationTarget.targetOz} targetOzFor={(d) => getTargetsForDate(d).hydration.targetOz} />
       )}
 
       {/* Macros / Slices Tab Content */}
       {activeTab === 'macros' && (
         isSparMode && sliceTargets
-          ? <SliceHistory dailyTracking={dailyTracking} sliceTargets={sliceTargets} />
-          : <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} />
+          ? <SliceHistory dailyTracking={dailyTracking} sliceTargets={sliceTargets} sliceTargetsFor={(d) => getTargetsForDate(d).slices} />
+          : <MacroHistory dailyTracking={dailyTracking} macroTargets={macroTargets} macroTargetsFor={(d) => getTargetsForDate(d).macros} />
       )}
 
       {/* Bottom Spacing */}
@@ -940,9 +940,11 @@ export default function History() {
 interface HydrationHistoryProps {
   dailyTracking: Array<{ date: string; waterConsumed: number; carbsConsumed: number; proteinConsumed: number }>;
   targetOz: number;
+  /** That day's target, so past days are graded against what applied then */
+  targetOzFor?: (dateStr: string) => number;
 }
 
-function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
+function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHistoryProps) {
   const today = new Date();
 
   // Get last 14 days of data
@@ -954,6 +956,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
       date,
       dateStr,
       waterConsumed: tracking?.waterConsumed || 0,
+      targetOz: targetOzFor?.(dateStr) ?? targetOz,
       dayLabel: format(date, 'EEE'),
       dayNum: format(date, 'd'),
       isToday: isSameDay(date, today)
@@ -964,7 +967,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
   const daysWithData = last14Days.filter(d => d.waterConsumed > 0);
   const totalConsumed = daysWithData.reduce((sum, d) => sum + d.waterConsumed, 0);
   const avgDaily = daysWithData.length > 0 ? totalConsumed / daysWithData.length : 0;
-  const daysHitTarget = daysWithData.filter(d => d.waterConsumed >= targetOz).length;
+  const daysHitTarget = daysWithData.filter(d => d.waterConsumed >= d.targetOz).length;
   const maxWater = Math.max(...last14Days.map(d => d.waterConsumed), targetOz);
 
   // Get last 7 days for weekly summary
@@ -1049,7 +1052,7 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
           <div className="flex items-end gap-1 h-32 mb-2">
             {last14Days.map((day, i) => {
               const heightPercent = maxWater > 0 ? (day.waterConsumed / maxWater) * 100 : 0;
-              const hitTarget = day.waterConsumed >= targetOz;
+              const hitTarget = day.waterConsumed >= day.targetOz;
               const targetHeightPercent = maxWater > 0 ? (targetOz / maxWater) * 100 : 0;
 
               return (
@@ -1129,13 +1132,13 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
                 <div className="flex items-center gap-2">
                   <span className={cn(
                     "font-mono font-bold",
-                    day.waterConsumed >= targetOz ? "text-green-500" :
-                    day.waterConsumed >= targetOz * 0.75 ? "text-cyan-500" :
+                    day.waterConsumed >= day.targetOz ? "text-green-500" :
+                    day.waterConsumed >= day.targetOz * 0.75 ? "text-cyan-500" :
                     day.waterConsumed > 0 ? "text-yellow-500" : "text-muted-foreground"
                   )}>
                     {day.waterConsumed > 0 ? `${day.waterConsumed} oz` : '—'}
                   </span>
-                  {day.waterConsumed >= targetOz && (
+                  {day.waterConsumed >= day.targetOz && (
                     <Check className="w-4 h-4 text-green-500" />
                   )}
                 </div>
@@ -1162,10 +1165,14 @@ function HydrationHistory({ dailyTracking, targetOz }: HydrationHistoryProps) {
 // Macro History Component
 interface MacroHistoryProps {
   dailyTracking: Array<{ date: string; waterConsumed: number; carbsConsumed: number; proteinConsumed: number }>;
-  macroTargets: { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string };
+  macroTargets: MacroRange;
+  /** That day's targets, so past days are graded against what applied then */
+  macroTargetsFor?: (dateStr: string) => MacroRange;
 }
 
-function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
+type MacroRange = { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string };
+
+function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHistoryProps) {
   const today = new Date();
 
   // Get last 14 days of data
@@ -1178,6 +1185,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
       dateStr,
       carbsConsumed: tracking?.carbsConsumed || 0,
       proteinConsumed: tracking?.proteinConsumed || 0,
+      target: macroTargetsFor?.(dateStr) ?? macroTargets,
       dayLabel: format(date, 'EEE'),
       dayNum: format(date, 'd'),
       isToday: isSameDay(date, today)
@@ -1198,10 +1206,10 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
   const proteinTargetMid = (macroTargets.protein.min + macroTargets.protein.max) / 2;
 
   const daysHitCarbTarget = daysWithCarbData.filter(d =>
-    d.carbsConsumed >= macroTargets.carbs.min && d.carbsConsumed <= macroTargets.carbs.max * 1.1
+    d.carbsConsumed >= d.target.carbs.min && d.carbsConsumed <= d.target.carbs.max * 1.1
   ).length;
   const daysHitProteinTarget = daysWithProteinData.filter(d =>
-    d.proteinConsumed >= macroTargets.protein.min && d.proteinConsumed <= macroTargets.protein.max * 1.1
+    d.proteinConsumed >= d.target.protein.min && d.proteinConsumed <= d.target.protein.max * 1.1
   ).length;
 
   const maxCarbs = Math.max(...last14Days.map(d => d.carbsConsumed), macroTargets.carbs.max);
@@ -1281,7 +1289,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
           <div className="flex items-end gap-1 h-24 mb-2">
             {last14Days.map((day, i) => {
               const heightPercent = maxCarbs > 0 ? (day.carbsConsumed / maxCarbs) * 100 : 0;
-              const inRange = day.carbsConsumed >= macroTargets.carbs.min && day.carbsConsumed <= macroTargets.carbs.max * 1.1;
+              const inRange = day.carbsConsumed >= day.target.carbs.min && day.carbsConsumed <= day.target.carbs.max * 1.1;
               const targetHeightPercent = maxCarbs > 0 ? (carbTargetMid / maxCarbs) * 100 : 0;
 
               return (
@@ -1331,7 +1339,7 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
           <div className="flex items-end gap-1 h-24 mb-2">
             {last14Days.map((day, i) => {
               const heightPercent = maxProtein > 0 ? (day.proteinConsumed / maxProtein) * 100 : 0;
-              const inRange = day.proteinConsumed >= macroTargets.protein.min && day.proteinConsumed <= macroTargets.protein.max * 1.1;
+              const inRange = day.proteinConsumed >= day.target.protein.min && day.proteinConsumed <= day.target.protein.max * 1.1;
               const targetHeightPercent = maxProtein > 0 ? (proteinTargetMid / maxProtein) * 100 : 0;
 
               return (
@@ -1428,10 +1436,14 @@ function MacroHistory({ dailyTracking, macroTargets }: MacroHistoryProps) {
 // Slice History Component (SPAR mode)
 interface SliceHistoryProps {
   dailyTracking: Array<{ date: string; proteinSlices?: number; carbSlices?: number; vegSlices?: number }>;
-  sliceTargets: { protein: number; carb: number; veg: number; totalCalories: number };
+  sliceTargets: SliceRange;
+  /** That day's targets, so past days are graded against what applied then */
+  sliceTargetsFor?: (dateStr: string) => SliceRange;
 }
 
-function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
+type SliceRange = { protein: number; carb: number; veg: number; totalCalories: number };
+
+function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHistoryProps) {
   const today = new Date();
   const totalTarget = sliceTargets.protein + sliceTargets.carb + sliceTargets.veg;
 
@@ -1450,6 +1462,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
       carb: c,
       veg: v,
       total: p + c + v,
+      dayTarget: (() => { const t = sliceTargetsFor?.(dateStr) ?? sliceTargets; return t.protein + t.carb + t.veg; })(),
       dayLabel: format(date, 'EEE'),
       dayNum: format(date, 'd'),
       isToday: isSameDay(date, today)
@@ -1457,7 +1470,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
   });
 
   const daysWithData = last14Days.filter(d => d.total > 0);
-  const daysHitTarget = daysWithData.filter(d => d.total >= totalTarget).length;
+  const daysHitTarget = daysWithData.filter(d => d.total >= d.dayTarget).length;
 
   const avgProtein = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.protein, 0) / daysWithData.length : 0;
   const avgCarb = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.carb, 0) / daysWithData.length : 0;
@@ -1624,7 +1637,7 @@ function SliceHistory({ dailyTracking, sliceTargets }: SliceHistoryProps) {
           <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Details</span>
           <div className="space-y-2">
             {[...last14Days].reverse().map((day, i) => {
-              const hitTarget = day.total >= totalTarget;
+              const hitTarget = day.total >= day.dayTarget;
               return (
                 <div key={i} className={cn(
                   "flex items-center justify-between py-2 border-b border-muted last:border-0",
