@@ -1732,21 +1732,21 @@ export default function Dashboard() {
                   : isSparGeneral ? "My Nutrition" : "The Cut"
               )}
             </h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
               {/* For SPAR users, show goal label */}
               {isSparGeneral ? (
                 <SparProtocolSelector profile={profile} />
               ) : (
                 <>
-                  <span className={cn("text-xs font-bold uppercase", phaseInfo.color)}>
+                  <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.color)}>
                     {phaseInfo.label}
                   </span>
                   <span className="text-xs text-muted-foreground">·</span>
-                  <span className="text-xs font-bold font-mono text-primary">{profile.targetWeightClass} lbs</span>
+                  <span className="text-xs font-bold font-mono text-primary whitespace-nowrap">{profile.targetWeightClass} lbs</span>
                   {phaseInfo.stage && (
                     <>
                       <span className="text-xs text-muted-foreground">·</span>
-                      <span className={cn("text-xs font-bold uppercase", phaseInfo.stageColor)}>
+                      <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.stageColor)}>
                         {phaseInfo.stage}
                       </span>
                     </>

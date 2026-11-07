@@ -1148,7 +1148,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntilWeighIn === 0) {
           currentDayContext = 'Competition day - hit weight class, then rehydrate immediately';
         } else if (daysUntilWeighIn === 1) {
-          currentDayContext = `CRITICAL: Must be ${criticalLow}-${criticalHigh} lbs by evening for safe overnight cut`;
+          currentDayContext = `CRITICAL: Must be ${criticalLow}-${criticalHigh} lbs after practice — overnight drift does the rest`;
         } else if (daysUntilWeighIn === 2) {
           currentDayContext = 'Water restriction day — zero fiber, ADH still flushing.';
         } else if (daysUntilWeighIn === 3) {
@@ -2581,7 +2581,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // Day before competition - sips only
           protein = { min: 100, max: 100 };
           isCriticalCheckpoint = true;
-          waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
+          waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs after practice`;
         } else if (daysUntil === 2) {
           // 2 days out - water restriction day
           protein = { min: 100, max: 100 };
@@ -2671,7 +2671,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         carbs = { min: 250, max: 350 };
         protein = { min: 50, max: 60 };
         isCriticalCheckpoint = true;
-        waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs by evening for safe cut`;
+        waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs after practice`;
       } else if (daysUntil === 2) {
         // 2 days out - water RESTRICTION day. ADH still suppressed from loading → high urine output continues.
         carbs = { min: 325, max: 450 };

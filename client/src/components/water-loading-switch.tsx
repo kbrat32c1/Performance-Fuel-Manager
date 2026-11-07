@@ -13,6 +13,7 @@ export function WaterLoadingSwitch({ className }: { className?: string }) {
         type="button"
         role="switch"
         aria-checked={on}
+        aria-label="Water loading"
         onClick={() => updateProfile({ waterLoading: !on }, { silent: true })}
         className="flex w-full min-h-11 items-center justify-between gap-3 text-left"
       >
@@ -37,7 +38,7 @@ export function WaterLoadingSwitch({ className }: { className?: string }) {
       </button>
       <p className="mt-1 text-xs leading-snug text-muted-foreground">
         {on
-          ? "On: extra water 4 to 2 days before weigh-in, then less the day before. Adds about 1 lb of extra loss. You'll compete 1–2 hours after weigh-in, so check with your coach."
+          ? "On: extra water 4 to 2 days before weigh-in, then less the day before. Adds about 1 lb of extra loss."
           : "Off: drink the same steady amount every day. Turn on to use the water loading plan."}
       </p>
     </div>
