@@ -289,86 +289,85 @@ export const CARB_TARGETS = {
 } as const;
 
 // =============================================================================
-// WATER & SODIUM PROTOCOL (Research-based: oz/lb body mass scaling)
-// Sources: PubMed 29182412 (Reale et al.), ISSN Position Stand PMC11894756, Gatorade SSI
-// Protocol: 3 days load → 1 day restrict → 1 day sips → weigh-in → rehydrate
+// WATER PLAN
+// Two plans, chosen per athlete with profile.waterLoading (default off):
+//  • Steady hydration (default): the same daily amount all week.
+//  • Water loading (opt-in): the one schedule tested by Reale et al. 2018
+//    (PubMed 29182412): 100 ml/kg for 3 days, then 15 ml/kg the day before
+//    weigh-in. That study gave athletes about a day to recover after weigh-in;
+//    NCAA weigh-ins are 1-2 hours before competition, which is why it's opt-in.
+// No "sips only" day and no sodium loading/cutting: neither was tested.
+// Amounts are fluid ounces per pound (ml/kg × 0.01534 = oz/lb).
 // =============================================================================
 
-/**
- * Water loading protocol by day (fluid ounces per pound of body weight).
- * Conversion: ml/kg × 0.01534 = oz/lb  (1 ml = 0.03381 oz, 1 kg = 2.2046 lb)
- * Research: 100 ml/kg ≈ 1.53 oz/lb, 15 ml/kg ≈ 0.23 oz/lb.
- * Research shows 100 ml/kg loading produces ~3.2% BM loss vs ~2.4% at 40 ml/kg.
- * Days indexed by daysUntilWeighIn (5=Mon, 4=Tue, 3=Wed, 2=Thu, 1=Fri, 0=Sat).
- */
-export const WATER_OZ_PER_LB = {
-  6: 0.7,   // Training phase: Normal hydration ≈47 ml/kg (~0.5-0.75 gal for most athletes)
-  5: 1.2,   // Mon comp week: Baseline loading ≈80 ml/kg (~1.0-1.5 gal depending on size)
-  4: 1.5,   // Tue: Peak loading ≈100 ml/kg — maximize diuresis
-  3: 1.5,   // Wed: Peak loading ≈100 ml/kg — peak hydration
-  2: 0.3,   // Thu: Sharp restriction ≈20 ml/kg — ADH still suppressed, high urine output continues
-  1: 0.08,  // Fri: Sips only ≈5 ml/kg — final flush
-  0: 0,     // Sat: Weigh-in → rehydrate immediately after
-  [-1]: 0.75,// Sun: Normalize ≈50 ml/kg — return to baseline
+/** Steady daily hydration, ≈46 ml/kg. */
+export const STEADY_WATER_OZ_PER_LB = 0.7;
+
+/** Water loading plan by days until weigh-in (only used when the athlete turns it on). */
+export const WATER_LOADING_OZ_PER_LB = {
+  4: 1.53, // 100 ml/kg
+  3: 1.53, // 100 ml/kg
+  2: 1.53, // 100 ml/kg
+  1: 0.23, // 15 ml/kg — the only restriction day tested
 } as const;
 
-/**
- * Sodium targets (mg/day) by daysUntilWeighIn.
- * Salt-loading Mon-Wed trains kidneys to excrete aggressively;
- * sudden restriction Thu-Fri causes continued sodium (and water) excretion.
- * SAFETY: Never eliminate sodium completely — causes dangerous imbalances.
- */
-export const SODIUM_MG_BY_DAY = {
-  6: { target: 3000, label: 'Normal', color: 'text-primary' },
-  5: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
-  4: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
-  3: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
-  2: { target: 2500, label: 'Normal — stop adding salt', color: 'text-primary' },
-  1: { target: 1000, label: 'Minimal — under 1,000mg', color: 'text-orange-500' },
-  0: { target: 0, label: 'Reintroduce post weigh-in', color: 'text-cyan-500' },
-  [-1]: { target: 3000, label: 'Normal — replenish', color: 'text-green-500' },
-} as const;
+/** Days a loading plan adds water weight (and the +2-4 lb target allowance). */
+export const WATER_LOADING_DAYS = [4, 3, 2] as const;
 
-/**
- * Compute the water target in fluid ounces for a given day and body weight.
- * Returns the raw oz value for use in hydration tracking.
- */
-// Max water loading cap (oz) — ~2.5 gal. Prevents unsafe volumes for heavyweights.
+/** Cap on any day's water (oz), ~2.5 gal, so heavyweights aren't told to drink unsafe volumes. */
 export const MAX_WATER_LOADING_OZ = 320;
 
-export function getWaterTargetOz(daysUntil: number, weightLbs: number): number {
-  if (daysUntil === 0) return 0; // Weigh-in day — rehydrate after
-  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
-  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
-  const raw = Math.round(ozPerLb * weightLbs);
-  // Cap loading days (ozPerLb > 0.5) to prevent unsafe volumes for heavyweights
-  return ozPerLb > 0.5 ? Math.min(raw, MAX_WATER_LOADING_OZ) : raw;
+function waterOzPerLb(daysUntil: number, waterLoading: boolean): number {
+  if (waterLoading && daysUntil >= 1 && daysUntil <= 4) {
+    return WATER_LOADING_OZ_PER_LB[daysUntil as 1 | 2 | 3 | 4];
+  }
+  return STEADY_WATER_OZ_PER_LB;
 }
 
 /**
- * Get formatted water target string (e.g. "1.50 gal", "Sips only", "Rehydrate").
- * Used for weekly plan and explanatory text where gallon-scale numbers make sense.
+ * Daily water target in fluid ounces. Weigh-in day is 0 (drink after weighing in).
+ * `weightLbs` should be the athlete's normal morning weight, not a water-loaded one.
  */
-export function getWaterTargetGallons(daysUntil: number, weightLbs: number): string {
+export function getWaterTargetOz(daysUntil: number, weightLbs: number, waterLoading = false): number {
+  if (daysUntil === 0) return 0;
+  return Math.min(Math.round(waterOzPerLb(daysUntil, waterLoading) * weightLbs), MAX_WATER_LOADING_OZ);
+}
+
+/** Water target as text, e.g. "1.75 gal", or "Rehydrate" on weigh-in day. */
+export function getWaterTargetGallons(daysUntil: number, weightLbs: number, waterLoading = false): string {
   if (daysUntil === 0) return 'Rehydrate';
-  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
-  const ozPerLb = WATER_OZ_PER_LB[key as keyof typeof WATER_OZ_PER_LB] ?? 0.5;
-  if (ozPerLb <= 0.1) return 'Sips only';
-  let totalOz = ozPerLb * weightLbs;
-  // Cap loading days for heavyweights
-  if (ozPerLb > 0.5) totalOz = Math.min(totalOz, MAX_WATER_LOADING_OZ);
-  const gallons = totalOz / 128;
-  // Round to nearest 0.25
-  const rounded = Math.round(gallons * 4) / 4;
+  const oz = getWaterTargetOz(daysUntil, weightLbs, waterLoading);
+  if (oz < 64) return `${oz} oz`;
+  const rounded = Math.round((oz / 128) * 4) / 4;
   return `${rounded.toFixed(rounded % 1 === 0 ? 1 : 2)} gal`;
 }
 
 /**
- * Get sodium info for a given day.
+ * The weight water amounts are based on: the latest morning weight from before any
+ * loaded water (4+ days out), so loaded water doesn't raise the next day's target.
+ * Falls back to the latest morning weight, then any weight, then walk-around.
  */
+export function getWaterBaseWeight(
+  logs: { weight: number; date: Date | string; type: string }[],
+  weighInDate: Date,
+  targetWeightClass: number,
+): number {
+  const byNewest = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Mornings up to and including the first loading day (4 days out) are weighed before any extra water.
+  const afterFirstLoadingMorning = new Date(weighInDate);
+  afterFirstLoadingMorning.setHours(0, 0, 0, 0);
+  afterFirstLoadingMorning.setDate(afterFirstLoadingMorning.getDate() - 3);
+  const mornings = byNewest.filter(l => l.type === 'morning');
+  const beforeLoading = mornings.find(l => new Date(l.date) < afterFirstLoadingMorning);
+  return (beforeLoading ?? mornings[0] ?? byNewest[0])?.weight ?? Math.round(targetWeightClass * 1.07);
+}
+
+/** Sodium: normal every day in both plans (no loading or cutting). */
+export const SODIUM_NORMAL_MG = 3000;
+
 export function getSodiumTarget(daysUntil: number) {
-  const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
-  return SODIUM_MG_BY_DAY[key as keyof typeof SODIUM_MG_BY_DAY] ?? SODIUM_MG_BY_DAY[-1];
+  if (daysUntil === 0) return { target: 0, label: 'Normal after weigh-in', color: 'text-cyan-500' };
+  return { target: SODIUM_NORMAL_MG, label: 'Normal', color: 'text-primary' };
 }
 
 // Phase definitions
@@ -466,11 +465,11 @@ export const UI = {
  */
 export const WEIGHT_TARGET_BY_DAYS_OUT = {
   // Days until weigh-in -> multiplier of target weight class
-  // Note: Water loading days (5, 4, 3) add 2-4 lbs ON TOP of these multipliers
-  5: 1.07,  // 5 days out: walk-around + water loading (+2-4 lbs)
-  4: 1.06,  // 4 days out: peak water loading (+2-4 lbs)
-  3: 1.05,  // 3 days out: last load day (+2-4 lbs)
-  2: 1.04,  // 2 days out: flush day (138 AM for 133 class, ~136 after practice)
+  // With water loading on, days 4-2 add 2-4 lbs ON TOP of these multipliers
+  5: 1.07,  // 5 days out: walk-around
+  4: 1.06,  // 4 days out
+  3: 1.05,  // 3 days out
+  2: 1.04,  // 2 days out (138 AM for 133 class)
   1: 1.03,  // 1 day out: critical checkpoint (137 lbs for 133 class)
   0: 1.00,  // Competition day: make weight
   [-1]: 1.07, // Recovery day: back to walk-around
@@ -483,14 +482,6 @@ export const WATER_LOADING_RANGE = {
   MIN: 2,
   MAX: 4,
 } as const;
-
-/**
- * Days that include water loading bonus (protocols 1 & 2 only)
- * Mon-Wed only (5,4,3 days out). Thursday (2 days out) is the
- * restriction/cutoff phase — water intake drops sharply to trigger
- * continued high urine output via suppressed ADH.
- */
-export const WATER_LOADING_DAYS = [5, 4, 3] as const;
 
 /**
  * Get the weight multiplier for a given number of days until weigh-in
@@ -510,11 +501,12 @@ export function getWeightMultiplier(daysUntil: number): number {
 /**
  * Check if a given day is a water loading day
  */
-export function isWaterLoadingDay(daysUntil: number, protocol: string): boolean {
+export function isWaterLoadingDay(daysUntil: number, protocol: string, waterLoading = false): boolean {
+  if (!waterLoading) return false;
   if (protocol !== PROTOCOLS.EXTREME_CUT && protocol !== PROTOCOLS.RAPID_CUT && protocol !== PROTOCOLS.OPTIMAL_CUT) {
     return false;
   }
-  return WATER_LOADING_DAYS.includes(daysUntil as 5 | 4 | 3);
+  return WATER_LOADING_DAYS.includes(daysUntil as 4 | 3 | 2);
 }
 
 /**
@@ -525,12 +517,12 @@ export function calculateTargetWeight(
   targetWeightClass: number,
   daysUntil: number,
   protocol: string,
-  includeWaterLoading: boolean = true
+  waterLoadingOn: boolean = false
 ): { base: number; withWaterLoad: number | null; range: { min: number; max: number } | null } {
   const multiplier = getWeightMultiplier(daysUntil);
   const base = Math.round(targetWeightClass * multiplier);
 
-  const waterLoading = includeWaterLoading && isWaterLoadingDay(daysUntil, protocol);
+  const waterLoading = isWaterLoadingDay(daysUntil, protocol, waterLoadingOn);
 
   if (waterLoading) {
     return {
@@ -556,9 +548,10 @@ export function calculateTargetWeight(
 export function formatWeightTarget(
   targetWeightClass: number,
   daysUntil: number,
-  protocol: string
+  protocol: string,
+  waterLoadingOn = false
 ): string {
-  const target = calculateTargetWeight(targetWeightClass, daysUntil, protocol);
+  const target = calculateTargetWeight(targetWeightClass, daysUntil, protocol, waterLoadingOn);
 
   if (target.range) {
     return `${target.range.min}-${target.range.max}`;
@@ -570,10 +563,14 @@ export function formatWeightTarget(
 /**
  * Get phase name based on days until weigh-in
  */
-export function getPhaseForDaysUntil(daysUntil: number): string {
+export function getPhaseForDaysUntil(daysUntil: number, waterLoading = false): string {
   if (daysUntil < 0) return 'Recover';
   if (daysUntil === 0) return 'Compete';
+  if (waterLoading) {
+    if (daysUntil === 1) return 'Cut';
+    if (daysUntil <= 4) return 'Load';
+    return 'Train';
+  }
   if (daysUntil <= 2) return 'Cut';
-  if (daysUntil <= 5) return 'Load';
   return 'Train';
 }

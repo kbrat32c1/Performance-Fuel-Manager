@@ -9,21 +9,24 @@ interface WeighInCountdownProps {
 }
 
 export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInCountdownProps) {
-  const { getTimeUntilWeighIn } = useStore();
+  const { getTimeUntilWeighIn, profile } = useStore();
   const timeLeft = getTimeUntilWeighIn();
+  const waterLoading = profile.waterLoading === true;
 
   // Day-specific messaging based on days until weigh-in
   const getMessage = () => {
-    if (daysUntilWeighIn === 5) return "Water loading day 1";
-    if (daysUntilWeighIn === 4) return "Peak water loading today";
-    if (daysUntilWeighIn === 3) return "Last water loading day";
-    if (daysUntilWeighIn === 2) return "Water restriction — zero fiber";
-    if (daysUntilWeighIn === 1) return "Final cut — sip only";
+    if (waterLoading) {
+      if (daysUntilWeighIn === 4) return "Water loading day 1";
+      if (daysUntilWeighIn === 3) return "Water loading day 2";
+      if (daysUntilWeighIn === 2) return "Last water loading day";
+      if (daysUntilWeighIn === 1) return "Lighter water day";
+    }
+    if (daysUntilWeighIn === 1) return "Day before weigh-in";
     return "Until weigh-in";
   };
 
   // Use phase-based colors matching the rest of the app
-  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn);
+  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, waterLoading);
   const colors = { bg: phaseStyle.bgMedium, border: phaseStyle.border, text: phaseStyle.text };
   const isDayBefore = daysUntilWeighIn === 1;
 

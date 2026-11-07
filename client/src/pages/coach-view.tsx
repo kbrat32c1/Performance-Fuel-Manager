@@ -32,6 +32,7 @@ interface SharedProfile {
   weigh_in_date: string;
   weigh_in_time: string;
   protocol: number;
+  water_loading?: boolean;
 }
 
 interface SharedLog {
@@ -127,7 +128,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
   const todayStr = format(today, 'yyyy-MM-dd');
   const weighInDate = startOfDay(new Date(profile.weigh_in_date));
   const daysUntilWeighIn = differenceInDays(weighInDate, today);
-  const currentPhase = getPhaseForDaysUntil(daysUntilWeighIn);
+  const currentPhase = getPhaseForDaysUntil(daysUntilWeighIn, profile.water_loading === true);
 
   // Sort all logs newest first
   const sortedLogs = useMemo(() =>
@@ -279,7 +280,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
       const d = addDays(weekMonday, i);
       const dStr = format(d, 'yyyy-MM-dd');
       const dUntil = differenceInDays(weighInDate, d);
-      const phase = getPhaseForDaysUntil(dUntil);
+      const phase = getPhaseForDaysUntil(dUntil, profile.water_loading === true);
       const multiplier = getWeightMultiplier(dUntil);
       const target = Math.round(profile.target_weight_class * multiplier * 10) / 10;
 
@@ -304,7 +305,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
 
   // Water target for today — uses shared constants (includes MAX_WATER_LOADING_OZ safety cap)
   const waterTarget = useMemo(() => {
-    return getWaterTargetOz(daysUntilWeighIn, currentWeight);
+    return getWaterTargetOz(daysUntilWeighIn, currentWeight, profile.water_loading === true);
   }, [daysUntilWeighIn, currentWeight]);
 
   return (

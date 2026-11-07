@@ -60,6 +60,7 @@ export interface AthleteProfile {
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
   nutritionPreference: 'spar' | 'sugar'; // slices or grams
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
+  waterLoading?: boolean; // Opt-in water loading plan (off = steady hydration all week)
 
   // SPAR v2 fields
   sparV2?: boolean; // Flag to indicate using v2 calculator

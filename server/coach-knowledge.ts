@@ -25,7 +25,7 @@ Aggressive protocol with extended zero-protein for maximum FGF21 activation.
 ### 1 Day Out (Performance Prep / Final Cut):
 - Carbs: 200-300g fructose + MCT oil
 - Protein: 0.2g/lb evening collagen ONLY
-- Water: 0.08 oz/lb (sips only)
+- Water: steady 0.7 oz/lb; if water loading is on: 0.23 oz/lb (15 ml/kg)
 - Key: GDF15 peak. Zero fiber - gut must be empty. MCT for energy without gut weight.
 
 ### Competition Day:
@@ -72,7 +72,7 @@ Standard weekly cut with strategic fructose/glucose switching.
 ### 1 Day Out (Zero Fiber Day):
 - Carbs: 300-400g ZERO FIBER (white rice, rice cakes, juice ONLY)
 - Protein: 60g (collagen + seafood)
-- Water: 0.08 oz/lb (sips only)
+- Water: steady 0.7 oz/lb; if water loading is on: 0.23 oz/lb (15 ml/kg)
 - CRITICAL: Zero fiber. Gut must empty overnight. No vegetables!
 
 ### Competition Day:
@@ -111,24 +111,21 @@ Off-season building with maximum protein.
 `;
 
 const WATER_PROTOCOL = `
-## WATER LOADING PROTOCOL (Protocols 1-4)
+## WATER PLAN (athlete's choice — see "Water loading: on/off" in context)
 
-PURPOSE: Prime ADH (antidiuretic hormone) to flush water rapidly when restriction begins.
+- **Off (default) — steady hydration**: about 0.7 oz/lb (~46 ml/kg) every day. Weigh-in day: drink after weighing in.
+- **On — water loading** (the one schedule tested, Reale et al. 2018):
+  - 4, 3 and 2 days out: ~1.5 oz/lb (100 ml/kg)
+  - 1 day out: ~0.23 oz/lb (15 ml/kg) — lighter day, never "sips only"
+  - 0 (weigh-in): nothing until weigh-in, then 16-24 oz the first hour
+  - Expect 2-4 lbs over target on loading days — normal
+  - Adds about 1 lb of extra loss. NCAA weigh-ins are 1-2 hours before competition, so there's little time to rehydrate.
 
-### Day-by-Day Schedule:
-- 6+ days: 0.5 oz/lb (regular)
-- 5 days: 1.2 oz/lb (loading begins)
-- 4 days: 1.5 oz/lb (peak loading)
-- 3 days: 1.5 oz/lb (peak continues)
-- 2 days: 0.3 oz/lb (SHARP restriction - body keeps flushing)
-- 1 day: 0.08 oz/lb (sips only - final cut)
-- 0: Nothing until weigh-in, then 16-24 oz first hour
-
-### Critical Notes:
-- Water loading ONLY works if you actually load. Half-measures fail.
-- Max cap: 320 oz (~2.5 gal) per day for safety
-- During loading (3-5 days out): expect 2-4 lbs over target - NORMAL
-- The water comes off rapidly on days 1-2
+### Rules:
+- Never recommend "sips only", going below 15 ml/kg, or a second restriction day.
+- Base amounts on the normal morning weight from before loading.
+- Max cap: 320 oz (~2.5 gal) per day.
+- Sodium stays normal (~3,000 mg/day) — no salt loading or cutting.
 `;
 
 const FOOD_TIMING = `

@@ -104,7 +104,7 @@ export function getPhaseStyle(phase: string): PhaseStyle {
 }
 
 /** Get phase style for a given days-until-weigh-in value */
-export function getPhaseStyleForDaysUntil(daysUntil: number): { phase: string; style: PhaseStyle } {
-  const phase = getPhaseForDaysUntil(daysUntil);
+export function getPhaseStyleForDaysUntil(daysUntil: number, waterLoading = false): { phase: string; style: PhaseStyle } {
+  const phase = getPhaseForDaysUntil(daysUntil, waterLoading);
   return { phase, style: getPhaseStyle(phase) };
 }

@@ -242,6 +242,7 @@ export function AiCoachProactive() {
       daysUntilWeighIn: daysUntil,
       weightToLose: weightToLose.toFixed(1),
       protocol: profile.protocol,
+      waterLoading: profile.waterLoading === true,
       phase: getPhase(),
       status: getStatus().status,
     };

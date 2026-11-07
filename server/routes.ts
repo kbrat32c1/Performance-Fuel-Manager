@@ -1023,6 +1023,7 @@ Respond ONLY with this JSON structure:
       };
       if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || ctx.protocol}`);
       if (ctx.phase) contextLines.push(`Current phase: ${ctx.phase}`);
+      if (typeof ctx.waterLoading === 'boolean') contextLines.push(`Water loading: ${ctx.waterLoading ? 'on' : 'off (steady hydration)'}`);
       if (ctx.status) contextLines.push(`Status: ${ctx.status}`);
 
       // Daily targets
@@ -1126,7 +1127,7 @@ Respond ONLY with this JSON structure:
       // Look up athlete profile by share_token
       const { data: profile, error: profileErr } = await supabase
         .from("profiles")
-        .select("user_id, name, last_name, current_weight, target_weight_class, weigh_in_date, weigh_in_time, protocol")
+        .select("user_id, name, last_name, current_weight, target_weight_class, weigh_in_date, weigh_in_time, protocol, water_loading")
         .eq("share_token", token)
         .single();
 

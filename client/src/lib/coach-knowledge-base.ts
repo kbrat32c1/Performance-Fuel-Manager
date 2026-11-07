@@ -16,21 +16,21 @@ export const PROTOCOL_KNOWLEDGE = {
         phase: 'Metabolic/Maintenance',
         carbs: '300-450g (balanced)',
         protein: '75-100g',
-        water: '0.5 oz/lb (regular)',
+        water: '0.7 oz/lb (steady)',
         key: 'Eat normally, build strength for the cut ahead'
       },
       '5-2': {
         phase: 'Water Loading + Zero Protein',
         carbs: '250-400g (FRUCTOSE ONLY)',
         protein: '0g - NO PROTEIN',
-        water: 'Days 5-3: 1.2-1.5 oz/lb (loading). Day 2: 0.3 oz/lb (restriction)',
+        water: 'Days 4-2: steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb',
         key: 'Max FGF21 activation. Fructose only (agave, honey, fruit juice, mangoes). Zero protein triggers fat burning. Water loading flushes sodium and primes ADH for day 1 cut.'
       },
       '1': {
         phase: 'Performance Prep / Final Cut',
         carbs: '200-300g (fructose + MCT oil)',
         protein: '0.2g/lb (evening collagen only)',
-        water: '0.08 oz/lb (sips only)',
+        water: 'steady 0.7 oz/lb; if water loading is on: 0.23 oz/lb (15 ml/kg)',
         key: 'GDF15 peak for appetite suppression. Small collagen dose evening only. Zero fiber - gut must be empty. MCT for quick energy without gut weight.'
       },
       '0': {
@@ -64,28 +64,28 @@ export const PROTOCOL_KNOWLEDGE = {
         phase: 'Water Loading + Fructose',
         carbs: '325-450g (fructose heavy 60:40)',
         protein: '0g - NO PROTEIN',
-        water: '1.2-1.5 oz/lb (loading)',
+        water: '0.7 oz/lb (steady)',
         key: 'Fructose only for liver glycogen. No protein maximizes fat burning. Water loading begins.'
       },
       '3': {
         phase: 'Fructose + Minimal Protein',
         carbs: '325-450g (fructose heavy)',
         protein: '25g (collagen + leucine at dinner)',
-        water: '1.5 oz/lb (peak loading)',
+        water: 'steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb',
         key: 'Add small protein dose. Peak water loading. Sodium still normal.'
       },
       '2': {
         phase: 'Glucose Switch Day',
         carbs: '300-400g (glucose/starch - switch from fructose)',
         protein: '60g (collagen + seafood)',
-        water: '0.3 oz/lb (sharp restriction)',
+        water: 'steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb',
         key: 'CRITICAL: Switch to glucose/starch (white rice, potatoes). Fructose exits liver. Water restriction begins - ADH response.'
       },
       '1': {
         phase: 'Zero Fiber Day',
         carbs: '300-400g (ZERO FIBER - white rice, rice cakes, juice)',
         protein: '60g (collagen + seafood)',
-        water: '0.08 oz/lb (sips only)',
+        water: 'steady 0.7 oz/lb; if water loading is on: 0.23 oz/lb (15 ml/kg)',
         key: 'CRITICAL: Zero fiber. Gut must empty overnight. White rice, rice cakes, apple juice, white bread only. No vegetables.'
       },
       '0': {
@@ -111,7 +111,7 @@ export const PROTOCOL_KNOWLEDGE = {
       '6+': { phase: 'Maintenance', carbs: '300-450g', protein: '100g', water: '0.5 oz/lb', key: 'Regular eating' },
       '5': { phase: 'Light Manipulation', carbs: '300-450g (fructose heavy)', protein: '25g (collagen)', water: '0.5 oz/lb', key: 'Small adjustments only' },
       '4-3': { phase: 'Mixed', carbs: '300-450g', protein: '75g', water: '0.5 oz/lb', key: 'Mixed carb sources' },
-      '2-1': { phase: 'Performance', carbs: '300-450g (glucose)', protein: '100g', water: '0.3-0.08 oz/lb', key: 'Glucose focus for performance' },
+      '2-1': { phase: 'Performance', carbs: '300-450g (glucose)', protein: '100g', water: 'Day 2: steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb. Day 1: steady 0.7 oz/lb; if water loading is on: 0.23 oz/lb (15 ml/kg)', key: 'Glucose focus for performance' },
       '0': { phase: 'Competition', carbs: '200-400g', protein: '0.5g/lb', water: 'Rehydrate', key: 'Competition fueling' },
       '-1': { phase: 'Recovery', carbs: '300-450g', protein: '1.4g/lb', water: '0.75 oz/lb', key: 'Full recovery' }
     }
@@ -136,24 +136,21 @@ export const PROTOCOL_KNOWLEDGE = {
 // ─── WATER PROTOCOL ─────────────────────────────────────────────────────────
 
 export const WATER_PROTOCOL = `
-## WATER LOADING PROTOCOL (Protocols 1-4)
+## WATER PLAN (athlete's choice — see "Water loading: on/off" in context)
 
-PURPOSE: Prime the body's ADH (antidiuretic hormone) to flush water rapidly when restriction begins.
+- **Off (default) — steady hydration**: about 0.7 oz/lb (~46 ml/kg) every day. Weigh-in day: drink after weighing in.
+- **On — water loading** (the one schedule tested, Reale et al. 2018):
+  - 4, 3 and 2 days out: ~1.5 oz/lb (100 ml/kg)
+  - 1 day out: ~0.23 oz/lb (15 ml/kg) — lighter day, never "sips only"
+  - 0 (weigh-in): nothing until weigh-in, then 16-24 oz the first hour
+  - Expect 2-4 lbs over target on loading days — normal
+  - Adds about 1 lb of extra loss. NCAA weigh-ins are 1-2 hours before competition, so there's little time to rehydrate.
 
-### Day-by-Day Schedule:
-- **6+ days out**: 0.5 oz/lb (regular hydration)
-- **5 days out**: 1.2 oz/lb (loading begins)
-- **4 days out**: 1.5 oz/lb (peak loading)
-- **3 days out**: 1.5 oz/lb (peak continues)
-- **2 days out**: 0.3 oz/lb (SHARP restriction - body keeps flushing)
-- **1 day out**: 0.08 oz/lb (sips only - final cut)
-- **0 (weigh-in)**: 0 until weigh-in, then rehydrate 16-24 oz first hour
-
-### Critical Notes:
-- Water loading ONLY works if you actually load. Half-measures don't trigger ADH.
-- Max cap: 320 oz (~2.5 gallons) per day for safety
-- During loading (3-5 days out), expect to be 2-4 lbs over target - this is NORMAL
-- The water comes off rapidly on days 1-2 when restriction begins
+### Rules:
+- Never recommend "sips only", going below 15 ml/kg, or a second restriction day.
+- Base amounts on the normal morning weight from before loading.
+- Max cap: 320 oz (~2.5 gal) per day.
+- Sodium stays normal (~3,000 mg/day) — no salt loading or cutting.
 `;
 
 // ─── FOOD TIMING ────────────────────────────────────────────────────────────

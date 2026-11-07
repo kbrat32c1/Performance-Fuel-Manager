@@ -65,6 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || sanitizeForPrompt(ctx.protocol)}`);
     if (ctx.phase) contextLines.push(`Current phase: ${sanitizeForPrompt(ctx.phase)}`);
+    if (typeof ctx.waterLoading === 'boolean') contextLines.push(`Water loading: ${ctx.waterLoading ? 'on' : 'off (steady hydration)'}`);
     if (ctx.status) contextLines.push(`Status: ${sanitizeForPrompt(ctx.status)}`);
 
     if (ctx.macroTargets) {
@@ -156,34 +157,23 @@ PROTOCOL 4 (Gain):
 • Glucose/starch (1-2 days out): Goes straight to muscle glycogen for explosive energy. Switch to white rice, potatoes (peeled), rice cakes. Zero fiber because fiber = gut weight that stays through weigh-in.
 • Zero protein (4-5 days out, protocols 1&2): Protein triggers insulin and mTOR pathways that shut down fat oxidation. Removing it lets the body burn more actual body fat.
 
-═══ WATER & SODIUM PROTOCOL ═══
-Based on research: PubMed 29182412, ISSN Position Stand PMC11894756.
-Protocol: 3 days water load → 1 day restrict → 1 day sips → weigh-in → rehydrate.
-Water is scaled by body weight (oz per lb):
-
-• 5 days out: 1.2 oz/lb (~1.0-1.5 gal) — Baseline loading
-• 4 days out: 1.5 oz/lb (~1.5-2.0 gal) — PEAK loading, maximize diuresis
-• 3 days out: 1.5 oz/lb (~1.5-2.0 gal) — Peak loading continues
-• 2 days out: 0.3 oz/lb — SHARP RESTRICTION. ADH still suppressed from loading = high urine output continues even with low intake. This is key to the water cut
-• 1 day out: 0.08 oz/lb — SIPS ONLY (~5 ml/kg). Final flush
-• Competition day: 0 until weigh-in → REHYDRATE immediately after
-• Recovery: 0.75 oz/lb — normalize
-
-SODIUM SCHEDULE:
-• 5-3 days out: 5,000 mg/day — salt-load (trains kidneys to excrete aggressively)
-• 2 days out: 2,500 mg — stop adding salt (kidneys still excreting at high rate)
-• 1 day out: <1,000 mg — minimal sodium
-• Competition day: Reintroduce post weigh-in
-• Recovery: 3,000 mg — replenish
-
-MAX WATER CAP: 320 oz (~2.5 gal) for safety regardless of body weight.
+═══ WATER ═══
+Each athlete chooses a water plan; the context says which ("Water loading: on/off").
+• Off (default) — steady hydration: about 0.7 oz per lb body weight (~46 ml/kg) every day. Weigh-in day: drink after weighing in.
+• On — water loading, the one schedule tested (Reale et al. 2018, PubMed 29182412):
+  - 4, 3 and 2 days out: ~1.5 oz/lb (100 ml/kg)
+  - 1 day out: ~0.23 oz/lb (15 ml/kg) — a lighter day, not "sips only"
+  - Weigh-in day: drink after weighing in
+  It added about 0.6% of body weight (~1 lb) of extra loss. That study gave athletes about a day to recover; NCAA weigh-ins are 1 hour (duals) or 2 hours (tournaments) before competition, so the wrestler competes with less time to rehydrate.
+Never recommend a "sips only" day, going below 15 ml/kg, or cutting fluids further. Base amounts on the normal morning weight from before loading. Cap any day at 320 oz (~2.5 gal).
+Sodium stays normal (~3,000 mg/day) all week in both plans; don't recommend salt loading or cutting sodium.
 
 ═══ WEIGHT TARGETS BY DAY ═══
 Target weight = competition weight × multiplier:
-• 5 days out: ×1.07 + water loading bonus (2-4 lbs)
-• 4 days out: ×1.06 + water loading bonus (2-4 lbs)
-• 3 days out: ×1.05 + water loading bonus (2-4 lbs)
-• 2 days out: ×1.04 (flush day — should be dropping)
+• 5 days out: ×1.07
+• 4 days out: ×1.06 (+2-4 lbs if water loading is on)
+• 3 days out: ×1.05 (+2-4 lbs if water loading is on)
+• 2 days out: ×1.04 (+2-4 lbs if water loading is on)
 • 1 day out: ×1.03 (critical checkpoint)
 • Competition: ×1.00 (make weight)
 • Recovery: ×1.07 (back to walk-around)
