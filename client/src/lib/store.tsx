@@ -54,7 +54,7 @@ import { inferMealSection, defaultUserFoods, defaultProfile, defaultTanks } from
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // ── Instant startup from localStorage caches ──
   // Load cached data immediately so the UI renders without waiting for Supabase.
@@ -562,8 +562,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Load data when user changes
+  // Load data when user changes. While Supabase is still restoring the session on a fresh
+  // page load, user is null but nobody has signed out: keep the cached data and keep loading,
+  // or the route guard sees a blank, not-onboarded profile and bounces deep links to the dashboard.
   useEffect(() => {
+    if (authLoading) return;
     if (user) {
       loadFromSupabase();
     } else {
@@ -578,7 +581,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setUserFoods(defaultUserFoods);
       setIsLoading(false);
     }
-  }, [user, loadFromSupabase, refreshSyncStatus]);
+  }, [user, authLoading, loadFromSupabase, refreshSyncStatus]);
 
   // Save profile to Supabase
   const updateProfile = async (updates: Partial<AthleteProfile>, options?: { silent?: boolean }) => {

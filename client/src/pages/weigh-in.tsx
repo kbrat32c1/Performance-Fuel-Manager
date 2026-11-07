@@ -235,7 +235,7 @@ function DescentLine({ dateKey }: { dateKey: string }) {
     <Link href="/descent" className="flex min-h-11 items-center justify-between rounded-xl border border-muted px-3 py-2 text-sm">
       {row ? (
         <span>
-          Lowest allowed <strong className="font-mono">{row.allowed.toFixed(2)}</strong> · class <strong className="font-mono">{row.eligibleClass}</strong> open
+          Eligible weight <strong className="font-mono">{row.allowed.toFixed(2)}</strong> · eligible for <strong className="font-mono">{row.eligibleClass}</strong>
         </span>
       ) : (
         <span className="text-muted-foreground">{plan ? 'Descent plan starts later' : 'Set up your descent plan'}</span>

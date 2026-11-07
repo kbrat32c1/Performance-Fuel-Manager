@@ -176,16 +176,16 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
       {today ? (
         <section className="rounded-xl border border-muted bg-card px-3 py-3" aria-label="Today">
           <div className="grid grid-cols-2 gap-3">
-            <Fact label="Lowest allowed today" value={`${lb(today.allowed)} lb`} />
-            <Fact label="Lightest class open" value={String(today.eligibleClass)} />
+            <Fact label="Eligible weight today" value={`${lb(today.allowed)} lb`} />
+            <Fact label="Lowest eligible class" value={String(today.eligibleClass)} />
           </div>
           {diff !== null && (
             <p className="mt-2 text-xs text-muted-foreground">
-              This morning {morning!.toFixed(1)} lb · {Math.abs(diff) < 0.005 ? 'at the line' : `${Math.abs(diff).toFixed(2)} ${diff > 0 ? 'above' : 'below'} the line`}
+              This morning {morning!.toFixed(1)} lb · {Math.abs(diff) < 0.005 ? 'at eligible weight' : `${Math.abs(diff).toFixed(2)} ${diff > 0 ? 'above' : 'below'} eligible weight`}
             </p>
           )}
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Minimum {lb(plan.minimumWeight)} lb (class {saved.minimumClass}) · {saved.weeklyLoss.toFixed(2)} lb/week from {plan.initialWeight.toFixed(2)} lb ·{' '}
+            Minimum weight {lb(plan.minimumWeight)} · minimum weight class {saved.minimumClass} · initial weight {plan.initialWeight.toFixed(2)} · weight loss per week {saved.weeklyLoss.toFixed(2)} ·{' '}
             <button type="button" onClick={onEdit} className="underline">Edit</button>
           </p>
         </section>
@@ -229,7 +229,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
             <thead className="bg-muted/30 text-[11px] text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 text-left font-bold">Date</th>
-                <th className="px-2 py-2 text-right font-bold">Allowed</th>
+                <th className="px-2 py-2 text-right font-bold">Eligible wt</th>
                 <th className="px-2 py-2 text-right font-bold">Class</th>
                 <th className="px-3 py-2 text-right font-bold">Weigh-in</th>
               </tr>
@@ -241,7 +241,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
                     <button type="button"
                       onClick={() => setExpandedRuns(prev => { const next = new Set(prev); for (let d = item.from; d <= item.to; d = addDaysKey(d, 1)) next.add(d); return next; })}
                       className="flex min-h-10 w-full items-center justify-between text-left text-xs text-muted-foreground">
-                      <span>{shortDate(item.from)} – {shortDate(item.to)} · {item.count} days at the minimum</span>
+                      <span>{shortDate(item.from)} – {shortDate(item.to)} · {item.count} days at minimum weight</span>
                       <span className="font-mono">{lb(item.allowed)} · {item.eligibleClass}</span>
                     </button>
                   </td>
@@ -276,7 +276,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
           {(previewDates.length > 0 || shown.rows.some(r => r.weighIn && !r.weighIn.counted)) && (
             <p className="border-t border-muted px-3 py-2 text-[11px] text-muted-foreground">
               {previewDates.length > 0 && <span className="italic text-primary">Orange italic = preview, not saved. </span>}
-              {shown.rows.some(r => r.weighIn && !r.weighIn.counted) && '* Not counted toward the line.'}
+              {shown.rows.some(r => r.weighIn && !r.weighIn.counted) && '* Not counted (below eligible weight or day 2 of a tournament).'}
             </p>
           )}
         </div>
@@ -307,17 +307,17 @@ function PreviewImpact({ date, weighIn, saved, shown }: { date: string; weighIn:
   const before = rowOn(saved, addDaysKey(date, 1));
   const head = `${shortDate(date)} at ${weighIn.weight.toFixed(2)}${weighIn.allowance ? ` (+${weighIn.allowance})` : ''}:`;
   if (!row?.weighIn?.counted) {
-    const why = row?.weighIn?.reason === 'second-day' ? 'day 2 of the same tournament' : `below the ${row ? lb(row.allowed) : ''} lb line`;
+    const why = row?.weighIn?.reason === 'second-day' ? 'day 2 of the same tournament' : `below eligible weight of ${row ? lb(row.allowed) : ''}`;
     return <p>{head} would not count ({why}). The plan would not change.</p>;
   }
   const closes = before && next && next.eligibleClass > before.eligibleClass;
   const reopens = closes ? firstOpenDate(shown, before!.eligibleClass, addDaysKey(date, 1)) : null;
   return (
     <p>
-      {head} next day <strong className="font-mono">{next ? lb(next.allowed) : '—'}</strong> (class {next?.eligibleClass}).{' '}
+      {head} next day's eligible weight <strong className="font-mono">{next ? lb(next.allowed) : '—'}</strong>, eligible class {next?.eligibleClass}.{' '}
       {closes
-        ? <><strong>{before!.eligibleClass}</strong> opens again <strong>{reopens ? shortDate(reopens) : 'after this plan'}</strong>.</>
-        : before ? <>{before.eligibleClass} stays open.</> : null}
+        ? <>Not eligible for <strong>{before!.eligibleClass}</strong> until <strong>{reopens ? shortDate(reopens) : 'after this plan ends'}</strong>.</>
+        : before ? <>Still eligible for {before.eligibleClass}.</> : null}
     </p>
   );
 }

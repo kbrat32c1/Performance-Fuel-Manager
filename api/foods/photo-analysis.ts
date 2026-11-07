@@ -6,7 +6,7 @@ import {
   scoreMatchConfidence,
   autoSparCategory,
   type MatchedFood,
-} from "./_fatsecret-utils";
+} from "./_fatsecret-utils.js";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -71,10 +71,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "server-side-fallback-2026-07-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
+        model: "claude-opus-5-5",
+        // Thinking is always on and shares max_tokens with the answer
+        max_tokens: 8000,
+        output_config: { effort: "low" },
+        fallbacks: "default",
         messages: [
           {
             role: "user",
@@ -117,7 +121,8 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
     }
 
     const aiData = await response.json();
-    const rawText = aiData.content?.[0]?.text || "";
+    // A thinking block comes before the answer; read the text block
+    const rawText = aiData.content?.find((b: any) => b.type === "text")?.text || "";
 
     let parsed;
     try {
@@ -152,7 +157,7 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
         const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
         const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
         const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
-        const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber) || 'carb';
+        const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber, undefined, String(food.name || "")) || 'carb';
         const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
 
         let fbSliceCount = 0;

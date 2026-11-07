@@ -46,6 +46,44 @@ describe('round', () => {
 
 // ─── autoSparCategory() ──────────────────────────────────────────────────────
 
+describe('autoSparCategory with everyday foods (name first, then macros)', () => {
+  // [name, calories, protein, carbs, fat, fiber, expected] per typical serving
+  const cases: Array<[string, number, number, number, number, number, string | null]> = [
+    ['Bananas', 105, 1.3, 27, 0.4, 3.1, 'fruit'],
+    ['Banana', 105, 1.3, 27, 0.4, 3.1, 'fruit'],
+    ['Apple', 95, 0.5, 25, 0.3, 4.4, 'fruit'],
+    ['Blueberries', 84, 1.1, 21, 0.5, 3.6, 'fruit'],
+    ['Strawberries', 49, 1, 12, 0.5, 3, 'fruit'],
+    ['Orange', 62, 1.2, 15, 0.2, 3.1, 'fruit'],
+    ['Broccoli', 55, 3.7, 11, 0.6, 5, 'veg'],
+    ['Spinach', 7, 0.9, 1.1, 0.1, 0.7, 'veg'],
+    ['Green Beans', 31, 1.8, 7, 0.2, 2.7, 'veg'],
+    ['Peppers, banana or Hungarian wax, raw', 27, 1.7, 5.4, 0.5, 3.4, 'veg'],
+    ['Carrots', 50, 1.1, 12, 0.3, 3.4, 'veg'],
+    ['Sweet Potato', 112, 2, 26, 0.1, 3.9, 'carb'],
+    ['Oatmeal', 158, 6, 27, 3.2, 4, 'carb'],
+    ['Black Beans', 227, 15.2, 40.8, 0.9, 15, 'carb'],
+    ['Whole Wheat Bread', 81, 4, 14, 1.1, 1.9, 'carb'],
+    ['Banana Bread', 196, 2.6, 33, 6.3, 0.7, 'carb'],
+    ['Snacks, banana chips', 519, 2.3, 58.4, 33.6, 7.7, 'carb'],
+    ['Orange Juice', 112, 1.7, 26, 0.5, 0.5, 'carb'],
+    ['Babyfood, banana no tapioca, strained', 91, 1, 21.3, 0.2, 1.6, 'carb'],
+    ['Chicken Breast', 165, 31, 0, 3.6, 0, 'protein'],
+    ['Peanut Butter', 188, 8, 6, 16, 1.9, 'fat'],
+    ['Scrambled Eggs', 182, 12, 2, 13.4, 0, 'fat'],
+  ];
+  for (const [name, cal, pro, carb, fat, fib, expected] of cases) {
+    it(`${name} -> ${expected}`, () => {
+      expect(autoSparCategory(cal, pro, carb, fat, fib, undefined, name)).toBe(expected);
+    });
+  }
+
+  it('still guesses from macros when there is no name', () => {
+    expect(autoSparCategory(105, 1.3, 27, 0.4, 3.1)).toBe('carb'); // banana-like, not a vegetable
+    expect(autoSparCategory(55, 3.7, 11, 0.6, 5)).toBe('veg');     // broccoli-like: low calorie, high fiber
+  });
+});
+
 describe('autoSparCategory', () => {
   it('returns null for zero-calorie, zero-protein food', () => {
     expect(autoSparCategory(0, 0, 0, 0, 0)).toBeNull();

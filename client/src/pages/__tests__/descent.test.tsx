@@ -47,7 +47,7 @@ describe('Descent plan page', () => {
     const today = within(screen.getByRole('region', { name: 'Today' }));
     expect(today.getByText('114.41 lb')).toBeInTheDocument();
     expect(today.getByText('125')).toBeInTheDocument();
-    expect(screen.getByText(/This morning 118.6 lb · 4.19 above the line/)).toBeInTheDocument();
+    expect(screen.getByText(/This morning 118.6 lb · 4.19 above eligible weight/)).toBeInTheDocument();
   });
 
   function openRow(label: string) {
@@ -60,8 +60,8 @@ describe('Descent plan page', () => {
     fireEvent.change(screen.getByLabelText('Weight (lb)'), { target: { value: '133.0' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     const preview = screen.getByRole('region', { name: 'Preview' });
-    expect(preview).toHaveTextContent('next day 132.70 (class 133)');
-    expect(preview).toHaveTextContent('125 opens again Mon, Dec 14');
+    expect(preview).toHaveTextContent("next day's eligible weight 132.70, eligible class 133");
+    expect(preview).toHaveTextContent('Not eligible for 125 until Mon, Dec 14');
     expect(hook.save).not.toHaveBeenCalled();
   });
 
@@ -99,7 +99,7 @@ describe('Descent plan page', () => {
     openRow('Fri, Nov 6');
     fireEvent.change(screen.getByLabelText('Weight (lb)'), { target: { value: '110' } });
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
-    expect(screen.getByRole('region', { name: 'Preview' })).toHaveTextContent('would not count (below the');
+    expect(screen.getByRole('region', { name: 'Preview' })).toHaveTextContent('would not count (below eligible weight of');
   });
 
   it('asks before removing an official weigh-in', async () => {

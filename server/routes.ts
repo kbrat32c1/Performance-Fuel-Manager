@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
+import { autoSparCategory } from "../api/foods/_fatsecret-utils.js";
 
 // ─── API Response Types ───────────────────────────────────────────────────────
 interface USDAFoodNutrient {
@@ -357,21 +358,6 @@ export async function registerRoutes(
     } catch { return null; }
   }
 
-  function autoSparCategory(cal: number, p: number, c: number, f: number, fib: number, foodCategory?: string): string | null {
-    if (cal <= 0 && p <= 0) return null;
-    const cat = (foodCategory || "").toLowerCase();
-    if (cat.includes("fruit") && !cat.includes("baby")) return 'fruit';
-    if (cat.includes("vegetable")) return 'veg';
-    if (cal > 0) {
-      const pP = (p*4)/cal, cP = (c*4)/cal, fP = (f*9)/cal;
-      if (pP > 0.40) return 'protein';
-      if (fP > 0.60) return 'fat';
-      if (cP > 0.40 && fib > 3) return 'veg';
-      if (cP > 0.40) return 'carb';
-    }
-    return null;
-  }
-
   const rnd = (v: number) => Math.round(v * 10) / 10;
 
   // ── Shared helpers for FatSecret matching (used by voice-parse & photo-analysis) ──
@@ -421,7 +407,7 @@ export async function registerRoutes(
           servingSize: parseFloat(def.metric_serving_amount)||100,
           servingSizeUnit: def.metric_serving_unit||"g",
           servingSizeLabel: def.serving_description||"per serving",
-          sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type),
+          sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type, food.food_name),
           servings: servings.map((s: any) => ({
             id: s.serving_id||s.serving_description, description: s.serving_description||"serving",
             calories: rnd(parseFloat(s.calories)||0), protein: rnd(parseFloat(s.protein)||0),
@@ -546,7 +532,7 @@ export async function registerRoutes(
                   servingSize: parseFloat(def.metric_serving_amount)||100,
                   servingSizeUnit: def.metric_serving_unit||"g",
                   servingSizeLabel: def.serving_description||"per serving",
-                  sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type),
+                  sparCategory: autoSparCategory(cal, pro, carb, fat, fib, food.food_type, food.food_name),
                   servings: servings.map((s: any) => ({
                     id: s.serving_id||s.serving_description, description: s.serving_description||"serving",
                     calories: rnd(parseFloat(s.calories)||0), protein: rnd(parseFloat(s.protein)||0),
@@ -603,7 +589,7 @@ export async function registerRoutes(
       if (cal <= 0 && pro <= 0 && carb <= 0) return null;
       const ss = food.servingSize || 100;
       const ssu = food.servingSizeUnit || "g";
-      const sparCat = autoSparCategory(cal, pro, carb, fat, fib, food.foodCategory);
+      const sparCat = autoSparCategory(cal, pro, carb, fat, fib, food.foodCategory, food.description);
 
       return {
         id: String(food.fdcId), name: food.description || "",
@@ -660,10 +646,13 @@ export async function registerRoutes(
           "Content-Type": "application/json",
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
+          model: "claude-opus-5-5",
+          max_tokens: 8000,
+          output_config: { effort: "low" },
+          fallbacks: "default",
           messages: [{
             role: "user",
             content: [
@@ -741,7 +730,7 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
           const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
           const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
           const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
-          const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber) || 'carb';
+          const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber, undefined, String(food.name || "")) || 'carb';
           const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
 
           let fbSliceCount = 0;
@@ -829,11 +818,13 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
           "Content-Type": "application/json",
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1500,
-          temperature: 0,
+          model: "claude-opus-5-5",
+          max_tokens: 8000,
+          output_config: { effort: "low" },
+          fallbacks: "default",
           system: "You are a food identification parser. You MUST respond with ONLY a raw JSON object. No markdown, no explanation, no code fences, no backticks, no text before or after the JSON. Your entire response must be valid JSON starting with { and ending with }.",
           messages: [{
             role: "user",
@@ -910,7 +901,7 @@ Respond ONLY with this JSON structure:
           const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
           const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
           const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
-          const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber) || 'carb';
+          const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber, undefined, String(food.name || "")) || 'carb';
           const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
 
           let fbSliceCount = 0;
@@ -1073,10 +1064,13 @@ Respond ONLY with this JSON structure:
           "Content-Type": "application/json",
           "x-api-key": ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "server-side-fallback-2026-07-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 600, // Increased for more detailed responses
+          model: "claude-opus-5-5",
+          max_tokens: 4000, // thinking shares this budget with the answer
+          output_config: { effort: "low" },
+          fallbacks: "default",
           system: systemPrompt,
           messages: [{ role: "user", content: sanitizeForPrompt(question.trim()) }],
         }),
@@ -1089,7 +1083,7 @@ Respond ONLY with this JSON structure:
       }
 
       const aiData = await response.json();
-      const reply = aiData.content?.[0]?.text || "Sorry, I couldn't generate a recommendation.";
+      const reply = aiData.content?.find((b: any) => b.type === "text")?.text || "Sorry, I couldn't generate a recommendation.";
 
       return res.json({ recommendation: reply });
     } catch (err) {
