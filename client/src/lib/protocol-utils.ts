@@ -23,8 +23,8 @@ export const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: strin
   '2': {
     summary: 'Weekly cut protocol using water loading science to drop weight predictably each week.',
     points: [
-      '3-day water load (Mon-Wed) suppresses ADH hormone, increasing urine output',
-      'Sharp water restriction (Thu-Fri) exploits the delayed ADH response — your body keeps flushing water',
+      '3-day water load (5-3 days out) suppresses ADH hormone, increasing urine output',
+      'Sharp water restriction (2-1 days out) exploits the delayed ADH response — your body keeps flushing water',
       'Sodium loading + restriction amplifies the water drop',
       'Structured macro phasing keeps energy high for practice while cutting weight',
     ],

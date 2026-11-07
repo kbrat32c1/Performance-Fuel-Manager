@@ -1892,7 +1892,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         carbs = foods.highFructose;
         protein = []; // No protein allowed
         avoid = foods.avoid.filter(a =>
-          a.name.includes("Mon-Wed") || a.name.includes("Protein")
+          a.name.includes("5-3 days out") || a.name.includes("Protein")
         );
         carbsLabel = "Fructose Heavy (60:40)";
         proteinLabel = "NO PROTEIN";
@@ -1901,7 +1901,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         carbs = foods.highFructose;
         protein = foods.protein.filter(p => p.name.toLowerCase().includes("collagen"));
         avoid = foods.avoid.filter(a =>
-          a.name.includes("Mon-Wed") || (!a.name.includes("Collagen") && a.name.includes("Protein"))
+          a.name.includes("5-3 days out") || (!a.name.includes("Collagen") && a.name.includes("Protein"))
         );
         carbsLabel = "Fructose Heavy (60:40)";
         proteinLabel = "25g Collagen (Dinner)";
@@ -1909,10 +1909,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // 2-1 days out: Glucose/starch, 60g protein (collagen + seafood)
         carbs = daysUntil === 1 ? foods.zeroFiber : foods.highGlucose;
         protein = foods.protein.filter(p =>
-          p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+          p.timing?.includes("2-1 days out") || p.timing?.includes("3-1 days out") || p.timing?.includes("5-1 days out")
         );
         avoid = foods.avoid.filter(a =>
-          a.name.includes("Thu-Fri") || a.name.includes("Fiber")
+          a.name.includes("2-1 days out") || a.name.includes("Fiber")
         );
         carbsLabel = daysUntil === 1 ? "Zero Fiber (Critical)" : "Glucose Heavy (Switch Day)";
         proteinLabel = "60g Protein (Collagen + Seafood)";
@@ -1960,7 +1960,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // 4-3 days out: Mixed carbs, 75g protein
         carbs = foods.balanced;
         protein = foods.protein.filter(p =>
-          p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri") ||
+          p.timing?.includes("2-1 days out") || p.timing?.includes("3-1 days out") || p.timing?.includes("5-1 days out") ||
           p.name.toLowerCase().includes("collagen") || p.name.toLowerCase().includes("egg")
         );
         avoid = [{ name: "High fat proteins", reason: "Stick to lean sources" }];
@@ -1970,7 +1970,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // 2-1 days out: Glucose/performance, 100g protein
         carbs = foods.highGlucose;
         protein = foods.protein.filter(p =>
-          p.timing?.includes("Thu-Fri") || p.timing?.includes("Wed-Fri") || p.timing?.includes("Mon-Fri")
+          p.timing?.includes("2-1 days out") || p.timing?.includes("3-1 days out") || p.timing?.includes("5-1 days out")
         );
         avoid = foods.avoid.filter(a => a.name.includes("Fiber"));
         carbsLabel = "Performance (Glucose)";

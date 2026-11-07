@@ -338,7 +338,7 @@ export const SUGAR_FOODS = {
   ] as SugarCarbFood[],
 
   highGlucose: [
-    { name: "White rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Primary Thu-Fri" },
+    { name: "White rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Primary 2-1 days out" },
     { name: "Instant rice", ratio: "0:100", serving: "1 cup cooked", carbs: 45, note: "Very fast" },
     { name: "Potatoes (peeled)", ratio: "0:100", serving: "1 medium", carbs: 37, note: "Remove skin" },
     { name: "Sweet potatoes (peeled)", ratio: "0:100", serving: "1 medium", carbs: 27, note: "Remove skin" },
@@ -389,12 +389,12 @@ export const SUGAR_FOODS = {
   ] as SugarCarbFood[],
 
   protein: [
-    { name: "Collagen + 5g leucine", serving: "25-30g", protein: 25, note: "Mon-Fri: Primary, preserves muscle", timing: "Mon-Fri" },
-    { name: "Egg whites", serving: "4 whites", protein: 14, note: "Wed-Fri: Low fat, easy digestion", timing: "Wed-Fri" },
-    { name: "White fish", serving: "4 oz", protein: 24, note: "Thu-Fri: Ultra lean", timing: "Thu-Fri" },
-    { name: "Shrimp", serving: "4 oz", protein: 24, note: "Thu-Fri: Zero fat", timing: "Thu-Fri" },
-    { name: "Scallops", serving: "4 oz", protein: 20, note: "Thu-Fri: Zero fat", timing: "Thu-Fri" },
-    { name: "Lean seafood", serving: "4 oz", protein: 22, note: "Thu-Fri: Performance phase", timing: "Thu-Fri" },
+    { name: "Collagen + 5g leucine", serving: "25-30g", protein: 25, note: "5-1 days out: Primary, preserves muscle", timing: "5-1 days out" },
+    { name: "Egg whites", serving: "4 whites", protein: 14, note: "3-1 days out: Low fat, easy digestion", timing: "3-1 days out" },
+    { name: "White fish", serving: "4 oz", protein: 24, note: "2-1 days out: Ultra lean", timing: "2-1 days out" },
+    { name: "Shrimp", serving: "4 oz", protein: 24, note: "2-1 days out: Zero fat", timing: "2-1 days out" },
+    { name: "Scallops", serving: "4 oz", protein: 20, note: "2-1 days out: Zero fat", timing: "2-1 days out" },
+    { name: "Lean seafood", serving: "4 oz", protein: 22, note: "2-1 days out: Performance phase", timing: "2-1 days out" },
     { name: "NO protein", serving: "—", protein: 0, note: "Competition day: Until wrestling is over", timing: "Competition" },
     { name: "Whey isolate", serving: "1 scoop", protein: 25, note: "Post-competition: Fast recovery", timing: "Post-comp" },
     { name: "Chicken breast", serving: "4 oz", protein: 26, note: "Post-competition: Lean protein", timing: "Post-comp" },
@@ -407,30 +407,30 @@ export const SUGAR_FOODS = {
   ] as SugarProteinFood[],
 
   avoid: [
-    { name: "Whey protein (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Casein protein (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Chicken/Poultry (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Turkey (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Beef (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Pork (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Eggs (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Dairy (Mon-Wed)", reason: "Blocks fat burning" },
-    { name: "Vegetables (Thu-Fri)", reason: "Fiber adds gut weight" },
-    { name: "Fruits (Thu-Fri)", reason: "Fiber adds gut weight" },
-    { name: "Whole grains (Thu-Fri)", reason: "Fiber adds gut weight" },
-    { name: "Brown rice (Thu-Fri)", reason: "Fiber adds gut weight" },
-    { name: "Oatmeal (Thu-Fri)", reason: "Fiber adds gut weight" },
-    { name: "Beans/legumes (Thu-Fri)", reason: "High fiber + gas" },
-    { name: "Nuts (Thu-Fri)", reason: "Fiber + fat" },
-    { name: "Seeds (Thu-Fri)", reason: "Fiber + fat" },
+    { name: "Whey protein (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Casein protein (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Chicken/Poultry (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Turkey (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Beef (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Pork (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Eggs (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Dairy (5-3 days out)", reason: "Blocks fat burning" },
+    { name: "Vegetables (2-1 days out)", reason: "Fiber adds gut weight" },
+    { name: "Fruits (2-1 days out)", reason: "Fiber adds gut weight" },
+    { name: "Whole grains (2-1 days out)", reason: "Fiber adds gut weight" },
+    { name: "Brown rice (2-1 days out)", reason: "Fiber adds gut weight" },
+    { name: "Oatmeal (2-1 days out)", reason: "Fiber adds gut weight" },
+    { name: "Beans/legumes (2-1 days out)", reason: "High fiber + gas" },
+    { name: "Nuts (2-1 days out)", reason: "Fiber + fat" },
+    { name: "Seeds (2-1 days out)", reason: "Fiber + fat" },
     { name: "Fatty meats", reason: "Slow digestion" },
     { name: "Fried foods", reason: "Slow digestion, bloating" },
     { name: "Dairy (during cut)", reason: "Can cause bloating" },
     { name: "Carbonated drinks", reason: "Gas and bloating" },
     { name: "High-fat foods", reason: "Slow glycogen restoration" },
     { name: "Alcohol", reason: "Dehydrates, empty calories" },
-    { name: "Spicy foods (Thu-Fri)", reason: "Can cause GI issues" },
-    { name: "Large meals (Thu-Fri)", reason: "Gut weight" },
+    { name: "Spicy foods (2-1 days out)", reason: "Can cause GI issues" },
+    { name: "Large meals (2-1 days out)", reason: "Gut weight" },
   ] as AvoidFood[],
 
   recovery: [
@@ -650,7 +650,7 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
       proteinStatus: 'collagen+seafood',
       proteinTip: 'Collagen + leucine, egg whites, seafood only',
       eatCarbs: [...SUGAR_FOODS.highGlucose],
-      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Thu-Fri' || f.timing === 'Mon-Fri' || f.timing === 'Wed-Fri'),
+      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === '2-1 days out' || f.timing === '5-1 days out' || f.timing === '3-1 days out'),
       avoidFoods: filterAvoidFoods(daysUntilWeighIn),
       avoidSummary: 'No fiber, no dairy, no fatty meats',
       mealGuide: {
@@ -668,7 +668,7 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
       proteinStatus: 'collagen-only',
       proteinTip: 'Collagen + leucine at dinner only',
       eatCarbs: [...SUGAR_FOODS.highFructose],
-      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Mon-Fri'),
+      eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === '5-1 days out'),
       avoidFoods: filterAvoidFoods(3),
       avoidSummary: 'No dairy, no protein except collagen PM',
       mealGuide: {
@@ -703,7 +703,7 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
     proteinStatus: 'full',
     proteinTip: 'All proteins allowed',
     eatCarbs: [...SUGAR_FOODS.balanced],
-    eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday' || f.timing === 'Mon-Fri'),
+    eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday' || f.timing === '5-1 days out'),
     avoidFoods: filterAvoidFoods(daysUntilWeighIn),
     avoidSummary: 'Avoid fatty/fried foods and alcohol',
     mealGuide: {
@@ -716,15 +716,15 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
 
 /**
  * Filter the avoid list based on days until weigh-in.
- * Parses "(Mon-Wed)" and "(Thu-Fri)" suffixes from food names.
+ * Parses "(5-3 days out)" and "(2-1 days out)" suffixes from food names.
  */
 function filterAvoidFoods(daysUntilWeighIn: number): AvoidFood[] {
   if (daysUntilWeighIn < 0) return []; // Recovery: nothing to avoid
 
   return SUGAR_FOODS.avoid.filter(food => {
     const name = food.name;
-    const hasMonWed = name.includes('(Mon-Wed)');
-    const hasThuFri = name.includes('(Thu-Fri)');
+    const hasMonWed = name.includes('(5-3 days out)');
+    const hasThuFri = name.includes('(2-1 days out)');
 
     if (hasMonWed) {
       // Show during cut phase (3+ days out)
