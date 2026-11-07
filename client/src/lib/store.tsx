@@ -1761,6 +1761,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Weight-awareness: check how far over target the athlete currently is
     // This modifies the targets returned below when significantly overweight on cut/prep days
     const getWeightAdjustedResult = (result: { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string }) => {
+      // Gain athletes are trying to add weight: never cut their food for being heavy.
+      if (protocol === PROTOCOLS.GAIN) return result;
       // Only apply weight adjustments on days 1-3 (cut & prep days)
       if (daysUntilWeighIn < 1 || daysUntilWeighIn > 3) return result;
 
@@ -2327,6 +2329,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const todayEntry = plan.find(d => d.isToday);
     if (!todayEntry) return plan;
 
+    // Gain athletes are trying to add weight: never cut their food for being heavy.
+    if (profile.protocol === PROTOCOLS.GAIN) return plan;
     const daysUntil = getDaysUntilWeighIn();
     // Only adjust on cut/prep days (1-3 days out)
     if (daysUntil < 1 || daysUntil > 3) return plan;

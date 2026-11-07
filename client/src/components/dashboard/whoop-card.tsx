@@ -9,7 +9,7 @@ export const WHOOP_DATA_CHANGED_EVENT = "spar-whoop-data-changed";
 
 /** Settings → Health: connect, sync or disconnect the athlete's own WHOOP. */
 export function WhoopCard({ onSynced }: { onSynced?: () => void }) {
-  const [status, setStatus] = useState<WhoopStatus | "unavailable" | null>(null);
+  const [status, setStatus] = useState<WhoopStatus | "unavailable" | "error" | null>(null);
   const [busy, setBusy] = useState<"connect" | "sync" | "disconnect" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -25,9 +25,15 @@ export function WhoopCard({ onSynced }: { onSynced?: () => void }) {
   const run = async (kind: "connect" | "sync" | "disconnect", fn: () => Promise<string | null>) => {
     setBusy(kind);
     setError(null);
-    const err = await fn();
-    setBusy(null);
-    setConfirmDisconnect(false);
+    let err: string | null;
+    try {
+      err = await fn();
+    } catch {
+      err = "Something went wrong. Try again.";
+    } finally {
+      setBusy(null);
+      setConfirmDisconnect(false);
+    }
     if (err) setError(err);
     if (kind !== "connect") {
       await load();
@@ -37,6 +43,22 @@ export function WhoopCard({ onSynced }: { onSynced?: () => void }) {
   };
 
   if (status === "unavailable") return null; // database update not run yet
+
+  if (status === "error") {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <Activity className="w-3.5 h-3.5 text-foreground" aria-hidden="true" />
+          <span className="text-xs font-semibold">WHOOP</span>
+        </div>
+        <p role="alert" className="text-xs text-muted-foreground">Couldn't check your WHOOP connection right now. Your WHOOP data is safe.</p>
+        <button type="button" onClick={() => { setStatus(null); void load(); }}
+          className="h-11 w-full rounded-lg border border-muted text-sm font-bold">
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   const connected = status?.connected === true;
   return (
