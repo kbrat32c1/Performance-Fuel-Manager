@@ -802,17 +802,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (log.duration !== undefined) insertData.duration = log.duration;
           if (log.sleepHours !== undefined) insertData.sleep_hours = log.sleepHours;
 
-          // The DB unique index uses DATE(date) in UTC. To avoid constraint violations,
-          // delete any existing record that falls on the same UTC date for this type.
-          // insertData.date is already an ISO string (UTC).
-          const utcDate = insertData.date.split('T')[0]; // "2025-02-18"
-          await supabase
-            .from('weight_logs')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('type', log.type)
-            .gte('date', `${utcDate}T00:00:00.000Z`)
-            .lte('date', `${utcDate}T23:59:59.999Z`);
+          // The DB unique index (user_id, DATE(date) in UTC, type) covers only the
+          // one-per-day types. Clear a same-UTC-day record of those types to avoid a
+          // constraint violation; extra-workout logs allow multiples and must be kept.
+          if (UNIQUE_PER_DAY_TYPES.includes(log.type as any)) {
+            const utcDate = insertData.date.split('T')[0]; // "2025-02-18"
+            await supabase
+              .from('weight_logs')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('type', log.type)
+              .gte('date', `${utcDate}T00:00:00.000Z`)
+              .lte('date', `${utcDate}T23:59:59.999Z`);
+          }
 
           const { data, error } = await supabase
             .from('weight_logs')

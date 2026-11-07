@@ -9,13 +9,17 @@ const db = vi.hoisted(() => ({
   trackingRows: [] as Record<string, unknown>[],
   upsertCalls: [] as Record<string, unknown>[],
   upsertImpl: null as null | ((payload: Record<string, unknown>) => Promise<UpsertResult>),
+  weightLogDeletes: [] as Record<string, unknown>[],
 }));
 
 vi.mock('../supabase', () => {
   const resolved = (value: unknown) => {
     const chain: any = {
       eq: () => chain,
+      gte: () => chain,
+      lte: () => chain,
       order: () => chain,
+      select: () => chain,
       single: () => Promise.resolve(value),
       then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(value).then(res, rej),
     };
@@ -35,8 +39,20 @@ vi.mock('../supabase', () => {
           return db.upsertImpl ? db.upsertImpl(payload) : Promise.resolve({ error: null });
         },
         update: () => resolved({ error: null }),
-        delete: () => resolved({ error: null }),
-        insert: () => Promise.resolve({ error: null }),
+        delete: () => {
+          const filters: Record<string, unknown> = { table };
+          const chain: any = {
+            eq: (col: string, val: unknown) => { filters[col] = val; return chain; },
+            gte: () => chain,
+            lte: () => chain,
+            then: (res: (v: unknown) => unknown) => {
+              if (table === 'weight_logs') db.weightLogDeletes.push(filters);
+              return Promise.resolve({ error: null }).then(res);
+            },
+          };
+          return chain;
+        },
+        insert: (row: Record<string, unknown>) => resolved({ data: { ...row, id: `db-${Math.random()}` }, error: null }),
       }),
     },
   };
@@ -73,6 +89,7 @@ beforeEach(() => {
   db.trackingRows = [];
   db.upsertCalls = [];
   db.upsertImpl = null;
+  db.weightLogDeletes = [];
   toastMock.mockClear();
 });
 
@@ -163,5 +180,33 @@ describe('daily tracking cloud sync', () => {
     act(() => { result.current.updateDailyTracking(DATE, { waterConsumed: undefined, carbsConsumed: 10 }); });
     await waitFor(() => expect(result.current.trackingSyncStatus.state).toBe('saved'));
     expect(result.current.getDailyTracking(DATE).waterConsumed).toBe(20);
+  });
+});
+
+describe('weight log cloud cleanup', () => {
+  it('never deletes earlier extra-workout logs from the same day', async () => {
+    const { result } = await renderLoadedStore();
+
+    await act(async () => {
+      await result.current.addLog({ weight: 160, date: new Date(2026, 10, 7, 15, 0), type: 'extra-before' });
+    });
+    await act(async () => {
+      await result.current.addLog({ weight: 158.5, date: new Date(2026, 10, 7, 16, 0), type: 'extra-after' });
+    });
+    await act(async () => {
+      await result.current.addLog({ weight: 159, date: new Date(2026, 10, 7, 18, 0), type: 'extra-before' });
+    });
+
+    expect(db.weightLogDeletes).toEqual([]);
+  });
+
+  it('still clears a same-day record for one-per-day weigh-in types', async () => {
+    const { result } = await renderLoadedStore();
+
+    await act(async () => {
+      await result.current.addLog({ weight: 161, date: new Date(2026, 10, 7, 7, 0), type: 'morning' });
+    });
+
+    expect(db.weightLogDeletes).toEqual([{ table: 'weight_logs', user_id: 'athlete-1', type: 'morning' }]);
   });
 });

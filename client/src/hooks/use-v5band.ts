@@ -46,7 +46,8 @@ import {
   storeStrain,
   getTodayDateKey,
   getHealthDay,
-  advanceHealthDay,
+  isWakeUpSync,
+  MIN_SLEEP_HOURS_FOR_WAKE_UP,
   getMaxHR,
   cleanupOldStrainData,
   getCalendarDateKey,
@@ -110,7 +111,7 @@ function hasSyncedToday(): boolean {
  *
  * Manual sync (Settings → Sync) always works regardless of the gate.
  */
-const MIN_SLEEP_HOURS_FOR_GATE = 3;
+const MIN_SLEEP_HOURS_FOR_GATE = MIN_SLEEP_HOURS_FOR_WAKE_UP;
 
 export interface V5BandState {
   /** Whether V5 Band BLE is available on this platform */
@@ -331,33 +332,23 @@ export function useV5Band(userId: string | null, athleteAge?: number | null, res
           const sleepHours = result.sleep_hours ?? 0;
           const currentHour = new Date().getHours();
 
-          // WHOOP-style wake-up detection:
-          // Only advance the health day if:
-          //   1. We got ≥3h of sleep data (complete night), AND
-          //   2. The current time is in a plausible wake-up window (4 AM – 2 PM).
-          //
-          // Why the hour guard? The V5 band stores the LAST completed sleep session.
-          // At 1:39 AM Saturday, the band still reports Thursday night's 7.8h sleep.
-          // Without this guard, every after-midnight sync would see "7.8h ≥ 3h" and
-          // immediately advance the health day — defeating the WHOOP-style rollover.
-          //
-          // Between midnight–4 AM, the user is likely still awake (late night) and the
-          // sleep data is stale. Between 4–14, a sync with ≥3h sleep almost certainly
-          // means the user just woke up. After 2 PM, the 9 AM auto-advance in
-          // getHealthDay() will have already caught it.
+          // WHOOP-style wake-up detection (shared with syncBandToSupabase, which
+          // already rolled the health day over before choosing the row to save):
+          //   1. ≥3h of sleep data (complete night), AND
+          //   2. a plausible wake-up window (4 AM – 2 PM). Before 4 AM the band
+          //      still reports the previous night's sleep, so that data is stale.
           const isPlausibleWakeUp = currentHour >= 4 && currentHour < 14;
 
-          if (sleepHours >= MIN_SLEEP_HOURS_FOR_GATE && isPlausibleWakeUp) {
-            // Advance health day FIRST (so the gate date matches the new health day)
-            advanceHealthDay();
-            const newHealthDay = getHealthDay();
-            localStorage.setItem(V5_LAST_SYNC_DATE_KEY, newHealthDay);
-            console.log(`[useV5Band] Daily gate LOCKED — sleep ${sleepHours.toFixed(1)}h ≥ ${MIN_SLEEP_HOURS_FOR_GATE}h, wake-up hour ${currentHour}, health day: ${newHealthDay}`);
+          if (isWakeUpSync(sleepHours, currentHour)) {
+            // Lock the gate for the day that was actually saved, never a later one.
+            const savedHealthDay = result.date;
+            localStorage.setItem(V5_LAST_SYNC_DATE_KEY, savedHealthDay);
+            console.log(`[useV5Band] Daily gate LOCKED — sleep ${sleepHours.toFixed(1)}h ≥ ${MIN_SLEEP_HOURS_FOR_GATE}h, wake-up hour ${currentHour}, health day: ${savedHealthDay}`);
 
             // Signal "recovery ready" to dashboard (WHOOP-style morning modal)
             if (result.recovery_score != null) {
               window.dispatchEvent(new CustomEvent('recovery-ready', {
-                detail: { score: result.recovery_score, healthDay: newHealthDay }
+                detail: { score: result.recovery_score, healthDay: savedHealthDay }
               }));
             }
           } else if (sleepHours >= MIN_SLEEP_HOURS_FOR_GATE && !isPlausibleWakeUp) {

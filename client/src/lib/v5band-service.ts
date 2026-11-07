@@ -21,7 +21,7 @@ import type { DbHealthData } from './supabase';
 import { computeRecoveryScoreDetailed, computeStrainScore } from './healthkit-service';
 import { computeBaselines } from './recovery-baselines';
 import { loadHealthData } from './healthkit-service';
-import { getStoredStrain, getHealthDay } from './strain-service';
+import { getStoredStrain, getHealthDay, advanceHealthDay, isWakeUpSync } from './strain-service';
 
 // ═══ CAPACITOR PLUGIN INTERFACE ═══
 
@@ -436,6 +436,10 @@ export async function syncBandToSupabase(userId: string): Promise<DbHealthData |
       console.warn('[V5Band] No health data from band');
       return null;
     }
+
+    // A wake-up sync starts the new health day BEFORE choosing the row, so last
+    // night's sleep and recovery land on today instead of overwriting yesterday.
+    if (isWakeUpSync(bandData.sleep_hours)) advanceHealthDay();
 
     // Use the health day (WHOOP-style) — may be yesterday if user hasn't woken up yet.
     // This prevents after-midnight syncs from creating a new day's entry prematurely.

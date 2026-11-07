@@ -412,6 +412,18 @@ export function getHealthDay(): string {
   }
 }
 
+/** Minimum sleep, in hours, for a sync to count as a completed night. */
+export const MIN_SLEEP_HOURS_FOR_WAKE_UP = 3;
+
+/**
+ * Whether a sync looks like the athlete just woke up: a completed night of sleep
+ * reported during a plausible wake-up window (4 AM – 2 PM). Before 4 AM the band
+ * still reports the previous night's sleep, so that data is stale.
+ */
+export function isWakeUpSync(sleepHours: number | null | undefined, hour: number = new Date().getHours()): boolean {
+  return (sleepHours ?? 0) >= MIN_SLEEP_HOURS_FOR_WAKE_UP && hour >= 4 && hour < 14;
+}
+
 /**
  * Advance the health day to today's calendar date.
  * Called when a sync detects ≥3h of sleep (user woke up → new day).
