@@ -1369,7 +1369,7 @@ export default function Dashboard() {
   const phaseInfo = getPhaseInfo();
 
   // Phase color mapping for UI elements
-  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading === true);
+  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading !== false);
 
   // Get today's tracking data for status summary
   const dateKey = format(displayDate, 'yyyy-MM-dd');
@@ -1713,6 +1713,25 @@ export default function Dashboard() {
             <Calendar className="w-3.5 h-3.5" />
             No weigh-in scheduled — tap to set one
           </button>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════ */}
+        {/* SIP-ONLY WARNING BANNER — Only when projection says fluids must be 0 */}
+        {/* Uses store's projection to check if athlete has any fluid buffer     */}
+        {/* ═══════════════════════════════════════════════════════ */}
+        {!isViewingHistorical && profile.waterLoading !== false && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
+          // Check projection-based fluid buffer — only show if truly no room for fluids
+          try {
+            const descentData = getWeekDescentData();
+            const projected = descentData.projectedSaturday;
+            if (projected !== null && projected <= profile.targetWeightClass) return false; // has margin, don't show
+          } catch {}
+          return true;
+        })() && (
+          <SipOnlyBanner onDismiss={() => {
+            setSipOnlyDismissed(true);
+            sessionStorage.setItem('sipOnlyBannerDismissed', 'true');
+          }} />
         )}
 
         {/* Header */}
@@ -2843,7 +2862,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const effectiveCompDay = daysUntilWeighIn === 0 || hasWeighInLogForDay;
 
   // Phase styling for header badge only
-  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(effectiveCompDay ? 0 : daysUntilWeighIn, profile.waterLoading === true);
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(effectiveCompDay ? 0 : daysUntilWeighIn, profile.waterLoading !== false);
   const isWaterLoading = isWaterLoadingDay();
 
   // Card border/bg driven by Cut Score zone — matches the gauge ring color

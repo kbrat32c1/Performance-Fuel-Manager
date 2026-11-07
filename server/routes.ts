@@ -1023,7 +1023,7 @@ Respond ONLY with this JSON structure:
       };
       if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || ctx.protocol}`);
       if (ctx.phase) contextLines.push(`Current phase: ${ctx.phase}`);
-      if (typeof ctx.waterLoading === 'boolean') contextLines.push(`Water loading: ${ctx.waterLoading ? 'on' : 'off (steady hydration)'}`);
+      if (typeof ctx.waterLoading === 'boolean') contextLines.push(`Water loading: ${ctx.waterLoading ? 'on' : 'off (drinks normally)'}`);
       if (ctx.status) contextLines.push(`Status: ${ctx.status}`);
 
       // Daily targets
@@ -1173,7 +1173,7 @@ Respond ONLY with this JSON structure:
           weigh_in_date: profile.weigh_in_date,
           weigh_in_time: profile.weigh_in_time,
           protocol: profile.protocol,
-          water_loading: profile.water_loading === true,
+          water_loading: profile.water_loading !== false,
         },
         logs: logs || [],
         dailyTracking,

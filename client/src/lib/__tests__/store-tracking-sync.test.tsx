@@ -215,13 +215,12 @@ describe('targets for a past day', () => {
   const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const noonOffset = (days: number) => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + days); return d; };
 
-  async function storeTwoDaysOut(extra: Record<string, unknown> = {}) {
+  async function storeTwoDaysOut() {
     const hook = await renderLoadedStore();
     await act(async () => {
       await hook.result.current.updateProfile({
         protocol: '2', targetWeightClass: 157, currentWeight: 168,
         weighInDate: noonOffset(2), simulatedDate: null, weighInCleared: false,
-        ...extra,
       });
     });
     return hook;
@@ -257,8 +256,7 @@ describe('targets for a past day', () => {
   });
 
   it('gives a past day different targets from today when the plan changed', async () => {
-    // With water loading on, 2 days out is a loading day; 9 days out is steady hydration.
-    const { result } = await storeTwoDaysOut({ waterLoading: true });
+    const { result } = await storeTwoDaysOut();
     const today = result.current.getTargetsForDate(key(noonOffset(0)));
     const weekAgo = result.current.getTargetsForDate(key(noonOffset(-7)));
     expect(weekAgo.hydration.targetOz).not.toBe(today.hydration.targetOz);

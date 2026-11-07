@@ -62,8 +62,9 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const consumedOz = tracking.waterConsumed;
 
   // Only apply sip-only mode for competition users doing weight cuts
-  const isSipOnly = false; // no sips-only day in either water plan
-  const quickAddAmounts = !isSparProtocol && hydration.type === 'Lighter' ? [4, 8, 12, 16] : [8, 16, 24, 32];
+  const waterLoadingOn = profile.waterLoading !== false;
+  const isSipOnly = waterLoadingOn && !isSparProtocol && (hydration.type === 'Sip Only' || daysUntilWeighIn === 1);
+  const quickAddAmounts = isSipOnly ? [2, 4, 6, 8] : [8, 16, 24, 32];
 
   const handleAddWater = (oz: number) => {
     hapticTap();
@@ -258,19 +259,27 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
         )}
 
         {/* Why Explanations — only for competition users doing weight cuts */}
-        {!isSparProtocol && (
+        {!isSparProtocol && waterLoadingOn && (
           <div className="pt-2 mt-2 border-t border-muted space-y-2">
-            {profile.waterLoading && daysUntilWeighIn >= 2 && daysUntilWeighIn <= 4 && (
-              <WhyExplanation title="water loading (2-4 days out)">
-                <strong>Extra water raises urine output.</strong> About 100 ml per kg a day for 3 days, then less
-                the day before weigh-in, so your body keeps flushing. In the study this plan comes from, it added
-                about 0.6% of body weight (roughly 1 lb) of extra loss. You can turn it off on the Week page.
+            {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
+              <WhyExplanation title="water loading (3-5 days out)">
+                <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
+                increases urine production. When you cut water the day before, your body keeps flushing even without
+                intake, helping you drop water weight safely without severe dehydration.
               </WhyExplanation>
             )}
-            {profile.waterLoading && daysUntilWeighIn === 1 && (
-              <WhyExplanation title="lighter day (1 day out)">
-                <strong>Drink about 15 ml per kg today.</strong> That's the one restriction day that was tested.
-                Don't cut further: you'll compete within 1–2 hours of weigh-in.
+            {daysUntilWeighIn === 2 && (
+              <WhyExplanation title="flush day (2 days out)">
+                <strong>Water weight starts dropping.</strong> After days of high water intake, your body is in
+                full flush mode. Maintain high intake to keep kidneys active while cutting sodium and fiber
+                to accelerate water loss.
+              </WhyExplanation>
+            )}
+            {daysUntilWeighIn === 1 && (
+              <WhyExplanation title="sip only (1 day out)">
+                <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
+                overdrive. Sipping just enough to stay functional lets your body continue eliminating water
+                naturally. Gulping would halt this process and add weight back.
               </WhyExplanation>
             )}
           </div>
