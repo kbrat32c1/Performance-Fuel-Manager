@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp, Pencil, Check, Sliders } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { takeWizardSnapshot, readWizardSnapshot, clearWizardSnapshot } from "@/lib/wizard-snapshot";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
 import { getProtocolRecommendation as getProtocolRec, PROTOCOL_CONFIG } from "@/lib/protocol-utils";
 import {
@@ -63,8 +64,10 @@ export default function Onboarding() {
   // User's primary goal - drives the entire flow
   const [userGoal, setUserGoal] = useState<UserGoal>(getInitialGoal());
 
-  // Apply protocol immediately when switching from settings
+  // Re-running from Settings edits a live profile, so remember it for Cancel first.
+  // Then apply the protocol immediately when switching from settings.
   useEffect(() => {
+    if (isRerun || switchingProtocol) takeWizardSnapshot(profile);
     if (switchingProtocol) {
       silentUpdate({ protocol: switchingProtocol as Protocol });
     }
@@ -75,7 +78,11 @@ export default function Onboarding() {
   // Competition: 1=Basics, 2=Goal, 3=Weight Class/Protocol, 4=Timeline, 5=Summary
   const TOTAL_STEPS = 5;
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    // Every wizard step saves as it goes, so Cancel has to put the old values back.
+    const snapshot = readWizardSnapshot();
+    if (snapshot) await updateProfile(snapshot, { silent: true });
+    clearWizardSnapshot();
     sessionStorage.removeItem('rerunWizard');
     sessionStorage.removeItem('switchingProtocol');
     setLocation('/dashboard');
@@ -153,6 +160,7 @@ export default function Onboarding() {
       // Complete onboarding - ensure protocol is explicitly saved
       sessionStorage.removeItem('rerunWizard');
       sessionStorage.removeItem('switchingProtocol');
+      clearWizardSnapshot();
 
       // Build the final profile update with the correct protocol
       const finalUpdate: any = {

@@ -359,6 +359,11 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       onClick={() => {
                         if (p !== profile.protocol) {
                           setShowProtocolSwitchConfirm(p);
+                        } else if (getValue('protocol') !== profile.protocol) {
+                          // Back to the saved protocol: drop the unsaved switch.
+                          const { protocol: _protocol, sparV2: _sparV2, ...rest } = pendingChanges;
+                          setPendingChanges(rest);
+                          setHasChanges(Object.keys(rest).length > 0);
                         }
                       }}
                       className={cn(

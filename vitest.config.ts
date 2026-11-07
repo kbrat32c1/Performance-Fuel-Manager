@@ -10,7 +10,7 @@ export default defineConfig({
     setupFiles: ['./client/src/test/setup.ts'],
     include: [
       'client/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'api/foods/__tests__/**/*.{test,spec}.{ts,tsx}',
+      'api/**/__tests__/**/*.{test,spec}.{ts,tsx}',
     ],
     coverage: {
       reporter: ['text', 'json', 'html'],
