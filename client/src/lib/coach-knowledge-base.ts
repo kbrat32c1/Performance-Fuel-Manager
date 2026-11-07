@@ -57,7 +57,7 @@ export const PROTOCOL_KNOWLEDGE = {
         phase: 'Metabolic/Maintenance',
         carbs: '300-450g (balanced)',
         protein: '75-100g',
-        water: '0.5 oz/lb',
+        water: '0.7 oz/lb (steady)',
         key: 'Normal eating, prep for water loading'
       },
       '5-4': {
@@ -79,7 +79,7 @@ export const PROTOCOL_KNOWLEDGE = {
         carbs: '300-400g (glucose/starch - switch from fructose)',
         protein: '60g (collagen + seafood)',
         water: 'steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb',
-        key: 'CRITICAL: Switch to glucose/starch (white rice, potatoes). Fructose exits liver. Water restriction begins - ADH response.'
+        key: 'CRITICAL: Switch to glucose/starch (white rice, potatoes). Fructose exits liver.'
       },
       '1': {
         phase: 'Zero Fiber Day',
@@ -108,9 +108,9 @@ export const PROTOCOL_KNOWLEDGE = {
     name: 'Optimal Cut',
     description: 'Minimal manipulation for athletes close to weight class',
     schedule: {
-      '6+': { phase: 'Maintenance', carbs: '300-450g', protein: '100g', water: '0.5 oz/lb', key: 'Regular eating' },
-      '5': { phase: 'Light Manipulation', carbs: '300-450g (fructose heavy)', protein: '25g (collagen)', water: '0.5 oz/lb', key: 'Small adjustments only' },
-      '4-3': { phase: 'Mixed', carbs: '300-450g', protein: '75g', water: '0.5 oz/lb', key: 'Mixed carb sources' },
+      '6+': { phase: 'Maintenance', carbs: '300-450g', protein: '100g', water: '0.7 oz/lb (steady)', key: 'Regular eating' },
+      '5': { phase: 'Light Manipulation', carbs: '300-450g (fructose heavy)', protein: '25g (collagen)', water: '0.7 oz/lb (steady)', key: 'Small adjustments only' },
+      '4-3': { phase: 'Mixed', carbs: '300-450g', protein: '75g', water: '0.7 oz/lb (steady)', key: 'Mixed carb sources' },
       '2-1': { phase: 'Performance', carbs: '300-450g (glucose)', protein: '100g', water: 'Day 2: steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb. Day 1: steady 0.7 oz/lb; if water loading is on: 0.23 oz/lb (15 ml/kg)', key: 'Glucose focus for performance' },
       '0': { phase: 'Competition', carbs: '200-400g', protein: '0.5g/lb', water: 'Rehydrate', key: 'Competition fueling' },
       '-1': { phase: 'Recovery', carbs: '300-450g', protein: '1.4g/lb', water: '0.75 oz/lb', key: 'Full recovery' }
@@ -120,8 +120,8 @@ export const PROTOCOL_KNOWLEDGE = {
     name: 'Gain',
     description: 'Off-season building with high protein',
     schedule: {
-      '6+': { phase: 'Build', carbs: '350-600g', protein: '125-150g', water: '0.5 oz/lb', key: 'High calories for growth' },
-      '5-1': { phase: 'Pre-Competition Build', carbs: '350-600g', protein: '100-125g', water: '0.5 oz/lb', key: 'Maintain size' },
+      '6+': { phase: 'Build', carbs: '350-600g', protein: '125-150g', water: '0.7 oz/lb (steady)', key: 'High calories for growth' },
+      '5-1': { phase: 'Pre-Competition Build', carbs: '350-600g', protein: '100-125g', water: '0.7 oz/lb (steady)', key: 'Maintain size' },
       '0': { phase: 'Competition', carbs: '200-400g', protein: '0.8g/lb', water: 'Rehydrate', key: 'Competition fueling' },
       '-1': { phase: 'Max Recovery', carbs: '300-450g', protein: '1.6g/lb (MAX)', water: '0.75 oz/lb', key: 'Maximum muscle repair' }
     }

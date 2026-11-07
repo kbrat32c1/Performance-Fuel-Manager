@@ -1173,6 +1173,7 @@ Respond ONLY with this JSON structure:
           weigh_in_date: profile.weigh_in_date,
           weigh_in_time: profile.weigh_in_time,
           protocol: profile.protocol,
+          water_loading: profile.water_loading === true,
         },
         logs: logs || [],
         dailyTracking,

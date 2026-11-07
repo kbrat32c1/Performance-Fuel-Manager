@@ -13,14 +13,14 @@ Aggressive protocol with extended zero-protein for maximum FGF21 activation.
 ### 6+ Days Out (Metabolic/Maintenance):
 - Carbs: 300-450g balanced
 - Protein: 75-100g
-- Water: 0.5 oz/lb
+- Water: steady 0.7 oz/lb
 - Key: Eat normally, build strength for the cut ahead
 
 ### 5-2 Days Out (Water Loading + Zero Protein):
 - Carbs: 250-400g FRUCTOSE ONLY
 - Protein: 0g - ABSOLUTELY NO PROTEIN
-- Water: Days 5-3: 1.2-1.5 oz/lb (loading), Day 2: 0.3 oz/lb (restriction)
-- Key: Max FGF21 activation. Fructose only (agave, honey, fruit juice, mangoes). Zero protein triggers extreme fat burning. Water loading flushes sodium.
+- Water: steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb (days 4-2 out)
+- Key: Max FGF21 activation. Fructose only (agave, honey, fruit juice, mangoes). Zero protein triggers extreme fat burning. 
 
 ### 1 Day Out (Performance Prep / Final Cut):
 - Carbs: 200-300g fructose + MCT oil
@@ -48,25 +48,25 @@ Standard weekly cut with strategic fructose/glucose switching.
 ### 6+ Days Out (Maintenance):
 - Carbs: 300-450g balanced
 - Protein: 75-100g
-- Water: 0.5 oz/lb
-- Key: Normal eating, prep for water loading
+- Water: steady 0.7 oz/lb
+- Key: Normal eating
 
 ### 5-4 Days Out (Water Loading + Fructose):
 - Carbs: 325-450g fructose heavy (60:40 ratio)
 - Protein: 0g - NO PROTEIN
-- Water: 1.2-1.5 oz/lb (loading)
-- Key: Fructose fills liver glycogen, triggers fat burning. Water loading begins.
+- Water: steady 0.7 oz/lb (loading, if on, starts 4 days out)
+- Key: Fructose fills liver glycogen, triggers fat burning. 
 
 ### 3 Days Out (Fructose + Minimal Protein):
 - Carbs: 325-450g fructose heavy
 - Protein: 25g (collagen + leucine at dinner)
-- Water: 1.5 oz/lb (peak loading)
-- Key: Small protein dose. Peak water loading.
+- Water: steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb (days 4-2 out)
+- Key: Small protein dose. 
 
 ### 2 Days Out (Glucose Switch Day):
 - Carbs: 300-400g GLUCOSE/STARCH (switch from fructose!)
 - Protein: 60g (collagen + seafood)
-- Water: 0.3 oz/lb (sharp restriction)
+- Water: steady 0.7 oz/lb; if water loading is on: 1.5 oz/lb (days 4-2 out)
 - CRITICAL: Switch to white rice, potatoes, honey. Fructose exits liver.
 
 ### 1 Day Out (Zero Fiber Day):
@@ -95,7 +95,7 @@ Minimal manipulation for athletes close to weight class.
 ### 6+ Days Out: Maintenance eating (300-450g carbs, 100g protein)
 ### 5 Days Out: Light adjustment (fructose heavy, 25g collagen)
 ### 4-3 Days Out: Mixed carbs, 75g protein
-### 2-1 Days Out: Glucose focus, 100g protein, water restriction
+### 2-1 Days Out: Glucose focus, 100g protein
 ### Competition Day: Competition fueling (0.5g/lb protein post-weigh-in)
 ### Recovery: Full recovery (1.4g/lb protein)
 `;
