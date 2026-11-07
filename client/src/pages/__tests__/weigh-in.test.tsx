@@ -18,6 +18,9 @@ vi.mock('@/lib/store', () => ({
   }),
 }));
 vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: { id: 'athlete-1' } }) }));
+vi.mock('@/hooks/use-descent-plan', () => ({
+  useDescentPlan: () => ({ plan: null, status: 'ready', save: vi.fn() }),
+}));
 vi.mock('@/components/mobile-layout', () => ({
   MobileLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));

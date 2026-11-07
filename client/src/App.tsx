@@ -21,6 +21,7 @@ import Food from "@/pages/food";
 import CoachView from "@/pages/coach-view";
 import Reports from "@/pages/reports";
 import WeighIn from "@/pages/weigh-in";
+import Descent from "@/pages/descent";
 
 function Router() {
   return (
@@ -45,6 +46,13 @@ function Router() {
         <ProtectedRoute>
           <PageErrorBoundary pageName="Weigh-ins">
             <WeighIn />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/descent">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Descent plan">
+            <Descent />
           </PageErrorBoundary>
         </ProtectedRoute>
       </Route>

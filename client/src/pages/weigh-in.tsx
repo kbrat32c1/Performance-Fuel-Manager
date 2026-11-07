@@ -10,6 +10,9 @@ import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { Link } from "wouter";
+import { useDescentPlan } from "@/hooks/use-descent-plan";
+import { buildDescentPlan, rowOn } from "@/lib/descent-plan";
 import {
   DAILY_SLOTS, type DailySlotType, parseWeightInput, formatWeight, logForDay, recentReadings,
   practiceChange, timestampFor, loadDrafts, saveDrafts, draftSlotKey,
@@ -144,6 +147,8 @@ export default function WeighIn() {
           </button>
         </header>
 
+        <DescentLine dateKey={dateKey} />
+
         <ul className="space-y-2">
           {DAILY_SLOTS.map(slot => {
             const key = draftSlotKey(dateKey, slot.type);
@@ -218,6 +223,25 @@ export default function WeighIn() {
         </p>
       </div>
     </MobileLayout>
+  );
+}
+
+/** Today's eligibility from the descent plan, as facts, with a way into the full plan. */
+function DescentLine({ dateKey }: { dateKey: string }) {
+  const { plan, status } = useDescentPlan();
+  const row = useMemo(() => (plan ? rowOn(buildDescentPlan(plan, dateKey), dateKey) : null), [plan, dateKey]);
+  if (status === 'unavailable') return null;
+  return (
+    <Link href="/descent" className="flex min-h-11 items-center justify-between rounded-xl border border-muted px-3 py-2 text-sm">
+      {row ? (
+        <span>
+          Lowest allowed <strong className="font-mono">{row.allowed.toFixed(2)}</strong> · class <strong className="font-mono">{row.eligibleClass}</strong> open
+        </span>
+      ) : (
+        <span className="text-muted-foreground">{plan ? 'Descent plan starts later' : 'Set up your descent plan'}</span>
+      )}
+      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+    </Link>
   );
 }
 
