@@ -4,7 +4,7 @@
 
 Progressive Web App for wrestlers to manage weight cutting, nutrition, and performance. Branded as "SPAR Nutrition — Fuel Right, Make Weight, Perform."
 
-**Live site:** Deployed on Vercel
+**Live site:** https://performance-fuel-manager.vercel.app — Vercel deploys `main` to production on every push (GitHub integration). Other branches get preview deploys, which fail until the Preview environment has env vars. Rollback: promote an earlier deployment in Vercel.
 **GitHub:** kbrat32c1/Performance-Fuel-Manager
 **Database:** Supabase PostgreSQL (xcqsnrqjghcxuotoaryv.supabase.co)
 
