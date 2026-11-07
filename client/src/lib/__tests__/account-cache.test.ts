@@ -36,8 +36,17 @@ describe('account cache on a shared device', () => {
     expect(localStorage.getItem('unrelated')).toBe('x');
   });
 
-  it('treats a cache with no recorded owner as not this account', () => {
-    expect(claimAccountCache('user-a')).toBe(true);
-    expect(localStorage.getItem(STORAGE_KEYS.PROFILE_CACHE)).toBeNull();
+  it('keeps and claims data with no recorded owner, so local-only foods can still upload', () => {
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_FOODS, '[{"name":"Rice cake"}]');
+    expect(claimAccountCache('user-a')).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEYS.CUSTOM_FOODS)).toBe('[{"name":"Rice cake"}]');
+    expect(localStorage.getItem(CACHE_OWNER_KEY)).toBe('user-a');
+  });
+
+  it("clears a known other account's custom foods", () => {
+    localStorage.setItem(CACHE_OWNER_KEY, 'user-a');
+    localStorage.setItem(STORAGE_KEYS.CUSTOM_FOODS, '[]');
+    claimAccountCache('user-b');
+    expect(localStorage.getItem(STORAGE_KEYS.CUSTOM_FOODS)).toBeNull();
   });
 });

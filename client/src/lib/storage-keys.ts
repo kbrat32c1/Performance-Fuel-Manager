@@ -110,11 +110,17 @@ export function clearAccountCache(storage: Storage = localStorage): void {
 
 /**
  * Make the cached data on this device belong to `userId`. Returns true when it
- * belonged to someone else (or to no recorded owner) and was cleared.
+ * belonged to a different account and was cleared.
+ *
+ * Data with no recorded owner (installs from before this check, or a device after
+ * sign-out, which already cleared account data) is kept and claimed: local-only custom
+ * foods and meals still need to reach the store's one-time upload to the cloud.
  */
 export function claimAccountCache(userId: string, storage: Storage = localStorage): boolean {
   try {
-    if (storage.getItem(CACHE_OWNER_KEY) === userId) return false;
+    const owner = storage.getItem(CACHE_OWNER_KEY);
+    if (owner === userId) return false;
+    if (owner === null) { storage.setItem(CACHE_OWNER_KEY, userId); return false; }
     clearAccountCache(storage);
     storage.setItem(CACHE_OWNER_KEY, userId);
     return true;
