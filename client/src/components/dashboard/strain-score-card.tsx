@@ -110,13 +110,13 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
             </div>
             <div className="flex items-center gap-2">
               {isLive && (
-                <span className="flex items-center gap-1 text-[10px] font-bold text-green-500">
+                <span className="flex items-center gap-1 text-xs font-bold text-green-500">
                   <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                   LIVE
                 </span>
               )}
               {lastUpdatedLabel && (
-                <span className="text-[10px] text-muted-foreground/60">
+                <span className="text-xs text-muted-foreground/60">
                   {lastUpdatedLabel}
                 </span>
               )}
@@ -137,14 +137,14 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
               </div>
               {strainTarget && (
                 <div className={cn(
-                  "text-[10px] font-medium mb-1",
+                  "text-xs font-medium mb-1",
                   strainTarget.zone === 'green' ? 'text-green-500' :
                   strainTarget.zone === 'yellow' ? 'text-amber-500' : 'text-red-400'
                 )}>
                   Target: {strainTarget.min.toFixed(0)}-{strainTarget.max.toFixed(0)} ({strainTarget.label})
                 </div>
               )}
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 {strain.peakHR > 0 && (
                   <span className="flex items-center gap-0.5">
                     <Heart className="w-3 h-3 text-red-400" />
@@ -159,7 +159,7 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
                 )}
               </div>
               {strain.totalHRMinutes > 0 && (
-                <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                <div className="text-xs text-muted-foreground/50 mt-0.5">
                   {Math.round(strain.totalHRMinutes)} min tracked
                 </div>
               )}
@@ -170,10 +170,10 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
           {totalZoneMinutes > 0 && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">
+                <span className="text-xs text-muted-foreground/60 uppercase tracking-wide">
                   HR Zones
                 </span>
-                <span className="text-[9px] text-muted-foreground/60">
+                <span className="text-xs text-muted-foreground/60">
                   {Math.round(totalZoneMinutes)} min in zone
                 </span>
               </div>
@@ -200,7 +200,7 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
                   return (
                     <div key={zone} className="flex items-center gap-1">
                       <div className={cn("w-2 h-2 rounded-full", config.bg)} />
-                      <span className="text-[9px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {config.label} {formatZoneMinutes(minutes)}
                       </span>
                     </div>
@@ -214,7 +214,7 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
           {last7.length >= 2 && (
             <div className="pt-2 border-t border-muted/30">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[9px] text-muted-foreground/60 uppercase tracking-wide">
+                <span className="text-xs text-muted-foreground/60 uppercase tracking-wide">
                   Last 7 days
                 </span>
               </div>
@@ -244,7 +244,7 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
                 {last7.map((day, i) => (
                   <div
                     key={`label-${day.date || i}`}
-                    className="flex-1 text-center text-[7px] text-muted-foreground/40"
+                    className="flex-1 text-center text-xs text-muted-foreground/40"
                   >
                     {day.date ? format(parseISO(day.date), 'EEE').charAt(0) : ''}
                   </div>
@@ -334,7 +334,7 @@ function StrainRing({ score, size = 72, target }: { score: number; size?: number
         >
           {score.toFixed(1)}
         </span>
-        <span className="text-[8px] text-muted-foreground mt-0.5">/ 21</span>
+        <span className="text-xs text-muted-foreground mt-0.5">/ 21</span>
       </div>
     </div>
   );

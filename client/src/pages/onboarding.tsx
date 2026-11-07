@@ -222,7 +222,7 @@ export default function Onboarding() {
                 style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
               />
             </div>
-            <span className="text-[10px] text-muted-foreground text-center font-medium">
+            <span className="text-xs text-muted-foreground text-center font-medium">
               Step {step} of {TOTAL_STEPS}: {
                 step === 1 ? 'Basics' :
                 step === 2 ? 'Goal' :
@@ -359,7 +359,7 @@ export default function Onboarding() {
                       </button>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {editingWeight ? "Enter your current weight" : "Tap to edit if your weight has changed."}
                   </p>
                 </Card>
@@ -412,7 +412,7 @@ export default function Onboarding() {
                         Competition weight cutting with SPAR portion tracking. Includes water loading protocols and auto-adjusting calorie targets.
                       </p>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[10px] font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded">
+                        <span className="text-xs font-bold bg-purple-500/20 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded">
                           Portions + Water Loading
                         </span>
                       </div>
@@ -442,7 +442,7 @@ export default function Onboarding() {
                         Clean eating with portion tracking. No weight class, no water manipulation. Great for off-season or general fitness.
                       </p>
                       <div className="flex items-center gap-2 mt-2">
-                        <span className="text-[10px] font-bold bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded">
+                        <span className="text-xs font-bold bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded">
                           Simple as Pie
                         </span>
                       </div>
@@ -482,7 +482,7 @@ export default function Onboarding() {
                   ))}
                 </div>
                 {profile.targetWeightClass > 0 && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Walk-around: {(profile.targetWeightClass * 1.07).toFixed(1)} lbs •
                     You're {profile.currentWeight > profile.targetWeightClass
                       ? `${(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs over`
@@ -530,12 +530,12 @@ export default function Onboarding() {
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-sm">{p.label}</span>
                               {isRec && (
-                                <span className="text-[8px] font-bold uppercase bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                                <span className="text-xs font-bold uppercase bg-primary/20 text-primary px-1.5 py-0.5 rounded">
                                   Recommended
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-muted-foreground truncate">
+                            <p className="text-xs text-muted-foreground truncate">
                               {isRec ? rec.reason : p.desc}
                             </p>
                           </div>
@@ -547,14 +547,14 @@ export default function Onboarding() {
                           <div className="mt-2 pt-2 border-t border-muted">
                             <button
                               onClick={(e) => { e.stopPropagation(); setShowProtocolScience(showProtocolScience === p.id ? false : p.id); }}
-                              className="flex items-center gap-1 text-[10px] text-primary font-bold uppercase"
+                              className="flex items-center gap-1 text-xs text-primary font-bold uppercase"
                             >
                               <Beaker className="w-3 h-3" />
                               How it works
                               {showProtocolScience === p.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                             </button>
                             {showProtocolScience === p.id && (
-                              <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+                              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
                                 {p.id === '1' && 'Uses fructose-dominant fueling to activate fat-burning hormones while preserving muscle glycogen. Water loading drops 3-5 lbs safely.'}
                                 {p.id === '2' && '3-day water load suppresses ADH hormone, then sharp restriction exploits delayed response. Your body keeps flushing water.'}
                                 {p.id === '3' && 'Balanced macros (40C/35P/25F) keep energy optimal. No restrictions — eat normal, train hard.'}
@@ -599,7 +599,7 @@ export default function Onboarding() {
                   ))}
                 </div>
                 {profile.targetWeightClass > 0 && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Walk-around: {(profile.targetWeightClass * 1.07).toFixed(1)} lbs •
                     You're {profile.currentWeight > profile.targetWeightClass
                       ? `${(profile.currentWeight - profile.targetWeightClass).toFixed(1)} lbs over`
@@ -701,7 +701,7 @@ export default function Onboarding() {
                           onClick={() => silentUpdate({ trainingSessions: sessions })}
                         >
                           <span className="font-bold text-lg">{sessions}</span>
-                          <p className="text-[9px] text-muted-foreground">per week</p>
+                          <p className="text-xs text-muted-foreground">per week</p>
                         </Card>
                       );
                     })}
@@ -714,7 +714,7 @@ export default function Onboarding() {
                     <Activity className="w-3.5 h-3.5" />
                     Workday Activity
                   </Label>
-                  <p className="text-[10px] text-muted-foreground -mt-1">Outside of training, how active is your typical day?</p>
+                  <p className="text-xs text-muted-foreground -mt-1">Outside of training, how active is your typical day?</p>
                   <div className="space-y-2">
                     {(['mostly_sitting', 'on_feet_some', 'on_feet_most'] as WorkdayActivity[]).map((activity) => {
                       const isSelected = (profile.workdayActivity || 'mostly_sitting') === activity;
@@ -734,7 +734,7 @@ export default function Onboarding() {
                           <div className="flex items-center justify-between">
                             <div>
                               <span className="font-bold text-sm">{label}</span>
-                              <p className="text-[10px] text-muted-foreground">{desc}</p>
+                              <p className="text-xs text-muted-foreground">{desc}</p>
                             </div>
                             {isSelected && <CheckCircle className="w-4 h-4 text-primary" />}
                           </div>
@@ -847,7 +847,7 @@ export default function Onboarding() {
                           onClick={() => silentUpdate({ trainingSessions: sessions })}
                         >
                           <span className="font-bold text-lg">{sessions}</span>
-                          <p className="text-[9px] text-muted-foreground">per week</p>
+                          <p className="text-xs text-muted-foreground">per week</p>
                         </Card>
                       );
                     })}
@@ -860,7 +860,7 @@ export default function Onboarding() {
                     <Activity className="w-3.5 h-3.5" />
                     Workday Activity
                   </Label>
-                  <p className="text-[10px] text-muted-foreground -mt-1">Outside of training, how active is your typical day?</p>
+                  <p className="text-xs text-muted-foreground -mt-1">Outside of training, how active is your typical day?</p>
                   <div className="space-y-2">
                     {(['mostly_sitting', 'on_feet_some', 'on_feet_most'] as WorkdayActivity[]).map((activity) => {
                       const isSelected = (profile.workdayActivity || 'mostly_sitting') === activity;
@@ -880,7 +880,7 @@ export default function Onboarding() {
                           <div className="flex items-center justify-between">
                             <div>
                               <span className="font-bold text-sm">{label}</span>
-                              <p className="text-[10px] text-muted-foreground">{desc}</p>
+                              <p className="text-xs text-muted-foreground">{desc}</p>
                             </div>
                             {isSelected && <CheckCircle className="w-4 h-4 text-primary" />}
                           </div>
@@ -916,7 +916,7 @@ export default function Onboarding() {
                   {(() => {
                     const days = differenceInCalendarDays(profile.weighInDate, new Date());
                     return (
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {days < 0 && "Past date - update to next weigh-in"}
                         {days === 0 && "Competition day!"}
                         {days > 0 && days <= 5 && `${days} ${days === 1 ? 'day' : 'days'} away - Cut week!`}
@@ -965,7 +965,7 @@ export default function Onboarding() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold">Lose Weight</h3>
-                      <p className="text-[11px] text-muted-foreground">Calorie deficit to lose body fat</p>
+                      <p className="text-xs text-muted-foreground">Calorie deficit to lose body fat</p>
                     </div>
                     {profile.sparGoal === 'lose' && <CheckCircle className="w-5 h-5 text-orange-500" />}
                   </div>
@@ -979,8 +979,8 @@ export default function Onboarding() {
                         onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'lean' }); }}
                       >
                         <span className="text-sm font-bold">Lean</span>
-                        <p className="text-[9px] text-muted-foreground">-250 cal/day</p>
-                        <p className="text-[8px] text-orange-500">~0.5 lb/week</p>
+                        <p className="text-xs text-muted-foreground">-250 cal/day</p>
+                        <p className="text-xs text-orange-500">~0.5 lb/week</p>
                       </Card>
                       <Card
                         className={cn(
@@ -990,8 +990,8 @@ export default function Onboarding() {
                         onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'aggressive' }); }}
                       >
                         <span className="text-sm font-bold">Aggressive</span>
-                        <p className="text-[9px] text-muted-foreground">-500 cal/day</p>
-                        <p className="text-[8px] text-orange-500">~1 lb/week</p>
+                        <p className="text-xs text-muted-foreground">-500 cal/day</p>
+                        <p className="text-xs text-orange-500">~1 lb/week</p>
                       </Card>
                     </div>
                   )}
@@ -1011,7 +1011,7 @@ export default function Onboarding() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold">Maintain Weight</h3>
-                      <p className="text-[11px] text-muted-foreground">Stay at current weight, fuel your training</p>
+                      <p className="text-xs text-muted-foreground">Stay at current weight, fuel your training</p>
                     </div>
                     {profile.sparGoal === 'maintain' && <CheckCircle className="w-5 h-5 text-blue-500" />}
                   </div>
@@ -1025,8 +1025,8 @@ export default function Onboarding() {
                         onClick={(e) => { e.stopPropagation(); silentUpdate({ maintainPriority: 'general' }); }}
                       >
                         <span className="text-sm font-bold">General</span>
-                        <p className="text-[9px] text-muted-foreground">Balanced macros</p>
-                        <p className="text-[8px] text-blue-500">45% carb / 55% fat</p>
+                        <p className="text-xs text-muted-foreground">Balanced macros</p>
+                        <p className="text-xs text-blue-500">45% carb / 55% fat</p>
                       </Card>
                       <Card
                         className={cn(
@@ -1036,8 +1036,8 @@ export default function Onboarding() {
                         onClick={(e) => { e.stopPropagation(); silentUpdate({ maintainPriority: 'performance' }); }}
                       >
                         <span className="text-sm font-bold">Performance</span>
-                        <p className="text-[9px] text-muted-foreground">Higher carbs</p>
-                        <p className="text-[8px] text-blue-500">70% carb / 30% fat</p>
+                        <p className="text-xs text-muted-foreground">Higher carbs</p>
+                        <p className="text-xs text-blue-500">70% carb / 30% fat</p>
                       </Card>
                     </div>
                   )}
@@ -1057,7 +1057,7 @@ export default function Onboarding() {
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold">Gain Muscle</h3>
-                      <p className="text-[11px] text-muted-foreground">Calorie surplus to build muscle</p>
+                      <p className="text-xs text-muted-foreground">Calorie surplus to build muscle</p>
                     </div>
                     {profile.sparGoal === 'gain' && <CheckCircle className="w-5 h-5 text-green-500" />}
                   </div>
@@ -1071,8 +1071,8 @@ export default function Onboarding() {
                         onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'lean' }); }}
                       >
                         <span className="text-sm font-bold">Lean</span>
-                        <p className="text-[9px] text-muted-foreground">+250 cal/day</p>
-                        <p className="text-[8px] text-green-500">~0.5 lb/week</p>
+                        <p className="text-xs text-muted-foreground">+250 cal/day</p>
+                        <p className="text-xs text-green-500">~0.5 lb/week</p>
                       </Card>
                       <Card
                         className={cn(
@@ -1082,8 +1082,8 @@ export default function Onboarding() {
                         onClick={(e) => { e.stopPropagation(); silentUpdate({ goalIntensity: 'aggressive' }); }}
                       >
                         <span className="text-sm font-bold">Aggressive</span>
-                        <p className="text-[9px] text-muted-foreground">+500 cal/day</p>
-                        <p className="text-[8px] text-green-500">~1 lb/week</p>
+                        <p className="text-xs text-muted-foreground">+500 cal/day</p>
+                        <p className="text-xs text-green-500">~1 lb/week</p>
                       </Card>
                     </div>
                   )}
@@ -1107,7 +1107,7 @@ export default function Onboarding() {
                       silentUpdate({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
                     }}
                   />
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Current: {profile.currentWeight} lbs
                     {profile.goalWeightLbs && (
                       <> • {profile.sparGoal === 'lose' ? 'Lose' : 'Gain'} {Math.abs(profile.currentWeight - profile.goalWeightLbs).toFixed(1)} lbs</>
@@ -1161,7 +1161,7 @@ export default function Onboarding() {
                         return (
                           <>
                             <span className={iconColor}>{label}</span>
-                            <span className="text-[10px] text-muted-foreground">{sub}</span>
+                            <span className="text-xs text-muted-foreground">{sub}</span>
                           </>
                         );
                       })()}
@@ -1183,23 +1183,23 @@ export default function Onboarding() {
                 <div className="grid grid-cols-5 gap-1.5">
                   <div className="text-center p-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
                     <div className="text-lg mb-0.5">🤚</div>
-                    <p className="text-[8px] font-bold text-orange-500">PROTEIN</p>
+                    <p className="text-xs font-bold text-orange-500">PROTEIN</p>
                   </div>
                   <div className="text-center p-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
                     <div className="text-lg mb-0.5">✊</div>
-                    <p className="text-[8px] font-bold text-amber-500">CARBS</p>
+                    <p className="text-xs font-bold text-amber-500">CARBS</p>
                   </div>
                   <div className="text-center p-2 rounded-lg bg-green-500/10 border border-green-500/30">
                     <div className="text-lg mb-0.5">✊</div>
-                    <p className="text-[8px] font-bold text-green-500">VEG</p>
+                    <p className="text-xs font-bold text-green-500">VEG</p>
                   </div>
                   <div className="text-center p-2 rounded-lg bg-pink-500/10 border border-pink-500/30">
                     <div className="text-lg mb-0.5">🍎</div>
-                    <p className="text-[8px] font-bold text-pink-500">FRUIT</p>
+                    <p className="text-xs font-bold text-pink-500">FRUIT</p>
                   </div>
                   <div className="text-center p-2 rounded-lg bg-blue-400/10 border border-blue-400/30">
                     <div className="text-lg mb-0.5">👍</div>
-                    <p className="text-[8px] font-bold text-blue-400">FAT</p>
+                    <p className="text-xs font-bold text-blue-400">FAT</p>
                   </div>
                 </div>
 

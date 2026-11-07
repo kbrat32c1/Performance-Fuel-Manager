@@ -184,7 +184,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
               This morning {morning!.toFixed(1)} lb · {Math.abs(diff) < 0.005 ? 'at eligible weight' : `${Math.abs(diff).toFixed(2)} ${diff > 0 ? 'above' : 'below'} eligible weight`}
             </p>
           )}
-          <p className="mt-2 text-[11px] text-muted-foreground">
+          <p className="mt-2 text-xs text-muted-foreground">
             Minimum weight {lb(plan.minimumWeight)} · minimum weight class {saved.minimumClass} · initial weight {plan.initialWeight.toFixed(2)} · weight loss per week {saved.weeklyLoss.toFixed(2)} ·{' '}
             <button type="button" onClick={onEdit} className="underline">Edit</button>
           </p>
@@ -226,7 +226,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
 
         <div className="overflow-hidden rounded-xl border border-muted">
           <table className="w-full text-sm">
-            <thead className="bg-muted/30 text-[11px] text-muted-foreground">
+            <thead className="bg-muted/30 text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 text-left font-bold">Date</th>
                 <th className="px-2 py-2 text-right font-bold">Eligible wt</th>
@@ -274,7 +274,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
             </tbody>
           </table>
           {(previewDates.length > 0 || shown.rows.some(r => r.weighIn && !r.weighIn.counted)) && (
-            <p className="border-t border-muted px-3 py-2 text-[11px] text-muted-foreground">
+            <p className="border-t border-muted px-3 py-2 text-xs text-muted-foreground">
               {previewDates.length > 0 && <span className="italic text-primary">Orange italic = preview, not saved. </span>}
               {shown.rows.some(r => r.weighIn && !r.weighIn.counted) && '* Not counted (below eligible weight or day 2 of a tournament).'}
             </p>
@@ -282,7 +282,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
         </div>
       </section>
 
-      <p className="px-1 text-[11px] text-muted-foreground">
+      <p className="px-1 text-xs text-muted-foreground">
         Rebuilt from your certification and the weigh-ins you save, using TrackWrestling's rules. If anything differs, TrackWrestling is right.
         <br />
         <Link href="/weigh-in" className="underline">Daily weigh-ins</Link>
@@ -294,7 +294,7 @@ export function PlanView({ plan, todayKey, morning, onSave, onEdit }: {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
       <p className="font-mono text-2xl font-bold">{value}</p>
     </div>
   );
@@ -472,7 +472,7 @@ function RowEditor({ date, isFuture, allowed, official, preview, dayBeforeHasWei
           )}
         </div>
       )}
-      {isFuture && <p className="text-[11px] text-muted-foreground">Future dates are previews only. Save the official weight after you weigh in.</p>}
+      {isFuture && <p className="text-xs text-muted-foreground">Future dates are previews only. Save the official weight after you weigh in.</p>}
       {error && <p role="alert" className="text-sm text-amber-500">{error}</p>}
     </div>
   );

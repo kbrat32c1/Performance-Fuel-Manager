@@ -166,7 +166,7 @@ export default function WeighIn() {
                 <div className="flex items-center gap-3">
                   <label htmlFor={`w-${slot.type}`} className="flex-1 min-w-0">
                     <span className="block text-sm font-bold">{slot.label}</span>
-                    <span className="block text-[11px] text-muted-foreground truncate">
+                    <span className="block text-xs text-muted-foreground truncate">
                       {recent.length > 0 ? `Last: ${recent.map(r => formatWeight(r.weight)).join(' · ')}` : 'No earlier readings'}
                     </span>
                   </label>
@@ -211,7 +211,7 @@ export default function WeighIn() {
           })}
         </ul>
 
-        <p className="px-1 text-[11px] text-muted-foreground">
+        <p className="px-1 text-xs text-muted-foreground">
           Blank means not recorded. Saves when you tap away or press return.{' '}
           <button
             type="button"

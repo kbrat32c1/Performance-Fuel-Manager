@@ -262,28 +262,28 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
       {/* Summary totals */}
       <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-muted/20">
         {hasSugar && totals.carbsG > 0 && (
-          <span className="text-[11px] font-mono font-bold text-amber-500">{totals.carbsG}g carbs</span>
+          <span className="text-xs font-mono font-bold text-amber-500">{totals.carbsG}g carbs</span>
         )}
         {hasSugar && totals.proteinG > 0 && (
-          <span className="text-[11px] font-mono font-bold text-orange-500">{totals.proteinG}g protein</span>
+          <span className="text-xs font-mono font-bold text-orange-500">{totals.proteinG}g protein</span>
         )}
         {hasSpar && totals.proteinSlices > 0 && (
-          <span className="text-[11px] font-mono font-bold text-orange-500">{totals.proteinSlices} pro</span>
+          <span className="text-xs font-mono font-bold text-orange-500">{totals.proteinSlices} pro</span>
         )}
         {hasSpar && totals.carbSlices > 0 && (
-          <span className="text-[11px] font-mono font-bold text-amber-500">{totals.carbSlices} carb</span>
+          <span className="text-xs font-mono font-bold text-amber-500">{totals.carbSlices} carb</span>
         )}
         {hasSpar && totals.vegSlices > 0 && (
-          <span className="text-[11px] font-mono font-bold text-green-500">{totals.vegSlices} veg</span>
+          <span className="text-xs font-mono font-bold text-green-500">{totals.vegSlices} veg</span>
         )}
         {hasSpar && totals.fruitSlices > 0 && (
-          <span className="text-[11px] font-mono font-bold text-pink-500">{totals.fruitSlices} fruit</span>
+          <span className="text-xs font-mono font-bold text-pink-500">{totals.fruitSlices} fruit</span>
         )}
         {hasSpar && totals.fatSlices > 0 && (
-          <span className="text-[11px] font-mono font-bold text-yellow-600">{totals.fatSlices} fat</span>
+          <span className="text-xs font-mono font-bold text-yellow-600">{totals.fatSlices} fat</span>
         )}
         {totals.water > 0 && (
-          <span className="text-[11px] font-mono font-bold text-cyan-500">{totals.water}oz water</span>
+          <span className="text-xs font-mono font-bold text-cyan-500">{totals.water}oz water</span>
         )}
       </div>
 
@@ -293,7 +293,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
           onClick={handleUndo}
           disabled={foodLog.length === 0}
           className={cn(
-            "flex items-center gap-1 text-[11px] font-bold transition-colors px-2.5 py-1.5 rounded-lg",
+            "flex items-center gap-1 text-xs font-bold transition-colors px-2.5 py-1.5 rounded-lg",
             foodLog.length === 0
               ? "text-muted-foreground/30"
               : "text-primary hover:bg-primary/10"
@@ -304,11 +304,11 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
         </button>
         {confirmingReset ? (
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-destructive font-bold">Reset all food?</span>
-            <button onClick={handleReset} className="text-[11px] font-bold text-destructive hover:text-destructive/80 px-2 py-1 rounded bg-destructive/10">
+            <span className="text-xs text-destructive font-bold">Reset all food?</span>
+            <button onClick={handleReset} className="text-xs font-bold text-destructive hover:text-destructive/80 px-2 py-1 rounded bg-destructive/10">
               Yes
             </button>
-            <button onClick={() => setConfirmingReset(false)} className="text-[11px] font-bold text-muted-foreground px-2 py-1">
+            <button onClick={() => setConfirmingReset(false)} className="text-xs font-bold text-muted-foreground px-2 py-1">
               No
             </button>
           </div>
@@ -317,7 +317,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
             onClick={() => setConfirmingReset(true)}
             disabled={foodLog.length === 0}
             className={cn(
-              "flex items-center gap-1 text-[11px] font-bold transition-colors px-2.5 py-1.5 rounded-lg",
+              "flex items-center gap-1 text-xs font-bold transition-colors px-2.5 py-1.5 rounded-lg",
               foodLog.length === 0
                 ? "text-muted-foreground/30"
                 : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
@@ -367,7 +367,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
                 {/* Food name + time */}
                 <div className="flex-1 min-w-0">
                   <span className="text-[12px] font-semibold truncate block leading-tight">{entry.name}</span>
-                  <span className="text-[10px] text-muted-foreground/60 font-mono">
+                  <span className="text-xs text-muted-foreground/60 font-mono">
                     {(() => {
                       try {
                         return format(new Date(entry.timestamp), 'h:mm a');
@@ -416,7 +416,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
                         {displayAmount} {displayUnit}
                       </button>
                       {entry.liquidOz && (
-                        <span className="text-[10px] font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
+                        <span className="text-xs font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>
                       )}
                     </>
                   )}
@@ -428,7 +428,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
       </div>
 
       {/* Entry count */}
-      <p className="text-[10px] text-muted-foreground/40 text-center pt-2">
+      <p className="text-xs text-muted-foreground/40 text-center pt-2">
         {foodLog.length} {foodLog.length === 1 ? 'item' : 'items'} logged {dayLabel}
       </p>
     </div>

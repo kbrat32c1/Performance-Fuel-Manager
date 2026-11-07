@@ -92,7 +92,7 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
                 {viewingToday ? format(currentDate, 'EEE, MMM d') : format(currentDate, 'EEE, MMM d')}
               </span>
               {!viewingToday && (
-                <span className="text-[10px] text-yellow-500 font-bold uppercase">
+                <span className="text-xs text-yellow-500 font-bold uppercase">
                   Historical
                 </span>
               )}

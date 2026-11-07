@@ -65,7 +65,7 @@ export function RecoveryReadyModal({ score, onDismiss }: RecoveryReadyModalProps
       </div>
 
       {/* Dismiss hint */}
-      <div className="absolute bottom-10 text-white/20 text-[10px] uppercase tracking-wider animate-in fade-in duration-700 delay-700">
+      <div className="absolute bottom-10 text-white/20 text-xs uppercase tracking-wider animate-in fade-in duration-700 delay-700">
         tap anywhere to dismiss
       </div>
     </div>
@@ -114,7 +114,7 @@ function ScoreRingLarge({ score }: { score: number }) {
         <span className={cn("text-4xl font-bold leading-none", getColor(score))}>
           {Math.round(score)}
         </span>
-        <span className="text-white/30 text-[10px] mt-1">/ 100</span>
+        <span className="text-white/30 text-xs mt-1">/ 100</span>
       </div>
     </div>
   );

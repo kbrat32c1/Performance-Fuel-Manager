@@ -8,6 +8,8 @@ Progressive Web App for wrestlers to manage weight cutting, nutrition, and perfo
 **GitHub:** kbrat32c1/Performance-Fuel-Manager
 **Database:** Supabase PostgreSQL (xcqsnrqjghcxuotoaryv.supabase.co)
 
+**Design and wording rules:** see [DESIGN.md](DESIGN.md) before changing any screen, logo or user-facing text.
+
 ## Tech Stack
 
 - **Frontend:** React 19 + TypeScript + Vite 7 + Tailwind CSS 4 + Radix/ShadCN UI

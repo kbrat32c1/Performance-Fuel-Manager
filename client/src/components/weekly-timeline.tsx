@@ -28,8 +28,8 @@ export function WeeklyTimeline({ currentDay }: { currentDay: number }) {
                 "bg-card border-muted text-foreground"
               )}
             >
-              <span className="text-[10px] uppercase font-bold tracking-wider opacity-80">{day.name}</span>
-              <span className={cn("text-[9px] font-mono mt-0.5", isActive ? "text-black/70" : "text-muted-foreground")}>{day.label}</span>
+              <span className="text-xs uppercase font-bold tracking-wider opacity-80">{day.name}</span>
+              <span className={cn("text-xs font-mono mt-0.5", isActive ? "text-black/70" : "text-muted-foreground")}>{day.label}</span>
               {isActive && <div className="w-1 h-1 bg-black rounded-full mt-1" />}
             </div>
           );

@@ -119,13 +119,13 @@ export function ProtocolSwitchBanner() {
                   Protocol Alert
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 {message}
               </p>
               <Button
                 size="sm"
                 className={cn(
-                  "mt-2 h-7 text-[10px] font-bold",
+                  "mt-2 h-7 text-xs font-bold",
                   isRed
                     ? "bg-red-500 hover:bg-red-600 text-white"
                     : "bg-amber-500 hover:bg-amber-600 text-white"

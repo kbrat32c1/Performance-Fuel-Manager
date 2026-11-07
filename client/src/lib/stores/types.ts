@@ -78,7 +78,7 @@ export interface AthleteProfile {
   lastCalcWeight?: number; // Weight used for last slice calculation
   lastCheckInDate?: string; // ISO date of last check-in prompt
   weighInCleared?: boolean; // True when user has no active weigh-in date
-  nextCyclePromptDismissed?: boolean; // True when user dismissed the post-comp prompt (one-time)
+  nextCyclePromptDismissed?: boolean | string; // weigh-in date (yyyy-MM-dd) the post-weigh-in prompt was finished for
 }
 
 export interface WeightLog {

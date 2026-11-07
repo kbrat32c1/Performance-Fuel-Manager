@@ -31,7 +31,7 @@ function WhyExplanation({ title, children }: { title: string; children: React.Re
     >
       <div className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
         <HelpCircle className="w-3.5 h-3.5" />
-        <span className="text-[10px] uppercase font-bold">Why {title}?</span>
+        <span className="text-xs uppercase font-bold">Why {title}?</span>
         <ChevronRight className={cn("w-3 h-3 transition-transform", isOpen && "rotate-90")} />
       </div>
       {isOpen && (
@@ -107,7 +107,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                   {consumedOz} <span className="text-xs text-muted-foreground font-normal">oz</span>
                 </span>
                 <span className={cn(
-                  "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase",
+                  "text-xs font-bold px-1.5 py-0.5 rounded uppercase",
                   hydration.type === 'Sip Only'
                     ? "bg-orange-500/20 text-orange-500 border border-orange-500/50 animate-pulse"
                     : "bg-cyan-500/20 text-cyan-500"
@@ -125,13 +125,13 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                       className="h-6 w-14 text-xs font-mono"
                       autoFocus
                     />
-                    <span className="text-[10px] text-muted-foreground">oz</span>
-                    <button onClick={handleSaveEdit} className="text-[10px] text-green-500 font-bold px-1.5">Save</button>
-                    <button onClick={() => setIsEditing(false)} className="text-[10px] text-muted-foreground px-1">✕</button>
+                    <span className="text-xs text-muted-foreground">oz</span>
+                    <button onClick={handleSaveEdit} className="text-xs text-green-500 font-bold px-1.5">Save</button>
+                    <button onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-1">✕</button>
                   </div>
                 ) : (
                   <>
-                    <span className="text-[11px] font-mono text-muted-foreground">
+                    <span className="text-xs font-mono text-muted-foreground">
                       {tracking.waterConsumed}/{hydration.targetOz}oz
                     </span>
                     {!readOnly && (
@@ -176,7 +176,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                 />
               </div>
               <span className={cn(
-                "text-[10px] font-bold w-8 text-right",
+                "text-xs font-bold w-8 text-right",
                 progress >= 100 ? "text-green-500" : progress >= 75 ? "text-cyan-500" : "text-muted-foreground"
               )}>
                 {progress.toFixed(0)}%
@@ -193,7 +193,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               {isEditing ? (
                 <div className="flex items-center gap-1">
                   <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 w-16 text-center text-xs font-mono" autoFocus />
-                  <span className="text-[10px] text-muted-foreground">oz</span>
+                  <span className="text-xs text-muted-foreground">oz</span>
                   <button onClick={handleSaveEdit} className="text-xs text-green-500 font-bold px-2 py-1 min-h-[36px] active:scale-95 transition-transform">Save</button>
                   <button onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-2 py-1 min-h-[36px] active:scale-95 transition-transform">✕</button>
                 </div>
@@ -222,7 +222,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
         )}
 
         {/* Phase note */}
-        <p className="text-[10px] text-muted-foreground mb-2">{hydration.note}</p>
+        <p className="text-xs text-muted-foreground mb-2">{hydration.note}</p>
 
         {/* Quick Add Buttons — only when standalone (not embedded, parent handles these) */}
         {!readOnly && !embedded && (

@@ -157,7 +157,7 @@ export function TrendChart() {
             <Activity className="w-3.5 h-3.5" /> Weight Trend
             {trend !== null && (
               <span className={cn(
-                "ml-2 flex items-center gap-1 text-[10px] font-bold",
+                "ml-2 flex items-center gap-1 text-xs font-bold",
                 trend < 0 ? "text-green-500" : trend > 0 ? "text-orange-500" : "text-muted-foreground"
               )}>
                 {trend < 0 ? <TrendingDown className="w-3 h-3" /> : trend > 0 ? <TrendingUp className="w-3 h-3" /> : null}
@@ -172,7 +172,7 @@ export function TrendChart() {
                 variant={viewMode === mode ? "secondary" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode(mode)}
-                className="h-6 px-2 text-[10px]"
+                className="h-6 px-2 text-xs"
               >
                 {mode === 'week' ? '7d' : mode === '4week' ? '28d' : '4wk'}
               </Button>
@@ -209,7 +209,7 @@ export function TrendChart() {
                       dy={12}
                       textAnchor="middle"
                       fill={item?.isToday ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
-                      fontSize={viewMode === 'week' ? 8 : 10}
+                      fontSize={12}
                       fontWeight={item?.isToday ? 600 : 400}
                     >
                       {payload.value}
@@ -218,11 +218,11 @@ export function TrendChart() {
                       <text
                         x={0}
                         y={0}
-                        dy={21}
+                        dy={26}
                         textAnchor="middle"
                         fill="hsl(var(--muted-foreground))"
-                        fontSize={7}
-                        opacity={0.6}
+                        fontSize={12}
+                        opacity={0.75}
                       >
                         {item.shortDate}
                       </text>
@@ -230,13 +230,13 @@ export function TrendChart() {
                   </g>
                 );
               }}
-              height={viewMode === 'week' ? 30 : 25}
+              height={viewMode === "week" ? 36 : 25}
             />
             <YAxis
               domain={[minWeight, maxWeight]}
               axisLine={false}
               tickLine={false}
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
             />
             <Tooltip
               contentStyle={{
@@ -290,7 +290,7 @@ export function TrendChart() {
       </CardContent>
 
       {/* Legend */}
-      <div className="px-4 py-2 flex items-center justify-center gap-4 text-[10px] border-t border-muted/30">
+      <div className="px-4 py-2 flex items-center justify-center gap-4 text-xs border-t border-muted/30">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-primary rounded" />
           <span className="text-muted-foreground">Actual</span>
@@ -303,7 +303,7 @@ export function TrendChart() {
 
       {/* Stats Row */}
       {validWeights.length >= 2 && (
-        <div className="px-4 pb-3 flex justify-between text-[10px] text-muted-foreground border-t border-muted/30 pt-2 mt-2">
+        <div className="px-4 pb-3 flex justify-between text-xs text-muted-foreground border-t border-muted/30 pt-2 mt-2">
           <div>
             <span className="font-bold">Start:</span> {validWeights[0].toFixed(1)} lbs
           </div>

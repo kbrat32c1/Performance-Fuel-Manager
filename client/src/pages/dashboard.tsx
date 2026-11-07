@@ -1,5 +1,7 @@
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
+import { useTeam } from "@/hooks/use-team";
+import { dayKey, nextScheduledWeighIn, peekPendingTeamCode } from "@/lib/team-schedule";
 import { useAuth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -112,11 +114,11 @@ function V5SyncingBanner({ deviceName }: { deviceName: string }) {
         <span className="text-green-500 text-xs font-bold flex-1">
           Syncing {deviceName || 'V5 Band'}
         </span>
-        <span className="text-[10px] text-muted-foreground font-mono">
+        <span className="text-xs text-muted-foreground font-mono">
           {elapsed}s
         </span>
       </div>
-      <div className="text-[11px] text-muted-foreground ml-5">
+      <div className="text-xs text-muted-foreground ml-5">
         {currentStage}
       </div>
       <div className="h-1 bg-muted/20 rounded-full overflow-hidden mt-2 ml-5">
@@ -184,9 +186,9 @@ function V5BandStatusBar({ v5band }: { v5band: ReturnType<typeof useV5BandContex
         </div>
         <div className="flex items-center gap-2">
           {batteryLevel != null && (
-            <span className="text-[10px] text-muted-foreground font-medium">{batteryLevel}%</span>
+            <span className="text-xs text-muted-foreground font-medium">{batteryLevel}%</span>
           )}
-          <span className="text-[10px] text-green-500/70 font-medium">
+          <span className="text-xs text-green-500/70 font-medium">
             {syncTimeLabel.toUpperCase()} ✓
           </span>
         </div>
@@ -238,7 +240,7 @@ function V5BandStatusBar({ v5band }: { v5band: ReturnType<typeof useV5BandContex
             DISCONNECTED
           </span>
         </div>
-        <span className="text-[10px] text-orange-400/70 font-medium">
+        <span className="text-xs text-orange-400/70 font-medium">
           TAP TO RECONNECT
         </span>
       </div>
@@ -330,14 +332,14 @@ function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['prof
         <div className="flex items-center gap-2 mb-2">
           <Zap className={cn("w-4 h-4", iconColor)} />
           <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Today's Plan</span>
-          <span className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded", iconColor, "bg-current/10")}>
+          <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", iconColor, "bg-current/10")}>
             {goalShortName}
           </span>
-          <span className="text-[10px] text-muted-foreground/50 ml-auto font-mono">{targets.totalCalories} cal</span>
+          <span className="text-xs text-muted-foreground/50 ml-auto font-mono">{targets.totalCalories} cal</span>
         </div>
 
         {/* Daily tip */}
-        <p className="text-[11px] text-muted-foreground/80 leading-relaxed pl-6">
+        <p className="text-xs text-muted-foreground/80 leading-relaxed pl-6">
           💡 {todayTip}
         </p>
       </CardContent>
@@ -393,20 +395,20 @@ function AdaptiveAdjustmentBanner() {
                   {adjustment.isPlateaued ? 'Plateau Detected' : 'Adjustment Suggestion'}
                 </span>
                 {adjustment.plateauDays > 0 && (
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {adjustment.plateauDays}+ days
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 {adjustment.reason}
               </p>
               {/* Weight data mini-chart */}
               {adjustment.recentWeights.length > 0 && (
                 <div className="flex items-center gap-1 mt-2">
-                  <span className="text-[9px] text-muted-foreground">Recent:</span>
+                  <span className="text-xs text-muted-foreground">Recent:</span>
                   {adjustment.recentWeights.slice(0, 5).reverse().map((w, i) => (
-                    <span key={i} className="text-[10px] font-mono text-foreground/70">
+                    <span key={i} className="text-xs font-mono text-foreground/70">
                       {w.weight.toFixed(1)}
                       {i < Math.min(4, adjustment.recentWeights.length - 1) && (
                         <span className="text-muted-foreground mx-0.5">→</span>
@@ -476,7 +478,7 @@ function WeeklyComplianceCard() {
               <span className={cn("text-xs font-bold", overallColor)}>
                 {overallCompliance}%
               </span>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 ({compliance.daysTracked} day{compliance.daysTracked !== 1 ? 's' : ''})
               </span>
             </div>
@@ -537,10 +539,10 @@ function WeeklyComplianceCard() {
                     <div className={cn("text-lg font-bold font-mono", color)}>
                       {pct}%
                     </div>
-                    <div className="text-[9px] text-muted-foreground uppercase font-bold">
+                    <div className="text-xs text-muted-foreground uppercase font-bold">
                       {label}
                     </div>
-                    <div className="text-[9px] text-muted-foreground">
+                    <div className="text-xs text-muted-foreground">
                       {data.avgConsumed}/{data.avgTarget}
                     </div>
                   </div>
@@ -553,7 +555,7 @@ function WeeklyComplianceCard() {
               <div className="mt-3 px-2.5 py-2 rounded-lg bg-primary/5 border border-primary/20">
                 <div className="flex items-center gap-2">
                   <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {compliance.insight}
                   </span>
                 </div>
@@ -675,13 +677,13 @@ function TodayFlow({
             )}
           >
             <Sun className={cn("w-4 h-4 mb-1", morningLog ? "text-yellow-500" : "text-muted-foreground/40")} />
-            <span className={cn("text-[9px] font-bold uppercase tracking-wide mb-0.5", morningLog ? "text-yellow-500" : "text-muted-foreground/60")}>
+            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", morningLog ? "text-yellow-500" : "text-muted-foreground/60")}>
               {morningLog ? "AM ✓" : "AM"}
             </span>
             {morningLog ? (
               <span className="text-base font-mono font-bold">{morningLog.weight.toFixed(1)}</span>
             ) : (
-              <span className="text-[9px] text-muted-foreground/40">Optional</span>
+              <span className="text-xs text-muted-foreground/40">Optional</span>
             )}
           </button>
 
@@ -696,13 +698,13 @@ function TodayFlow({
             )}
           >
             <Scale className={cn("w-4 h-4 mb-1", weighInLog ? "text-green-500" : "text-yellow-500/50")} />
-            <span className={cn("text-[9px] font-bold uppercase tracking-wide mb-0.5", weighInLog ? "text-green-500" : "text-yellow-500")}>
+            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", weighInLog ? "text-green-500" : "text-yellow-500")}>
               {weighInLog ? "Official ✓" : "Weigh-In"}
             </span>
             {weighInLog ? (
               <span className="text-base font-mono font-bold">{weighInLog.weight.toFixed(1)}</span>
             ) : (
-              <span className="text-[9px] text-muted-foreground">Tap to log</span>
+              <span className="text-xs text-muted-foreground">Tap to log</span>
             )}
           </button>
 
@@ -717,13 +719,13 @@ function TodayFlow({
             )}
           >
             <Moon className={cn("w-4 h-4 mb-1", bedLog ? "text-purple-500" : "text-muted-foreground/40")} />
-            <span className={cn("text-[9px] font-bold uppercase tracking-wide mb-0.5", bedLog ? "text-purple-500" : "text-muted-foreground/60")}>
+            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", bedLog ? "text-purple-500" : "text-muted-foreground/60")}>
               {bedLog ? "BED ✓" : "BED"}
             </span>
             {bedLog ? (
               <span className="text-base font-mono font-bold">{bedLog.weight.toFixed(1)}</span>
             ) : (
-              <span className="text-[9px] text-muted-foreground/40">Optional</span>
+              <span className="text-xs text-muted-foreground/40">Optional</span>
             )}
           </button>
         </div>
@@ -755,11 +757,11 @@ function TodayFlow({
         {/* Header: label + colored dots + count */}
         <div className="flex items-center justify-between px-1 pb-1">
           <span className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
+            <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
             <button
               type="button"
               onClick={() => navigateTo('/weigh-in')}
-              className="text-[10px] font-bold text-primary underline-offset-2 hover:underline"
+              className="text-xs font-bold text-primary underline-offset-2 hover:underline"
             >
               Enter all
             </button>
@@ -777,7 +779,7 @@ function TodayFlow({
               ))}
             </div>
             <span className={cn(
-              "text-[10px] font-mono",
+              "text-xs font-mono",
               isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
             )}>
               {loggedCount}/{slots.length}
@@ -812,7 +814,7 @@ function TodayFlow({
                     {slot.icon}
                   </span>
                   <span className={cn(
-                    "text-[10px] font-bold uppercase",
+                    "text-xs font-bold uppercase",
                     isLogged ? slot.color : "text-muted-foreground"
                   )}>
                     {slot.label}
@@ -821,7 +823,7 @@ function TodayFlow({
 
                 {/* Time */}
                 {isLogged && (
-                  <span className="text-[9px] text-muted-foreground font-mono">
+                  <span className="text-xs text-muted-foreground font-mono">
                     {new Date(slot.log.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 )}
@@ -840,7 +842,7 @@ function TodayFlow({
 
                 {/* Practice loss on POST slot */}
                 {showPracticeLoss && (
-                  <span className="text-[9px] text-primary font-bold">
+                  <span className="text-xs text-primary font-bold">
                     -{practiceLoss.toFixed(1)}{sweatRate ? ` (${sweatRate.toFixed(1)}/hr)` : ''}
                   </span>
                 )}
@@ -856,7 +858,7 @@ function TodayFlow({
               onClick={onToggleRestDay}
               disabled={hasPracticeLog}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide transition-colors",
                 hasPracticeLog
                   ? "text-muted-foreground/40 cursor-not-allowed"
                   : isRestDay
@@ -887,15 +889,15 @@ function TodayFlow({
                 >
                   <div className="flex items-center gap-2">
                     <Dumbbell className="w-3 h-3 text-orange-500" />
-                    <span className="text-[11px] font-bold text-orange-500">Extra</span>
-                    <span className="text-[10px] text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
+                    <span className="text-xs font-bold text-orange-500">Extra</span>
+                    <span className="text-xs text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-foreground">
+                    <span className="text-xs font-mono text-foreground">
                       {workout.before.weight} → {workout.after ? workout.after.weight : '…'}
                     </span>
                     {loss !== null && loss > 0 && (
-                      <span className="text-[10px] font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
+                      <span className="text-xs font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
                     )}
                     <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
                   </div>
@@ -906,11 +908,11 @@ function TodayFlow({
                 <div key={ci.id} className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 rounded-lg px-3 py-1.5">
                   <div className="flex items-center gap-2">
                     <Scale className="w-3 h-3 text-cyan-500" />
-                    <span className="text-[10px] font-bold text-cyan-500">Weight Check</span>
-                    <span className="text-[9px] text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
+                    <span className="text-xs font-bold text-cyan-500">Weight Check</span>
+                    <span className="text-xs text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
+                    <span className="text-xs font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
                     {confirmDeleteCheckIn === ci.id ? (
                       <button
                         onClick={() => {
@@ -918,7 +920,7 @@ function TodayFlow({
                           setConfirmDeleteCheckIn(null);
                           toast({ title: "Deleted", description: "Weight check removed" });
                         }}
-                        className="px-2 py-0.5 rounded bg-destructive/20 text-destructive text-[10px] font-bold animate-pulse"
+                        className="px-2 py-0.5 rounded bg-destructive/20 text-destructive text-xs font-bold animate-pulse"
                       >
                         Confirm?
                       </button>
@@ -1009,17 +1011,17 @@ function WeightProjectionCard({ profile, logs }: {
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="text-center">
             <div className="text-lg font-bold font-mono text-muted-foreground/70">{startWeight ? startWeight.toFixed(1) : '—'}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Started</div>
+            <div className="text-xs text-muted-foreground uppercase">Started</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold font-mono text-foreground">{currentWeight}</div>
-            <div className="text-[9px] text-muted-foreground uppercase">Current</div>
+            <div className="text-xs text-muted-foreground uppercase">Current</div>
           </div>
           <div className="text-center">
             <div className={cn("text-lg font-bold font-mono", protocolColor)}>
               {selectedProjection.weight}
             </div>
-            <div className="text-[9px] text-muted-foreground uppercase">
+            <div className="text-xs text-muted-foreground uppercase">
               In {weeksAhead}w
             </div>
           </div>
@@ -1027,7 +1029,7 @@ function WeightProjectionCard({ profile, logs }: {
 
         {/* Progress since start */}
         {startWeight && startWeight !== currentWeight && (
-          <div className="flex items-center justify-center gap-3 mb-3 py-1.5 bg-muted/20 rounded-lg text-[10px]">
+          <div className="flex items-center justify-center gap-3 mb-3 py-1.5 bg-muted/20 rounded-lg text-xs">
             <span className="text-muted-foreground">
               Progress: <span className={cn("font-bold", (currentWeight - startWeight) < 0 ? "text-orange-500" : (currentWeight - startWeight) > 0 ? "text-green-500" : "text-muted-foreground")}>
                 {(currentWeight - startWeight) > 0 ? '+' : ''}{(currentWeight - startWeight).toFixed(1)} lbs
@@ -1051,7 +1053,7 @@ function WeightProjectionCard({ profile, logs }: {
 
         {/* Week slider */}
         <div className="space-y-2" data-swipe-ignore>
-          <div className="flex justify-between text-[10px] text-muted-foreground">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>Today</span>
             <span>{format(selectedProjection.date, 'MMM d, yyyy')}</span>
             <span>12 weeks</span>
@@ -1073,7 +1075,7 @@ function WeightProjectionCard({ profile, logs }: {
                 key={w}
                 onClick={() => setWeeksAhead(w)}
                 className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded transition-colors",
+                  "text-xs px-1.5 py-0.5 rounded transition-colors",
                   weeksAhead === w ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
                 )}
               >
@@ -1084,7 +1086,7 @@ function WeightProjectionCard({ profile, logs }: {
         </div>
 
         {/* Protocol explanation */}
-        <p className="text-[9px] text-muted-foreground mt-3 text-center">
+        <p className="text-xs text-muted-foreground mt-3 text-center">
           Based on {goalShortName} goal ({calorieAdj > 0 ? '+' : ''}{calorieAdj} cal/day)
         </p>
       </CardContent>
@@ -1141,6 +1143,27 @@ export default function Dashboard() {
   const displayDate = profile.simulatedDate || healthDayDate;
   const daysUntilWeighIn = getDaysUntilWeighIn();
   const isViewingHistorical = !!profile.simulatedDate;
+
+  // Team schedule: keep the athlete's weigh-in date on the coach's schedule. While a passed
+  // weigh-in still waits for its official weight, leave it so the prompt can ask for it.
+  const team = useTeam();
+  const scheduledNext = team.membership
+    ? nextScheduledWeighIn(team.membership.events, team.membership.skipped, dayKey(new Date()))
+    : null;
+  const [, goTo] = useLocation();
+  useEffect(() => {
+    // Opened a team link before signing in: finish joining now.
+    if (team.status === 'ready' && !team.membership && !team.coached && peekPendingTeamCode()) goTo('/team');
+  }, [team.status, team.membership, team.coached]);
+  useEffect(() => {
+    if (isViewingHistorical || !team.membership || !scheduledNext) return;
+    const currentKey = dayKey(profile.weighInDate);
+    const promptPending = daysUntilWeighIn < 0 && !profile.weighInCleared && profile.nextCyclePromptDismissed !== currentKey;
+    if (promptPending) return;
+    if (scheduledNext.date === currentKey && !profile.weighInCleared) return;
+    const [y, m, d] = scheduledNext.date.split('-').map(Number);
+    updateProfile({ weighInDate: new Date(y, m - 1, d, 12, 0, 0), weighInCleared: false }, { silent: true });
+  }, [isViewingHistorical, team.membership, scheduledNext?.date, profile.weighInDate, profile.weighInCleared, profile.nextCyclePromptDismissed, daysUntilWeighIn]);
   const [compDayDismissed, setCompDayDismissed] = useState(() => sessionStorage.getItem('compDayBannerDismissed') === 'true');
   const [sipOnlyDismissed, setSipOnlyDismissed] = useState(() => sessionStorage.getItem('sipOnlyBannerDismissed') === 'true');
   const today = startOfDay(new Date());
@@ -1771,7 +1794,7 @@ export default function Dashboard() {
               size="sm"
               variant="outline"
               onClick={() => handleDateChange(null)}
-              className="h-6 text-[10px] border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
+              className="h-6 text-xs border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20"
             >
               Back to Today
             </Button>
@@ -1802,6 +1825,7 @@ export default function Dashboard() {
           profile={profile}
           updateProfile={updateProfile}
           daysUntilWeighIn={daysUntilWeighIn}
+          team={team.membership ? { name: team.membership.team.name, next: scheduledNext } : undefined}
         />
       )}
 
@@ -1877,7 +1901,7 @@ export default function Dashboard() {
       {driftMetrics.overnight === null && driftMetrics.session === null && logs.length > 0 && logs.length < 4 && (
         <div className="flex items-center gap-2 bg-muted/30 border border-muted rounded-lg px-3 py-2 mb-2">
           <Scale className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Log <span className="font-bold text-foreground/70">2+ days</span> of morning & bedtime weights to unlock your drift & projection stats.
           </p>
         </div>
@@ -1955,7 +1979,7 @@ function OfflineBanner() {
         </div>
         <div>
           <p className="text-sm font-bold text-foreground">You're offline</p>
-          <p className="text-[11px] text-muted-foreground">Your changes are saved locally</p>
+          <p className="text-xs text-muted-foreground">Your changes are saved locally</p>
         </div>
       </div>
       <button
@@ -1989,7 +2013,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
             <div>
               <h3 className="font-bold text-base text-orange-500 uppercase tracking-wide flex items-center gap-2">
                 Sip Only Mode
-                <span className="text-[9px] font-bold bg-orange-500/30 text-orange-400 px-1.5 py-0.5 rounded animate-pulse">
+                <span className="text-xs font-bold bg-orange-500/30 text-orange-400 px-1.5 py-0.5 rounded animate-pulse">
                   ACTIVE
                 </span>
               </h3>
@@ -2009,13 +2033,13 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
 
         {/* Quick rules — always visible */}
         <div className="flex flex-wrap gap-2 mt-3">
-          <span className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-500 text-[11px] font-bold px-2.5 py-1 rounded-full">
+          <span className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-500 text-xs font-bold px-2.5 py-1 rounded-full">
             <AlertTriangle className="w-3 h-3" /> Max 8oz at a time
           </span>
-          <span className="inline-flex items-center gap-1.5 bg-rose-500/20 text-rose-400 text-[11px] font-bold px-2.5 py-1 rounded-full">
+          <span className="inline-flex items-center gap-1.5 bg-rose-500/20 text-rose-400 text-xs font-bold px-2.5 py-1 rounded-full">
             <X className="w-3 h-3" /> No full glasses
           </span>
-          <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-500 text-[11px] font-bold px-2.5 py-1 rounded-full">
+          <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-500 text-xs font-bold px-2.5 py-1 rounded-full">
             ✓ Ice chips OK
           </span>
         </div>
@@ -2023,7 +2047,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
         {/* Expand toggle */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 mt-3 text-[11px] text-muted-foreground hover:text-foreground uppercase tracking-wide font-bold transition-colors"
+          className="flex items-center gap-1 mt-3 text-xs text-muted-foreground hover:text-foreground uppercase tracking-wide font-bold transition-colors"
         >
           {expanded ? 'Hide details' : 'Why sip only?'}
           <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
@@ -2036,11 +2060,11 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
           <div className="space-y-3">
             <div className="flex items-start gap-2">
               <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-[10px]">💧</span>
+                <span className="text-xs">💧</span>
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground/90">Your kidneys are still flushing</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
                   After 3 days of loading, your body is in full diuresis mode. Drinking normally would add weight back.
                 </p>
               </div>
@@ -2048,11 +2072,11 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
 
             <div className="flex items-start gap-2">
               <div className="w-5 h-5 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-[10px]">⚡</span>
+                <span className="text-xs">⚡</span>
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground/90">Small sips won't stop the process</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
                   Tiny amounts keep you functional while your body continues eliminating water naturally.
                 </p>
               </div>
@@ -2060,11 +2084,11 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
 
             <div className="flex items-start gap-2">
               <div className="w-5 h-5 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-[10px]">⚠️</span>
+                <span className="text-xs">⚠️</span>
               </div>
               <div>
                 <p className="text-xs font-bold text-foreground/90">Gulping triggers water retention</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
                   Large drinks signal your body to slow down urine production — the opposite of what you need.
                 </p>
               </div>
@@ -2072,7 +2096,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
 
             {/* Total allowed */}
             <div className="bg-muted/30 border border-muted rounded-lg p-2.5 mt-2">
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 <span className="font-bold text-foreground">Total allowed today:</span> ~{' '}
                 <span className="font-mono font-bold text-orange-500">12-16 oz</span> spread throughout the day.
                 Track every sip in the hydration card below.
@@ -2166,7 +2190,7 @@ function StatusExplanation({ statusInfo, className }: {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-1 text-[11px] font-bold uppercase px-2 py-0.5 rounded-md tracking-wide transition-all min-h-[28px]",
+          "flex items-center gap-1 text-xs font-bold uppercase px-2 py-0.5 rounded-md tracking-wide transition-all min-h-[28px]",
           statusInfo.status === 'on-track' ? "bg-green-500/20 text-green-500 border border-green-500/30" :
           statusInfo.status === 'borderline' ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/30" :
           statusInfo.status === 'risk' ? "bg-red-500/20 text-red-500 border border-red-500/30" :
@@ -2201,16 +2225,16 @@ function StatusExplanation({ statusInfo, className }: {
             </div>
             <div className="space-y-2">
               <div>
-                <span className="text-[10px] uppercase text-muted-foreground font-bold block mb-0.5">Criteria</span>
+                <span className="text-xs uppercase text-muted-foreground font-bold block mb-0.5">Criteria</span>
                 <p className="text-xs text-foreground/80">{info.criteria}</p>
               </div>
               <div>
-                <span className="text-[10px] uppercase text-muted-foreground font-bold block mb-0.5">What to do</span>
+                <span className="text-xs uppercase text-muted-foreground font-bold block mb-0.5">What to do</span>
                 <p className="text-xs text-foreground/80">{info.guidance}</p>
               </div>
               {statusInfo.contextMessage && statusInfo.status !== 'on-track' && (
                 <div className="pt-2 border-t border-muted/50">
-                  <p className="text-[11px] text-muted-foreground italic">{statusInfo.contextMessage}</p>
+                  <p className="text-xs text-muted-foreground italic">{statusInfo.contextMessage}</p>
                 </div>
               )}
             </div>
@@ -2393,7 +2417,7 @@ function TodayTimeline({
       <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
         {/* Completion indicator - small, inline */}
         <div className="flex items-center justify-between px-1 pb-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
+          <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
           <div className="flex items-center gap-1.5">
             <div className="flex gap-0.5">
               {Array.from({ length: activeSlots }).map((_, i) => (
@@ -2407,7 +2431,7 @@ function TodayTimeline({
               ))}
             </div>
             <span className={cn(
-              "text-[10px] font-mono",
+              "text-xs font-mono",
               isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
             )}>
               {completedCount}/{activeSlots}
@@ -2437,14 +2461,14 @@ function TodayTimeline({
                     {slot.icon}
                   </span>
                   <span className={cn(
-                    "text-[10px] font-bold uppercase",
+                    "text-xs font-bold uppercase",
                     hasWeight ? slot.color : "text-muted-foreground"
                   )}>
                     {slot.label}
                   </span>
                 </div>
                 {hasWeight && (
-                  <span className="text-[9px] text-muted-foreground font-mono">
+                  <span className="text-xs text-muted-foreground font-mono">
                     {new Date(slot.log.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 )}
@@ -2471,7 +2495,7 @@ function TodayTimeline({
             {!hasPracticeLog && !noPractice && (
               <button
                 onClick={() => setPracticeExpanded(!practiceExpanded)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide text-muted-foreground bg-muted/50 hover:bg-muted transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide text-muted-foreground bg-muted/50 hover:bg-muted transition-colors"
               >
                 {practiceExpanded ? (
                   <>
@@ -2491,7 +2515,7 @@ function TodayTimeline({
               <button
                 onClick={toggleNoPractice}
                 className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors",
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide transition-colors",
                   noPractice
                     ? "text-purple-600 bg-purple-500/15 hover:bg-purple-500/25"
                     : "text-muted-foreground bg-muted/50 hover:bg-muted"
@@ -2509,7 +2533,7 @@ function TodayTimeline({
       {hasExtrasOrCheckIns && (
         <details className="group">
           <summary className="flex items-center justify-center gap-2 cursor-pointer py-1 list-none [&::-webkit-details-marker]:hidden">
-            <span className="text-[9px] text-muted-foreground uppercase font-bold">
+            <span className="text-xs text-muted-foreground uppercase font-bold">
               {extraWorkouts.length > 0 && `${extraWorkouts.length} extra`}
               {extraWorkouts.length > 0 && todayCheckIns.length > 0 && ' · '}
               {todayCheckIns.length > 0 && `${todayCheckIns.length} weight check`}
@@ -2533,15 +2557,15 @@ function TodayTimeline({
                 >
                   <div className="flex items-center gap-2">
                     <Dumbbell className="w-3 h-3 text-orange-500" />
-                    <span className="text-[11px] font-bold text-orange-500">Extra</span>
-                    <span className="text-[10px] text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
+                    <span className="text-xs font-bold text-orange-500">Extra</span>
+                    <span className="text-xs text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-foreground">
+                    <span className="text-xs font-mono text-foreground">
                       {workout.before.weight} → {workout.after ? workout.after.weight : '…'}
                     </span>
                     {loss !== null && loss > 0 && (
-                      <span className="text-[10px] font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
+                      <span className="text-xs font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
                     )}
                     {!readOnly && (
                       <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
@@ -2554,11 +2578,11 @@ function TodayTimeline({
                 <div key={ci.id} className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 rounded-lg px-3 py-1.5">
                   <div className="flex items-center gap-2">
                     <Scale className="w-3 h-3 text-cyan-500" />
-                    <span className="text-[10px] font-bold text-cyan-500">Weight Check</span>
-                    <span className="text-[9px] text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
+                    <span className="text-xs font-bold text-cyan-500">Weight Check</span>
+                    <span className="text-xs text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
+                    <span className="text-xs font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
                     {!readOnly && (
                       confirmDeleteCheckIn === ci.id ? (
                         <button
@@ -2567,7 +2591,7 @@ function TodayTimeline({
                             setConfirmDeleteCheckIn(null);
                             toast({ title: "Deleted", description: "Weight check removed" });
                           }}
-                          className="px-2 py-0.5 rounded bg-destructive/20 text-destructive text-[10px] font-bold animate-pulse"
+                          className="px-2 py-0.5 rounded bg-destructive/20 text-destructive text-xs font-bold animate-pulse"
                         >
                           Confirm?
                         </button>
@@ -2654,7 +2678,7 @@ function HeroWeight({
       </div>
 
       {/* Stats row */}
-      <div className="flex items-center justify-center gap-3 text-[11px]">
+      <div className="flex items-center justify-center gap-3 text-xs">
         {/* Weight to lose / at weight */}
         {currentWeight && (
           <span className={cn("font-mono font-bold", statusColor)}>
@@ -2923,7 +2947,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     Weighed in at {descentData.currentWeight.toFixed(1)} lbs
                   </div>
                   {descentData.totalLost !== null && descentData.totalLost > 0 && (
-                    <div className="text-[10px] text-muted-foreground/60 mt-1">
+                    <div className="text-xs text-muted-foreground/60 mt-1">
                       Cut {descentData.totalLost.toFixed(1)} lbs this week
                     </div>
                   )}
@@ -2933,19 +2957,19 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ STATS GRID — Start / Now / Lost / Goal ═══ */}
               <div className="grid grid-cols-4 gap-2 text-center p-4 pb-0">
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">Start</span>
+                  <span className="text-xs text-muted-foreground block">Start</span>
                   <span className="font-mono font-bold text-sm">
                     {descentData.startWeight?.toFixed(1) ?? '—'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">Now</span>
+                  <span className="text-xs text-muted-foreground block">Now</span>
                   <span className={cn("font-mono font-bold text-sm", statusText)}>
                     {descentData.currentWeight?.toFixed(1) ?? '—'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">Lost</span>
+                  <span className="text-xs text-muted-foreground block">Lost</span>
                   <span className={cn(
                     "font-mono font-bold text-sm",
                     descentData.totalLost && descentData.totalLost > 0 ? "text-green-500" : "text-muted-foreground"
@@ -2956,14 +2980,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                   </span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-muted-foreground block">
+                  <span className="text-xs text-muted-foreground block">
                     {daysUntilWeighIn > 5 ? 'Walk-around' : 'Goal'}
                   </span>
                   <span className="font-mono font-bold text-sm text-green-500">
                     {daysUntilWeighIn > 5 ? Math.round(descentData.targetWeight * 1.07) : descentData.targetWeight}
                   </span>
                   {daysUntilWeighIn > 5 && (
-                    <span className="text-[8px] text-muted-foreground/50 block">class: {descentData.targetWeight}</span>
+                    <span className="text-xs text-muted-foreground/50 block">class: {descentData.targetWeight}</span>
                   )}
                 </div>
               </div>
@@ -2971,7 +2995,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ PROJECTED WEIGHT — only during comp week (projection is meaningful) ═══ */}
               {descentData.projectedSaturday !== null && daysUntilWeighIn <= 5 && (
                 <div className="flex items-center justify-center gap-2 pt-2 mt-2 mx-4 border-t border-muted">
-                  <span className="text-[10px] text-muted-foreground">Projected</span>
+                  <span className="text-xs text-muted-foreground">Projected</span>
                   <span className={cn(
                     "font-mono font-bold text-xs",
                     descentData.projectedSaturday <= descentData.targetWeight
@@ -3023,47 +3047,47 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <>
                   {isHistorical && (
-                    <div className="text-[9px] text-muted-foreground/50 text-center mt-3 mx-4">
+                    <div className="text-xs text-muted-foreground/50 text-center mt-3 mx-4">
                       Season averages — new cycle data will replace these
                     </div>
                   )}
                   <div className={cn("grid gap-1 text-center pt-2 mx-4 border-t border-muted", !isHistorical && "mt-3", hasExtras ? "grid-cols-4" : "grid-cols-3", isHistorical && "opacity-60")}>
                     <div>
-                      <span className="text-[10px] text-muted-foreground block">Sleep</span>
+                      <span className="text-xs text-muted-foreground block">Sleep</span>
                       <span className={cn("font-mono font-bold text-xs", driftVal !== null ? "text-cyan-500" : "")}>
                         {driftVal !== null ? `-${Math.abs(driftVal).toFixed(1)}` : '—'} lbs
                       </span>
                       {driftRateVal !== null && (
-                        <span className="block text-[9px] font-mono text-cyan-400">
+                        <span className="block text-xs font-mono text-cyan-400">
                           {driftRateVal.toFixed(2)}/hr
                         </span>
                       )}
                     </div>
                     <div>
-                      <span className="text-[10px] text-muted-foreground block">Awake <span className="text-[8px] text-muted-foreground/50">(est.)</span></span>
+                      <span className="text-xs text-muted-foreground block">Awake <span className="text-xs text-muted-foreground/50">(est.)</span></span>
                       <span className="font-mono font-bold text-xs text-teal-500">
                         {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)}` : '—'} lbs
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-muted-foreground block">Practice</span>
+                      <span className="text-xs text-muted-foreground block">Practice</span>
                       <span className={cn("font-mono font-bold text-xs", practiceVal !== null ? "text-orange-500" : "")}>
                         {practiceVal !== null ? `-${Math.abs(practiceVal).toFixed(1)}` : '—'} lbs
                       </span>
                       {sweatVal !== null && (
-                        <span className="block text-[9px] font-mono text-orange-400">
+                        <span className="block text-xs font-mono text-orange-400">
                           {sweatVal.toFixed(2)}/hr
                         </span>
                       )}
                     </div>
                     {hasExtras && (
                       <div>
-                        <span className="text-[10px] text-muted-foreground block">Extras</span>
+                        <span className="text-xs text-muted-foreground block">Extras</span>
                         <span className="font-mono font-bold text-xs text-orange-400">
                           {extraStats.avgLoss !== null ? `-${extraStats.avgLoss.toFixed(1)}` : '—'} lbs
                         </span>
                         {extraStats.avgSweatRateOzPerHr !== null && (
-                          <span className="block text-[9px] font-mono text-orange-400/70">
+                          <span className="block text-xs font-mono text-orange-400/70">
                             {extraStats.avgSweatRateOzPerHr.toFixed(2)}/hr
                           </span>
                         )}
@@ -3075,18 +3099,18 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               })()}
 
               {/* EMA explanation */}
-              <p className="text-[8px] text-muted-foreground/40 text-center mt-1 mx-4">
+              <p className="text-xs text-muted-foreground/40 text-center mt-1 mx-4">
                 Averages use EMA (recency-weighted) — recent data counts more than old data
               </p>
 
               {/* ═══ LOGGING STREAK + CORE LOGGED ═══ */}
               <div className="flex items-center justify-center gap-3 mt-3 mx-4 pt-2 border-t border-muted/50">
                 {descentData.loggingStreak > 1 && (
-                  <span className="text-[10px] font-bold text-muted-foreground/60">
+                  <span className="text-xs font-bold text-muted-foreground/60">
                     🔥 {descentData.loggingStreak}-day streak
                   </span>
                 )}
-                <span className="text-[10px] text-muted-foreground/50">
+                <span className="text-xs text-muted-foreground/50">
                   {descentData.todayCoreLogged}/{descentData.todayCoreTotal} logged today
                   {descentData.todayCoreLogged >= descentData.todayCoreTotal && ' ✓'}
                 </span>
@@ -3099,21 +3123,21 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
                 // Mini bar chart component for recent data
                 const SparkBars = ({ values, color, label, suffix = '' }: { values: number[]; color: string; label?: string; suffix?: string }) => {
-                  if (values.length === 0) return <span className="text-[11px] text-muted-foreground/40">No data yet</span>;
+                  if (values.length === 0) return <span className="text-xs text-muted-foreground/40">No data yet</span>;
                   const absValues = values.map(v => Math.abs(v));
                   const maxVal = Math.max(...absValues, 0.1);
                   return (
                     <div>
                       {label && (
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">{label}</span>
-                          <span className="text-[9px] text-muted-foreground/40">oldest → newest</span>
+                          <span className="text-xs text-muted-foreground/50 uppercase tracking-wide">{label}</span>
+                          <span className="text-xs text-muted-foreground/40">oldest → newest</span>
                         </div>
                       )}
                       <div className="flex items-end gap-1.5 h-[48px]">
                         {[...absValues].reverse().map((v, i) => (
                           <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                            <span className="text-[9px] font-mono text-muted-foreground/60 font-bold leading-none">
+                            <span className="text-xs font-mono text-muted-foreground/60 font-bold leading-none">
                               {v.toFixed(1)}{suffix}
                             </span>
                             <div
@@ -3129,9 +3153,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
                 // Trend arrow component
                 const TrendArrow = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
-                  if (trend === 'up') return <span className="text-green-500 text-[10px] font-bold ml-1">▲</span>;
-                  if (trend === 'down') return <span className="text-orange-500 text-[10px] font-bold ml-1">▼</span>;
-                  return <span className="text-muted-foreground/40 text-[10px] ml-1">—</span>;
+                  if (trend === 'up') return <span className="text-green-500 text-xs font-bold ml-1">▲</span>;
+                  if (trend === 'down') return <span className="text-orange-500 text-xs font-bold ml-1">▼</span>;
+                  return <span className="text-muted-foreground/40 text-xs ml-1">—</span>;
                 };
 
                 // Tappable stat card — dims when another card is expanded
@@ -3172,14 +3196,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <>
                   <div className="mx-4 mt-3 mb-1">
-                    <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide font-bold">Tap for details</span>
+                    <span className="text-xs text-muted-foreground/50 uppercase tracking-wide font-bold">Tap for details</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-2 mx-4">
                     {/* Sleep */}
                     <StatCard id="sleep">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[10px] text-muted-foreground/80 uppercase font-bold">
-                          Sleep {isHistSleep && <span className="text-[8px] text-muted-foreground/40 font-normal">(season)</span>}
+                        <span className="text-xs text-muted-foreground/80 uppercase font-bold">
+                          Sleep {isHistSleep && <span className="text-xs text-muted-foreground/40 font-normal">(season)</span>}
                         </span>
                         {!isHistSleep && <TrendArrow trend={descentData.trends.drift} />}
                       </div>
@@ -3187,10 +3211,10 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                         {sleepDrift !== null
                           ? `-${Math.abs(sleepDrift).toFixed(1)}`
                           : '—'}
-                        <span className="text-[10px] text-muted-foreground font-normal ml-1">lbs</span>
+                        <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
                       {sleepRate !== null && (
-                        <span className={cn("block text-[10px] font-mono mt-0.5", isHistSleep ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
+                        <span className={cn("block text-xs font-mono mt-0.5", isHistSleep ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
                           {sleepRate.toFixed(2)}/hr
                         </span>
                       )}
@@ -3199,8 +3223,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {/* Practice */}
                     <StatCard id="practice">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[10px] text-muted-foreground/80 uppercase font-bold">
-                          Practice {isHistPractice && <span className="text-[8px] text-muted-foreground/40 font-normal">(season)</span>}
+                        <span className="text-xs text-muted-foreground/80 uppercase font-bold">
+                          Practice {isHistPractice && <span className="text-xs text-muted-foreground/40 font-normal">(season)</span>}
                         </span>
                         {!isHistPractice && <TrendArrow trend={descentData.trends.practice} />}
                       </div>
@@ -3208,10 +3232,10 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                         {practiceLoss !== null
                           ? `-${Math.abs(practiceLoss).toFixed(1)}`
                           : '—'}
-                        <span className="text-[10px] text-muted-foreground font-normal ml-1">lbs</span>
+                        <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
                       {practiceRate !== null && (
-                        <span className={cn("block text-[10px] font-mono mt-0.5", isHistPractice ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
+                        <span className={cn("block text-xs font-mono mt-0.5", isHistPractice ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
                           {practiceRate.toFixed(2)} lbs/hr
                         </span>
                       )}
@@ -3220,14 +3244,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {/* Awake */}
                     <StatCard id="awake" dashed>
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-[10px] text-teal-500/80 uppercase font-bold">Awake</span>
-                        <span className="text-[8px] text-muted-foreground/40 font-bold">EST</span>
+                        <span className="text-xs text-teal-500/80 uppercase font-bold">Awake</span>
+                        <span className="text-xs text-muted-foreground/40 font-bold">EST</span>
                       </div>
                       <span className="font-mono font-bold text-base text-teal-500 block">
                         {descentData.daytimeBmrDrift > 0
                           ? `-${descentData.daytimeBmrDrift.toFixed(1)}`
                           : '—'}
-                        <span className="text-[10px] text-teal-500/50 font-normal ml-1">lbs</span>
+                        <span className="text-xs text-teal-500/50 font-normal ml-1">lbs</span>
                       </span>
                     </StatCard>
 
@@ -3235,14 +3259,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {hasExtras ? (
                       <StatCard id="extras" dashed>
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[10px] text-orange-400/80 uppercase font-bold">Extras</span>
-                          <span className="text-[8px] text-muted-foreground/40 font-bold">INFO</span>
+                          <span className="text-xs text-orange-400/80 uppercase font-bold">Extras</span>
+                          <span className="text-xs text-muted-foreground/40 font-bold">INFO</span>
                         </div>
                         <span className="font-mono font-bold text-base text-orange-400 block">
                           {extraStats.avgLoss !== null
                             ? `-${extraStats.avgLoss.toFixed(1)}`
                             : '—'}
-                          <span className="text-[10px] text-orange-400/50 font-normal ml-1">lbs</span>
+                          <span className="text-xs text-orange-400/50 font-normal ml-1">lbs</span>
                         </span>
                       </StatCard>
                     ) : (
@@ -3250,7 +3274,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                         "bg-muted/20 rounded-lg p-2.5 border border-dashed border-muted-foreground/10 flex items-center justify-center transition-all duration-200",
                         flippedCard !== null && "opacity-40"
                       )}>
-                        <span className="text-[10px] text-muted-foreground/40">No extras logged</span>
+                        <span className="text-xs text-muted-foreground/40">No extras logged</span>
                       </div>
                     )}
                   </div>
@@ -3278,42 +3302,42 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 )}
                                 <div className="mt-3 grid grid-cols-3 gap-2">
                                   <div className="text-center">
-                                    <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Rate</span>
+                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Rate</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">
                                       {descentData.avgDriftRateOzPerHr !== null ? `${descentData.avgDriftRateOzPerHr.toFixed(2)}` : '—'}
                                     </span>
-                                    <span className="block text-[9px] text-muted-foreground/50">lbs/hr</span>
+                                    <span className="block text-xs text-muted-foreground/50">lbs/hr</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Avg Sleep</span>
+                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Avg Sleep</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">{descentData.emaSleepHours.toFixed(1)}</span>
-                                    <span className="block text-[9px] text-muted-foreground/50">hrs/night</span>
+                                    <span className="block text-xs text-muted-foreground/50">hrs/night</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Range</span>
+                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Range</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">
                                       {descentData.recentDrifts.length >= 2
                                         ? `${Math.min(...descentData.recentDrifts.map(Math.abs)).toFixed(1)}–${Math.max(...descentData.recentDrifts.map(Math.abs)).toFixed(1)}`
                                         : descentData.recentDrifts[0] ? Math.abs(descentData.recentDrifts[0]).toFixed(1) : '—'}
                                     </span>
-                                    <span className="block text-[9px] text-muted-foreground/50">lbs</span>
+                                    <span className="block text-xs text-muted-foreground/50">lbs</span>
                                   </div>
                                 </div>
                                 {descentData.weekOverWeek && descentData.weekOverWeek.lastWeekAvgDrift !== null && descentData.weekOverWeek.thisWeekAvgDrift !== null && (
                                   <div className="mt-3 pt-3 border-t border-border/30">
-                                    <span className="text-[9px] text-muted-foreground/50 uppercase font-bold tracking-wide">Week over Week</span>
+                                    <span className="text-xs text-muted-foreground/50 uppercase font-bold tracking-wide">Week over Week</span>
                                     <div className="flex items-baseline gap-2 mt-1">
-                                      <span className="text-[11px] font-mono text-muted-foreground">
+                                      <span className="text-xs font-mono text-muted-foreground">
                                         This: <span className="font-bold text-foreground">{descentData.weekOverWeek.thisWeekAvgDrift.toFixed(2)}</span>
                                       </span>
-                                      <span className="text-[11px] font-mono text-muted-foreground">
+                                      <span className="text-xs font-mono text-muted-foreground">
                                         Last: <span className="font-bold text-foreground/70">{descentData.weekOverWeek.lastWeekAvgDrift.toFixed(2)}</span>
                                       </span>
                                       {(() => {
                                         const diff = descentData.weekOverWeek!.thisWeekAvgDrift! - descentData.weekOverWeek!.lastWeekAvgDrift!;
                                         const pct = Math.round((diff / Math.max(Math.abs(descentData.weekOverWeek!.lastWeekAvgDrift!), 0.01)) * 100);
                                         return (
-                                          <span className={cn("text-[10px] font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground/50")}>
+                                          <span className={cn("text-xs font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground/50")}>
                                             {diff > 0 ? '+' : ''}{pct}%
                                           </span>
                                         );
@@ -3323,7 +3347,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 )}
                               </>
                             ) : (
-                              <p className="text-[11px] text-muted-foreground/50 text-center py-2">Log before-bed and morning weights to see drift data</p>
+                              <p className="text-xs text-muted-foreground/50 text-center py-2">Log before-bed and morning weights to see drift data</p>
                             )}
                           </>
                         )}
@@ -3342,42 +3366,42 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 <SparkBars values={descentData.recentPracticeLosses} color="bg-green-400" label="lbs lost" />
                                 <div className="mt-3 grid grid-cols-3 gap-2">
                                   <div className="text-center">
-                                    <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Sweat Rate</span>
+                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Sweat Rate</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">
                                       {descentData.avgSweatRateOzPerHr !== null ? `${descentData.avgSweatRateOzPerHr.toFixed(2)}` : '—'}
                                     </span>
-                                    <span className="block text-[9px] text-muted-foreground/50">lbs/hr</span>
+                                    <span className="block text-xs text-muted-foreground/50">lbs/hr</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Avg Length</span>
+                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Avg Length</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">{descentData.emaPracticeHours.toFixed(1)}</span>
-                                    <span className="block text-[9px] text-muted-foreground/50">hrs/session</span>
+                                    <span className="block text-xs text-muted-foreground/50">hrs/session</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Range</span>
+                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Range</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">
                                       {descentData.recentPracticeLosses.length >= 2
                                         ? `${Math.min(...descentData.recentPracticeLosses.map(Math.abs)).toFixed(1)}–${Math.max(...descentData.recentPracticeLosses.map(Math.abs)).toFixed(1)}`
                                         : descentData.recentPracticeLosses[0] ? Math.abs(descentData.recentPracticeLosses[0]).toFixed(1) : '—'}
                                     </span>
-                                    <span className="block text-[9px] text-muted-foreground/50">lbs</span>
+                                    <span className="block text-xs text-muted-foreground/50">lbs</span>
                                   </div>
                                 </div>
                                 {descentData.weekOverWeek && descentData.weekOverWeek.lastWeekAvgPractice !== null && descentData.weekOverWeek.thisWeekAvgPractice !== null && (
                                   <div className="mt-3 pt-3 border-t border-border/30">
-                                    <span className="text-[9px] text-muted-foreground/50 uppercase font-bold tracking-wide">Week over Week</span>
+                                    <span className="text-xs text-muted-foreground/50 uppercase font-bold tracking-wide">Week over Week</span>
                                     <div className="flex items-baseline gap-2 mt-1">
-                                      <span className="text-[11px] font-mono text-muted-foreground">
+                                      <span className="text-xs font-mono text-muted-foreground">
                                         This: <span className="font-bold text-foreground">{descentData.weekOverWeek.thisWeekAvgPractice.toFixed(2)}</span>
                                       </span>
-                                      <span className="text-[11px] font-mono text-muted-foreground">
+                                      <span className="text-xs font-mono text-muted-foreground">
                                         Last: <span className="font-bold text-foreground/70">{descentData.weekOverWeek.lastWeekAvgPractice.toFixed(2)}</span>
                                       </span>
                                       {(() => {
                                         const diff = descentData.weekOverWeek!.thisWeekAvgPractice! - descentData.weekOverWeek!.lastWeekAvgPractice!;
                                         const pct = Math.round((diff / Math.max(Math.abs(descentData.weekOverWeek!.lastWeekAvgPractice!), 0.01)) * 100);
                                         return (
-                                          <span className={cn("text-[10px] font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground/50")}>
+                                          <span className={cn("text-xs font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground/50")}>
                                             {diff > 0 ? '+' : ''}{pct}%
                                           </span>
                                         );
@@ -3387,7 +3411,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 )}
                               </>
                             ) : (
-                              <p className="text-[11px] text-muted-foreground/50 text-center py-2">Log pre/post practice weights to see sweat data</p>
+                              <p className="text-xs text-muted-foreground/50 text-center py-2">Log pre/post practice weights to see sweat data</p>
                             )}
                           </>
                         )}
@@ -3411,19 +3435,19 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="text-center bg-muted/30 rounded-lg py-2">
-                                <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Drift Rate</span>
+                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Drift Rate</span>
                                 <span className="block font-mono text-sm font-bold text-teal-500">
                                   {descentData.avgDriftRateOzPerHr !== null ? `${descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr` : '—'}
                                 </span>
                               </div>
                               <div className="text-center bg-muted/30 rounded-lg py-2">
-                                <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Est. Loss</span>
+                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Est. Loss</span>
                                 <span className="block font-mono text-sm font-bold text-teal-500">
                                   {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)} lbs` : '—'}
                                 </span>
                               </div>
                             </div>
-                            <p className="text-[10px] text-muted-foreground/40 text-center mt-2 leading-relaxed">
+                            <p className="text-xs text-muted-foreground/40 text-center mt-2 leading-relaxed">
                               Uses overnight drift rate as proxy for daytime metabolic rate. Not included in the projection — shown for awareness only.
                             </p>
                           </>
@@ -3440,25 +3464,25 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                             </div>
                             <div className="grid grid-cols-2 gap-2 mb-2">
                               <div className="text-center bg-muted/30 rounded-lg py-2.5">
-                                <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Total</span>
+                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Total</span>
                                 <span className="block font-mono text-lg font-bold text-orange-400">{extraStats.totalWorkouts}</span>
-                                <span className="block text-[9px] text-muted-foreground/50">sessions</span>
+                                <span className="block text-xs text-muted-foreground/50">sessions</span>
                               </div>
                               <div className="text-center bg-muted/30 rounded-lg py-2.5">
-                                <span className="block text-[10px] text-muted-foreground/60 uppercase font-bold">Today</span>
+                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Today</span>
                                 <span className="block font-mono text-lg font-bold text-orange-400">{extraStats.todayWorkouts}</span>
-                                <span className="block text-[9px] text-muted-foreground/50">
+                                <span className="block text-xs text-muted-foreground/50">
                                   {extraStats.todayLoss > 0 ? `-${extraStats.todayLoss.toFixed(1)} lbs` : 'session' + (extraStats.todayWorkouts !== 1 ? 's' : '')}
                                 </span>
                               </div>
                             </div>
                             {extraStats.avgSweatRateOzPerHr !== null && (
                               <div className="text-center bg-muted/30 rounded-lg py-2">
-                                <span className="text-[10px] text-muted-foreground/60 uppercase font-bold">Avg Sweat Rate: </span>
+                                <span className="text-xs text-muted-foreground/60 uppercase font-bold">Avg Sweat Rate: </span>
                                 <span className="font-mono text-sm font-bold text-orange-400">{extraStats.avgSweatRateOzPerHr.toFixed(2)} lbs/hr</span>
                               </div>
                             )}
-                            <p className="text-[10px] text-muted-foreground/40 text-center mt-2 leading-relaxed">
+                            <p className="text-xs text-muted-foreground/40 text-center mt-2 leading-relaxed">
                               Extra workouts are tracked separately and not included in the projection.
                             </p>
                           </>

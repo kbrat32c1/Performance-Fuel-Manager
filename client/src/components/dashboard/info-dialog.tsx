@@ -49,11 +49,11 @@ export function InfoDialog() {
                     <span className={cn("font-bold", TANK_COLORS[tank.name] || 'text-foreground')}>
                       {i + 1}. {tank.name}
                     </span>
-                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded", COST_COLORS[tank.performanceCost] || 'bg-muted')}>
+                    <span className={cn("text-xs font-bold px-2 py-0.5 rounded", COST_COLORS[tank.performanceCost] || 'bg-muted')}>
                       {tank.performanceCost} COST
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
                       <span className="text-muted-foreground block">How Fast You Lose</span>
                       <span className="font-medium">{tank.loseRate}</span>
@@ -63,7 +63,7 @@ export function InfoDialog() {
                       <span className="font-medium">{tank.replenishRate}</span>
                     </div>
                   </div>
-                  <div className="text-[10px] text-muted-foreground border-t border-muted pt-1.5 mt-1">
+                  <div className="text-xs text-muted-foreground border-t border-muted pt-1.5 mt-1">
                     <span className="font-bold text-foreground">Performance Decline: </span>
                     {tank.declinePoint}
                   </div>

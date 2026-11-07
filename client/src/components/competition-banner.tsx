@@ -122,7 +122,7 @@ export function CompetitionBanner() {
 
       {/* Phase badge */}
       <span className={cn(
-        "text-[9px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0",
+        "text-xs font-bold px-1.5 py-0.5 rounded uppercase shrink-0",
         phase.bgColor + '/20',
         phase.color
       )}>
@@ -130,7 +130,7 @@ export function CompetitionBanner() {
       </span>
 
       {/* Mode label */}
-      <span className="text-[10px] text-muted-foreground truncate flex-1 text-left">
+      <span className="text-xs text-muted-foreground truncate flex-1 text-left">
         {modeLabel}
       </span>
 

@@ -665,7 +665,7 @@ export default function History() {
           {/* Day Headers */}
           <div className="grid grid-cols-7 gap-1 mb-1">
             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-              <div key={i} className="text-center text-[10px] font-bold text-muted-foreground py-1">
+              <div key={i} className="text-center text-xs font-bold text-muted-foreground py-1">
                 {day}
               </div>
             ))}
@@ -855,7 +855,7 @@ export default function History() {
                             <div className="flex items-center gap-2">
                               <div className="text-right">
                                 <span className="font-mono font-bold text-lg text-green-500">-{log.loss.toFixed(1)} lbs</span>
-                                <div className="text-[10px] text-muted-foreground">
+                                <div className="text-xs text-muted-foreground">
                                   {log.beforeWeight} → {log.afterWeight}
                                 </div>
                               </div>
@@ -986,19 +986,19 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Total</span>
+              <span className="text-xs text-muted-foreground block">Total</span>
               <span className="font-mono font-bold text-lg text-cyan-500">{weeklyTotal}</span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Daily Avg</span>
+              <span className="text-xs text-muted-foreground block">Daily Avg</span>
               <span className="font-mono font-bold text-lg">{weeklyAvg.toFixed(0)}</span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Target</span>
+              <span className="text-xs text-muted-foreground block">Target</span>
               <span className="font-mono font-bold text-lg text-primary">{targetOz}</span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
           </div>
         </CardContent>
@@ -1021,17 +1021,17 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
           </div>
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Daily Intake</span>
+              <span className="text-xs text-muted-foreground block">Avg Daily Intake</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgDaily >= targetOz ? "text-green-500" : avgDaily >= targetOz * 0.75 ? "text-cyan-500" : "text-yellow-500"
               )}>
                 {avgDaily.toFixed(0)}
               </span>
-              <span className="text-[10px] text-muted-foreground"> oz</span>
+              <span className="text-xs text-muted-foreground"> oz</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Target Hit Rate</span>
+              <span className="text-xs text-muted-foreground block">Target Hit Rate</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 daysHitTarget / 14 >= 0.7 ? "text-green-500" : daysHitTarget / 14 >= 0.5 ? "text-cyan-500" : "text-yellow-500"
@@ -1084,7 +1084,7 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
                 <span className={cn(
-                  "text-[8px]",
+                  "text-xs",
                   day.isToday ? "text-cyan-500 font-bold" : "text-muted-foreground"
                 )}>
                   {day.dayNum}
@@ -1097,15 +1097,15 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
           <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-cyan-500" />
-              <span className="text-[10px] text-muted-foreground">Today</span>
+              <span className="text-xs text-muted-foreground">Today</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-cyan-500/70" />
-              <span className="text-[10px] text-muted-foreground">Hit Target</span>
+              <span className="text-xs text-muted-foreground">Hit Target</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-cyan-500/40" />
-              <span className="text-[10px] text-muted-foreground">Under Target</span>
+              <span className="text-xs text-muted-foreground">Under Target</span>
             </div>
           </div>
         </CardContent>
@@ -1154,7 +1154,7 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
             <Droplets className="w-10 h-10 mx-auto mb-3 text-cyan-500/40" />
             <p className="font-bold text-sm mb-1">No Hydration Data Yet</p>
             <p className="text-xs text-muted-foreground mb-3">Track your water intake to hit your daily target</p>
-            <p className="text-[10px] text-cyan-500 font-medium">Tap the 💧 button on the dashboard to log water</p>
+            <p className="text-xs text-cyan-500 font-medium">Tap the 💧 button on the dashboard to log water</p>
           </CardContent>
         </Card>
       )}
@@ -1233,11 +1233,11 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Total Carbs</span>
+              <span className="text-xs text-muted-foreground block">Total Carbs</span>
               <span className="font-mono font-bold text-lg text-primary">{weeklyCarbs}g</span>
             </div>
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Total Protein</span>
+              <span className="text-xs text-muted-foreground block">Total Protein</span>
               <span className="font-mono font-bold text-lg text-orange-500">{weeklyProtein}g</span>
             </div>
           </div>
@@ -1250,26 +1250,26 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
           <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">14-Day Averages</span>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Avg Daily Carbs</span>
+              <span className="text-xs text-muted-foreground block">Avg Daily Carbs</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgDailyCarbs >= macroTargets.carbs.min ? "text-green-500" : avgDailyCarbs >= macroTargets.carbs.min * 0.75 ? "text-primary" : "text-yellow-500"
               )}>
                 {avgDailyCarbs.toFixed(0)}g
               </span>
-              <span className="text-[9px] text-muted-foreground block">
+              <span className="text-xs text-muted-foreground block">
                 Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g
               </span>
             </div>
             <div className="text-center">
-              <span className="text-[10px] text-muted-foreground block">Avg Daily Protein</span>
+              <span className="text-xs text-muted-foreground block">Avg Daily Protein</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgDailyProtein >= macroTargets.protein.min ? "text-green-500" : avgDailyProtein >= macroTargets.protein.min * 0.75 ? "text-orange-500" : "text-yellow-500"
               )}>
                 {avgDailyProtein.toFixed(0)}g
               </span>
-              <span className="text-[9px] text-muted-foreground block">
+              <span className="text-xs text-muted-foreground block">
                 Target: {macroTargets.protein.min}-{macroTargets.protein.max}g
               </span>
             </div>
@@ -1282,7 +1282,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">Daily Carbs (Last 14 Days)</span>
-            <span className="text-[10px] text-primary font-mono">Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g</span>
+            <span className="text-xs text-primary font-mono">Target: {macroTargets.carbs.min}-{macroTargets.carbs.max}g</span>
           </div>
 
           {/* Bar Chart */}
@@ -1318,7 +1318,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
           <div className="flex gap-1">
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={cn("text-[8px]", day.isToday ? "text-primary font-bold" : "text-muted-foreground")}>
+                <span className={cn("text-xs", day.isToday ? "text-primary font-bold" : "text-muted-foreground")}>
                   {day.dayNum}
                 </span>
               </div>
@@ -1332,7 +1332,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">Daily Protein (Last 14 Days)</span>
-            <span className="text-[10px] text-orange-500 font-mono">Target: {macroTargets.protein.min}-{macroTargets.protein.max}g</span>
+            <span className="text-xs text-orange-500 font-mono">Target: {macroTargets.protein.min}-{macroTargets.protein.max}g</span>
           </div>
 
           {/* Bar Chart */}
@@ -1368,7 +1368,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
           <div className="flex gap-1">
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={cn("text-[8px]", day.isToday ? "text-orange-500 font-bold" : "text-muted-foreground")}>
+                <span className={cn("text-xs", day.isToday ? "text-orange-500 font-bold" : "text-muted-foreground")}>
                   {day.dayNum}
                 </span>
               </div>
@@ -1401,7 +1401,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
                     )}>
                       {day.carbsConsumed > 0 ? `${day.carbsConsumed}g` : '—'}
                     </span>
-                    <span className="text-[9px] text-muted-foreground ml-1">carbs</span>
+                    <span className="text-xs text-muted-foreground ml-1">carbs</span>
                   </div>
                   <div className="text-right">
                     <span className={cn(
@@ -1410,7 +1410,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
                     )}>
                       {day.proteinConsumed > 0 ? `${day.proteinConsumed}g` : '—'}
                     </span>
-                    <span className="text-[9px] text-muted-foreground ml-1">protein</span>
+                    <span className="text-xs text-muted-foreground ml-1">protein</span>
                   </div>
                 </div>
               </div>
@@ -1425,7 +1425,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
             <Utensils className="w-10 h-10 mx-auto mb-3 text-amber-500/40" />
             <p className="font-bold text-sm mb-1">No Macro Data Yet</p>
             <p className="text-xs text-muted-foreground mb-3">Track your carbs and protein to see your nutrition trends</p>
-            <p className="text-[10px] text-amber-500 font-medium">Open FUEL on the dashboard to log foods</p>
+            <p className="text-xs text-amber-500 font-medium">Open FUEL on the dashboard to log foods</p>
           </CardContent>
         </Card>
       )}
@@ -1495,19 +1495,19 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Total</span>
+              <span className="text-xs text-muted-foreground block">Total</span>
               <span className="font-mono font-bold text-lg text-green-500">{weeklyTotal}</span>
             </div>
             <div>
-              <span className="text-[10px] text-orange-400 block">Protein</span>
+              <span className="text-xs text-orange-400 block">Protein</span>
               <span className="font-mono font-bold text-lg text-orange-400">{weeklyProtein}</span>
             </div>
             <div>
-              <span className="text-[10px] text-amber-400 block">Carb</span>
+              <span className="text-xs text-amber-400 block">Carb</span>
               <span className="font-mono font-bold text-lg text-amber-400">{weeklyCarb}</span>
             </div>
             <div>
-              <span className="text-[10px] text-green-400 block">Veg</span>
+              <span className="text-xs text-green-400 block">Veg</span>
               <span className="font-mono font-bold text-lg text-green-400">{weeklyVeg}</span>
             </div>
           </div>
@@ -1531,34 +1531,34 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Protein</span>
+              <span className="text-xs text-muted-foreground block">Avg Protein</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgProtein >= sliceTargets.protein ? "text-green-500" : "text-orange-400"
               )}>
                 {avgProtein.toFixed(1)}
               </span>
-              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.protein}</span>
+              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.protein}</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Carb</span>
+              <span className="text-xs text-muted-foreground block">Avg Carb</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgCarb >= sliceTargets.carb ? "text-green-500" : "text-amber-400"
               )}>
                 {avgCarb.toFixed(1)}
               </span>
-              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.carb}</span>
+              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.carb}</span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block">Avg Veg</span>
+              <span className="text-xs text-muted-foreground block">Avg Veg</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
                 avgVeg >= sliceTargets.veg ? "text-green-500" : "text-green-400"
               )}>
                 {avgVeg.toFixed(1)}
               </span>
-              <span className="text-[9px] text-muted-foreground block">Target: {sliceTargets.veg}</span>
+              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.veg}</span>
             </div>
           </div>
         </CardContent>
@@ -1569,7 +1569,7 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">Daily Slices (Last 14 Days)</span>
-            <span className="text-[10px] text-green-500 font-mono">Target: {totalTarget}</span>
+            <span className="text-xs text-green-500 font-mono">Target: {totalTarget}</span>
           </div>
 
           <div className="flex items-end gap-1 h-28 mb-2">
@@ -1606,7 +1606,7 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           <div className="flex gap-1">
             {last14Days.map((day, i) => (
               <div key={i} className="flex-1 text-center">
-                <span className={cn("text-[8px]", day.isToday ? "text-green-500 font-bold" : "text-muted-foreground")}>
+                <span className={cn("text-xs", day.isToday ? "text-green-500 font-bold" : "text-muted-foreground")}>
                   {day.dayNum}
                 </span>
               </div>
@@ -1617,15 +1617,15 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-orange-400/70" />
-              <span className="text-[10px] text-muted-foreground">Protein</span>
+              <span className="text-xs text-muted-foreground">Protein</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-amber-400/70" />
-              <span className="text-[10px] text-muted-foreground">Carb</span>
+              <span className="text-xs text-muted-foreground">Carb</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-green-500/70" />
-              <span className="text-[10px] text-muted-foreground">Veg</span>
+              <span className="text-xs text-muted-foreground">Veg</span>
             </div>
           </div>
         </CardContent>
@@ -1668,7 +1668,7 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
             <Apple className="w-10 h-10 mx-auto mb-3 text-green-500/40" />
             <p className="font-bold text-sm mb-1">No Slice Data Yet</p>
             <p className="text-xs text-muted-foreground mb-3">Track your protein, carb, and veggie slices</p>
-            <p className="text-[10px] text-green-500 font-medium">Tap the SPAR tracker on the dashboard to start</p>
+            <p className="text-xs text-green-500 font-medium">Tap the SPAR tracker on the dashboard to start</p>
           </CardContent>
         </Card>
       )}

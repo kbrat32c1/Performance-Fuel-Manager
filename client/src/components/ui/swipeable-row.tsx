@@ -200,7 +200,7 @@ export function SwipeableRow({
             tabIndex={isOpen ? 0 : -1}
           >
             {action.icon}
-            <span className="text-[9px] font-bold">{action.label}</span>
+            <span className="text-xs font-bold">{action.label}</span>
           </button>
         ))}
       </div>

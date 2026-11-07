@@ -130,7 +130,7 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
           <UtensilsCrossed className="w-4 h-4 text-primary" />
           <span className="text-sm font-bold">Build a Plate</span>
           {plate.length > 0 && (
-            <span className="text-[9px] font-bold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
+            <span className="text-xs font-bold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
               {totals.slices} items
             </span>
           )}
@@ -162,7 +162,7 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
               {cat.shortLabel}
               {count > 0 && (
                 <span className={cn(
-                  "text-[9px] font-bold px-1.5 py-0.5 rounded-full",
+                  "text-xs font-bold px-1.5 py-0.5 rounded-full",
                   isActive ? "bg-white/20" : "bg-primary/15 text-primary"
                 )}>
                   {count}
@@ -210,12 +210,12 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <span className="text-sm shrink-0">{food.icon}</span>
-                <span className="text-[11px] font-medium text-foreground truncate">{food.name}</span>
+                <span className="text-xs font-medium text-foreground truncate">{food.name}</span>
               </div>
               <div className="flex items-center gap-2 shrink-0 ml-2">
-                <span className="text-[9px] text-muted-foreground">{food.serving}</span>
+                <span className="text-xs text-muted-foreground">{food.serving}</span>
                 {onPlate ? (
-                  <span className={cn("text-[10px] font-bold font-mono", catConfig.color)}>×{onPlate.quantity}</span>
+                  <span className={cn("text-xs font-bold font-mono", catConfig.color)}>×{onPlate.quantity}</span>
                 ) : (
                   <Plus className={cn("w-3.5 h-3.5", catConfig.color)} />
                 )}
@@ -242,7 +242,7 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
                 <div
                   key={`${item.name}-${item.category}`}
                   className={cn(
-                    "flex items-center gap-1 px-2 py-1.5 rounded-full text-[10px] font-medium border",
+                    "flex items-center gap-1 px-2 py-1.5 rounded-full text-xs font-medium border",
                     `${catConfig.bg}/10 ${catConfig.color} border-current/20`
                   )}
                 >
@@ -278,7 +278,7 @@ export function PlateBuilder({ open, onClose, onLogPlate, mode, isV2 = true }: P
           </div>
 
           {/* Totals row */}
-          <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 font-mono">
               <span className="text-orange-500 font-bold">{categoryCounts.protein}P</span>
               <span className="text-amber-500 font-bold">{categoryCounts.carb}C</span>

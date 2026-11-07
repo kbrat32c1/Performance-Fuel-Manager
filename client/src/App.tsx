@@ -22,6 +22,10 @@ import CoachView from "@/pages/coach-view";
 import Reports from "@/pages/reports";
 import WeighIn from "@/pages/weigh-in";
 import Descent from "@/pages/descent";
+import TeamPage from "@/pages/team";
+import { rememberPendingTeamCode } from "@/lib/team-schedule";
+
+rememberPendingTeamCode(window.location.search, window.location.pathname);
 
 function Router() {
   return (
@@ -53,6 +57,13 @@ function Router() {
         <ProtectedRoute>
           <PageErrorBoundary pageName="Descent plan">
             <Descent />
+          </PageErrorBoundary>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/team">
+        <ProtectedRoute>
+          <PageErrorBoundary pageName="Team schedule">
+            <TeamPage />
           </PageErrorBoundary>
         </ProtectedRoute>
       </Route>

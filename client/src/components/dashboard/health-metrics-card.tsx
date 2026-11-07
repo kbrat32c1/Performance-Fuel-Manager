@@ -179,13 +179,13 @@ export function HealthMetricsCard({ healthData, healthHistory, isStale }: Health
                 Health Metrics
               </span>
               {isStale && healthData.date && (
-                <span className="text-[10px] text-muted-foreground/60">
+                <span className="text-xs text-muted-foreground/60">
                   · {format(parseISO(healthData.date), 'MMM d')}
                 </span>
               )}
             </div>
             {healthData.source === 'v5-direct' && (
-              <span className="text-[9px] text-muted-foreground/50 bg-muted/30 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-muted-foreground/50 bg-muted/30 px-2 py-0.5 rounded-full">
                 V5 Band
               </span>
             )}
@@ -204,18 +204,18 @@ export function HealthMetricsCard({ healthData, healthHistory, isStale }: Health
               >
                 <div className="flex items-center gap-1.5 mb-1">
                   {m.icon}
-                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">{m.label}</span>
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">{m.label}</span>
                 </div>
                 <div className="flex items-baseline gap-1">
                   <span className={cn("text-lg font-bold font-mono leading-none", m.color)}>
                     {m.value}
                   </span>
                   {m.unit && (
-                    <span className="text-[10px] text-muted-foreground font-medium">{m.unit}</span>
+                    <span className="text-xs text-muted-foreground font-medium">{m.unit}</span>
                   )}
                 </div>
                 {'subtext' in m && m.subtext && (
-                  <div className="text-[8px] text-muted-foreground/50 mt-0.5 leading-tight">{m.subtext}</div>
+                  <div className="text-xs text-muted-foreground/50 mt-0.5 leading-tight">{m.subtext}</div>
                 )}
               </button>
             ))}
@@ -284,7 +284,7 @@ function SleepStageBar({
     <div className="mt-3 pt-3 border-t border-muted/20">
       <div className="flex items-center gap-1.5 mb-1.5">
         <Moon className="w-3 h-3 text-indigo-400" />
-        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Sleep Stages</span>
+        <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Sleep Stages</span>
       </div>
 
       {/* Stacked bar */}
@@ -320,25 +320,25 @@ function SleepStageBar({
         {deepMin > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-indigo-600" />
-            <span className="text-[10px] text-muted-foreground font-medium">Deep {formatMin(deepMin)}</span>
+            <span className="text-xs text-muted-foreground font-medium">Deep {formatMin(deepMin)}</span>
           </div>
         )}
         {lightMin > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-indigo-300" />
-            <span className="text-[10px] text-muted-foreground font-medium">Light {formatMin(lightMin)}</span>
+            <span className="text-xs text-muted-foreground font-medium">Light {formatMin(lightMin)}</span>
           </div>
         )}
         {remMin > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-violet-400" />
-            <span className="text-[10px] text-muted-foreground font-medium">REM {formatMin(remMin)}</span>
+            <span className="text-xs text-muted-foreground font-medium">REM {formatMin(remMin)}</span>
           </div>
         )}
         {awakeMin > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="w-2 h-2 rounded-full bg-orange-400/60" />
-            <span className="text-[10px] text-muted-foreground font-medium">Awake {formatMin(awakeMin)}</span>
+            <span className="text-xs text-muted-foreground font-medium">Awake {formatMin(awakeMin)}</span>
           </div>
         )}
       </div>

@@ -10,7 +10,7 @@ export function SaveStatus({ className }: { className?: string }) {
 
   if (state === "saved") {
     return (
-      <div role="status" className={cn("flex items-center justify-center gap-1 text-[11px] text-muted-foreground", className)}>
+      <div role="status" className={cn("flex items-center justify-center gap-1 text-xs text-muted-foreground", className)}>
         <Check className="w-3 h-3 text-green-500" aria-hidden />
         Saved
       </div>
@@ -19,7 +19,7 @@ export function SaveStatus({ className }: { className?: string }) {
 
   if (state === "saving") {
     return (
-      <div role="status" className={cn("flex items-center justify-center gap-1 text-[11px] text-muted-foreground", className)}>
+      <div role="status" className={cn("flex items-center justify-center gap-1 text-xs text-muted-foreground", className)}>
         <Loader2 className="w-3 h-3 animate-spin" aria-hidden />
         Saving…
       </div>
@@ -28,7 +28,7 @@ export function SaveStatus({ className }: { className?: string }) {
 
   if (state === "offline") {
     return (
-      <div role="status" className={cn("flex items-center justify-center gap-1.5 text-[11px] font-medium text-amber-500", className)}>
+      <div role="status" className={cn("flex items-center justify-center gap-1.5 text-xs font-medium text-amber-500", className)}>
         <CloudOff className="w-3 h-3" aria-hidden />
         Offline — {days} saved on this phone only. Will upload when you reconnect.
       </div>
@@ -36,7 +36,7 @@ export function SaveStatus({ className }: { className?: string }) {
   }
 
   return (
-    <div role="alert" className={cn("flex items-center justify-center gap-2 text-[11px] font-medium text-amber-500", className)}>
+    <div role="alert" className={cn("flex items-center justify-center gap-2 text-xs font-medium text-amber-500", className)}>
       <CloudOff className="w-3 h-3" aria-hidden />
       <span>Not saved to cloud ({days}) — kept on this phone</span>
       <button

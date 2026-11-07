@@ -386,7 +386,7 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
                   <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     {dataPoints.length}-Day Trend
                   </span>
-                  <span className="text-[11px] text-muted-foreground/60">
+                  <span className="text-xs text-muted-foreground/60">
                     {dataPoints[0].date ? format(parseISO(dataPoints[0].date), 'MMM d') : ''}
                     {' — '}
                     {dataPoints[dataPoints.length - 1].date ? format(parseISO(dataPoints[dataPoints.length - 1].date), 'MMM d') : ''}
@@ -525,7 +525,7 @@ function TrendChart({
               }}
             />
             <span
-              className="absolute -right-0.5 text-[9px] text-muted-foreground/50 font-mono z-0"
+              className="absolute -right-0.5 text-xs text-muted-foreground/50 font-mono z-0"
               style={{
                 bottom: `${Math.min(90, Math.max(5, ((average - minVal) / range) * 100))}%`,
               }}
@@ -541,7 +541,7 @@ function TrendChart({
           return (
             <div key={d.date || i} className="flex-1 flex flex-col items-center gap-1 z-10">
               <span className={cn(
-                "text-[9px] font-mono leading-none",
+                "text-xs font-mono leading-none",
                 isLast ? "text-foreground font-bold" : "text-muted-foreground/50"
               )}>
                 {formatValue(d.value)}
@@ -566,7 +566,7 @@ function TrendChart({
             <div
               key={`label-${d.date || i}`}
               className={cn(
-                "flex-1 text-center text-[9px]",
+                "flex-1 text-center text-xs",
                 isLast ? "text-foreground font-bold" : "text-muted-foreground/40"
               )}
             >
@@ -594,7 +594,7 @@ function StatCard({
     <div className="bg-muted/30 rounded-xl p-3 text-center">
       <div className="flex items-center justify-center gap-1 mb-1">
         {icon}
-        <span className="text-[11px] text-muted-foreground/70 uppercase tracking-wider font-semibold">{label}</span>
+        <span className="text-xs text-muted-foreground/70 uppercase tracking-wider font-semibold">{label}</span>
       </div>
       <span className="text-lg font-bold font-mono leading-tight block">
         {value}
@@ -722,7 +722,7 @@ function SleepAnalytics({
                   <span className={cn("text-2xl font-bold font-mono", getSleepScoreColor(sleepScore))}>
                     {Math.round(sleepScore)}
                   </span>
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wider">Score</span>
                 </div>
               </div>
 
@@ -814,7 +814,7 @@ function SleepAnalytics({
           <div className="bg-muted/20 rounded-2xl p-4 border border-muted/30">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Sleep Score</h3>
-              <span className="text-[11px] text-muted-foreground/60">7-day trend</span>
+              <span className="text-xs text-muted-foreground/60">7-day trend</span>
             </div>
             <div className="flex items-end gap-1.5 h-[80px]">
               {sleepDays.map((d, i) => {
@@ -823,7 +823,7 @@ function SleepAnalytics({
                 return (
                   <div key={d.date || i} className="flex-1 flex flex-col items-center gap-1">
                     <span className={cn(
-                      "text-[9px] font-mono leading-none",
+                      "text-xs font-mono leading-none",
                       isLast ? "font-bold" : "text-muted-foreground/50",
                       isLast ? getSleepScoreColor(score) : ""
                     )}>
@@ -845,7 +845,7 @@ function SleepAnalytics({
             <div className="flex gap-1.5 mt-1.5">
               {sleepDays.map((d, i) => (
                 <div key={`score-label-${d.date || i}`} className={cn(
-                  "flex-1 text-center text-[9px]",
+                  "flex-1 text-center text-xs",
                   i === sleepDays.length - 1 ? "text-foreground font-bold" : "text-muted-foreground/40"
                 )}>
                   {d.date ? format(parseISO(d.date), 'EEE').charAt(0) : ''}
@@ -865,7 +865,7 @@ function SleepAnalytics({
             <div className="bg-muted/20 rounded-2xl p-4 border border-muted/30">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">Sleep Duration</h3>
-                <span className="text-[11px] text-muted-foreground/60">8hr target</span>
+                <span className="text-xs text-muted-foreground/60">8hr target</span>
               </div>
               <div className="flex items-end gap-1.5 h-[80px] relative">
                 {/* 8-hour target line */}
@@ -874,7 +874,7 @@ function SleepAnalytics({
                   style={{ bottom: `${(8 / maxHrs) * 100}%` }}
                 />
                 <span
-                  className="absolute -right-0.5 text-[9px] text-green-500/40 font-mono z-0"
+                  className="absolute -right-0.5 text-xs text-green-500/40 font-mono z-0"
                   style={{ bottom: `${Math.min(90, (8 / maxHrs) * 100)}%` }}
                 >
                   8h
@@ -887,7 +887,7 @@ function SleepAnalytics({
                   return (
                     <div key={d.date || i} className="flex-1 flex flex-col items-center gap-1 z-10">
                       <span className={cn(
-                        "text-[9px] font-mono leading-none",
+                        "text-xs font-mono leading-none",
                         isLast ? "text-foreground font-bold" : "text-muted-foreground/50"
                       )}>
                         {formatHours(hrs)}
@@ -908,7 +908,7 @@ function SleepAnalytics({
               <div className="flex gap-1.5 mt-1.5">
                 {durationDays.map((d, i) => (
                   <div key={`dur-label-${d.date || i}`} className={cn(
-                    "flex-1 text-center text-[9px]",
+                    "flex-1 text-center text-xs",
                     i === durationDays.length - 1 ? "text-foreground font-bold" : "text-muted-foreground/40"
                   )}>
                     {d.date ? format(parseISO(d.date), 'EEE').charAt(0) : ''}
@@ -930,7 +930,7 @@ function SleepAnalytics({
             <div className="bg-muted/20 rounded-2xl p-4 border border-muted/30">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-sm font-semibold">Restorative Sleep</h3>
-                <span className="text-[11px] text-muted-foreground/60">Deep + Light + REM</span>
+                <span className="text-xs text-muted-foreground/60">Deep + Light + REM</span>
               </div>
               <p className="text-xs text-muted-foreground/60 mb-3">
                 Avg {formatMin(avgRestorative)} per night
@@ -948,7 +948,7 @@ function SleepAnalytics({
                   return (
                     <div key={d.date || i} className="flex-1 flex flex-col items-center gap-1">
                       <span className={cn(
-                        "text-[9px] font-mono leading-none",
+                        "text-xs font-mono leading-none",
                         isLast ? "text-foreground font-bold" : "text-muted-foreground/50"
                       )}>
                         {formatMin(total)}
@@ -969,7 +969,7 @@ function SleepAnalytics({
               <div className="flex gap-1.5 mt-1.5">
                 {restDays.map((d, i) => (
                   <div key={`rest-label-${d.date || i}`} className={cn(
-                    "flex-1 text-center text-[9px]",
+                    "flex-1 text-center text-xs",
                     i === restDays.length - 1 ? "text-foreground font-bold" : "text-muted-foreground/40"
                   )}>
                     {d.date ? format(parseISO(d.date), 'EEE').charAt(0) : ''}
@@ -980,15 +980,15 @@ function SleepAnalytics({
               <div className="flex items-center gap-4 mt-3">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                  <span className="text-[10px] text-muted-foreground">Deep</span>
+                  <span className="text-xs text-muted-foreground">Deep</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-indigo-300" />
-                  <span className="text-[10px] text-muted-foreground">Light</span>
+                  <span className="text-xs text-muted-foreground">Light</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-violet-400" />
-                  <span className="text-[10px] text-muted-foreground">REM</span>
+                  <span className="text-xs text-muted-foreground">REM</span>
                 </div>
               </div>
             </div>
