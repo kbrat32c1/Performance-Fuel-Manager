@@ -7,7 +7,8 @@ import { createClient } from "@supabase/supabase-js";
  * SECURITY: No hardcoded URLs. Both env vars are required.
  * Uses service role key because this bypasses RLS for the share feature.
  */
-const supabaseUrl = process.env.SUPABASE_URL;
+// Production defines only VITE_SUPABASE_URL (shared with the client build); same lookup as server/routes.ts.
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Allowed origins for CORS - production and local dev
@@ -52,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars");
+    console.error("Missing SUPABASE_URL (or VITE_SUPABASE_URL) or SUPABASE_SERVICE_ROLE_KEY env vars");
     return res.status(500).json({ error: "Server configuration error" });
   }
 

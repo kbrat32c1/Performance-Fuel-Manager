@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { authHeaders } from "@/lib/auth-headers";
 import { Sparkles, Send, X, Scale, Dumbbell, ChevronRight, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -321,7 +322,7 @@ export function AiCoachProactive() {
       const context = buildContext();
       const res = await fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           question: "Based on my current situation, what's the most helpful thing I should know right now? Be specific with numbers and timing. Keep it encouraging and brief — 2-3 sentences max.",
           context,
@@ -352,7 +353,7 @@ export function AiCoachProactive() {
       const context = buildContext();
       const res = await fetch("/api/ai/coach", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ question: userMessage, context }),
       });
 
