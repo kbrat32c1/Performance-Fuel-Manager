@@ -205,8 +205,10 @@ export interface StoreContextType {
   isLoading: boolean;
   updateProfile: (updates: Partial<AthleteProfile>, options?: { silent?: boolean }) => void;
   updateUserFoods: (updates: Partial<UserFoodsData>) => void;
-  addLog: (log: Omit<WeightLog, 'id'>) => void;
-  updateLog: (id: string, updates: Partial<WeightLog>) => void;
+  /** Resolves to the saved log's id, or null when it was rejected or did not save */
+  addLog: (log: Omit<WeightLog, 'id'>) => Promise<string | null>;
+  /** Resolves to true once the change is saved */
+  updateLog: (id: string, updates: Partial<WeightLog>) => Promise<boolean>;
   deleteLog: (id: string) => void;
   updateDailyTracking: (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => void;
   getDailyTracking: (date: string) => DailyTracking;

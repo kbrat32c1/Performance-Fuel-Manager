@@ -587,6 +587,7 @@ function TodayFlow({
 }) {
   const { logs, profile, deleteLog } = useStore();
   const { toast } = useToast();
+  const [, navigateTo] = useLocation();
   const [confirmDeleteCheckIn, setConfirmDeleteCheckIn] = useState<string | null>(null);
 
   // Extra workouts today (before/after pairs)
@@ -753,7 +754,16 @@ function TodayFlow({
       <div className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
         {/* Header: label + colored dots + count */}
         <div className="flex items-center justify-between px-1 pb-1">
-          <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
+          <span className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
+            <button
+              type="button"
+              onClick={() => navigateTo('/weigh-in')}
+              className="text-[10px] font-bold text-primary underline-offset-2 hover:underline"
+            >
+              Enter all
+            </button>
+          </span>
           <div className="flex items-center gap-1.5">
             <div className="flex gap-0.5">
               {slots.map((slot) => (

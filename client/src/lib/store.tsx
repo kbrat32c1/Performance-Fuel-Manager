@@ -729,7 +729,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Add log to Supabase
-  const addLog = async (log: Omit<WeightLog, 'id'>) => {
+  /** Resolves to the saved log's id, or null when it was rejected or did not save. */
+  const addLog = async (log: Omit<WeightLog, 'id'>): Promise<string | null> => {
     // Weight validation: ensure weight is within reasonable bounds
     const weightError = getWeightValidationError(log.weight);
     if (weightError) {
@@ -738,7 +739,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         description: weightError,
         variant: "destructive",
       });
-      return;
+      return null;
     }
 
     // Duplicate prevention: core weigh-in types + check-in allow only one per day
@@ -755,7 +756,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           description: `You already have a ${log.type} weigh-in for today. Edit or delete the existing entry instead.`,
           variant: "destructive",
         });
-        return;
+        return null;
       }
     }
 
@@ -781,6 +782,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }));
     }
 
+    let savedId: string = tempId;
     if (user) {
       try {
         // Only insert valid log types (all weight log types)
@@ -829,12 +831,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             console.error('Error adding log:', error, 'Code:', error.code, 'Details:', error.details, 'Message:', error.message);
             const errorDetail = error.message || error.code || 'Unknown error';
             toast({ title: "Sync failed", description: `Could not save weight log: ${errorDetail}`, variant: "destructive" });
-            return;
+            return null;
           }
 
           if (data) {
             // Update with real ID
             setLogs(prev => prev.map(l => l.id === tempId ? { ...l, id: data.id } : l));
+            savedId = data.id;
           }
         }
 
@@ -855,11 +858,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         console.error('Error adding log:', error);
         const errorDetail = error instanceof Error ? error.message : 'Network error';
         toast({ title: "Sync failed", description: `Could not save weight log: ${errorDetail}`, variant: "destructive" });
+        return null;
       }
     }
+    return savedId;
   };
 
-  const updateLog = async (id: string, updates: Partial<WeightLog>) => {
+  /** Resolves to true once the change is saved (or kept locally when signed out). */
+  const updateLog = async (id: string, updates: Partial<WeightLog>): Promise<boolean> => {
     // Weight validation: ensure weight is within reasonable bounds
     if (updates.weight !== undefined) {
       const weightError = getWeightValidationError(updates.weight);
@@ -869,7 +875,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           description: weightError,
           variant: "destructive",
         });
-        return;
+        return false;
       }
     }
 
@@ -917,7 +923,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setProfile(previousProfile);
           console.error('Error updating log:', error);
           toast({ title: "Sync failed", description: "Could not update weight log. Please try again.", variant: "destructive" });
-          return;
+          return false;
         }
 
         // Only sync currentWeight to DB if editing the most recent log
@@ -939,8 +945,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setProfile(previousProfile);
         console.error('Error updating log:', error);
         toast({ title: "Sync failed", description: "Could not update weight log. Please try again.", variant: "destructive" });
+        return false;
       }
     }
+    return true;
   };
 
   const deleteLog = async (id: string) => {
