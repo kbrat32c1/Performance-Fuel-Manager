@@ -132,7 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const fbCarbs = Math.max(0, Math.round(Number(food.fallbackCarbs) || 0));
         const fbFat = Math.max(0, Math.round(Number(food.fallbackFat) || 0));
         const fbFiber = Math.max(0, Math.round(Number(food.fallbackFiber) || 0));
-        const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber) || 'carb';
+        const fbCategory = autoSparCategory(fbCal, fbPro, fbCarbs, fbFat, fbFiber, undefined, String(food.name || "")) || 'carb';
         const isNegligible = fbCal < 10 && fbPro < 2 && fbCarbs < 2 && fbFat < 2;
 
         // Compute fallback slice count

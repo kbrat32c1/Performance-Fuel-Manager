@@ -116,15 +116,35 @@ export async function getFatSecretToken(): Promise<string> {
 
 // ─── SPAR Auto-Categorization ────────────────────────────────────────────────
 
+// Whole foods recognized by name. Processed forms (chips, juice, bread, baby food...) are
+// excluded first so "banana bread" or "orange juice" fall through to the macro rules.
+const PROCESSED = /\b(chips?|crisps|juice|breads?|muffins?|cakes?|pies?|puddings?|cookies?|bars?|cereals?|candy|candies|jams?|jelly|jellies|preserves|ice cream|yogurts?|smoothies?|pancakes?|waffles?|fries|babyfood|baby food|flavou?red|sauce|ketchup|soda|drinks?|shakes?)\b/;
+const VEG = /\b(broccoli|spinach|kale|lettuce|salad|greens|arugula|chard|carrots?|celery|cucumbers?|tomato(es)?|peppers?|cauliflower|cabbage|brussels sprouts?|asparagus|green beans?|zucchini|squash|onions?|mushrooms?|eggplants?|beets?|radish(es)?|bok choy|okra|artichokes?|snap peas|snow peas)\b/;
+const STARCH = /\b(potato(es)?|sweet potato(es)?|yams?|corn|beans?|lentils?|chickpeas?|peas|rice|pasta|noodles?|oats?|oatmeal|quinoa|tortillas?|bagels?|grits)\b/;
+const FRUIT = /\b(bananas?|apples?|oranges?|grapes?|strawberr(y|ies)|blueberr(y|ies)|raspberr(y|ies)|blackberr(y|ies)|cranberr(y|ies)|berries|cherr(y|ies)|peach(es)?|pears?|plums?|mangos?|mangoes|pineapples?|watermelons?|cantaloupes?|honeydew|melons?|kiwis?|grapefruits?|tangerines?|clementines?|mandarins?|apricots?|nectarines?|papayas?|pomegranates?|figs?|raisins?|dates)\b/;
+
+/**
+ * Pick the SPAR slice group for a food. Order: the database's own food category, then the
+ * food's name, then macros. FatSecret search results carry no food category, so for most
+ * foods the name decides; macros are the last resort.
+ */
 export function autoSparCategory(
   calories: number, protein: number, carbs: number, fat: number, fiber: number,
-  foodCategory?: string
+  foodCategory?: string, name?: string
 ): string | null {
   if (calories <= 0 && protein <= 0) return null;
   const cat = (foodCategory || "").toLowerCase();
 
   if (cat.includes("fruit") && !cat.includes("baby")) return 'fruit';
   if (cat.includes("vegetable")) return 'veg';
+
+  const n = (name || "").toLowerCase();
+  if (n && !PROCESSED.test(n)) {
+    // Vegetables before fruit: "banana peppers" are peppers. Starches before fruit too.
+    if (VEG.test(n) && !STARCH.test(n.replace(/green beans?|snap peas|snow peas/g, ''))) return 'veg';
+    if (STARCH.test(n)) return 'carb';
+    if (FRUIT.test(n)) return 'fruit';
+  }
 
   if (calories > 0) {
     const proteinPct = (protein * 4) / calories;
@@ -133,7 +153,9 @@ export function autoSparCategory(
 
     if (proteinPct > 0.40) return 'protein';
     if (fatPct > 0.60) return 'fat';
-    if (carbPct > 0.40 && fiber > 3) return 'veg';
+    // Fiber alone doesn't make a vegetable (bananas, oats, beans are fiber-rich).
+    // Vegetables are fiber-rich for their calories: broccoli ~0.09 g/cal, banana ~0.03.
+    if (carbPct > 0.40 && fiber > 3 && fiber / calories >= 0.05) return 'veg';
     if (carbPct > 0.40) return 'carb';
   }
 
@@ -193,7 +215,7 @@ export async function searchFatSecret(
 
     if (calories <= 0 && protein <= 0 && carbs <= 0) return null;
 
-    const sparCategory = autoSparCategory(calories, protein, carbs, fat, fiber, food.food_type);
+    const sparCategory = autoSparCategory(calories, protein, carbs, fat, fiber, food.food_type, food.food_name);
 
     return {
       id: String(food.food_id),
