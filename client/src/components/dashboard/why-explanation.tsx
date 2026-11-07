@@ -17,7 +17,7 @@ export function WhyExplanation({ title, children }: WhyExplanationProps) {
     >
       <div className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors">
         <HelpCircle className="w-3.5 h-3.5" />
-        <span className="text-[10px] uppercase font-bold">Why {title}?</span>
+        <span className="text-xs uppercase font-bold">Why {title}?</span>
         <ChevronRight className={cn("w-3 h-3 transition-transform", isOpen && "rotate-90")} />
       </div>
       {isOpen && (

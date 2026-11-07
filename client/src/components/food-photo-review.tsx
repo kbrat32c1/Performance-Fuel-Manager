@@ -350,7 +350,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
           </span>
           {state === 'review' && confidence && (
             <span className={cn(
-              "text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase",
+              "text-xs font-bold px-1.5 py-0.5 rounded-full uppercase",
               confidence === 'high' ? "bg-green-500/15 text-green-500" :
               confidence === 'medium' ? "bg-amber-500/15 text-amber-500" :
               "bg-red-500/15 text-red-500"
@@ -416,7 +416,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
             {matchedFoods.some(mf => mf.matchConfidence === 'none') && (
               <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                 <Info className="w-4 h-4 text-amber-500 shrink-0" />
-                <p className="text-[10px] text-amber-500">
+                <p className="text-xs text-amber-500">
                   Some foods couldn't be matched in the database — using AI estimates for those.
                 </p>
               </div>
@@ -438,11 +438,11 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                 return (
                   <div key={idx} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-muted/30 bg-muted/5 opacity-40">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-medium line-through truncate">{mf.originalName}</p>
+                      <p className="text-xs font-medium line-through truncate">{mf.originalName}</p>
                     </div>
                     <button
                       onClick={() => removeFood(idx)}
-                      className="text-[9px] font-bold text-primary px-2 py-1 rounded bg-primary/10"
+                      className="text-xs font-bold text-primary px-2 py-1 rounded bg-primary/10"
                     >
                       Undo
                     </button>
@@ -462,19 +462,19 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                   {isBlocked && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20">
                       <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-                      <span className="text-[9px] text-amber-500 font-bold">Not recommended for today's protocol</span>
+                      <span className="text-xs text-amber-500 font-bold">Not recommended for today's protocol</span>
                     </div>
                   )}
                   {isOffProtocol && !isBlocked && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border-b border-red-500/20">
                       <Ban className="w-3 h-3 text-red-400 shrink-0" />
-                      <span className="text-[9px] text-red-400 font-bold">Not in Sugar Diet — off-protocol</span>
+                      <span className="text-xs text-red-400 font-bold">Not in Sugar Diet — off-protocol</span>
                     </div>
                   )}
                   {isFallback && (
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/20">
                       <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-                      <span className="text-[9px] text-amber-500 font-bold">No database match — AI estimate</span>
+                      <span className="text-xs text-amber-500 font-bold">No database match — AI estimate</span>
                     </div>
                   )}
 
@@ -483,7 +483,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                     {/* Category badge + match confidence dot */}
                     <div className="flex flex-col items-center gap-1 shrink-0">
                       <div className={cn(
-                        "px-2 py-1 rounded-md text-[9px] font-bold uppercase",
+                        "px-2 py-1 rounded-md text-xs font-bold uppercase",
                         isBlocked ? "bg-amber-500/15 text-amber-500" : cn(color.bg, color.text)
                       )}>
                         {color.label}
@@ -495,18 +495,18 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                     <div className="flex-1 min-w-0">
                       <button
                         onClick={() => setEditingIdx(isEditing ? null : idx)}
-                        className="text-[11px] font-medium truncate text-left w-full hover:text-primary transition-colors cursor-pointer"
+                        className="text-xs font-medium truncate text-left w-full hover:text-primary transition-colors cursor-pointer"
                       >
                         {mf.fsMatch ? mf.fsMatch.name : mf.originalName}
                         {mf.fsMatch?.brand && <span className="text-muted-foreground/60 font-normal"> ({mf.fsMatch.brand})</span>}
                       </button>
                       {/* Serving description */}
                       {serving && (
-                        <p className="text-[9px] text-primary/70 font-medium mt-0.5">
+                        <p className="text-xs text-primary/70 font-medium mt-0.5">
                           {qty !== 1 ? `${qty} × ` : ''}{serving.description}
                         </p>
                       )}
-                      <div className="flex items-center gap-2 text-[9px] text-muted-foreground mt-0.5">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                         <span>{photoFood.calories} cal</span>
                         <span>·</span>
                         <span className="text-orange-500 font-mono">{photoFood.protein}p</span>
@@ -550,7 +550,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                     <div className="px-3 pb-3 space-y-2 border-t border-muted/50 pt-2 animate-in slide-in-from-top-1 duration-150">
                       {/* Serving size dropdown */}
                       <div>
-                        <label className="text-[9px] text-muted-foreground uppercase font-bold">Serving Size</label>
+                        <label className="text-xs text-muted-foreground uppercase font-bold">Serving Size</label>
                         <div className="flex flex-wrap gap-1 mt-0.5">
                           {mf.fsMatch.servings.map((s, si) => {
                             const override = servingSelections.get(idx);
@@ -561,7 +561,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                                 key={s.id}
                                 onClick={() => selectServing(idx, si)}
                                 className={cn(
-                                  "px-2 py-1 rounded text-[9px] font-medium transition-all",
+                                  "px-2 py-1 rounded text-xs font-medium transition-all",
                                   isActive
                                     ? "bg-primary/15 text-primary ring-1 ring-primary/30"
                                     : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
@@ -580,7 +580,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                         <div>
                           <button
                             onClick={() => setShowAltsIdx(showAltsIdx === idx ? null : idx)}
-                            className="flex items-center gap-1 text-[9px] font-bold text-primary/70 hover:text-primary"
+                            className="flex items-center gap-1 text-xs font-bold text-primary/70 hover:text-primary"
                           >
                             <ArrowLeftRight className="w-3 h-3" />
                             Swap match ({mf.alternatives.length} alternatives)
@@ -594,11 +594,11 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                                   onClick={() => swapMatch(idx, alt)}
                                   className="w-full text-left px-2 py-1.5 rounded bg-muted/20 hover:bg-primary/10 transition-colors"
                                 >
-                                  <p className="text-[10px] font-medium truncate">
+                                  <p className="text-xs font-medium truncate">
                                     {alt.name}
                                     {alt.brand && <span className="text-muted-foreground/60 font-normal"> ({alt.brand})</span>}
                                   </p>
-                                  <p className="text-[9px] text-muted-foreground">
+                                  <p className="text-xs text-muted-foreground">
                                     {alt.calories} cal · {alt.protein}p {alt.carbs}c {alt.fat}f
                                   </p>
                                 </button>
@@ -633,7 +633,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                 <span className="font-mono font-bold text-primary">{totals.slices} slices</span>
               )}
             </div>
-            <div className="flex items-center gap-2 font-mono text-[10px]">
+            <div className="flex items-center gap-2 font-mono text-xs">
               <span>{totals.calories} cal</span>
               <span className="text-orange-500 font-bold">{totals.protein}p</span>
               <span className="text-amber-500 font-bold">{totals.carbs}c</span>

@@ -146,7 +146,7 @@ export class PageErrorBoundary extends React.Component<
                 </p>
               </div>
               {process.env.NODE_ENV === 'development' && this.state.error && (
-                <p className="text-[10px] font-mono text-destructive/70 break-all text-left bg-muted/30 rounded p-2">
+                <p className="text-xs font-mono text-destructive/70 break-all text-left bg-muted/30 rounded p-2">
                   {this.state.error.message}
                 </p>
               )}

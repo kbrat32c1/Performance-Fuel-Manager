@@ -62,7 +62,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <Lock className="w-5 h-5 text-muted-foreground/40 mb-0.5" />
-              <span className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground/40 mt-0.5">
+              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
                 Cut Score
               </span>
             </div>
@@ -125,7 +125,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
             )}>
               {result.score}
             </span>
-            <span className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground/60 mt-0.5">
+            <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
               Cut Score
             </span>
           </div>
@@ -142,7 +142,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
               expanded && "rotate-180"
             )} />
           </div>
-          <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+          <p className="text-xs text-muted-foreground leading-snug mt-0.5">
             {result.rationale}
           </p>
           {/* Active pillar indicators */}
@@ -164,13 +164,13 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
                 >
                   <Icon className="w-3 h-3" />
                   {isActive && (
-                    <span className="text-[9px] font-mono font-bold">{pillar.raw}</span>
+                    <span className="text-xs font-mono font-bold">{pillar.raw}</span>
                   )}
                 </div>
               );
             })}
             {!expanded && (
-              <span className="text-[8px] text-muted-foreground/30 ml-1">tap ▾</span>
+              <span className="text-xs text-muted-foreground/30 ml-1">tap ▾</span>
             )}
           </div>
         </div>
@@ -188,10 +188,10 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
               return (
                 <div key={key} className="flex items-center gap-2 opacity-40">
                   <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-[10px] text-muted-foreground flex-1">
+                  <span className="text-xs text-muted-foreground flex-1">
                     {config.label}
                   </span>
-                  <span className="text-[9px] text-muted-foreground">No data</span>
+                  <span className="text-xs text-muted-foreground">No data</span>
                 </div>
               );
             }
@@ -203,7 +203,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
             return (
               <div key={key} className="flex items-center gap-2">
                 <Icon className={cn("w-3.5 h-3.5", barColor.text)} />
-                <span className="text-[10px] text-muted-foreground w-16">
+                <span className="text-xs text-muted-foreground w-16">
                   {config.label}
                 </span>
                 {/* Score bar */}
@@ -216,7 +216,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
                     }}
                   />
                 </div>
-                <span className={cn("text-[10px] font-mono font-bold w-6 text-right", barColor.text)}>
+                <span className={cn("text-xs font-mono font-bold w-6 text-right", barColor.text)}>
                   {pillar.raw}
                 </span>
               </div>
@@ -231,7 +231,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
               const tierLabel = pillar.tier === 'premium' ? 'Premium' :
                                pillar.tier === 'enhanced' ? 'Enhanced' : 'Basic';
               return (
-                <span key={key} className="text-[8px] text-muted-foreground/50">
+                <span key={key} className="text-xs text-muted-foreground/50">
                   {PILLAR_CONFIG[key].label}: {tierLabel}
                 </span>
               );

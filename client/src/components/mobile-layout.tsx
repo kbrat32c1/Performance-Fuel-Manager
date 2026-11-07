@@ -155,7 +155,7 @@ function NavItem({ icon, label, active, onClick, primary, highlighted, badge }: 
           </span>
         )}
       </div>
-      {!primary && <span className="text-[10px] font-medium uppercase tracking-wider">{label}</span>}
+      {!primary && <span className="text-xs font-medium uppercase tracking-wider">{label}</span>}
     </button>
   );
 }

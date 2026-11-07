@@ -338,7 +338,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
 
         {/* What was said */}
         <div className="bg-muted/15 rounded-lg px-3 py-2">
-          <p className="text-[10px] text-muted-foreground/60 uppercase font-bold mb-0.5">You said:</p>
+          <p className="text-xs text-muted-foreground/60 uppercase font-bold mb-0.5">You said:</p>
           <p className="text-[12px] text-muted-foreground italic">"{transcript}"</p>
         </div>
 
@@ -346,7 +346,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
         {matchedFoods.some(mf => mf.matchConfidence === 'none') && (
           <div className="flex items-center gap-2 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
             <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-            <p className="text-[10px] text-amber-500">
+            <p className="text-xs text-amber-500">
               Some foods couldn't be matched in the database — using AI estimates.
             </p>
           </div>
@@ -354,7 +354,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
 
         {/* Parsed food items */}
         <div className="space-y-2">
-          <p className="text-[10px] text-muted-foreground/60 uppercase font-bold tracking-wide">
+          <p className="text-xs text-muted-foreground/60 uppercase font-bold tracking-wide">
             Found {matchedFoods.length} food{matchedFoods.length > 1 ? 's' : ''}
           </p>
           {matchedFoods.map((mf, idx) => {
@@ -373,11 +373,11 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                   className="flex items-center gap-3 px-3 py-2 rounded-xl border border-muted/20 bg-muted/5 opacity-40"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-medium line-through truncate">{mf.originalName}</p>
+                    <p className="text-xs font-medium line-through truncate">{mf.originalName}</p>
                   </div>
                   <button
                     onClick={() => toggleRemove(idx)}
-                    className="text-[9px] font-bold text-primary px-2 py-1 rounded bg-primary/10"
+                    className="text-xs font-bold text-primary px-2 py-1 rounded bg-primary/10"
                   >
                     Undo
                   </button>
@@ -398,7 +398,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                 {isFallback && (
                   <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 border-b border-amber-500/20">
                     <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
-                    <span className="text-[9px] text-amber-500 font-bold">No database match — AI estimate</span>
+                    <span className="text-xs text-amber-500 font-bold">No database match — AI estimate</span>
                   </div>
                 )}
 
@@ -406,7 +406,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                 <div className="flex items-center gap-3 px-3 py-2.5">
                   {/* Category badge + confidence dot */}
                   <div className="flex flex-col items-center gap-1 shrink-0">
-                    <div className={cn("px-1.5 py-0.5 rounded text-[8px] font-bold uppercase", color.bg, color.text)}>
+                    <div className={cn("px-1.5 py-0.5 rounded text-xs font-bold uppercase", color.bg, color.text)}>
                       {color.label}
                     </div>
                     <div className={cn("w-1.5 h-1.5 rounded-full", confDot)} />
@@ -419,19 +419,19 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                       className="text-[12px] font-medium truncate text-left w-full hover:text-primary transition-colors"
                     >
                       {mf.fsMatch ? mf.fsMatch.name : mf.originalName}
-                      {mf.fsMatch?.brand && <span className="text-muted-foreground/60 font-normal text-[10px]"> ({mf.fsMatch.brand})</span>}
+                      {mf.fsMatch?.brand && <span className="text-muted-foreground/60 font-normal text-xs"> ({mf.fsMatch.brand})</span>}
                     </button>
                     {/* Serving description */}
                     {serving && (
-                      <p className="text-[9px] text-primary/70 font-medium">
+                      <p className="text-xs text-primary/70 font-medium">
                         {qty !== 1 ? `${qty} × ` : ''}{serving.description}
                       </p>
                     )}
-                    <p className="text-[10px] text-muted-foreground/60">
+                    <p className="text-xs text-muted-foreground/60">
                       {photoFood.calories} cal · {photoFood.protein}P {photoFood.carbs}C {photoFood.fat}F
                     </p>
                     {photoFood.sparCategory && (
-                      <span className="text-[9px] font-bold uppercase text-primary/70">
+                      <span className="text-xs font-bold uppercase text-primary/70">
                         {photoFood.sparCategory} · {photoFood.sliceCount > 0 ? `${photoFood.sliceCount} slice${photoFood.sliceCount > 1 ? 's' : ''}` : 'tracked'}
                       </span>
                     )}
@@ -472,7 +472,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                   <div className="px-3 pb-3 space-y-2 border-t border-muted/50 pt-2 animate-in slide-in-from-top-1 duration-150">
                     {/* Serving size selector */}
                     <div>
-                      <label className="text-[9px] text-muted-foreground uppercase font-bold">Serving Size</label>
+                      <label className="text-xs text-muted-foreground uppercase font-bold">Serving Size</label>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {mf.fsMatch.servings.map((s, si) => {
                           const override = servingSelections.get(idx);
@@ -483,7 +483,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                               key={s.id}
                               onClick={() => selectServing(idx, si)}
                               className={cn(
-                                "px-2 py-1 rounded text-[9px] font-medium transition-all",
+                                "px-2 py-1 rounded text-xs font-medium transition-all",
                                 isActive
                                   ? "bg-primary/15 text-primary ring-1 ring-primary/30"
                                   : "bg-muted/30 text-muted-foreground hover:bg-muted/50"
@@ -502,7 +502,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                       <div>
                         <button
                           onClick={() => setShowAltsIdx(showAltsIdx === idx ? null : idx)}
-                          className="flex items-center gap-1 text-[9px] font-bold text-primary/70 hover:text-primary"
+                          className="flex items-center gap-1 text-xs font-bold text-primary/70 hover:text-primary"
                         >
                           <ArrowLeftRight className="w-3 h-3" />
                           Swap match ({mf.alternatives.length} alternatives)
@@ -516,11 +516,11 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                                 onClick={() => swapMatch(idx, alt)}
                                 className="w-full text-left px-2 py-1.5 rounded bg-muted/20 hover:bg-primary/10 transition-colors"
                               >
-                                <p className="text-[10px] font-medium truncate">
+                                <p className="text-xs font-medium truncate">
                                   {alt.name}
                                   {alt.brand && <span className="text-muted-foreground/60 font-normal"> ({alt.brand})</span>}
                                 </p>
-                                <p className="text-[9px] text-muted-foreground">
+                                <p className="text-xs text-muted-foreground">
                                   {alt.calories} cal · {alt.protein}p {alt.carbs}c {alt.fat}f
                                 </p>
                               </button>
@@ -542,7 +542,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
             "w-1.5 h-1.5 rounded-full",
             confidence === 'high' ? "bg-green-500" : confidence === 'medium' ? "bg-yellow-500" : "bg-red-500"
           )} />
-          <span className="text-[9px] text-muted-foreground/50 uppercase font-bold">
+          <span className="text-xs text-muted-foreground/50 uppercase font-bold">
             {confidence} confidence
           </span>
         </div>
@@ -551,7 +551,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
         <div className="flex gap-2">
           <button
             onClick={handleRetry}
-            className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-lg bg-muted/30 text-muted-foreground text-[11px] font-bold active:scale-[0.98] transition-all"
+            className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-lg bg-muted/30 text-muted-foreground text-xs font-bold active:scale-[0.98] transition-all"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Try Again
@@ -560,7 +560,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
             onClick={handleConfirm}
             disabled={activeFoods.length === 0}
             className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[11px] font-bold transition-all",
+              "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all",
               activeFoods.length > 0
                 ? "bg-primary text-white active:scale-[0.98]"
                 : "bg-muted/30 text-muted-foreground/50"
@@ -594,7 +594,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
           {isListening && (
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-500/10 border border-red-500/30 mb-1">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-[11px] font-bold text-red-500 uppercase tracking-wider">
+              <span className="text-xs font-bold text-red-500 uppercase tracking-wider">
                 Recording · {listenSeconds}s
               </span>
             </div>
@@ -645,7 +645,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
 
       {/* Editable transcript — always visible so user can type or edit */}
       <div className="space-y-1.5">
-        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase">
+        <p className="text-xs font-bold text-muted-foreground/60 uppercase">
           {textMode
             ? 'Describe what you ate (e.g., "2 eggs, toast with butter, glass of OJ")'
             : transcript
@@ -678,7 +678,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
       {/* Error */}
       {error && (
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-          <p className="text-[11px] text-destructive">{error}</p>
+          <p className="text-xs text-destructive">{error}</p>
         </div>
       )}
 
@@ -687,7 +687,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
         {!textMode && (
           <button
             onClick={() => { setTextMode(true); stopListening(); }}
-            className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-lg bg-muted/30 text-muted-foreground text-[11px] font-bold"
+            className="flex items-center justify-center gap-1.5 flex-1 py-2.5 rounded-lg bg-muted/30 text-muted-foreground text-xs font-bold"
           >
             <Keyboard className="w-3.5 h-3.5" />
             Type Instead
@@ -697,7 +697,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
           onClick={handleSubmit}
           disabled={!transcript.trim() || isProcessing || isListening}
           className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[11px] font-bold transition-all",
+            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-bold transition-all",
             transcript.trim() && !isProcessing && !isListening
               ? "bg-primary text-white active:scale-[0.98]"
               : "bg-muted/30 text-muted-foreground/50"
@@ -719,7 +719,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
 
       {/* Hint */}
       {!transcript && !interimTranscript && !isListening && (
-        <p className="text-[9px] text-muted-foreground/40 text-center leading-relaxed">
+        <p className="text-xs text-muted-foreground/40 text-center leading-relaxed">
           Try: "I had a chicken breast with rice and steamed broccoli" or "2 scrambled eggs and a banana"
         </p>
       )}

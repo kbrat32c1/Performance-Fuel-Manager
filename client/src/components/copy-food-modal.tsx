@@ -132,7 +132,7 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
         {/* Day list */}
         {!selectedDay && (
           <div className="space-y-2">
-            <p className="text-[10px] text-muted-foreground uppercase font-bold mb-3">Last 7 days</p>
+            <p className="text-xs text-muted-foreground uppercase font-bold mb-3">Last 7 days</p>
             {days.map(day => {
               const hasEntries = day.entries.length > 0;
               return (
@@ -149,7 +149,7 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
                 >
                   <div>
                     <p className="text-sm font-medium">{day.label}</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {format(new Date(day.dateKey + 'T12:00:00'), 'MMM d')}
                       {hasEntries && ` · ${day.entries.length} items`}
                     </p>
@@ -157,11 +157,11 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
                   <div className="flex items-center gap-2">
                     {hasEntries ? (
                       <>
-                        <span className="text-[10px] font-mono font-bold text-primary">{day.summary}</span>
+                        <span className="text-xs font-mono font-bold text-primary">{day.summary}</span>
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">No food logged</span>
+                      <span className="text-xs text-muted-foreground">No food logged</span>
                     )}
                   </div>
                 </button>
@@ -175,7 +175,7 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
           <div className="space-y-3">
             <button
               onClick={() => setSelectedDay(null)}
-              className="text-[10px] text-primary font-bold uppercase flex items-center gap-1 hover:underline"
+              className="text-xs text-primary font-bold uppercase flex items-center gap-1 hover:underline"
             >
               ← Back to days
             </button>
@@ -183,11 +183,11 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-bold">{selectedDayData.label}</p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {format(new Date(selectedDayData.dateKey + 'T12:00:00'), 'EEEE, MMM d')} · {selectedDayData.entries.length} items
                 </p>
               </div>
-              <span className="text-[10px] font-mono font-bold text-primary">{selectedDayData.summary}</span>
+              <span className="text-xs font-mono font-bold text-primary">{selectedDayData.summary}</span>
             </div>
 
             {/* Food list preview */}
@@ -205,18 +205,18 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
                   <div key={entry.id || i} className="flex items-center justify-between px-2.5 py-2 rounded-lg bg-muted/20">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {entry.mode === 'spar' && entry.sliceType && (
-                        <span className={cn("text-[9px] font-bold shrink-0", sparColor)}>
+                        <span className={cn("text-xs font-bold shrink-0", sparColor)}>
                           +{entry.sliceCount || 1}
                         </span>
                       )}
                       {entry.mode === 'sugar' && entry.macroType && (
-                        <span className={cn("text-[9px] font-bold font-mono shrink-0",
+                        <span className={cn("text-xs font-bold font-mono shrink-0",
                           entry.macroType === 'protein' ? 'text-orange-500' : 'text-amber-500'
                         )}>
                           +{entry.amount}g
                         </span>
                       )}
-                      <span className="text-[11px] truncate">{entry.name}</span>
+                      <span className="text-xs truncate">{entry.name}</span>
                     </div>
                   </div>
                 );

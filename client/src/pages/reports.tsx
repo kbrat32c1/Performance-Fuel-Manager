@@ -172,7 +172,7 @@ export default function Reports() {
         </Button>
         <span className="text-sm font-semibold">
           {periodLabel}
-          <span className="block text-[10px] text-muted-foreground font-normal text-center">
+          <span className="block text-xs text-muted-foreground font-normal text-center">
             {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d")}
           </span>
         </span>
@@ -324,8 +324,8 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.3} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
               <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v.toLocaleString()} kcal`, "Calories"]} />
               <ReferenceLine y={calorieGoal} stroke="hsl(var(--muted-foreground))" strokeDasharray="6 4" strokeWidth={1.5} />
               <Bar dataKey="calories" radius={[4, 4, 0, 0]} maxBarSize={28}>
@@ -368,7 +368,7 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
         <Card className="border-muted">
           <CardContent className="p-4">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Foods Eaten</p>
-            <div className="flex items-center text-[10px] text-muted-foreground uppercase tracking-wider border-b border-border pb-1.5 mb-2">
+            <div className="flex items-center text-xs text-muted-foreground uppercase tracking-wider border-b border-border pb-1.5 mb-2">
               <span className="flex-1">Food</span>
               <span className="w-14 text-center">Times</span>
               <span className="w-16 text-right">Cals</span>
@@ -452,8 +452,8 @@ function SlicesTab({ weekData, sliceTargets }: {
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.3} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
               <Tooltip {...TOOLTIP_STYLE} />
               <ReferenceLine y={dailyTarget} stroke="hsl(var(--muted-foreground))" strokeDasharray="6 4" strokeWidth={1.5} />
               <Bar dataKey="protein" stackId="a" fill={CAT_COLORS.protein} />
@@ -468,7 +468,7 @@ function SlicesTab({ weekData, sliceTargets }: {
             {(["protein", "carb", "veg", "fruit", "fat"] as const).map((c) => (
               <div key={c} className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: CAT_COLORS[c] }} />
-                <span className="text-[10px] text-muted-foreground capitalize">{c}</span>
+                <span className="text-xs text-muted-foreground capitalize">{c}</span>
               </div>
             ))}
           </div>
@@ -536,18 +536,18 @@ function MacrosTab({ weekData, macroTargets }: {
           <div className="flex items-baseline gap-4 mb-3">
             <div>
               <span className="text-lg font-mono font-bold" style={{ color: "hsl(var(--primary))" }}>{avgCarbs}g</span>
-              <span className="text-[10px] text-muted-foreground ml-1">avg carbs</span>
+              <span className="text-xs text-muted-foreground ml-1">avg carbs</span>
             </div>
             <div>
               <span className="text-lg font-mono font-bold text-orange-500">{avgProtein}g</span>
-              <span className="text-[10px] text-muted-foreground ml-1">avg protein</span>
+              <span className="text-xs text-muted-foreground ml-1">avg protein</span>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.3} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} unit="g" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} unit="g" />
               <Tooltip {...TOOLTIP_STYLE} formatter={(v: number, name: string) => [`${v}g`, name === "carbs" ? "Carbs" : "Protein"]} />
               {carbTarget > 0 && (
                 <ReferenceLine y={carbTarget} stroke="hsl(var(--primary) / 0.5)" strokeDasharray="4 4" strokeWidth={1} />
@@ -563,11 +563,11 @@ function MacrosTab({ weekData, macroTargets }: {
           <div className="flex gap-4 mt-2 justify-center">
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-sm bg-primary" />
-              <span className="text-[10px] text-muted-foreground">Carbs ({macroTargets.carbs.min}–{macroTargets.carbs.max}g)</span>
+              <span className="text-xs text-muted-foreground">Carbs ({macroTargets.carbs.min}–{macroTargets.carbs.max}g)</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-sm bg-orange-500" />
-              <span className="text-[10px] text-muted-foreground">Protein ({macroTargets.protein.min}–{macroTargets.protein.max}g)</span>
+              <span className="text-xs text-muted-foreground">Protein ({macroTargets.protein.min}–{macroTargets.protein.max}g)</span>
             </div>
           </div>
         </CardContent>
@@ -579,19 +579,19 @@ function MacrosTab({ weekData, macroTargets }: {
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Weekly Summary</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Total Carbs</p>
+              <p className="text-xs text-muted-foreground uppercase">Total Carbs</p>
               <p className="text-lg font-mono font-bold">{Math.round(totalCarbs)}g</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Total Protein</p>
+              <p className="text-xs text-muted-foreground uppercase">Total Protein</p>
               <p className="text-lg font-mono font-bold">{Math.round(totalProtein)}g</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Ratio</p>
+              <p className="text-xs text-muted-foreground uppercase">Ratio</p>
               <p className="text-sm font-medium">{macroTargets.ratio}</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Days Logged</p>
+              <p className="text-xs text-muted-foreground uppercase">Days Logged</p>
               <p className="text-lg font-mono font-bold">{daysWithData.length}/7</p>
             </div>
           </div>
@@ -637,8 +637,8 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.3} />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} unit=" oz" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} unit=" oz" />
               <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} oz`, "Water"]} />
               <ReferenceLine y={targetOz} stroke="#06b6d4" strokeDasharray="6 4" strokeWidth={1.5} />
               <Bar dataKey="water" radius={[4, 4, 0, 0]} maxBarSize={28}>
@@ -665,19 +665,19 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Weekly Summary</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Total</p>
+              <p className="text-xs text-muted-foreground uppercase">Total</p>
               <p className="text-lg font-mono font-bold">{totalOz} oz</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Daily Average</p>
+              <p className="text-xs text-muted-foreground uppercase">Daily Average</p>
               <p className="text-lg font-mono font-bold">{dailyAvg} oz</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Days Hit Target</p>
+              <p className="text-xs text-muted-foreground uppercase">Days Hit Target</p>
               <p className="text-lg font-mono font-bold text-cyan-500">{daysHit}/7</p>
             </div>
             <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Target</p>
+              <p className="text-xs text-muted-foreground uppercase">Target</p>
               <p className="text-lg font-mono font-bold">{targetOz} oz</p>
             </div>
           </div>

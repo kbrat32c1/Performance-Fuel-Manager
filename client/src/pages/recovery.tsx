@@ -721,13 +721,13 @@ export default function Recovery() {
               <div className="w-full max-w-xs space-y-3">
                 <div className="bg-muted/20 border border-muted rounded-xl p-4 space-y-2">
                   <p className="text-xs font-bold text-foreground">You're on SPAR Nutrition (General)</p>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     This mode is for everyday eating without a competition schedule. To use competition day recovery, switch to <span className="font-bold text-foreground">SPAR Competition</span> in Settings and set a weigh-in date.
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground text-center tracking-wider">What you get with SPAR Competition</p>
+                  <p className="text-xs uppercase font-bold text-muted-foreground text-center tracking-wider">What you get with SPAR Competition</p>
                   {[
                     { icon: <Scale className="w-3.5 h-3.5" />, text: 'Auto water loading & cut schedule', color: 'text-cyan-500' },
                     { icon: <Utensils className="w-3.5 h-3.5" />, text: 'Calorie targets adjust to weigh-in', color: 'text-primary' },
@@ -794,7 +794,7 @@ export default function Recovery() {
           <div className="space-y-4 pb-6 pt-6">
             {/* Weigh-in weight input */}
             <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-bold text-muted-foreground block text-center tracking-wider">
+              <label className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
                 Weigh-in Weight (lbs)
               </label>
               <Input
@@ -810,7 +810,7 @@ export default function Recovery() {
 
             {/* Time pickers */}
             <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-bold text-muted-foreground block text-center tracking-wider">
+              <label className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
                 Time to 1st Match
               </label>
               <div className="relative max-w-[200px] mx-auto">
@@ -847,24 +847,24 @@ export default function Recovery() {
             {/* Notification / Alerts UI — compact */}
             <div className="flex justify-center">
               {typeof Notification === 'undefined' ? (
-                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Bell className="w-3 h-3 text-cyan-500" />
                   <span>Sound & on-screen alerts active</span>
                 </div>
               ) : notificationPermission === 'denied' ? (
-                <div className="flex items-center gap-1.5 text-[10px] text-yellow-500">
+                <div className="flex items-center gap-1.5 text-xs text-yellow-500">
                   <BellOff className="w-3 h-3" />
                   <span>Push blocked — sound & on-screen alerts active</span>
                 </div>
               ) : notificationPermission === 'granted' && notificationsEnabled ? (
-                <div className="flex items-center gap-1.5 text-[10px] text-primary">
+                <div className="flex items-center gap-1.5 text-xs text-primary">
                   <Bell className="w-3 h-3" />
                   <span>All alerts enabled</span>
                 </div>
               ) : (
                 <button
                   onClick={requestNotificationPermission}
-                  className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <Bell className="w-3 h-3" />
                   <span className="underline underline-offset-2">Enable push notifications</span>
@@ -892,11 +892,11 @@ export default function Recovery() {
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2 min-w-0">
               {mode === 'weigh-in' ? (
-                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider truncate">
+                <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider truncate">
                   Post Weigh-In Recovery
                 </span>
               ) : (
-                <span className="text-[10px] uppercase font-bold tracking-wider truncate">
+                <span className="text-xs uppercase font-bold tracking-wider truncate">
                   <span className="text-orange-500">Match #{matchNumber}</span>
                   <span className="text-muted-foreground"> Recovery</span>
                 </span>
@@ -951,7 +951,7 @@ export default function Recovery() {
             </div>
             {/* Phase badge */}
             <div className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0",
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shrink-0",
               currentPhase.bgColor, currentPhase.color
             )}>
               {currentPhase.icon}
@@ -1009,24 +1009,24 @@ export default function Recovery() {
         {mode === 'weigh-in' && weighInWeight && lostWeight > 0 && (
           <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-3 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase font-bold text-cyan-500 flex items-center gap-1.5 tracking-wider">
+              <span className="text-xs uppercase font-bold text-cyan-500 flex items-center gap-1.5 tracking-wider">
                 <Droplets className="w-3.5 h-3.5" /> Rehydration
               </span>
-              <span className="text-[10px] font-mono text-muted-foreground">
+              <span className="text-xs font-mono text-muted-foreground">
                 {lostWeight.toFixed(1)} lbs lost
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-cyan-500/5 rounded-lg p-2 text-center">
-                <span className="text-[9px] uppercase text-muted-foreground block mb-0.5">Fluids</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Fluids</span>
                 <span className="text-sm font-mono font-bold text-cyan-500">{plan.fluidRange}</span>
               </div>
               <div className="bg-muted/20 rounded-lg p-2 text-center">
-                <span className="text-[9px] uppercase text-muted-foreground block mb-0.5">Sodium</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Sodium</span>
                 <span className="text-sm font-mono font-bold text-foreground">{plan.sodiumRange}</span>
               </div>
               <div className="bg-primary/5 rounded-lg p-2 text-center">
-                <span className="text-[9px] uppercase text-muted-foreground block mb-0.5">Glycogen</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Glycogen</span>
                 <span className="text-sm font-mono font-bold text-primary">{plan.glycogen}</span>
               </div>
             </div>
@@ -1077,7 +1077,7 @@ export default function Recovery() {
             onClick={() => setShowAllFuel(!showAllFuel)}
             className="w-full flex items-center justify-between p-3 active:bg-primary/10 transition-colors"
           >
-            <span className="text-[10px] uppercase font-bold text-primary flex items-center gap-1.5 tracking-wider">
+            <span className="text-xs uppercase font-bold text-primary flex items-center gap-1.5 tracking-wider">
               <Utensils className="w-3.5 h-3.5" /> All Fueling Options
             </span>
             <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", showAllFuel && "rotate-180")} />
@@ -1088,15 +1088,15 @@ export default function Recovery() {
                 <div key={i} className="flex items-center justify-between bg-background/50 rounded-lg px-3 py-2.5">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium">{food.name}</span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">({food.serving})</span>
+                    <span className="text-xs text-muted-foreground ml-1.5">({food.serving})</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs shrink-0 ml-2">
                     <span className="font-mono text-primary font-bold">{food.carbs}g</span>
-                    <span className="text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded text-[10px]">{food.timing}</span>
+                    <span className="text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded text-xs">{food.timing}</span>
                   </div>
                 </div>
               ))}
-              <p className="text-[10px] text-muted-foreground pt-2 border-t border-muted">
+              <p className="text-xs text-muted-foreground pt-2 border-t border-muted">
                 Target: 30–50 g carbs/hr · 16–24 oz electrolyte drink/hr
               </p>
             </div>
@@ -1107,11 +1107,11 @@ export default function Recovery() {
         {mode === 'between-matches' && (
           <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between p-3 pb-2">
-              <span className="text-[10px] uppercase font-bold text-orange-500 flex items-center gap-1.5 tracking-wider">
+              <span className="text-xs uppercase font-bold text-orange-500 flex items-center gap-1.5 tracking-wider">
                 <Swords className="w-3.5 h-3.5" /> Match Prep
               </span>
               {Object.values(matchPrepChecklist).filter(Boolean).length > 0 && (
-                <span className="text-[10px] font-mono text-muted-foreground">
+                <span className="text-xs font-mono text-muted-foreground">
                   {Object.values(matchPrepChecklist).filter(Boolean).length}/{MATCH_PREP_ITEMS.length}
                 </span>
               )}
@@ -1156,7 +1156,7 @@ export default function Recovery() {
               <span className="text-xs text-yellow-500 font-medium">
                 Min 30 min rest recommended
               </span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">
+              <span className="text-xs text-muted-foreground ml-1.5">
                 ({formatCountdown(1800 - elapsed)} remaining)
               </span>
             </div>
@@ -1239,7 +1239,7 @@ export default function Recovery() {
 
             {/* Time between matches picker */}
             <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-bold text-muted-foreground block tracking-wider">
+              <label className="text-xs uppercase font-bold text-muted-foreground block tracking-wider">
                 Expected time until next match
               </label>
               <div className="relative">
@@ -1339,7 +1339,7 @@ function PhaseCard({
               {phase.title}
             </span>
             <span className={cn(
-              "text-[10px] block truncate",
+              "text-xs block truncate",
               isCompleted ? "text-muted-foreground/60" : "text-muted-foreground"
             )}>
               {phase.subtitle}
@@ -1348,9 +1348,9 @@ function PhaseCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {allDone ? (
-            <span className="text-[10px] font-bold text-green-500">Done</span>
+            <span className="text-xs font-bold text-green-500">Done</span>
           ) : (
-            <span className="text-[10px] font-mono text-muted-foreground">{done}/{total}</span>
+            <span className="text-xs font-mono text-muted-foreground">{done}/{total}</span>
           )}
           <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
         </div>
@@ -1385,14 +1385,14 @@ function PhaseCard({
               <span className={cn("text-sm font-bold", isCurrent && phase.color)}>{phase.title}</span>
               {isCurrent && (
                 <span className={cn(
-                  "text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md animate-pulse",
+                  "text-xs font-black uppercase px-1.5 py-0.5 rounded-md animate-pulse",
                   phase.bgColor, phase.color
                 )}>
                   NOW
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-muted-foreground">{phase.subtitle}</span>
+            <span className="text-xs text-muted-foreground">{phase.subtitle}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -1457,7 +1457,7 @@ function PhaseCard({
       {showFoods && foods && foods.length > 0 && (
         <div className="px-3 pb-3">
           <div className="bg-background/40 rounded-lg p-2.5 space-y-1.5">
-            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Quick fuel for now</span>
+            <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Quick fuel for now</span>
             {foods.map((food, i) => (
               <div key={i} className="flex items-center justify-between text-xs">
                 <span className="font-medium">{food.name} <span className="text-muted-foreground">({food.serving})</span></span>

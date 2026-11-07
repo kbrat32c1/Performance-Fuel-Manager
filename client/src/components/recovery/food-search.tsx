@@ -92,7 +92,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
         }}
         className="w-full flex items-center justify-between p-3 active:bg-cyan-500/10 transition-colors"
       >
-        <span className="text-[10px] uppercase font-bold text-cyan-500 flex items-center gap-1.5 tracking-wider">
+        <span className="text-xs uppercase font-bold text-cyan-500 flex items-center gap-1.5 tracking-wider">
           <Search className="w-3.5 h-3.5" /> Food Lookup
         </span>
         <ChevronDown
@@ -142,7 +142,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
           {/* Results */}
           {!loading && results.length > 0 && (
             <div className="space-y-1 max-h-[300px] overflow-y-auto">
-              <p className="text-[9px] uppercase text-muted-foreground tracking-wider px-1">
+              <p className="text-xs uppercase text-muted-foreground tracking-wider px-1">
                 {results.length} results · per 100g · USDA FoodData Central
               </p>
               {results.map((food) => (
@@ -156,7 +156,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
                         {formatName(food.name)}
                       </span>
                       {food.category && (
-                        <span className="text-[10px] text-muted-foreground block truncate">
+                        <span className="text-xs text-muted-foreground block truncate">
                           {food.category}
                         </span>
                       )}
@@ -164,11 +164,11 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
                     <div className="flex items-center gap-3 text-xs shrink-0 ml-2">
                       <div className="text-right">
                         <span className="font-mono text-primary font-bold block">{food.carbs}g</span>
-                        <span className="text-[9px] text-muted-foreground">carbs</span>
+                        <span className="text-xs text-muted-foreground">carbs</span>
                       </div>
                       <div className="text-right">
                         <span className="font-mono text-foreground font-bold block">{food.protein}g</span>
-                        <span className="text-[9px] text-muted-foreground">protein</span>
+                        <span className="text-xs text-muted-foreground">protein</span>
                       </div>
                     </div>
                   </button>
@@ -179,38 +179,38 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
                       <div className="grid grid-cols-4 gap-2">
                         <div className="text-center p-1.5 bg-muted/20 rounded-lg">
                           <span className="text-xs font-mono font-bold text-foreground block">{food.calories}</span>
-                          <span className="text-[9px] text-muted-foreground">cal</span>
+                          <span className="text-xs text-muted-foreground">cal</span>
                         </div>
                         <div className="text-center p-1.5 bg-primary/10 rounded-lg">
                           <span className="text-xs font-mono font-bold text-primary block">{food.carbs}g</span>
-                          <span className="text-[9px] text-muted-foreground">carbs</span>
+                          <span className="text-xs text-muted-foreground">carbs</span>
                         </div>
                         <div className="text-center p-1.5 bg-cyan-500/10 rounded-lg">
                           <span className="text-xs font-mono font-bold text-cyan-500 block">{food.protein}g</span>
-                          <span className="text-[9px] text-muted-foreground">protein</span>
+                          <span className="text-xs text-muted-foreground">protein</span>
                         </div>
                         <div className="text-center p-1.5 bg-yellow-500/10 rounded-lg">
                           <span className="text-xs font-mono font-bold text-yellow-500 block">{food.fat}g</span>
-                          <span className="text-[9px] text-muted-foreground">fat</span>
+                          <span className="text-xs text-muted-foreground">fat</span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground px-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
                         <span>Fiber: {food.fiber}g · Sugar: {food.sugar}g · Sodium: {food.sodium}mg</span>
-                        <span className="text-[9px] opacity-60">per 100g</span>
+                        <span className="text-xs opacity-60">per 100g</span>
                       </div>
                       {/* Wrestling-specific tip */}
                       {food.fiber > 3 && (
-                        <p className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
+                        <p className="text-xs text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
                           ⚠ High fiber — may cause bloating during competition
                         </p>
                       )}
                       {food.fat > 10 && (
-                        <p className="text-[10px] text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
+                        <p className="text-xs text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
                           ⚠ High fat — slow digestion, not ideal pre-match
                         </p>
                       )}
                       {food.carbs > 50 && food.fiber < 2 && food.fat < 3 && (
-                        <p className="text-[10px] text-green-500 bg-green-500/10 px-2 py-1 rounded">
+                        <p className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded">
                           ✓ Fast carbs, low fiber — great for competition recovery
                         </p>
                       )}
@@ -230,7 +230,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
 
           {/* Helper text */}
           {!searched && !loading && (
-            <p className="text-[10px] text-muted-foreground text-center py-2">
+            <p className="text-xs text-muted-foreground text-center py-2">
               Search the USDA database for nutrition info on any food
             </p>
           )}

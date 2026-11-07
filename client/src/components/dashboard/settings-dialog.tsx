@@ -211,11 +211,11 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         <div className="flex-1 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-4" : "grid-cols-5")}>
-              <TabsTrigger value="profile" className="text-[11px]">Profile</TabsTrigger>
-              {!isSparGeneral && <TabsTrigger value="schedule" className="text-[11px]">Schedule</TabsTrigger>}
-              <TabsTrigger value="alerts" className="text-[11px]">Alerts</TabsTrigger>
-              <TabsTrigger value="theme" className="text-[11px]">Theme</TabsTrigger>
-              <TabsTrigger value="data" className="text-[11px]">Data</TabsTrigger>
+              <TabsTrigger value="profile" className="text-xs px-1">Profile</TabsTrigger>
+              {!isSparGeneral && <TabsTrigger value="schedule" className="text-xs px-1">Schedule</TabsTrigger>}
+              <TabsTrigger value="alerts" className="text-xs px-1">Alerts</TabsTrigger>
+              <TabsTrigger value="theme" className="text-xs px-1">Theme</TabsTrigger>
+              <TabsTrigger value="data" className="text-xs px-1">Data</TabsTrigger>
             </TabsList>
 
             {/* ═══ PROFILE TAB ═══ */}
@@ -223,7 +223,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Name Row */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">First Name</Label>
+                  <Label className="text-xs">First Name</Label>
                   <Input
                     type="text"
                     value={getValue('name') || ''}
@@ -233,7 +233,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Last Name</Label>
+                  <Label className="text-xs">Last Name</Label>
                   <Input
                     type="text"
                     value={getValue('lastName') || ''}
@@ -247,7 +247,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Weight Row - Target Class only for competition protocols (including SPAR Competition) */}
               {isSparGeneral ? (
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Current Weight</Label>
+                  <Label className="text-xs">Current Weight</Label>
                   <div className="relative">
                     <Input
                       type="number"
@@ -256,13 +256,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       className="h-10 font-mono pr-10"
                       placeholder="170"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">lbs</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">lbs</span>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Current Weight</Label>
+                    <Label className="text-xs">Current Weight</Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -271,11 +271,11 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         className="h-10 font-mono pr-10"
                         placeholder="170"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">lbs</span>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">lbs</span>
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Target Class</Label>
+                    <Label className="text-xs">Target Class</Label>
                     <Select
                       value={getValue('targetWeightClass').toString()}
                       onValueChange={(v) => handleChange({ targetWeightClass: parseInt(v) })}
@@ -295,7 +295,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Protocol */}
               <div className="space-y-2">
-                <Label className="text-[11px]">Protocol</Label>
+                <Label className="text-xs">Protocol</Label>
 
                 {/* Weight Context Card — for competition protocols (including SPAR Competition) */}
                 {!isSparGeneral && getValue('targetWeightClass') > 0 && (() => {
@@ -314,7 +314,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         <span className="text-muted-foreground">→</span>
                         <span className="font-mono text-muted-foreground">{ctx.walkAroundWeight.toFixed(1)} lbs</span>
                       </div>
-                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full", statusColor, statusBg)}>
+                      <span className={cn("text-xs font-bold px-2 py-0.5 rounded-full", statusColor, statusBg)}>
                         {isUnder
                           ? `${Math.abs(ctx.percentOver).toFixed(1)}% under`
                           : `${ctx.percentOver.toFixed(1)}% over class`}
@@ -323,71 +323,77 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   );
                 })()}
 
-                {/* Recommendation Badge — shows when recommended ≠ current */}
-                {!isSparGeneral && getValue('targetWeightClass') > 0 && (() => {
-                  const rec = getProtocolRecommendation(
-                    getValue('currentWeight') || profile.currentWeight,
-                    getValue('targetWeightClass') || profile.targetWeightClass
-                  );
-                  const currentProtocol = getValue('protocol') || profile.protocol;
-                  if (rec.protocol === currentProtocol) return null;
+                {(() => {
+                  const recommended = !isSparGeneral && getValue('targetWeightClass') > 0
+                    ? getProtocolRecommendation(
+                        getValue('currentWeight') || profile.currentWeight,
+                        getValue('targetWeightClass') || profile.targetWeightClass
+                      )
+                    : null;
+                  const groups: { title: string; hint: string; protocols: Protocol[] }[] = [
+                    {
+                      title: 'Weight-class plans',
+                      hint: 'Pick by how far you are from your class.',
+                      protocols: [PROTOCOLS.EXTREME_CUT, PROTOCOLS.RAPID_CUT, PROTOCOLS.OPTIMAL_CUT, PROTOCOLS.GAIN],
+                    },
+                    {
+                      title: 'SPAR portion plans',
+                      hint: 'Count palms and fists instead of calories.',
+                      protocols: [PROTOCOLS.SPAR, PROTOCOLS.SPAR_COMPETITION],
+                    },
+                  ];
 
-                  return (
-                    <div className="flex items-center justify-between p-2 rounded-lg bg-primary/5 border border-primary/20">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-primary">
-                          Recommended: {PROTOCOL_CONFIG[rec.protocol].label}
-                        </p>
-                        <p className="text-[9px] text-muted-foreground truncate">{rec.reason}</p>
+                  return groups.map((group) => (
+                    <div key={group.title} className="space-y-1.5">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide">{group.title}</p>
+                        <p className="text-xs text-muted-foreground">{group.hint}</p>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 text-[10px] ml-2 shrink-0 border-primary/30 text-primary"
-                        onClick={() => setShowProtocolSwitchConfirm(rec.protocol)}
-                      >
-                        Switch
-                      </Button>
+                      {group.protocols.map((p) => {
+                        const isSelected = getValue('protocol') === p;
+                        const isRecommended = recommended?.protocol === p;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            aria-pressed={isSelected}
+                            onClick={() => {
+                              if (p !== profile.protocol) setShowProtocolSwitchConfirm(p);
+                            }}
+                            className={cn(
+                              "w-full flex items-start gap-2 px-3 py-2.5 rounded-lg border-2 transition-all text-left",
+                              isSelected
+                                ? "border-primary bg-primary/10"
+                                : "border-muted hover:border-muted-foreground/50"
+                            )}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-sm font-bold">{PROTOCOL_NAMES[p]}</span>
+                                {isRecommended && (
+                                  <span className="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
+                                    Recommended for you
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                                {PROTOCOL_CONFIG[p].pickIf}
+                              </p>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />}
+                          </button>
+                        );
+                      })}
                     </div>
-                  );
+                  ));
                 })()}
-
-                <Select
-                  value={getValue('protocol')}
-                  onValueChange={(v) => {
-                    // If switching protocols, show confirmation first
-                    if (v !== profile.protocol) {
-                      setShowProtocolSwitchConfirm(v);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={PROTOCOLS.EXTREME_CUT}>{PROTOCOL_NAMES[PROTOCOLS.EXTREME_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.RAPID_CUT}>{PROTOCOL_NAMES[PROTOCOLS.RAPID_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.OPTIMAL_CUT}>{PROTOCOL_NAMES[PROTOCOLS.OPTIMAL_CUT]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.GAIN}>{PROTOCOL_NAMES[PROTOCOLS.GAIN]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.SPAR}>{PROTOCOL_NAMES[PROTOCOLS.SPAR]}</SelectItem>
-                    <SelectItem value={PROTOCOLS.SPAR_COMPETITION}>{PROTOCOL_NAMES[PROTOCOLS.SPAR_COMPETITION]}</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">
-                  {getValue('protocol') === PROTOCOLS.EXTREME_CUT && '12%+ above class. Multi-day depletion, strict oversight required.'}
-                  {getValue('protocol') === PROTOCOLS.RAPID_CUT && '7-12% above class. Short-term glycogen + water manipulation.'}
-                  {getValue('protocol') === PROTOCOLS.OPTIMAL_CUT && 'Within 6-7% of class. Glycogen management, performance protected.'}
-                  {getValue('protocol') === PROTOCOLS.GAIN && 'Off-season. Performance and strength focus.'}
-                  {getValue('protocol') === PROTOCOLS.SPAR && 'Balanced eating — count slices, not calories.'}
-                  {getValue('protocol') === PROTOCOLS.SPAR_COMPETITION && 'Portion tracking + competition water loading & auto-adjusting targets.'}
-                </p>
 
                 {/* Help Me Choose — opens ProtocolWizard dialog */}
                 {!isSparGeneral && (
                   <Button
                     variant="outline"
                     size="sm"
-                    className="w-full h-8 text-[11px]"
+                    className="w-full h-8 text-xs"
                     onClick={() => setShowProtocolWizard(true)}
                   >
                     <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
@@ -398,7 +404,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Nutrition Mode Toggle */}
               <div className="space-y-2 pt-2 border-t border-muted">
-                <Label className="text-[11px]">Nutrition Tracking</Label>
+                <Label className="text-xs">Nutrition Tracking</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleChange({ nutritionPreference: 'spar' })}
@@ -440,13 +446,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       {/* Goal Selection — disabled for SPAR Competition (auto-adjusts) */}
                       {currentProtocol === '6' ? (
                         <div className="p-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                          <p className="text-[10px] text-purple-400 font-bold">
+                          <p className="text-xs text-purple-400 font-bold">
                             Calorie targets auto-adjust based on walk-around weight and days until weigh-in.
                           </p>
                         </div>
                       ) : (<>
                       <div className="space-y-2">
-                        <Label className="text-[11px] flex items-center gap-1.5">
+                        <Label className="text-xs flex items-center gap-1.5">
                           <Target className="w-3 h-3" />
                           Goal
                         </Label>
@@ -473,7 +479,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 )}
                               >
                                 <Icon className={cn("w-4 h-4", iconColor)} />
-                                <span className="text-[10px] font-bold">{label}</span>
+                                <span className="text-xs font-bold">{label}</span>
                               </button>
                             );
                           })}
@@ -496,8 +502,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                     isSelected ? "border-primary bg-primary/10" : "border-muted"
                                   )}
                                 >
-                                  <span className="text-[10px] font-bold capitalize">{intensity}</span>
-                                  <span className="text-[8px] text-muted-foreground block">{cal > 0 ? '+' : ''}{cal} cal/day</span>
+                                  <span className="text-xs font-bold capitalize">{intensity}</span>
+                                  <span className="text-xs text-muted-foreground block">{cal > 0 ? '+' : ''}{cal} cal/day</span>
                                 </button>
                               );
                             })}
@@ -516,8 +522,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                     isSelected ? "border-primary bg-primary/10" : "border-muted"
                                   )}
                                 >
-                                  <span className="text-[10px] font-bold capitalize">{priority}</span>
-                                  <span className="text-[8px] text-muted-foreground block">{split} carb/fat</span>
+                                  <span className="text-xs font-bold capitalize">{priority}</span>
+                                  <span className="text-xs text-muted-foreground block">{split} carb/fat</span>
                                 </button>
                               );
                             })}
@@ -528,7 +534,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       {/* Goal Weight (for lose/gain) */}
                       {(getValue('sparGoal') === 'lose' || getValue('sparGoal') === 'gain') && (
                         <div className="space-y-1">
-                          <Label className="text-[11px]">Goal Weight (optional)</Label>
+                          <Label className="text-xs">Goal Weight (optional)</Label>
                           <div className="flex gap-2 items-center">
                             <Input
                               type="number"
@@ -540,7 +546,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 handleChange({ goalWeightLbs: !isNaN(val) && val > 0 ? val : undefined });
                               }}
                             />
-                            <span className="text-[10px] text-muted-foreground">lbs</span>
+                            <span className="text-xs text-muted-foreground">lbs</span>
                           </div>
                         </div>
                       )}
@@ -548,7 +554,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                       {/* Training Sessions */}
                       <div className="space-y-2 pt-2 border-t border-muted/50">
-                        <Label className="text-[11px] flex items-center gap-1.5">
+                        <Label className="text-xs flex items-center gap-1.5">
                           <Dumbbell className="w-3 h-3" />
                           Weekly Training
                         </Label>
@@ -564,7 +570,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   isSelected ? "border-primary bg-primary/10" : "border-muted"
                                 )}
                               >
-                                <span className="text-[11px] font-bold">{sessions}</span>
+                                <span className="text-xs font-bold">{sessions}</span>
                               </button>
                             );
                           })}
@@ -573,7 +579,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                       {/* Workday Activity */}
                       <div className="space-y-2">
-                        <Label className="text-[11px] flex items-center gap-1.5">
+                        <Label className="text-xs flex items-center gap-1.5">
                           <Briefcase className="w-3 h-3" />
                           Workday Activity
                         </Label>
@@ -591,7 +597,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   isSelected ? "border-primary bg-primary/10" : "border-muted"
                                 )}
                               >
-                                <span className="text-[10px] font-medium">{label}</span>
+                                <span className="text-xs font-medium">{label}</span>
                                 {isSelected && <Check className="w-3 h-3 text-primary" />}
                               </button>
                             );
@@ -623,7 +629,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             )} />
                           </div>
                         </button>
-                        <p className="text-[10px] text-muted-foreground">Vibrate on key actions (mobile only)</p>
+                        <p className="text-xs text-muted-foreground">Vibrate on key actions (mobile only)</p>
                       </div>
 
                       {/* Nerd Mode - Collapsible */}
@@ -643,7 +649,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           <div className="space-y-3 pt-2">
                             {/* Body Fat % */}
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-purple-500">Body Fat % (enables Cunningham formula)</Label>
+                              <Label className="text-xs text-purple-500">Body Fat % (enables Cunningham formula)</Label>
                               <Input
                                 type="number"
                                 min="5"
@@ -660,7 +666,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                             {/* Custom Protein g/lb */}
                             <div className="space-y-1">
-                              <Label className="text-[10px] text-purple-500">Custom Protein (g/lb bodyweight)</Label>
+                              <Label className="text-xs text-purple-500">Custom Protein (g/lb bodyweight)</Label>
                               <Input
                                 type="number"
                                 min="0.5"
@@ -679,7 +685,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             {/* Custom Fat/Carb Split */}
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
-                                <Label className="text-[10px] text-purple-500">Fat % of remaining</Label>
+                                <Label className="text-xs text-purple-500">Fat % of remaining</Label>
                                 <Input
                                   type="number"
                                   min="0"
@@ -694,7 +700,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-[10px] text-purple-500">Carb % of remaining</Label>
+                                <Label className="text-xs text-purple-500">Carb % of remaining</Label>
                                 <Input
                                   type="number"
                                   min="0"
@@ -709,7 +715,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 />
                               </div>
                             </div>
-                            <p className="text-[9px] text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                               Leave blank to use protocol defaults. Fat + Carb should total 100%.
                             </p>
                           </div>
@@ -721,7 +727,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         <div className="grid grid-cols-3 gap-2">
                           {/* Height */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Height</Label>
+                            <Label className="text-xs text-muted-foreground">Height</Label>
                             <div className="flex gap-1">
                               <Input
                                 type="number"
@@ -753,7 +759,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                           {/* Age */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Age</Label>
+                            <Label className="text-xs text-muted-foreground">Age</Label>
                             <Input
                               type="number"
                               min="10"
@@ -769,7 +775,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                           {/* Sex */}
                           <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Sex</Label>
+                            <Label className="text-xs text-muted-foreground">Sex</Label>
                             <div className="flex gap-1">
                               {(['male', 'female'] as const).map((sex) => (
                                 <button
@@ -777,7 +783,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   type="button"
                                   onClick={() => handleChange({ gender: sex })}
                                   className={cn(
-                                    "flex-1 h-7 rounded text-[10px] font-medium transition-colors",
+                                    "flex-1 h-7 rounded text-xs font-medium transition-colors",
                                     (getValue('gender') || profile.gender) === sex
                                       ? "bg-primary text-primary-foreground"
                                       : "bg-muted/50 hover:bg-muted"
@@ -802,7 +808,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         <Scale className="w-4 h-4 text-blue-500" />
                         <div className="text-left">
                           <span className="text-xs font-bold block">Track Practice Weigh-ins</span>
-                          <span className="text-[10px] text-muted-foreground">Log PRE/POST weights to track sweat loss</span>
+                          <span className="text-xs text-muted-foreground">Log PRE/POST weights to track sweat loss</span>
                         </div>
                       </div>
                       <div className={cn(
@@ -840,7 +846,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             <TabsContent value="schedule" className="px-4 pb-4 space-y-3 mt-0">
               {/* Weigh-in Date */}
               <div className="space-y-1">
-                <Label className="text-[11px]">Next Weigh-in Date</Label>
+                <Label className="text-xs">Next Weigh-in Date</Label>
                 {getValue('weighInCleared') ? (
                   <div className="bg-muted/30 rounded-lg p-3 text-center">
                     <p className="text-xs text-muted-foreground mb-2">No weigh-in date set</p>
@@ -880,7 +886,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {daysUntil < 0 && "Weigh-in has passed"}
                         {daysUntil === 0 && "Competition day!"}
                         {daysUntil > 0 && daysUntil <= 5 && `${daysUntil} day${daysUntil > 1 ? 's' : ''} - cut week`}
@@ -888,7 +894,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       </p>
                       <button
                         onClick={() => handleChange({ weighInCleared: true })}
-                        className="text-[10px] text-red-400 hover:text-red-300"
+                        className="text-xs text-red-400 hover:text-red-300"
                       >
                         Clear date
                       </button>
@@ -899,7 +905,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Weigh-in Time */}
               <div className="space-y-1">
-                <Label className="text-[11px]">Weigh-in Time</Label>
+                <Label className="text-xs">Weigh-in Time</Label>
                 <div className="relative">
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
                   <Select
@@ -934,9 +940,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Demo Mode */}
               <div className="space-y-2 pt-3 border-t border-muted">
-                <Label className="text-[11px] flex items-center gap-2">
+                <Label className="text-xs flex items-center gap-2">
                   Demo Mode
-                  <span className="text-[9px] text-muted-foreground font-normal">(Test different days)</span>
+                  <span className="text-xs text-muted-foreground font-normal">(Test different days)</span>
                 </Label>
                 <div className="flex gap-2">
                   <Input
@@ -978,7 +984,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                         key={day}
                         variant="outline"
                         size="sm"
-                        className="text-[10px] h-7 px-2"
+                        className="text-xs h-7 px-2"
                         onClick={() => handleChange({ simulatedDate: targetDate })}
                       >
                         {day}
@@ -997,7 +1003,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             {/* ═══ THEME TAB ═══ */}
             <TabsContent value="theme" className="px-4 pb-4 space-y-4 mt-0">
               <div className="space-y-2">
-                <Label className="text-[11px]">Appearance</Label>
+                <Label className="text-xs">Appearance</Label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setTheme("light")}
@@ -1009,7 +1015,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <Sun className={cn("w-5 h-5", theme === "light" ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-[10px] font-medium">Light</span>
+                    <span className="text-xs font-medium">Light</span>
                   </button>
                   <button
                     onClick={() => setTheme("dark")}
@@ -1021,7 +1027,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <Moon className={cn("w-5 h-5", theme === "dark" ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-[10px] font-medium">Dark</span>
+                    <span className="text-xs font-medium">Dark</span>
                   </button>
                   <button
                     onClick={() => setTheme("system")}
@@ -1033,7 +1039,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <Monitor className={cn("w-5 h-5", theme === "system" ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-[10px] font-medium">System</span>
+                    <span className="text-xs font-medium">System</span>
                   </button>
                 </div>
               </div>
@@ -1059,7 +1065,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
             <TabsContent value="data" className="px-4 pb-4 space-y-4 mt-0">
               {user && (
                 <div className="space-y-2">
-                  <Label className="text-[11px]">Account</Label>
+                  <Label className="text-xs">Account</Label>
                   <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   <Button
                     variant="outline"
@@ -1076,7 +1082,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {user && <ShareWithCoachSection userId={user.id} />}
 
               <div className="space-y-2 pt-3 border-t border-muted">
-                <Label className="text-[11px] text-destructive">Danger Zone</Label>
+                <Label className="text-xs text-destructive">Danger Zone</Label>
                 {!showResetConfirm ? (
                   <Button
                     variant="destructive"
@@ -1173,7 +1179,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 <div className="space-y-3 py-2 border-t border-muted">
                   {/* Goal */}
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Your Goal</Label>
+                    <Label className="text-xs">Your Goal</Label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
                         { value: 'lose', label: 'Lose', icon: <TrendingDown className="w-4 h-4" />, color: 'text-orange-500' },
@@ -1199,7 +1205,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                   {/* Training Frequency */}
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Training Sessions / Week</Label>
+                    <Label className="text-xs">Training Sessions / Week</Label>
                     <Select
                       value={pendingChanges.trainingSessions || profile.trainingSessions || '3-4'}
                       onValueChange={(v) => handleChange({ trainingSessions: v })}
@@ -1218,7 +1224,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                   {/* Workday Activity */}
                   <div className="space-y-1">
-                    <Label className="text-[11px]">Daily Activity Level</Label>
+                    <Label className="text-xs">Daily Activity Level</Label>
                     <Select
                       value={pendingChanges.workdayActivity || profile.workdayActivity || 'mostly_sitting'}
                       onValueChange={(v) => handleChange({ workdayActivity: v })}
@@ -1273,7 +1279,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
         {/* Protocol Wizard — "Help Me Choose" overlay */}
         {showProtocolWizard && (
-          <div className="absolute inset-0 bg-background/95 flex flex-col rounded-xl z-50 overflow-y-auto">
+          <div className="absolute inset-0 bg-background flex flex-col rounded-xl z-50 overflow-y-auto overflow-x-hidden">
             <div className="p-4 w-full max-w-sm mx-auto">
               <ProtocolWizard
                 currentWeight={getValue('currentWeight') || profile.currentWeight}
@@ -1350,23 +1356,23 @@ function AlertsTab() {
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <Label className="text-[11px] flex items-center gap-2">
+        <Label className="text-xs flex items-center gap-2">
           {prefs.enabled ? <Bell className="w-3.5 h-3.5 text-primary" /> : <BellOff className="w-3.5 h-3.5 text-muted-foreground" />}
           Weigh-in Reminders
         </Label>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Get notified when it's time to log your weight.
         </p>
       </div>
 
       {!isSupported && (
-        <p className="text-[10px] text-orange-500">
+        <p className="text-xs text-orange-500">
           Notifications not supported in this browser.
         </p>
       )}
 
       {isDenied && (
-        <p className="text-[10px] text-orange-500">
+        <p className="text-xs text-orange-500">
           Notifications blocked. Enable in browser settings.
         </p>
       )}
@@ -1438,7 +1444,7 @@ function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange, timeO
       </button>
       {enabled && (
         <Select value={time} onValueChange={onTimeChange}>
-          <SelectTrigger className="w-[90px] h-8 text-[10px]">
+          <SelectTrigger className="w-[90px] h-8 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper" className="max-h-[200px] z-[100]">
@@ -1516,7 +1522,7 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
 
   return (
     <div className="space-y-2 pt-3 border-t border-muted">
-      <Label className="text-[11px] flex items-center gap-2">
+      <Label className="text-xs flex items-center gap-2">
         <Share2 className="w-3.5 h-3.5 text-primary" />
         Share with Coach
       </Label>
@@ -1529,14 +1535,14 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
       ) : (
         <div className="space-y-2">
           <div className="flex gap-2">
-            <div className="flex-1 bg-muted/30 border border-muted rounded-md px-2 py-1.5 text-[10px] font-mono truncate">
+            <div className="flex-1 bg-muted/30 border border-muted rounded-md px-2 py-1.5 text-xs font-mono truncate">
               {shareUrl}
             </div>
             <Button variant="outline" size="sm" onClick={copyLink} className="h-auto px-2">
               {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
             </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={disableSharing} disabled={saving} className="w-full h-7 text-[10px] text-destructive hover:text-destructive">
+          <Button variant="ghost" size="sm" onClick={disableSharing} disabled={saving} className="w-full h-7 text-xs text-destructive hover:text-destructive">
             <X className="w-3 h-3 mr-1" />
             {saving ? 'Disabling...' : 'Disable Sharing'}
           </Button>

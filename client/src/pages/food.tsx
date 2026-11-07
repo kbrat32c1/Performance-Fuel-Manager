@@ -210,7 +210,7 @@ export default function Food() {
           {/* Water bar — tappable to edit */}
           {editingWater ? (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-muted-foreground w-14 shrink-0">Water</span>
+              <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">Water</span>
               <input
                 type="number"
                 autoFocus
@@ -224,7 +224,7 @@ export default function Food() {
                 className="flex-1 h-8 text-[12px] font-mono font-bold text-center bg-background border border-cyan-500/40 rounded-lg px-2"
                 placeholder="oz"
               />
-              <span className="text-[11px] text-muted-foreground/50">oz</span>
+              <span className="text-xs text-muted-foreground/50">oz</span>
             </div>
           ) : (
             <button

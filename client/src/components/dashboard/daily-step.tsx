@@ -96,14 +96,14 @@ export function DailyStep({
                 <span className="font-mono font-bold text-lg text-primary">{todayLog.weight} lbs</span>
                 <span className="text-xs text-muted-foreground">at {format(new Date(todayLog.date), 'h:mm a')}</span>
                 {logType === 'post-practice' && todayLog.duration && (
-                  <span className="text-[10px] text-orange-500 font-bold">{todayLog.duration}min</span>
+                  <span className="text-xs text-orange-500 font-bold">{todayLog.duration}min</span>
                 )}
                 {logType === 'morning' && todayLog.sleepHours && (
-                  <span className="text-[10px] text-purple-500 font-bold">{todayLog.sleepHours}hr sleep</span>
+                  <span className="text-xs text-purple-500 font-bold">{todayLog.sleepHours}hr sleep</span>
                 )}
                 {targetWeight && (
                   <span className={cn(
-                    "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                    "text-xs font-bold px-1.5 py-0.5 rounded",
                     todayLog.weight <= targetWeight ? "bg-green-500/20 text-green-500" :
                     todayLog.weight <= targetWeight + 2 ? "bg-yellow-500/20 text-yellow-500" :
                     "bg-destructive/20 text-destructive"
@@ -136,11 +136,11 @@ export function DailyStep({
             {!isComplete && (
               <div className="mt-2 space-y-1">
                 {targetWeight && (
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Target: {targetWeight.toFixed(1)} lbs
                   </p>
                 )}
-                <p className="text-[10px] text-yellow-500 font-medium">
+                <p className="text-xs text-yellow-500 font-medium">
                   {logType === 'morning' && "Log morning weight to track overnight drift"}
                   {logType === 'pre-practice' && "Log pre-practice to measure session loss"}
                   {logType === 'post-practice' && "Log post-practice to see sweat rate"}

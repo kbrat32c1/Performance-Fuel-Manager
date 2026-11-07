@@ -302,7 +302,7 @@ export function DashboardTour() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-primary">{current.icon}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
                 {step + 1} of {TOUR_STEPS.length}
               </span>
             </div>

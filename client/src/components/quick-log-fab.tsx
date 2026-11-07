@@ -753,7 +753,7 @@ export function QuickLogFAB() {
           )}
         </div>
         <span className={cn(
-          "text-[10px] font-medium uppercase tracking-wider mt-0.5 transition-colors duration-300",
+          "text-xs font-medium uppercase tracking-wider mt-0.5 transition-colors duration-300",
           fabSuccess ? "text-green-500" : "text-primary"
         )}>
           {fabSuccess ? "Saved!" : "Log"}
@@ -882,8 +882,8 @@ export function QuickLogFAB() {
                             <CheckCircle2 className="absolute top-1.5 right-1.5 w-3.5 h-3.5 text-green-500" aria-hidden="true" />
                           )}
                           <span aria-hidden="true">{opt.icon}</span>
-                          <span className="leading-tight text-center text-[11px] font-bold">{opt.label}</span>
-                          <span className="leading-tight text-center text-[9px] text-muted-foreground">{opt.hint}</span>
+                          <span className="leading-tight text-center text-xs font-bold">{opt.label}</span>
+                          <span className="leading-tight text-center text-xs text-muted-foreground">{opt.hint}</span>
                         </button>
                       );
                     })}
@@ -921,8 +921,8 @@ export function QuickLogFAB() {
                             aria-label={opt.label}
                           >
                             <span aria-hidden="true">{opt.icon}</span>
-                            <span className="leading-tight text-center text-[11px] font-bold">{opt.label}</span>
-                            <span className="leading-tight text-center text-[9px] text-muted-foreground">{opt.hint}</span>
+                            <span className="leading-tight text-center text-xs font-bold">{opt.label}</span>
+                            <span className="leading-tight text-center text-xs text-muted-foreground">{opt.hint}</span>
                           </button>
                         );
                       })}
@@ -944,7 +944,7 @@ export function QuickLogFAB() {
                   {/* Original values banner for extra workout edit mode */}
                   {isEditMode && editExtraIds && (originalBeforeWeight !== null || originalAfterWeight !== null) && (
                     <div className="bg-muted/30 border border-muted rounded-lg px-3 py-2 text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Original</p>
                       <p className="text-sm font-mono text-muted-foreground">
                         {originalBeforeWeight?.toFixed(1)} → {originalAfterWeight?.toFixed(1)} lbs
                       </p>
@@ -1003,7 +1003,7 @@ export function QuickLogFAB() {
                   {/* Original value banner for edit mode */}
                   {isEditMode && originalWeight !== null && (
                     <div className="bg-muted/30 border border-muted rounded-lg px-3 py-2 text-center">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Original</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Original</p>
                       <p className="text-sm font-mono text-muted-foreground">{originalWeight.toFixed(1)} lbs</p>
                     </div>
                   )}
@@ -1106,7 +1106,7 @@ export function QuickLogFAB() {
                     <Clock className="w-3.5 h-3.5 text-orange-500" />
                     <Label className="text-xs font-bold text-orange-500">Workout Duration *</Label>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mb-2">Required — used to calculate your sweat rate (lbs/hr)</p>
+                  <p className="text-xs text-muted-foreground mb-2">Required — used to calculate your sweat rate (lbs/hr)</p>
                   <div className="flex gap-2 flex-wrap">
                     {DURATION_PRESETS.map((mins) => (
                       <button
@@ -1157,7 +1157,7 @@ export function QuickLogFAB() {
                     <Moon className="w-3.5 h-3.5 text-purple-500" />
                     <Label className="text-xs font-bold text-purple-500">Hours of Sleep *</Label>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mb-2">Required — used to track overnight drift per hour</p>
+                  <p className="text-xs text-muted-foreground mb-2">Required — used to track overnight drift per hour</p>
                   <div className="flex gap-2 flex-wrap">
                     {SLEEP_PRESETS.map((hrs) => (
                       <button
@@ -1209,7 +1209,7 @@ export function QuickLogFAB() {
                     <Moon className="w-3.5 h-3.5 text-amber-500" />
                     <span className="text-xs font-bold text-amber-500">Missing Before-Bed Weight</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mb-3">
+                  <p className="text-xs text-muted-foreground mb-3">
                     No before-bed weigh-in found for last night. This is needed to calculate your overnight drift rate accurately.
                   </p>
                   <div className="flex gap-2">
@@ -1272,7 +1272,7 @@ export function QuickLogFAB() {
 
               {missingBeforeBed === 'confirm-avg' && (
                 <div className="mt-3 p-2.5 rounded-lg border border-green-500/30 bg-green-500/5">
-                  <p className="text-[11px] text-green-500 font-medium">
+                  <p className="text-xs text-green-500 font-medium">
                     ✓ Will auto-create before-bed log using your recent average. Tap Save to continue.
                   </p>
                 </div>
