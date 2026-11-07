@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +56,13 @@ function AfterWeighIn({ profile, updateProfile, team }: Omit<NextCyclePromptProp
 
   const [step, setStep] = useState<"weight" | "confirm" | "next" | "pick">("weight");
   const [weight, setWeight] = useState("");
-  const [allowance, setAllowance] = useState(team?.passedAllowance ?? 0);
+  const scheduleAllowance = team?.passedAllowance ?? 0;
+  const [allowance, setAllowance] = useState(scheduleAllowance);
+  const [allowanceEdited, setAllowanceEdited] = useState(false);
+  // The team schedule can load (or change) after this prompt appears; follow it until the athlete picks one.
+  useEffect(() => {
+    if (!allowanceEdited) setAllowance(scheduleAllowance);
+  }, [scheduleAllowance, allowanceEdited]);
   const [secondDay, setSecondDay] = useState(true);
   const [nextDate, setNextDate] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +138,7 @@ function AfterWeighIn({ profile, updateProfile, team }: Omit<NextCyclePromptProp
                   </label>
                   <label className="block min-w-0 space-y-1">
                     <span className="text-xs font-bold">Allowance</span>
-                    <select value={allowance} onChange={e => setAllowance(Number(e.target.value))}
+                    <select value={allowance} onChange={e => { setAllowance(Number(e.target.value)); setAllowanceEdited(true); }}
                       className="h-11 w-full rounded-md border border-input bg-background px-2 text-sm">
                       {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>+{n} lb</option>)}
                     </select>
