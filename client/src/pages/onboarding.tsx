@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { Weight, Target, ChevronRight, Activity, AlertTriangle, CheckCircle, User, Clock, Ruler, Salad, X, Flame, Scale, Dumbbell, Trophy, Zap, Beaker, ChevronDown, ChevronUp, Pencil, Check, Sliders } from "lucide-react";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { WEIGHT_CLASSES, getWeightMultiplier } from "@/lib/constants";
 import { getProtocolRecommendation as getProtocolRec, PROTOCOL_CONFIG } from "@/lib/protocol-utils";
@@ -888,12 +888,12 @@ export default function Onboarding() {
                     }}
                   />
                   {(() => {
-                    const days = differenceInDays(profile.weighInDate, new Date());
+                    const days = differenceInCalendarDays(profile.weighInDate, new Date());
                     return (
                       <p className="text-[11px] text-muted-foreground">
                         {days < 0 && "Past date - update to next weigh-in"}
                         {days === 0 && "Competition day!"}
-                        {days > 0 && days <= 5 && `${days} days away - Cut week!`}
+                        {days > 0 && days <= 5 && `${days} ${days === 1 ? 'day' : 'days'} away - Cut week!`}
                         {days > 5 && `${days} days away`}
                       </p>
                     );
@@ -1230,7 +1230,7 @@ export default function Onboarding() {
 
                 {(() => {
                   const lbsToLose = profile.currentWeight - profile.targetWeightClass;
-                  const days = differenceInDays(profile.weighInDate, new Date());
+                  const days = differenceInCalendarDays(profile.weighInDate, new Date());
                   const percentLoss = (lbsToLose / profile.currentWeight) * 100;
 
                   if (lbsToLose <= 0) {
