@@ -83,6 +83,12 @@ export default function Landing() {
     return null;
   };
 
+  // Signed out: this page is what shows, so lift the HTML splash (signed-in users are redirected
+  // and the protected page lifts it instead).
+  useEffect(() => {
+    if (!authLoading && !user) window.__splashReady?.();
+  }, [authLoading, user]);
+
   // Handle redirects in useEffect to avoid render-time side effects
   useEffect(() => {
     if (!authLoading && !storeLoading && user) {
