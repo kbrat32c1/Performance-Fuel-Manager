@@ -490,7 +490,7 @@ const defaultTanks: FuelTanks = {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
 
   const [profile, setProfile] = useState<AthleteProfile>(defaultProfile);
@@ -825,8 +825,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Load data when user changes
+  // Load data when user changes. While Supabase is still restoring the session on a fresh
+  // page load, user is null but nobody has signed out: wait, or the route guard sees a blank,
+  // not-onboarded profile and bounces every deep link to the dashboard.
   useEffect(() => {
+    if (authLoading) return;
     if (user) {
       loadFromSupabase();
     } else {
@@ -837,7 +840,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setUserFoods(defaultUserFoods);
       setIsLoading(false);
     }
-  }, [user, loadFromSupabase]);
+  }, [user, authLoading, loadFromSupabase]);
 
   // Save profile to Supabase
   const updateProfile = async (updates: Partial<AthleteProfile>) => {

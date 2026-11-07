@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getFatSecretToken, searchFatSecret } from "./_fatsecret-utils";
+import { getFatSecretToken, searchFatSecret } from "./_fatsecret-utils.js";
 
 /**
  * Food Search API — FatSecret only.

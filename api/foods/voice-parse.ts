@@ -6,7 +6,7 @@ import {
   scoreMatchConfidence,
   autoSparCategory,
   type MatchedFood,
-} from "./_fatsecret-utils";
+} from "./_fatsecret-utils.js";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
