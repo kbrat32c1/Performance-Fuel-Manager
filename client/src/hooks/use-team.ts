@@ -22,14 +22,14 @@ export interface TeamState {
 const EMPTY: TeamState = { coached: null, membership: null };
 const cacheKey = (userId: string) => `pwm-team-${userId}`;
 
-const toEvent = (r: any): TeamEvent => ({ id: r.id, name: r.name, eventDate: r.event_date, days: r.days === 2 ? 2 : 1 });
+const toEvent = (r: any): TeamEvent => ({ id: r.id, name: r.name, eventDate: r.event_date, days: r.days === 2 ? 2 : 1, allowance: Number(r.allowance_lb ?? 0) || 0 });
 const toTeam = (r: any): Team => ({ id: r.id, name: r.name, coachId: r.coach_id, joinCode: r.join_code ?? undefined });
 const missingTable = (e: { code?: string; message?: string }) =>
   e.code === '42P01' || e.code === 'PGRST205' || /team_(members|events)|teams/.test(e.message ?? '');
 
 async function loadEvents(teamId: string): Promise<TeamEvent[]> {
   const { data, error } = await supabase
-    .from('team_events').select('id, name, event_date, days')
+    .from('team_events').select('*')
     .eq('team_id', teamId).order('event_date');
   if (error) throw error;
   return (data ?? []).map(toEvent);
@@ -99,10 +99,10 @@ export function useTeam() {
     return run(() => supabase.from('teams').insert({ name: trimmed.slice(0, 80), coach_id: user.id }), 'Team not created. Try again.');
   }, [user, run]);
 
-  const saveEvent = useCallback(async (teamId: string, input: { id?: string; name: string; eventDate: string; days: 1 | 2 }) => {
+  const saveEvent = useCallback(async (teamId: string, input: { id?: string; name: string; eventDate: string; days: 1 | 2; allowance: number }) => {
     const invalid = validateEvent(input);
     if (invalid) return invalid;
-    const row = { team_id: teamId, name: input.name.trim(), event_date: input.eventDate, days: input.days };
+    const row = { team_id: teamId, name: input.name.trim(), event_date: input.eventDate, days: input.days, allowance_lb: input.allowance };
     return run(
       () => input.id ? supabase.from('team_events').update(row).eq('id', input.id) : supabase.from('team_events').insert(row),
       'Not saved. Check your connection and try again.',

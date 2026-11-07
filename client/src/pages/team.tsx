@@ -93,7 +93,7 @@ function CoachPanel({ team, events, todayKey, onSave, onDelete }: {
   team: Team;
   events: TeamEvent[];
   todayKey: string;
-  onSave: (input: { id?: string; name: string; eventDate: string; days: 1 | 2 }) => Promise<string | null>;
+  onSave: (input: { id?: string; name: string; eventDate: string; days: 1 | 2; allowance: number }) => Promise<string | null>;
   onDelete: (id: string) => Promise<string | null>;
 }) {
   const [editingId, setEditingId] = useState<string | 'new' | null>(events.length === 0 ? 'new' : null);
@@ -153,7 +153,7 @@ function CoachPanel({ team, events, todayKey, onSave, onDelete }: {
                 <button type="button" onClick={() => setEditingId(e.id)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left">
                   <span className="min-w-0">
                     <span className="block font-bold">{e.name}</span>
-                    <span className="block text-sm text-muted-foreground">{eventWhen(e)}{e.days === 2 ? ' · 2 days' : ''}</span>
+                    <span className="block text-sm text-muted-foreground">{eventWhen(e)}{e.days === 2 ? ' · 2 days' : ''}{e.allowance ? ` · +${e.allowance} lb${e.days === 2 ? ' day 2' : ''}` : ''}</span>
                   </span>
                   <span className="text-sm font-bold text-primary">Edit</span>
                 </button>
@@ -212,13 +212,14 @@ function RosterSection({ teamId, events }: { teamId: string; events: TeamEvent[]
 
 function EventForm({ event, onSave, onCancel, onDelete }: {
   event?: TeamEvent;
-  onSave: (input: { name: string; eventDate: string; days: 1 | 2 }) => Promise<string | null>;
+  onSave: (input: { name: string; eventDate: string; days: 1 | 2; allowance: number }) => Promise<string | null>;
   onCancel?: () => void;
   onDelete?: () => Promise<string | null>;
 }) {
   const [name, setName] = useState(event?.name ?? '');
   const [eventDate, setEventDate] = useState(event?.eventDate ?? '');
   const [days, setDays] = useState<1 | 2>(event?.days ?? 1);
+  const [allowance, setAllowance] = useState(event?.allowance ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -232,7 +233,7 @@ function EventForm({ event, onSave, onCancel, onDelete }: {
 
   return (
     <form className="space-y-3 rounded-lg border border-primary/40 p-3"
-      onSubmit={e => { e.preventDefault(); void run(() => onSave({ name, eventDate, days })); }}>
+      onSubmit={e => { e.preventDefault(); void run(() => onSave({ name, eventDate, days, allowance })); }}>
       <label className="block space-y-1">
         <span className="text-xs font-bold">Event</span>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Roger Williams Open" maxLength={80}
@@ -252,6 +253,20 @@ function EventForm({ event, onSave, onCancel, onDelete }: {
             </button>
           ))}
         </div>
+      </fieldset>
+      <fieldset className="space-y-1">
+        <legend className="text-xs font-bold">Allowance {days === 2 ? 'on day 2' : 'for this weigh-in'}</legend>
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map(n => (
+            <button key={n} type="button" aria-pressed={allowance === n} onClick={() => setAllowance(n)}
+              className={cn("h-11 rounded-lg border-2 text-sm font-bold", allowance === n ? "border-primary bg-primary/10" : "border-muted")}>
+              {n === 0 ? 'None' : `+${n} lb`}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {days === 2 ? 'Day 2 of a tournament usually gets +1 lb.' : 'Use +1 lb when this meet is the day after another one.'}
+        </p>
       </fieldset>
       {error && <p role="alert" className="text-sm font-bold text-destructive">{error}</p>}
       {confirmDelete ? (
@@ -377,7 +392,7 @@ function AthletePanel({ team, events, skipped, todayKey, onSkip, onLeave }: {
               <li key={e.id} className="flex min-h-14 items-center justify-between gap-3 py-2">
                 <span className={cn("min-w-0", isSkipped && "text-muted-foreground line-through")}>
                   <span className="block font-bold">{e.name}</span>
-                  <span className="block text-sm text-muted-foreground">{eventWhen(e)}</span>
+                  <span className="block text-sm text-muted-foreground">{eventWhen(e)}{e.allowance ? ` · +${e.allowance} lb${e.days === 2 ? ' day 2' : ''}` : ''}</span>
                 </span>
                 <button type="button" aria-pressed={!isSkipped} aria-label={`${e.name}: ${isSkipped ? 'not wrestling' : 'wrestling'}. Tap to change.`}
                   disabled={pending === e.id} onClick={() => void toggle(e)}

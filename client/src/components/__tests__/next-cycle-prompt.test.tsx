@@ -93,7 +93,7 @@ describe('NextCyclePrompt', () => {
         profile={baseProfile(yesterday)}
         updateProfile={updateProfile}
         daysUntilWeighIn={-1}
-        team={{ name: 'Roger Williams', next: { event: { id: 'd', name: 'Dual vs Bryant', eventDate: nextKey, days: 1 }, date: nextKey, day: 1 } }}
+        team={{ name: 'Roger Williams', next: { event: { id: 'd', name: 'Dual vs Bryant', eventDate: nextKey, days: 1, allowance: 0 }, date: nextKey, day: 1, allowance: 0 } }}
       />,
     );
     expect(screen.queryByRole('button', { name: /pick the next date/i })).not.toBeInTheDocument();
@@ -102,6 +102,45 @@ describe('NextCyclePrompt', () => {
     const update = updateProfile.mock.calls[0][0];
     expect(key(update.weighInDate)).toBe(nextKey);
     expect(update.nextCyclePromptDismissed).toBe(key(yesterday));
+  });
+
+  it('fills in the allowance from the team schedule', async () => {
+    const yesterday = noon(-1);
+    descent.plan = { assessmentDate: key(noon(-30)), initialWeight: 140, minimumWeight: 125, weighIns: [] };
+    render(<NextCyclePrompt profile={baseProfile(yesterday)} updateProfile={vi.fn()} daysUntilWeighIn={-1}
+      team={{ name: 'Coast Guard', next: null, passedAllowance: 1 }} />);
+    fireEvent.change(screen.getByLabelText(/official weight/i), { target: { value: '158.2' } });
+    fireEvent.click(screen.getByRole('button', { name: /save official weigh-in/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save official$/i }));
+    await waitFor(() => expect(descent.save).toHaveBeenCalled());
+    expect((descent.save.mock.calls[0][0] as DescentInput).weighIns[0].allowance).toBe(1);
+  });
+
+  it('picks up the allowance when the team schedule loads after the prompt appears', async () => {
+    const yesterday = noon(-1);
+    descent.plan = { assessmentDate: key(noon(-30)), initialWeight: 140, minimumWeight: 125, weighIns: [] };
+    const { rerender } = render(<NextCyclePrompt profile={baseProfile(yesterday)} updateProfile={vi.fn()} daysUntilWeighIn={-1} />);
+    rerender(<NextCyclePrompt profile={baseProfile(yesterday)} updateProfile={vi.fn()} daysUntilWeighIn={-1}
+      team={{ name: 'Coast Guard', next: null, passedAllowance: 1 }} />);
+    fireEvent.change(screen.getByLabelText(/official weight/i), { target: { value: '158.2' } });
+    fireEvent.click(screen.getByRole('button', { name: /save official weigh-in/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save official$/i }));
+    await waitFor(() => expect(descent.save).toHaveBeenCalled());
+    expect((descent.save.mock.calls[0][0] as DescentInput).weighIns[0].allowance).toBe(1);
+  });
+
+  it("keeps the athlete's own allowance choice when the schedule changes", async () => {
+    const yesterday = noon(-1);
+    descent.plan = { assessmentDate: key(noon(-30)), initialWeight: 140, minimumWeight: 125, weighIns: [] };
+    const team = (a: number) => ({ name: 'Coast Guard', next: null, passedAllowance: a });
+    const { rerender } = render(<NextCyclePrompt profile={baseProfile(yesterday)} updateProfile={vi.fn()} daysUntilWeighIn={-1} team={team(1)} />);
+    fireEvent.change(screen.getByDisplayValue('+1 lb'), { target: { value: '0' } });
+    rerender(<NextCyclePrompt profile={baseProfile(yesterday)} updateProfile={vi.fn()} daysUntilWeighIn={-1} team={team(2)} />);
+    fireEvent.change(screen.getByLabelText(/official weight/i), { target: { value: '158.2' } });
+    fireEvent.click(screen.getByRole('button', { name: /save official weigh-in/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save official$/i }));
+    await waitFor(() => expect(descent.save).toHaveBeenCalled());
+    expect((descent.save.mock.calls[0][0] as DescentInput).weighIns[0].allowance).toBe(0);
   });
 
   it('marks the prompt finished for this date when the athlete picks "Not right now"', () => {
