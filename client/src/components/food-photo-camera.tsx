@@ -159,10 +159,11 @@ export function FoodPhotoCamera({ open, onClose, onCapture }: FoodPhotoCameraPro
           <span className="text-sm font-medium">Snap Food Photo</span>
         </div>
         <button
+          aria-label="Close camera"
           onClick={() => { stopCamera(); onClose(); }}
-          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 active:scale-95 transition-all"
+          className="w-10 h-10 rounded-full relative after:absolute after:-inset-0.5 bg-white/20 flex items-center justify-center hover:bg-white/30 active:scale-95 transition-all"
         >
-          <X className="w-5 h-5 text-white" />
+          <X className="w-5 h-5 text-white" aria-hidden="true" />
         </button>
       </div>
 
@@ -232,15 +233,17 @@ export function FoodPhotoCamera({ open, onClose, onCapture }: FoodPhotoCameraPro
           <div className="flex items-center justify-center gap-8">
             {/* Gallery upload button */}
             <button
+              aria-label="Choose photo from library"
               onClick={() => fileInputRef.current?.click()}
               disabled={capturing}
               className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center hover:bg-white/25 active:scale-90 transition-all"
             >
-              <ImagePlus className="w-5 h-5 text-white" />
+              <ImagePlus className="w-5 h-5 text-white" aria-hidden="true" />
             </button>
 
             {/* Capture button */}
             <button
+              aria-label="Take photo"
               onClick={handleCapture}
               disabled={capturing}
               className="w-[72px] h-[72px] rounded-full border-4 border-white flex items-center justify-center active:scale-90 transition-transform"

@@ -22,6 +22,7 @@ import {
   getTrainingDescription,
   getWorkdayDescription,
 } from "@/lib/spar-calculator-v2";
+import { activateOnKey } from "@/lib/a11y";
 
 // Step flow:
 // 1. Basics (name, weight) - no weight class yet
@@ -252,10 +253,10 @@ export default function Onboarding() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>First Name</Label>
+                    <Label htmlFor="onb-first-name">First Name</Label>
                     <div className="relative">
                       <User className={cn("absolute left-3 top-3 w-5 h-5", showValidation && !isFirstNameValid ? "text-destructive" : "text-muted-foreground")} />
-                      <Input
+                      <Input id="onb-first-name"
                         type="text"
                         placeholder="First"
                         className={cn("pl-10 text-lg h-12 bg-muted/30", showValidation && !isFirstNameValid && "border-destructive/50")}
@@ -270,8 +271,8 @@ export default function Onboarding() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Last Name</Label>
-                    <Input
+                    <Label htmlFor="onb-last-name">Last Name</Label>
+                    <Input id="onb-last-name"
                       type="text"
                       placeholder="Last"
                       className={cn("text-lg h-12 bg-muted/30", showValidation && !isLastNameValid && "border-destructive/50")}
@@ -287,10 +288,10 @@ export default function Onboarding() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Current Weight (lbs)</Label>
+                  <Label htmlFor="onb-current-weight">Current Weight (lbs)</Label>
                   <div className="relative">
                     <Weight className={cn("absolute left-3 top-3 w-5 h-5", showValidation && !isWeightValid ? "text-destructive" : "text-muted-foreground")} />
-                    <Input
+                    <Input id="onb-current-weight"
                       type="number"
                       placeholder="Enter your weight"
                       className={cn("pl-10 text-lg h-12 bg-muted/30 font-mono", showValidation && !isWeightValid && "border-destructive/50")}
@@ -323,7 +324,7 @@ export default function Onboarding() {
                     <span className="text-muted-foreground">Current Weight</span>
                     {editingWeight ? (
                       <div className="flex items-center gap-2">
-                        <Input
+                        <Input aria-label="Current weight in pounds"
                           type="number"
                           className="w-24 h-8 font-mono text-right bg-background"
                           value={tempWeight}
@@ -368,6 +369,7 @@ export default function Onboarding() {
               <div className="space-y-3">
                 {/* Competition Goal */}
                 <Card
+                  role="button" tabIndex={0} onKeyDown={activateOnKey}
                   className={cn(
                     "p-5 border-2 cursor-pointer transition-all active:scale-[0.98]",
                     userGoal === 'competition' ? "border-primary bg-primary/5" : "border-muted hover:border-muted-foreground/50"
@@ -390,6 +392,7 @@ export default function Onboarding() {
 
                 {/* SPAR Competition Goal */}
                 <Card
+                  role="button" tabIndex={0} onKeyDown={activateOnKey}
                   className={cn(
                     "p-5 border-2 cursor-pointer transition-all active:scale-[0.98]",
                     userGoal === 'spar-competition' ? "border-purple-500 bg-purple-500/5" : "border-muted hover:border-muted-foreground/50"
@@ -423,6 +426,7 @@ export default function Onboarding() {
 
                 {/* SPAR General Goal */}
                 <Card
+                  role="button" tabIndex={0} onKeyDown={activateOnKey}
                   className={cn(
                     "p-5 border-2 cursor-pointer transition-all active:scale-[0.98]",
                     userGoal === 'spar' ? "border-green-500 bg-green-500/5" : "border-muted hover:border-muted-foreground/50"
@@ -517,6 +521,7 @@ export default function Onboarding() {
 
                     return (
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         key={p.id}
                         className={cn(
                           "p-3 border-2 cursor-pointer transition-all",
@@ -616,7 +621,7 @@ export default function Onboarding() {
                   <Label className="text-xs">Height</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="relative">
-                      <Input
+                      <Input aria-label="Height, feet"
                         type="number"
                         placeholder="5"
                         min="4" max="7"
@@ -631,7 +636,7 @@ export default function Onboarding() {
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ft</span>
                     </div>
                     <div className="relative">
-                      <Input
+                      <Input aria-label="Height, inches"
                         type="number"
                         placeholder="10"
                         min="0" max="11"
@@ -651,8 +656,8 @@ export default function Onboarding() {
                 {/* Age & Sex */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs">Age</Label>
-                    <Input
+                    <Label htmlFor="onb-age" className="text-xs">Age</Label>
+                    <Input id="onb-age"
                       type="number"
                       placeholder="16"
                       min="10" max="80"
@@ -693,6 +698,7 @@ export default function Onboarding() {
                       const isSelected = (profile.trainingSessions || '3-4') === sessions;
                       return (
                         <Card
+                          role="button" tabIndex={0} onKeyDown={activateOnKey}
                           key={sessions}
                           className={cn(
                             "p-3 border-2 cursor-pointer transition-all text-center",
@@ -724,6 +730,7 @@ export default function Onboarding() {
                                    activity === 'on_feet_some' ? 'Walking between classes, retail' : 'Manual labor, server, warehouse';
                       return (
                         <Card
+                          role="button" tabIndex={0} onKeyDown={activateOnKey}
                           key={activity}
                           className={cn(
                             "p-3 border-2 cursor-pointer transition-all",
@@ -762,7 +769,7 @@ export default function Onboarding() {
                   <Label className="text-xs">Height</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="relative">
-                      <Input
+                      <Input aria-label="Height, feet"
                         type="number"
                         placeholder="5"
                         min="4" max="7"
@@ -777,7 +784,7 @@ export default function Onboarding() {
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">ft</span>
                     </div>
                     <div className="relative">
-                      <Input
+                      <Input aria-label="Height, inches"
                         type="number"
                         placeholder="10"
                         min="0" max="11"
@@ -797,8 +804,8 @@ export default function Onboarding() {
                 {/* Age & Sex */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs">Age</Label>
-                    <Input
+                    <Label htmlFor="onb-age-spar" className="text-xs">Age</Label>
+                    <Input id="onb-age-spar"
                       type="number"
                       placeholder="16"
                       min="10" max="80"
@@ -839,6 +846,7 @@ export default function Onboarding() {
                       const isSelected = (profile.trainingSessions || '3-4') === sessions;
                       return (
                         <Card
+                          role="button" tabIndex={0} onKeyDown={activateOnKey}
                           key={sessions}
                           className={cn(
                             "p-3 border-2 cursor-pointer transition-all text-center",
@@ -870,6 +878,7 @@ export default function Onboarding() {
                                    activity === 'on_feet_some' ? 'Walking between classes, retail' : 'Manual labor, server, warehouse';
                       return (
                         <Card
+                          role="button" tabIndex={0} onKeyDown={activateOnKey}
                           key={activity}
                           className={cn(
                             "p-3 border-2 cursor-pointer transition-all",
@@ -903,8 +912,8 @@ export default function Onboarding() {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Weigh-in Date</Label>
-                  <Input
+                  <Label htmlFor="onb-weigh-in-date">Weigh-in Date</Label>
+                  <Input id="onb-weigh-in-date"
                     type="date"
                     className="text-lg h-12 bg-muted/30 font-mono"
                     value={format(profile.weighInDate, 'yyyy-MM-dd')}
@@ -927,10 +936,10 @@ export default function Onboarding() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Weigh-in Time</Label>
+                  <Label htmlFor="onb-weigh-in-time">Weigh-in Time</Label>
                   <div className="relative">
                     <Clock className="absolute left-3 top-3 text-muted-foreground w-5 h-5 z-10" />
-                    <Input
+                    <Input id="onb-weigh-in-time"
                       type="time"
                       className="pl-10 text-lg h-12 bg-muted/30 font-mono"
                       value={profile.weighInTime || '07:00'}
@@ -953,6 +962,7 @@ export default function Onboarding() {
               <div className="space-y-3">
                 {/* Lose Weight */}
                 <Card
+                  role="button" tabIndex={0} onKeyDown={activateOnKey}
                   className={cn(
                     "p-4 border-2 cursor-pointer transition-all",
                     profile.sparGoal === 'lose' ? "border-orange-500 bg-orange-500/10" : "border-muted hover:border-muted-foreground/50"
@@ -972,6 +982,7 @@ export default function Onboarding() {
                   {profile.sparGoal === 'lose' && (
                     <div className="mt-3 pt-3 border-t border-muted grid grid-cols-2 gap-2">
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         className={cn(
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'lean' ? "border-orange-500 bg-orange-500/10" : "border-muted"
@@ -983,6 +994,7 @@ export default function Onboarding() {
                         <p className="text-xs text-orange-500">~0.5 lb/week</p>
                       </Card>
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         className={cn(
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'aggressive' ? "border-orange-500 bg-orange-500/10" : "border-muted"
@@ -999,6 +1011,7 @@ export default function Onboarding() {
 
                 {/* Maintain Weight */}
                 <Card
+                  role="button" tabIndex={0} onKeyDown={activateOnKey}
                   className={cn(
                     "p-4 border-2 cursor-pointer transition-all",
                     profile.sparGoal === 'maintain' ? "border-blue-500 bg-blue-500/10" : "border-muted hover:border-muted-foreground/50"
@@ -1018,6 +1031,7 @@ export default function Onboarding() {
                   {profile.sparGoal === 'maintain' && (
                     <div className="mt-3 pt-3 border-t border-muted grid grid-cols-2 gap-2">
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         className={cn(
                           "p-2 border cursor-pointer text-center",
                           profile.maintainPriority === 'general' ? "border-blue-500 bg-blue-500/10" : "border-muted"
@@ -1029,6 +1043,7 @@ export default function Onboarding() {
                         <p className="text-xs text-blue-500">45% carb / 55% fat</p>
                       </Card>
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         className={cn(
                           "p-2 border cursor-pointer text-center",
                           profile.maintainPriority === 'performance' ? "border-blue-500 bg-blue-500/10" : "border-muted"
@@ -1045,6 +1060,7 @@ export default function Onboarding() {
 
                 {/* Gain Muscle */}
                 <Card
+                  role="button" tabIndex={0} onKeyDown={activateOnKey}
                   className={cn(
                     "p-4 border-2 cursor-pointer transition-all",
                     profile.sparGoal === 'gain' ? "border-green-500 bg-green-500/10" : "border-muted hover:border-muted-foreground/50"
@@ -1064,6 +1080,7 @@ export default function Onboarding() {
                   {profile.sparGoal === 'gain' && (
                     <div className="mt-3 pt-3 border-t border-muted grid grid-cols-2 gap-2">
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         className={cn(
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'lean' ? "border-green-500 bg-green-500/10" : "border-muted"
@@ -1075,6 +1092,7 @@ export default function Onboarding() {
                         <p className="text-xs text-green-500">~0.5 lb/week</p>
                       </Card>
                       <Card
+                        role="button" tabIndex={0} onKeyDown={activateOnKey}
                         className={cn(
                           "p-2 border cursor-pointer text-center",
                           profile.goalIntensity === 'aggressive' ? "border-green-500 bg-green-500/10" : "border-muted"
@@ -1093,11 +1111,11 @@ export default function Onboarding() {
               {/* Target Weight (for lose/gain goals) */}
               {(profile.sparGoal === 'lose' || profile.sparGoal === 'gain') && (
                 <div className="space-y-2 pt-4 border-t border-muted">
-                  <Label className="text-xs flex items-center gap-1.5">
+                  <Label htmlFor="onb-goal-weight" className="text-xs flex items-center gap-1.5">
                     <Target className="w-3.5 h-3.5" />
                     Goal Weight (optional)
                   </Label>
-                  <Input
+                  <Input id="onb-goal-weight"
                     type="number"
                     placeholder={profile.sparGoal === 'lose' ? 'e.g. 155' : 'e.g. 175'}
                     className="h-11 bg-muted/30 font-mono"

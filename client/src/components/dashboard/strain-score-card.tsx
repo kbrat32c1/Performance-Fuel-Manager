@@ -23,6 +23,7 @@ import type { StrainResult, StrainTarget } from "@/lib/strain-service";
 import { getStrainLabel, getStrainColor, percentToStrain, getStrainTarget } from "@/lib/strain-service";
 import { MetricDetailSheet } from "./metric-detail-sheet";
 import type { MetricKey } from "./metric-detail-sheet";
+import { activateOnKey } from "@/lib/a11y";
 
 interface StrainScoreCardProps {
   /** Current strain result from today's HR monitoring */
@@ -96,6 +97,7 @@ export function StrainScoreCard({ strain, healthHistory, isLive, recoveryScore }
   return (
     <>
       <Card
+        role="button" tabIndex={0} onKeyDown={activateOnKey}
         className={cn("overflow-hidden border-muted/50 active:scale-[0.98] transition-transform cursor-pointer", scoreBg)}
         onClick={() => setSelectedMetric('strain')}
       >

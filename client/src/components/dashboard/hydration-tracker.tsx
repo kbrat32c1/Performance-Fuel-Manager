@@ -119,7 +119,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               <div className="flex items-center gap-1">
                 {isEditing ? (
                   <div className="flex items-center gap-1">
-                    <Input
+                    <Input aria-label="Water in ounces"
                       type="number"
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
@@ -128,7 +128,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                     />
                     <span className="text-xs text-muted-foreground">oz</span>
                     <button onClick={handleSaveEdit} className="text-xs text-green-500 font-bold px-1.5">Save</button>
-                    <button onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-1">✕</button>
+                    <button aria-label="Cancel edit" onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-1 relative after:absolute after:-inset-3">✕</button>
                   </div>
                 ) : (
                   <>
@@ -193,10 +193,10 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               <Droplets className="w-3.5 h-3.5 text-cyan-500" />
               {isEditing ? (
                 <div className="flex items-center gap-1">
-                  <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 w-16 text-center text-xs font-mono" autoFocus />
+                  <Input aria-label="Water in ounces" type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 w-16 text-center text-xs font-mono" autoFocus />
                   <span className="text-xs text-muted-foreground">oz</span>
                   <button onClick={handleSaveEdit} className="text-xs text-green-500 font-bold px-2 py-1 min-h-[36px] active:scale-95 transition-transform">Save</button>
-                  <button onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-2 py-1 min-h-[36px] active:scale-95 transition-transform">✕</button>
+                  <button aria-label="Cancel edit" onClick={() => setIsEditing(false)} className="text-xs text-muted-foreground px-2 py-1 min-h-11 -my-1 active:scale-95 transition-transform">✕</button>
                 </div>
               ) : (
                 <button onClick={handleEdit} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 min-h-[36px] active:scale-95 transition-transform">
@@ -239,7 +239,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               </button>
             ))}
             <div className="flex gap-1.5 ml-auto">
-              <Input
+              <Input aria-label="Custom water amount in ounces"
                 type="number"
                 placeholder="oz"
                 value={addAmount}

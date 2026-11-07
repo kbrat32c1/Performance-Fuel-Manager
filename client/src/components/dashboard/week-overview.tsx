@@ -134,10 +134,11 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                   </span>
                 </div>
                 <button
+                  aria-label="Close day details"
                   onClick={() => setSelectedIdx(null)}
-                  className="text-muted-foreground hover:text-foreground p-1"
+                  className="text-muted-foreground hover:text-foreground p-1 relative after:absolute after:-inset-2"
                 >
-                  <ChevronRight className="w-5 h-5 rotate-90" />
+                  <ChevronRight className="w-5 h-5 rotate-90" aria-hidden="true" />
                 </button>
               </div>
 

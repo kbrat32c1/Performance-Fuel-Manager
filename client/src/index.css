@@ -63,7 +63,7 @@
   --popover-foreground: 233 30% 15%;
 
   /* SPAR Orange - primary action color */
-  --primary: 16 82% 52%;
+  --primary: 16 82% 43%; /* darkened from 52% so white text and orange text pass 4.5:1 on light backgrounds */
   --primary-foreground: 0 0% 100%;
 
   /* SPAR Blue - secondary/hydration */
@@ -71,7 +71,7 @@
   --secondary-foreground: 0 0% 100%;
 
   --muted: 233 10% 93%;
-  --muted-foreground: 233 10% 46%;
+  --muted-foreground: 233 10% 42%;
 
   --accent: 233 10% 93%;
   --accent-foreground: 233 30% 15%;
@@ -356,4 +356,17 @@
 
 .animate-victory-burst {
   animation: victory-burst 0.6s ease-out;
+}
+
+/* Respect iPhone "Reduce Motion" (and the OS setting on the web): no looping pulses,
+   bounces, shimmers or slide-ins; state changes still happen, just without the motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

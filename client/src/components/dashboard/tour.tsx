@@ -307,10 +307,11 @@ export function DashboardTour() {
               </span>
             </div>
             <button
+              aria-label="Skip tour"
               onClick={handleSkip}
-              className="p-1 rounded-full hover:bg-muted/50 text-muted-foreground"
+              className="p-1 rounded-full relative after:absolute after:-inset-2.5 hover:bg-muted/50 text-muted-foreground"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 

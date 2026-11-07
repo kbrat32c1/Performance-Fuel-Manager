@@ -11,6 +11,7 @@ import { Check, ChevronRight, Flame, Utensils, AlertTriangle } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { useStore } from "@/lib/store";
+import { activateOnKey } from "@/lib/a11y";
 
 interface FuelCardProps {
   macros: {
@@ -229,6 +230,7 @@ export function FuelCard({
 
   return (
     <Card
+      role="button" tabIndex={0} onKeyDown={activateOnKey}
       data-tour="fuel"
       className={cn(
         "overflow-hidden transition-all duration-500 mt-3 cursor-pointer active:scale-[0.98]",

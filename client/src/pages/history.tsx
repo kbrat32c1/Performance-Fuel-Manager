@@ -813,7 +813,7 @@ export default function History() {
                             </div>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-muted-foreground w-12">Before</span>
-                              <Input
+                              <Input aria-label="Weight before"
                                 type="number"
                                 step="0.1"
                                 value={editExtraBefore}
@@ -823,7 +823,7 @@ export default function History() {
                               />
                               <span className="text-xs text-muted-foreground">→</span>
                               <span className="text-xs text-muted-foreground w-10">After</span>
-                              <Input
+                              <Input aria-label="Weight after"
                                 type="number"
                                 step="0.1"
                                 value={editExtraAfter}
@@ -1265,7 +1265,7 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
               <span className="text-xs text-muted-foreground block">Avg Daily Protein</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
-                avgDailyProtein >= macroTargets.protein.min ? "text-green-500" : avgDailyProtein >= macroTargets.protein.min * 0.75 ? "text-orange-500" : "text-yellow-500"
+                avgDailyProtein >= macroTargets.protein.min ? "text-chart-5" : avgDailyProtein >= macroTargets.protein.min * 0.75 ? "text-chart-3" : "text-chart-4"
               )}>
                 {avgDailyProtein.toFixed(0)}g
               </span>

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { Input } from "@/components/ui/input";
+import { activateOnKey } from "@/lib/a11y";
 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -794,10 +795,10 @@ export default function Recovery() {
           <div className="space-y-4 pb-6 pt-6">
             {/* Weigh-in weight input */}
             <div className="space-y-1.5">
-              <label className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
+              <label htmlFor="recovery-weigh-in-weight" className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
                 Weigh-in Weight (lbs)
               </label>
-              <Input
+              <Input id="recovery-weigh-in-weight"
                 type="number"
                 inputMode="decimal"
                 step="0.1"
@@ -810,11 +811,11 @@ export default function Recovery() {
 
             {/* Time pickers */}
             <div className="space-y-1.5">
-              <label className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
+              <label htmlFor="recovery-time-to-first-match" className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
                 Time to 1st Match
               </label>
               <div className="relative max-w-[200px] mx-auto">
-                <select
+                <select id="recovery-time-to-first-match"
                   value={timeToMatch}
                   onChange={(e) => setTimeToMatch(parseInt(e.target.value))}
                   className="w-full font-mono text-center text-lg h-12 rounded-xl bg-background border border-input appearance-none cursor-pointer px-3"
@@ -852,9 +853,9 @@ export default function Recovery() {
                   <span>Sound & on-screen alerts active</span>
                 </div>
               ) : notificationPermission === 'denied' ? (
-                <div className="flex items-center gap-1.5 text-xs text-yellow-500">
-                  <BellOff className="w-3 h-3" />
-                  <span>Push blocked — sound & on-screen alerts active</span>
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <BellOff className="w-3 h-3" aria-hidden="true" />
+                  <span>Notifications are off — keep the app open for match reminders</span>
                 </div>
               ) : notificationPermission === 'granted' && notificationsEnabled ? (
                 <div className="flex items-center gap-1.5 text-xs text-primary">
@@ -914,24 +915,26 @@ export default function Recovery() {
                     triggerVibration();
                   }
                 }}
+                aria-label={alertsEnabled ? "Mute alerts" : "Turn on alerts"}
                 className={cn(
-                  "p-1.5 rounded-lg transition-colors active:scale-95",
+                  "p-1.5 rounded-lg relative after:absolute after:-inset-2 transition-colors active:scale-95",
                   alertsEnabled
                     ? "bg-primary/15 text-primary"
                     : "bg-muted/30 text-muted-foreground"
                 )}
                 title={alertsEnabled ? "Alerts on — tap to mute" : "Alerts muted — tap to enable"}
               >
-                {alertsEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+                {alertsEnabled ? <Bell className="w-3.5 h-3.5" aria-hidden="true" /> : <BellOff className="w-3.5 h-3.5" aria-hidden="true" />}
               </button>
               <button
+                aria-label={active ? "Pause timer" : "Resume timer"}
                 onClick={togglePause}
                 className={cn(
-                  "p-1.5 rounded-lg transition-colors active:scale-95",
+                  "p-1.5 rounded-lg relative after:absolute after:-inset-2 transition-colors active:scale-95",
                   active ? "bg-yellow-500/15 text-yellow-500" : "bg-primary/15 text-primary"
                 )}
               >
-                {active ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                {active ? <Pause className="w-3.5 h-3.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5" aria-hidden="true" />}
               </button>
             </div>
           </div>
@@ -997,10 +1000,11 @@ export default function Recovery() {
               {phaseTransitionBanner}
             </div>
             <button
+              aria-label="Dismiss"
               onClick={() => setPhaseTransitionBanner(null)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg hover:bg-black/10 transition-colors"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg after:absolute after:-inset-2.5 hover:bg-black/10 transition-colors"
             >
-              <X className="w-4 h-4 text-black/60" />
+              <X className="w-4 h-4 text-black/60" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -1239,11 +1243,11 @@ export default function Recovery() {
 
             {/* Time between matches picker */}
             <div className="space-y-1.5">
-              <label className="text-xs uppercase font-bold text-muted-foreground block tracking-wider">
+              <label htmlFor="recovery-time-between-matches" className="text-xs uppercase font-bold text-muted-foreground block tracking-wider">
                 Expected time until next match
               </label>
               <div className="relative">
-                <select
+                <select id="recovery-time-between-matches"
                   value={timeBetweenMatches}
                   onChange={(e) => setTimeBetweenMatches(parseInt(e.target.value))}
                   className="w-full font-mono text-center text-base h-11 rounded-xl bg-background border border-input appearance-none cursor-pointer px-3"
@@ -1370,6 +1374,7 @@ function PhaseCard({
     >
       {/* Header */}
       <div
+        role={!isCurrent ? "button" : undefined} tabIndex={!isCurrent ? 0 : undefined} onKeyDown={!isCurrent ? activateOnKey : undefined}
         className={cn("flex items-center justify-between p-3", !isCurrent && "cursor-pointer active:bg-muted/20")}
         onClick={!isCurrent ? onToggleExpand : undefined}
       >

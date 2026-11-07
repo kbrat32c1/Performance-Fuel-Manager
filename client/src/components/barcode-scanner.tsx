@@ -123,10 +123,11 @@ export function BarcodeScanner({ open, onClose, onScan }: BarcodeScannerProps) {
           <span className="text-sm font-medium">Scan Barcode</span>
         </div>
         <button
+          aria-label="Close scanner"
           onClick={() => { stopScanner(); onClose(); }}
-          className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 active:scale-95 transition-all"
+          className="w-10 h-10 rounded-full relative after:absolute after:-inset-0.5 bg-white/20 flex items-center justify-center hover:bg-white/30 active:scale-95 transition-all"
         >
-          <X className="w-5 h-5 text-white" />
+          <X className="w-5 h-5 text-white" aria-hidden="true" />
         </button>
       </div>
 

@@ -211,7 +211,7 @@ export function AiCoach({
 
               {/* Input */}
               <form onSubmit={handleSubmit} className="flex gap-2">
-                <Input
+                <Input aria-label="Message the AI coach"
                   ref={inputRef}
                   type="text"
                   placeholder="Ask about food, hydration, recovery..."
@@ -221,16 +221,17 @@ export function AiCoach({
                   className="flex-1 h-10 text-sm rounded-lg bg-background/60"
                 />
                 <button
+                  aria-label="Send message"
                   type="submit"
                   disabled={!input.trim() || loading}
                   className={cn(
-                    "p-2.5 rounded-lg transition-all active:scale-95 shrink-0",
+                    "p-2.5 rounded-lg relative after:absolute after:-inset-0.5 transition-all active:scale-95 shrink-0",
                     input.trim() && !loading
                       ? "bg-purple-500 text-white"
                       : "bg-muted/30 text-muted-foreground"
                   )}
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4" aria-hidden="true" />
                 </button>
               </form>
             </>

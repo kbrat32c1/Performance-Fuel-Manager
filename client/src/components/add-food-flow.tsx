@@ -499,8 +499,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     <div className="flex flex-col h-full" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
       {/* ── Header: Close + Meal Selector ── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-muted/20 shrink-0">
-        <button onClick={onClose} className="w-8 h-8 rounded-full bg-muted/30 flex items-center justify-center hover:bg-muted/50">
-          <X className="w-4 h-4" />
+        <button aria-label="Close" onClick={onClose} className="w-8 h-8 rounded-full relative after:absolute after:-inset-1.5 bg-muted/30 flex items-center justify-center hover:bg-muted/50">
+          <X className="w-4 h-4" aria-hidden="true" />
         </button>
         <div className="flex-1 min-w-0">
           {!hideMealSelector ? (
@@ -541,7 +541,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       <div className="px-4 py-2 space-y-2 shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-          <input
+          <input aria-label="Search foods"
             ref={searchInputRef}
             type="text"
             value={query}
@@ -551,10 +551,11 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           />
           {query && (
             <button
+              aria-label="Clear search"
               onClick={() => clearResults()}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full after:absolute after:-inset-3 bg-muted/50 flex items-center justify-center"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3 h-3" aria-hidden="true" />
             </button>
           )}
         </div>
@@ -614,10 +615,11 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 )}
               </div>
               <button
+                aria-label="Clear selected food"
                 onClick={() => setSelectedOFF(null)}
-                className="w-6 h-6 rounded-full bg-muted/30 flex items-center justify-center shrink-0"
+                className="w-6 h-6 rounded-full relative after:absolute after:-inset-2.5 bg-muted/30 flex items-center justify-center shrink-0"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3 h-3" aria-hidden="true" />
               </button>
             </div>
 
@@ -641,7 +643,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
             {/* Serving size input */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground/60 shrink-0">Serving:</span>
-              <input
+              <input aria-label="Serving size in grams"
                 type="number"
                 value={offServingGrams}
                 onChange={(e) => setOffServingGrams(e.target.value)}
@@ -792,11 +794,11 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
         <div className="shrink-0 border-t border-muted/20 bg-muted/5 px-4 py-3 space-y-2.5 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Custom Food</span>
-            <button onClick={() => { setShowCustomEntry(false); hapticTap(); }} className="p-1 rounded-lg hover:bg-muted/20">
-              <X className="w-3.5 h-3.5 text-muted-foreground" />
+            <button aria-label="Close custom food" onClick={() => { setShowCustomEntry(false); hapticTap(); }} className="p-1 rounded-lg relative after:absolute after:-inset-3 hover:bg-muted/20">
+              <X className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
             </button>
           </div>
-          <input
+          <input aria-label="Food name"
             type="text"
             value={customName}
             onChange={(e) => setCustomName(e.target.value)}
@@ -823,8 +825,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
           ) : (
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Carbs (g)</label>
-                <input
+                <label htmlFor="custom-food-carbs" className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Carbs (g)</label>
+                <input id="custom-food-carbs"
                   type="number"
                   value={customCarbs}
                   onChange={(e) => setCustomCarbs(e.target.value)}
@@ -833,8 +835,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Protein (g)</label>
-                <input
+                <label htmlFor="custom-food-protein" className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Protein (g)</label>
+                <input id="custom-food-protein"
                   type="number"
                   value={customProtein}
                   onChange={(e) => setCustomProtein(e.target.value)}
@@ -987,10 +989,11 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
           </p>
         </div>
         <button
+          aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
           onClick={(e) => { e.stopPropagation(); onToggleFav(); hapticTap(); }}
-          className="p-1 shrink-0"
+          className="p-1 shrink-0 relative after:absolute after:-inset-3"
         >
-          <Star className={cn("w-3.5 h-3.5", isFav ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30")} />
+          <Star className={cn("w-3.5 h-3.5", isFav ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground/30")} aria-hidden="true" />
         </button>
         {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />}
       </button>
@@ -1001,7 +1004,7 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
           {/* Serving selector + quantity row */}
           <div className="flex items-center gap-2">
             {food.servings.length > 1 ? (
-              <select
+              <select aria-label="Serving size"
                 value={selectedServing.id}
                 onChange={(e) => {
                   const s = food.servings.find(sv => sv.id === e.target.value);
@@ -1020,6 +1023,7 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
             {/* Quantity stepper */}
             <div className="flex items-center gap-0 shrink-0 border border-muted/30 rounded-lg overflow-hidden">
               <button
+                aria-label="Decrease servings"
                 onClick={(e) => { e.stopPropagation(); setQty(q => Math.max(0.5, q - (q <= 1 ? 0.5 : 1))); hapticTap(); }}
                 className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
               >
@@ -1027,6 +1031,7 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
               </button>
               <span className="w-8 text-center text-[13px] font-bold tabular-nums">{qty % 1 === 0 ? qty : qty.toFixed(1)}</span>
               <button
+                aria-label="Increase servings"
                 onClick={(e) => { e.stopPropagation(); setQty(q => q + (q < 1 ? 0.5 : 1)); hapticTap(); }}
                 className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
               >

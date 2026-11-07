@@ -14,6 +14,7 @@ import { hapticSuccess, hapticError, hapticTap } from '@/lib/haptics';
 import { isValidWeight, getWeightValidationError, MIN_WEIGHT_LBS, MAX_WEIGHT_LBS } from '@/lib/constants';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { QuickLogWaterTab } from './quick-log-water-tab';
+import { activateOnKey } from "@/lib/a11y";
 
 type FabTab = 'weight' | 'food' | 'water';
 
@@ -81,7 +82,11 @@ function getDefaultType(loggedTypes?: Set<string>): LogTypeOption {
     const timeBased = getTimeBasedType();
     const hasExtraWorkout = loggedTypes.has('extra-workout');
 
-    for (const t of CORE_TYPES) {
+    // Start at the slot for the current time of day, so a 4:30 PM log isn't
+    // offered as "Morning" just because the morning weigh-in was skipped.
+    const fromNow = CORE_TYPES.indexOf(timeBased);
+    const ordered = fromNow > 0 ? [...CORE_TYPES.slice(fromNow), ...CORE_TYPES.slice(0, fromNow)] : CORE_TYPES;
+    for (const t of ordered) {
       if (loggedTypes.has(t)) continue;
 
       // If user logged an extra workout but skipped regular practice,
@@ -156,6 +161,7 @@ function TimeScrollColumn({ items, selected, onSelect }: { items: string[]; sele
       >
         {items.map((item) => (
           <div
+            role="button" tabIndex={0} onKeyDown={activateOnKey}
             key={item}
             className={cn(
               "h-[36px] flex items-center justify-center snap-center cursor-pointer transition-all select-none",
@@ -295,6 +301,11 @@ export function QuickLogFAB() {
     const TOOLTIP_DISMISSED_KEY = STORAGE_KEYS.FAB_TOOLTIP_DISMISSED;
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
+    // The first-run dashboard tour already points at Log; don't stack this bubble on top of it.
+    try {
+      if (!localStorage.getItem(STORAGE_KEYS.DASHBOARD_TOUR_SEEN)) return;
+    } catch {}
+
     // Check if tooltip was dismissed recently
     try {
       const dismissedAt = localStorage.getItem(TOOLTIP_DISMISSED_KEY);
@@ -376,7 +387,8 @@ export function QuickLogFAB() {
   const handleOpenFull = useCallback(() => {
     resetForm();
     setSelectedType(getDefaultType(loggedTypes));
-    setWeight(suggestedWeight);
+    // Start empty (last weight shows as the hint) so Save can't log yesterday's number by accident.
+    setWeight('');
     setBeforeWeight(suggestedWeight);
     setDirectMode(false);
     setShowTypeGrid(true);
@@ -386,7 +398,7 @@ export function QuickLogFAB() {
   const handleOpenDirect = useCallback((type: LogTypeOption) => {
     resetForm();
     setSelectedType(type);
-    setWeight(suggestedWeight);
+    setWeight('');
     setBeforeWeight(suggestedWeight);
     setDirectMode(true);
     setShowTypeGrid(false);
@@ -739,14 +751,14 @@ export function QuickLogFAB() {
     <>
       {/* Onboarding tooltip — portaled to body so it's not clipped by nav */}
       {showTooltip && !isOpen && createPortal(
-        <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="relative bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg max-w-[180px]">
             <button
               onClick={dismissTooltip}
-              className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background text-foreground flex items-center justify-center text-xs shadow-md"
+              className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background text-foreground flex items-center justify-center text-xs shadow-md after:absolute after:-inset-3"
               aria-label="Dismiss tooltip"
             >
-              <X className="w-3 h-3" />
+              <X className="w-3 h-3" aria-hidden="true" />
             </button>
             <p className="text-xs font-medium leading-tight text-center">
               {logs.length === 0 ? "Tap here to log your first weight!" : "Welcome back! Tap here to log your weight"}
@@ -797,6 +809,7 @@ export function QuickLogFAB() {
           <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[80vh] flex flex-col" role="document">
             {/* Drag handle — tappable to close */}
             <div
+              role="button" tabIndex={0} aria-label="Close" onKeyDown={activateOnKey}
               className="flex justify-center pt-3 pb-1 shrink-0 cursor-pointer"
               onClick={() => { setIsOpen(false); resetForm(); }}
             >
@@ -975,8 +988,8 @@ export function QuickLogFAB() {
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">Before</Label>
-                      <Input
+                      <Label htmlFor="quick-log-before" className="text-xs text-muted-foreground mb-1.5 block">Before</Label>
+                      <Input id="quick-log-before"
                         ref={beforeRef}
                         type="number"
                         inputMode="decimal"
@@ -988,8 +1001,8 @@ export function QuickLogFAB() {
                       />
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground mb-1.5 block">After</Label>
-                      <Input
+                      <Label htmlFor="quick-log-after" className="text-xs text-muted-foreground mb-1.5 block">After</Label>
+                      <Input id="quick-log-after"
                         type="number"
                         inputMode="decimal"
                         step="0.1"
@@ -1030,14 +1043,14 @@ export function QuickLogFAB() {
                       <p className="text-sm font-mono text-muted-foreground">{originalWeight.toFixed(1)} lbs</p>
                     </div>
                   )}
-                  <Input
+                  <Input aria-label="Weight in pounds"
                     ref={inputRef}
                     type="number"
                     inputMode="decimal"
                     step="0.1"
                     value={weight}
                     onChange={(e) => { setWeight(e.target.value); setConfirmWildcard(false); setInputErrorMsg(null); }}
-                    placeholder="Enter weight"
+                    placeholder={suggestedWeight ? `Last: ${suggestedWeight}` : "Enter weight"}
                     aria-invalid={!!inputErrorMsg}
                     className={cn("font-mono text-center text-3xl h-16 text-foreground transition-colors", inputError && "border-destructive ring-1 ring-destructive/50 animate-shake")}
                   />
@@ -1159,7 +1172,7 @@ export function QuickLogFAB() {
                   </div>
                   {customDuration && (
                     <div className="mt-2 flex items-center gap-2">
-                      <Input
+                      <Input aria-label="Duration in minutes"
                         type="number"
                         inputMode="numeric"
                         value={duration}
@@ -1207,7 +1220,7 @@ export function QuickLogFAB() {
                   {/* Manual / editing: simple hours input */}
                   {(!sleepAutoFilled || customSleep) && (
                     <div className="mt-1 flex items-center gap-2">
-                      <Input
+                      <Input aria-label="Sleep hours"
                         type="number"
                         inputMode="decimal"
                         step="0.5"
@@ -1302,12 +1315,13 @@ export function QuickLogFAB() {
               <div className="flex gap-2 mt-4">
                 {isEditMode && (
                   <Button
+                    aria-label={confirmDelete ? undefined : "Delete entry"}
                     variant="destructive"
                     onClick={handleDelete}
                     className="h-13 px-4 rounded-xl"
                     style={{ minHeight: '52px' }}
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-5 h-5" aria-hidden="true" />
                     {confirmDelete && <span className="ml-1 text-sm">Confirm?</span>}
                   </Button>
                 )}

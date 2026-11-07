@@ -361,10 +361,11 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
           )}
         </div>
         <button
+          aria-label="Close"
           onClick={onClose}
-          className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all"
+          className="w-10 h-10 rounded-full relative after:absolute after:-inset-0.5 bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>
 
@@ -520,29 +521,32 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                     {mf.fsMatch && (
                       <div className="flex items-center gap-1 shrink-0">
                         <button
+                          aria-label="Decrease servings"
                           onClick={() => updateServingQty(idx, -0.5)}
-                          className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center active:scale-90"
+                          className="w-7 h-7 rounded relative after:absolute after:-inset-2 bg-muted/50 flex items-center justify-center active:scale-90"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3 h-3" aria-hidden="true" />
                         </button>
                         <span className={cn("text-sm font-bold font-mono min-w-[28px] text-center", color.text)}>
                           {qty}
                         </span>
                         <button
+                          aria-label="Increase servings"
                           onClick={() => updateServingQty(idx, 0.5)}
-                          className="w-7 h-7 rounded bg-muted/50 flex items-center justify-center active:scale-90"
+                          className="w-7 h-7 rounded relative after:absolute after:-inset-2 bg-muted/50 flex items-center justify-center active:scale-90"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3 h-3" aria-hidden="true" />
                         </button>
                       </div>
                     )}
 
                     {/* Delete */}
                     <button
+                      aria-label="Remove food"
                       onClick={() => removeFood(idx)}
-                      className="w-7 h-7 rounded bg-red-500/10 flex items-center justify-center active:scale-90 text-red-500 shrink-0"
+                      className="w-7 h-7 rounded relative after:absolute after:-inset-2 bg-red-500/10 flex items-center justify-center active:scale-90 text-red-500 shrink-0"
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-3 h-3" aria-hidden="true" />
                     </button>
                   </div>
 

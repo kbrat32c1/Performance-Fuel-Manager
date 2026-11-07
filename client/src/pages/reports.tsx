@@ -165,10 +165,11 @@ export default function Reports() {
       {/* ── Time Period Selector ── */}
       <div className="flex items-center justify-between mb-4 bg-card border border-border rounded-lg px-2 py-2">
         <Button
-          variant="ghost" size="icon" className="h-8 w-8"
+          variant="ghost" size="icon" className="h-11 w-11 -my-1.5"
+          aria-label="Previous week"
           onClick={() => setWeekOffset((o) => o - 1)}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
         <span className="text-sm font-semibold">
           {periodLabel}
@@ -177,11 +178,12 @@ export default function Reports() {
           </span>
         </span>
         <Button
-          variant="ghost" size="icon" className="h-8 w-8"
+          variant="ghost" size="icon" className="h-11 w-11 -my-1.5"
+          aria-label="Next week"
           disabled={weekOffset >= 0}
           onClick={() => setWeekOffset((o) => o + 1)}
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
 

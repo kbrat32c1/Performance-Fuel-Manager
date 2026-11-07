@@ -224,8 +224,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Name Row */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <Label className="text-xs">First Name</Label>
-                  <Input
+                  <Label htmlFor="settings-first-name" className="text-xs">First Name</Label>
+                  <Input id="settings-first-name"
                     type="text"
                     value={getValue('name') || ''}
                     onChange={(e) => handleChange({ name: e.target.value })}
@@ -234,8 +234,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Last Name</Label>
-                  <Input
+                  <Label htmlFor="settings-last-name" className="text-xs">Last Name</Label>
+                  <Input id="settings-last-name"
                     type="text"
                     value={getValue('lastName') || ''}
                     onChange={(e) => handleChange({ lastName: e.target.value })}
@@ -248,9 +248,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Weight Row - Target Class only for competition protocols (including SPAR Competition) */}
               {isSparGeneral ? (
                 <div className="space-y-1">
-                  <Label className="text-xs">Current Weight</Label>
+                  <Label htmlFor="settings-current-weight" className="text-xs">Current Weight</Label>
                   <div className="relative">
-                    <Input
+                    <Input id="settings-current-weight"
                       type="number"
                       value={getValue('currentWeight') || ''}
                       onChange={(e) => handleChange({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
@@ -263,9 +263,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               ) : (
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-xs">Current Weight</Label>
+                    <Label htmlFor="settings-current-weight-comp" className="text-xs">Current Weight</Label>
                     <div className="relative">
-                      <Input
+                      <Input id="settings-current-weight-comp"
                         type="number"
                         value={getValue('currentWeight') || ''}
                         onChange={(e) => handleChange({ currentWeight: e.target.value ? parseFloat(e.target.value) : 0 })}
@@ -414,8 +414,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Age — needed for strain HR zone calculations (all protocols) */}
               <div className="flex items-center gap-3 pt-2 border-t border-muted">
-                <Label className="text-xs text-muted-foreground whitespace-nowrap">Age</Label>
-                <Input
+                <Label htmlFor="settings-age" className="text-xs text-muted-foreground whitespace-nowrap">Age</Label>
+                <Input id="settings-age"
                   type="number"
                   min="10"
                   max="100"
@@ -562,9 +562,9 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       {/* Goal Weight (for lose/gain) */}
                       {(getValue('sparGoal') === 'lose' || getValue('sparGoal') === 'gain') && (
                         <div className="space-y-1">
-                          <Label className="text-xs">Goal Weight (optional)</Label>
+                          <Label htmlFor="settings-goal-weight" className="text-xs">Goal Weight (optional)</Label>
                           <div className="flex gap-2 items-center">
-                            <Input
+                            <Input id="settings-goal-weight"
                               type="number"
                               placeholder="e.g. 165"
                               className="h-9 font-mono flex-1"
@@ -677,8 +677,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           <div className="space-y-3 pt-2">
                             {/* Body Fat % */}
                             <div className="space-y-1">
-                              <Label className="text-xs text-purple-500">Body Fat % (enables Cunningham formula)</Label>
-                              <Input
+                              <Label htmlFor="settings-body-fat" className="text-xs text-purple-500">Body Fat % (enables Cunningham formula)</Label>
+                              <Input id="settings-body-fat"
                                 type="number"
                                 min="5"
                                 max="50"
@@ -694,8 +694,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
                             {/* Custom Protein g/lb */}
                             <div className="space-y-1">
-                              <Label className="text-xs text-purple-500">Custom Protein (g/lb bodyweight)</Label>
-                              <Input
+                              <Label htmlFor="settings-protein-per-lb" className="text-xs text-purple-500">Custom Protein (g/lb bodyweight)</Label>
+                              <Input id="settings-protein-per-lb"
                                 type="number"
                                 min="0.5"
                                 max="1.5"
@@ -713,8 +713,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             {/* Custom Fat/Carb Split */}
                             <div className="grid grid-cols-2 gap-2">
                               <div className="space-y-1">
-                                <Label className="text-xs text-purple-500">Fat % of remaining</Label>
-                                <Input
+                                <Label htmlFor="settings-fat-percent" className="text-xs text-purple-500">Fat % of remaining</Label>
+                                <Input id="settings-fat-percent"
                                   type="number"
                                   min="0"
                                   max="100"
@@ -728,8 +728,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 />
                               </div>
                               <div className="space-y-1">
-                                <Label className="text-xs text-purple-500">Carb % of remaining</Label>
-                                <Input
+                                <Label htmlFor="settings-carb-percent" className="text-xs text-purple-500">Carb % of remaining</Label>
+                                <Input id="settings-carb-percent"
                                   type="number"
                                   min="0"
                                   max="100"
@@ -757,7 +757,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Height</Label>
                             <div className="flex gap-1">
-                              <Input
+                              <Input aria-label="Height, feet"
                                 type="number"
                                 min="4"
                                 max="7"
@@ -770,7 +770,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                   handleChange({ heightInches: ft * 12 + currentIn });
                                 }}
                               />
-                              <Input
+                              <Input aria-label="Height, inches"
                                 type="number"
                                 min="0"
                                 max="11"
@@ -787,8 +787,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                           </div>
                           {/* Age */}
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Age</Label>
-                            <Input
+                            <Label htmlFor="settings-age-spar" className="text-xs text-muted-foreground">Age</Label>
+                            <Input id="settings-age-spar"
                               type="number"
                               min="10"
                               max="100"
@@ -886,7 +886,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                       <Input
                         type="date"
-                        className="pl-10 h-10"
+                        className="pl-10 h-10 w-full min-w-0 appearance-none"
                         value=""
                         onChange={(e) => {
                           if (e.target.value) {
@@ -905,7 +905,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
                       <Input
                         type="date"
-                        className="pl-10 h-10"
+                        className="pl-10 h-10 w-full min-w-0 appearance-none"
                         value={format(new Date(weighInDate), 'yyyy-MM-dd')}
                         onChange={(e) => {
                           if (e.target.value) {
@@ -937,73 +937,76 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
               {/* Weigh-in Time */}
               <div className="space-y-1">
-                <Label className="text-xs">Weigh-in Time</Label>
+                <Label htmlFor="settings-weigh-in-time" className="text-xs">Weigh-in Time</Label>
                 <div className="relative">
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4 z-10" />
-                  <Input
+                  <Input id="settings-weigh-in-time"
                     type="time"
-                    className="pl-10 h-10 font-mono"
+                    className="pl-10 h-10 font-mono w-full min-w-0 appearance-none"
                     value={getValue('weighInTime') || '07:00'}
                     onChange={(e) => handleChange({ weighInTime: e.target.value })}
                   />
                 </div>
               </div>
 
-              {/* Demo Mode */}
-              <div className="space-y-2 pt-3 border-t border-muted">
-                <Label className="text-xs flex items-center gap-2">
-                  Demo Mode
-                  <span className="text-xs text-muted-foreground font-normal">(Test different days)</span>
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    className="flex-1 h-10"
-                    value={simulatedDate ? format(new Date(simulatedDate), 'yyyy-MM-dd') : ''}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        const [year, month, day] = e.target.value.split('-').map(Number);
-                        const localDate = new Date(year, month - 1, day, 12, 0, 0);
-                        handleChange({ simulatedDate: localDate });
-                      } else {
-                        handleChange({ simulatedDate: null });
-                      }
-                    }}
-                  />
-                  {simulatedDate && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleChange({ simulatedDate: null })}
-                      className="h-10 px-3"
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => {
-                    const today = new Date();
-                    const currentDay = today.getDay();
-                    const targetDay = i === 6 ? 0 : i + 1;
-                    const diff = targetDay - currentDay;
-                    const targetDate = new Date(today);
-                    targetDate.setDate(today.getDate() + diff);
-
-                    return (
+              {/* Demo Mode: a developer tool for testing other days. Hidden from athletes,
+                  except to clear a date that's already set. */}
+              {(import.meta.env.DEV || simulatedDate) && (
+                <div className="space-y-2 pt-3 border-t border-muted">
+                  <Label className="text-xs flex items-center gap-2">
+                    Demo Mode
+                    <span className="text-xs text-muted-foreground font-normal">(Test different days)</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      className="flex-1 h-10 min-w-0 appearance-none"
+                      value={simulatedDate ? format(new Date(simulatedDate), 'yyyy-MM-dd') : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          const [year, month, day] = e.target.value.split('-').map(Number);
+                          const localDate = new Date(year, month - 1, day, 12, 0, 0);
+                          handleChange({ simulatedDate: localDate });
+                        } else {
+                          handleChange({ simulatedDate: null });
+                        }
+                      }}
+                    />
+                    {simulatedDate && (
                       <Button
-                        key={day}
                         variant="outline"
                         size="sm"
-                        className="text-xs h-7 px-2"
-                        onClick={() => handleChange({ simulatedDate: targetDate })}
+                        onClick={() => handleChange({ simulatedDate: null })}
+                        className="h-10 px-3"
                       >
-                        {day}
+                        Clear
                       </Button>
-                    );
-                  })}
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => {
+                      const today = new Date();
+                      const currentDay = today.getDay();
+                      const targetDay = i === 6 ? 0 : i + 1;
+                      const diff = targetDay - currentDay;
+                      const targetDate = new Date(today);
+                      targetDate.setDate(today.getDate() + diff);
+
+                      return (
+                        <Button
+                          key={day}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7 px-2"
+                          onClick={() => handleChange({ simulatedDate: targetDate })}
+                        >
+                          {day}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </TabsContent>
 
             {/* ═══ HEALTH TRACKER TAB ═══ */}
@@ -1065,12 +1068,13 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                             {v5band.syncing ? "Syncing" : "Sync"}
                           </Button>
                           <Button
+                            aria-label="Disconnect band"
                             size="sm"
                             variant="ghost"
                             className="h-7 text-xs text-destructive"
                             onClick={() => v5band.disconnect()}
                           >
-                            <X className="w-3 h-3" />
+                            <X className="w-3 h-3" aria-hidden="true" />
                           </Button>
                         </div>
                       ) : !v5band.scanning ? (
@@ -1715,7 +1719,7 @@ function ReminderRow({ label, icon, enabled, time, onToggle, onTimeChange }: {
         <span className="text-xs font-medium">{label}</span>
       </button>
       {enabled && (
-        <Input
+        <Input aria-label={`${label} reminder time`}
           type="time"
           className="w-[90px] h-8 text-xs font-mono px-2"
           value={time}
@@ -1806,8 +1810,8 @@ function ShareWithCoachSection({ userId }: { userId: string }) {
             <div className="flex-1 bg-muted/30 border border-muted rounded-md px-2 py-1.5 text-xs font-mono truncate">
               {shareUrl}
             </div>
-            <Button variant="outline" size="sm" onClick={copyLink} className="h-auto px-2">
-              {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+            <Button aria-label={copied ? "Link copied" : "Copy link"} variant="outline" size="sm" onClick={copyLink} className="h-auto px-2">
+              {copied ? <Check className="w-3.5 h-3.5 text-green-500" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
             </Button>
           </div>
           <Button variant="ghost" size="sm" onClick={disableSharing} disabled={saving} className="w-full h-7 text-xs text-destructive hover:text-destructive">

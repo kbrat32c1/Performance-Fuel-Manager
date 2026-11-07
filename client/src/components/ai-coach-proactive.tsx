@@ -471,12 +471,12 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after {lossDescription}. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over after {lossDescription}. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over after {lossDescription}. Extra work needed.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over after {lossDescription}. Extra work needed.</>,
         };
       }
       return {
@@ -498,12 +498,12 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. Extra work needed to make weight.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. Extra work needed to make weight.</>,
         };
       }
       return {
@@ -525,12 +525,12 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work over the next {hl(daysUntil + ' days')} needed.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work over the next {hl(daysUntil + ' days')} needed.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-orange-500')} over with {hl(daysUntil + ' days')} to go. Push in practice.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over with {hl(daysUntil + ' days')} to go. Push in practice.</>,
         };
       }
       return {
@@ -699,10 +699,11 @@ export function AiCoachProactive() {
                 <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">AI Coach</span>
               </div>
               <button
+                aria-label="Close AI coach"
                 onClick={() => { setShowAiSection(false); setMessages([]); setAiMessage(null); }}
-                className="p-1 rounded-full hover:bg-violet-500/20 transition-colors"
+                className="p-1 rounded-full relative after:absolute after:-inset-2.5 hover:bg-violet-500/20 transition-colors"
               >
-                <X className="w-4 h-4 text-muted-foreground" />
+                <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
               </button>
             </div>
 
@@ -764,7 +765,7 @@ export function AiCoachProactive() {
               {/* Chat input */}
               {speech.error && <p role="alert" className="mb-1 text-xs text-destructive">{speech.error}</p>}
               <form onSubmit={(e) => { e.preventDefault(); if (!speech.listening) sendMessage(); }} className="flex gap-2">
-                <Input
+                <Input aria-label="Message the AI coach"
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -788,16 +789,17 @@ export function AiCoachProactive() {
                   </button>
                 )}
                 <button
+                  aria-label="Send message"
                   type="submit"
                   disabled={!input.trim() || loading || speech.listening}
                   className={cn(
-                    "h-9 px-3 rounded-lg transition-colors",
+                    "h-9 px-3 rounded-lg relative after:absolute after:-inset-1 transition-colors",
                     input.trim() && !loading
                       ? "bg-violet-500 text-white hover:bg-violet-600"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="w-4 h-4" aria-hidden="true" />
                 </button>
               </form>
             </div>
