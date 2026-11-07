@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { apiUrl } from "@/lib/api";
 import { Search, X, Apple, Loader2, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -48,7 +49,7 @@ export function FoodSearch({ onSelectFood }: FoodSearchProps) {
       setLoading(true);
       setSearched(true);
       try {
-        const res = await fetch(`/api/foods/search?q=${encodeURIComponent(query.trim())}`);
+        const res = await fetch(apiUrl(`/api/foods/search?q=${encodeURIComponent(query.trim())}`));
         if (!res.ok) {
           throw new Error(`Search failed: ${res.status}`);
         }

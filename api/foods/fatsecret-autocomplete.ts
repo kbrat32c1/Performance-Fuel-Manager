@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { applyCors } from "../_cors.js";
 
 /**
  * FatSecret Autocomplete API — returns clean search suggestions as the user types.
@@ -44,6 +45,7 @@ async function getFatSecretToken(): Promise<string | null> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (applyCors(req, res, "GET")) return;
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }

@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { apiUrl } from "@/lib/api";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 // ─── Shared types ───
@@ -148,7 +149,7 @@ export function useFoodSearch(): UseFoodSearchReturn {
       setFsSearched(true);
       setFsError(false);
 
-      await fetch(`/api/foods/fatsecret-search?q=${q}`)
+      await fetch(apiUrl(`/api/foods/fatsecret-search?q=${q}`))
         .then(r => { if (!r.ok) throw new Error('search failed'); return r.json(); })
         .then(data => { setFsResults(data.foods || []); setFsError(false); })
         .catch(() => { setFsResults([]); setFsError(true); })
@@ -162,7 +163,7 @@ export function useFoodSearch(): UseFoodSearchReturn {
   const barcodeLookup = useCallback(async (barcode: string): Promise<OFFFood | null> => {
     setBarcodeLoading(true);
     try {
-      const res = await fetch(`/api/foods/off-barcode?code=${encodeURIComponent(barcode)}`);
+      const res = await fetch(apiUrl(`/api/foods/off-barcode?code=${encodeURIComponent(barcode)}`));
       if (!res.ok) throw new Error('Barcode lookup failed');
       const data = await res.json();
       if (data.found && data.food) {
