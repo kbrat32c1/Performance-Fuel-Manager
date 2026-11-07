@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
 import { autoSparCategory } from "../api/foods/_fatsecret-utils.js";
+import { verifyUser } from "../api/_auth.js";
 
 // ─── API Response Types ───────────────────────────────────────────────────────
 interface USDAFoodNutrient {
@@ -340,22 +341,26 @@ export async function registerRoutes(
   async function getFatSecretToken(): Promise<string | null> {
     if (!FATSECRET_CLIENT_ID || !FATSECRET_CLIENT_SECRET) return null;
     if (fsTokenCache && Date.now() < fsTokenCache.expiresAt - 300000) return fsTokenCache.token;
-    try {
-      const resp = await fetch("https://oauth.fatsecret.com/connect/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "client_credentials",
-          client_id: FATSECRET_CLIENT_ID,
-          client_secret: FATSECRET_CLIENT_SECRET,
-          scope: "premier",
-        }).toString(),
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      fsTokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in || 86400) * 1000 };
-      return fsTokenCache.token;
-    } catch { return null; }
+    // Premier scope first, then basic (same as the Vercel functions)
+    for (const scope of ["premier", "basic"]) {
+      try {
+        const resp = await fetch("https://oauth.fatsecret.com/connect/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: FATSECRET_CLIENT_ID,
+            client_secret: FATSECRET_CLIENT_SECRET,
+            scope,
+          }).toString(),
+        });
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        fsTokenCache = { token: data.access_token, expiresAt: Date.now() + (data.expires_in || 86400) * 1000 };
+        return fsTokenCache.token;
+      } catch { /* try the next scope */ }
+    }
+    return null;
   }
 
   const rnd = (v: number) => Math.round(v * 10) / 10;
@@ -616,7 +621,13 @@ export async function registerRoutes(
   }
 
   // ─── AI Food Photo Analysis (name extraction → FatSecret lookup) ────────────
-  app.post("/api/foods/photo-analysis", aiCoachLimiter, async (req: Request, res: Response) => {
+  // Same rule as the Vercel functions: paid AI calls only for signed-in athletes
+  const requireSignedIn = async (req: Request, res: Response, next: () => void) => {
+    if (await verifyUser(req.headers.authorization)) return next();
+    res.status(401).json({ error: "Sign in required" });
+  };
+
+  app.post("/api/foods/photo-analysis", requireSignedIn, aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({ error: "AI not configured" });
@@ -796,7 +807,7 @@ If you cannot identify any food in the image, return: {"foods": [], "confidence"
   });
 
   // ─── Voice Food Parsing (name extraction → FatSecret lookup) ────────────────
-  app.post("/api/foods/voice-parse", aiCoachLimiter, async (req: Request, res: Response) => {
+  app.post("/api/foods/voice-parse", requireSignedIn, aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({ error: "AI not configured" });
@@ -967,7 +978,7 @@ Respond ONLY with this JSON structure:
   });
 
   // ─── AI Weight Cutting & Recovery Coach (Elite Version) ─────────────────────
-  app.post("/api/ai/coach", aiCoachLimiter, async (req: Request, res: Response) => {
+  app.post("/api/ai/coach", requireSignedIn, aiCoachLimiter, async (req: Request, res: Response) => {
     try {
       if (!ANTHROPIC_API_KEY) {
         return res.status(503).json({
@@ -975,6 +986,9 @@ Respond ONLY with this JSON structure:
           message: "Add ANTHROPIC_API_KEY to environment variables to enable AI coaching.",
         });
       }
+
+      // The app's availability check: answer without spending an AI call
+      if (req.body?.ping === true) return res.status(200).json({ ok: true });
 
       const { question, context } = req.body;
 
