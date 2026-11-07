@@ -5,7 +5,7 @@
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { MobileLayout } from "@/components/mobile-layout";
-import { useTeam, type Team } from "@/hooks/use-team";
+import { useTeam, useTeamRoster, type Team } from "@/hooks/use-team";
 import { cn } from "@/lib/utils";
 import { dayKey, describeWeighIn, nextScheduledWeighIn, eventDays, takePendingTeamCode, type TeamEvent } from "@/lib/team-schedule";
 
@@ -165,7 +165,48 @@ function CoachPanel({ team, events, todayKey, onSave, onDelete }: {
           <p className="text-xs text-muted-foreground">{past.length} past weigh-in{past.length === 1 ? '' : 's'} not shown.</p>
         )}
       </Section>
+
+      <RosterSection teamId={team.id} events={upcoming} />
     </>
+  );
+}
+
+function RosterSection({ teamId, events }: { teamId: string; events: TeamEvent[] }) {
+  const { roster, status, retry } = useTeamRoster(teamId);
+  const eventName = (id: string) => events.find(e => e.id === id)?.name;
+
+  return (
+    <Section title={`Roster${roster ? ` (${roster.length})` : ''}`}>
+      {status === 'unavailable' ? (
+        <p className="text-sm text-muted-foreground">The roster needs a one-time database update.</p>
+      ) : status === 'error' ? (
+        <div className="flex items-center justify-between gap-3">
+          <p role="alert" className="text-sm text-destructive">Couldn't load the roster. Check your connection.</p>
+          <button type="button" onClick={retry} className={outlineButton}>Retry</button>
+        </div>
+      ) : status === 'loading' ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : !roster || roster.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No one has joined yet. Share the link or code above.</p>
+      ) : (
+        <ul className="divide-y divide-muted">
+          {roster.map(a => {
+            const notWrestling = a.skipped.map(eventName).filter(Boolean) as string[];
+            return (
+              <li key={a.userId} className="flex min-h-11 items-start justify-between gap-3 py-2">
+                <span className="min-w-0">
+                  <span className="block font-bold">{a.name}</span>
+                  {notWrestling.length > 0 && (
+                    <span className="block text-xs text-muted-foreground">Not wrestling: {notWrestling.join(', ')}</span>
+                  )}
+                </span>
+                <span className="shrink-0 font-mono text-sm text-muted-foreground">{a.weightClass ? `${a.weightClass}` : '—'}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Section>
   );
 }
 

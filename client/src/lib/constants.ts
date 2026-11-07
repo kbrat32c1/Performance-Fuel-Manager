@@ -314,8 +314,8 @@ export const WATER_OZ_PER_LB = {
 
 /**
  * Sodium targets (mg/day) by daysUntilWeighIn.
- * Salt-loading Mon-Wed trains kidneys to excrete aggressively;
- * sudden restriction Thu-Fri causes continued sodium (and water) excretion.
+ * Salt-loading 5-3 days out trains kidneys to excrete aggressively;
+ * sudden restriction 2-1 days out causes continued sodium (and water) excretion.
  * SAFETY: Never eliminate sodium completely — causes dangerous imbalances.
  */
 export const SODIUM_MG_BY_DAY = {
@@ -380,7 +380,7 @@ export function getSodiumTarget(daysUntil: number, waterLoading = true) {
 
 // Phase definitions
 export const PHASES = {
-  METABOLIC: 'metabolic',      // Mon-Wed
+  METABOLIC: 'metabolic',      // 5-3 days out
   TRANSITION: 'transition',    // Thu
   PERFORMANCE_PREP: 'performance-prep', // Fri
   LAST_24H: 'last-24h',        // Sat (competition day)
@@ -493,7 +493,7 @@ export const WATER_LOADING_RANGE = {
 
 /**
  * Days that include water loading bonus (protocols 1 & 2 only)
- * Mon-Wed only (5,4,3 days out). Thursday (2 days out) is the
+ * 5-3 days out only (5,4,3 days out). Thursday (2 days out) is the
  * restriction/cutoff phase — water intake drops sharply to trigger
  * continued high urine output via suppressed ADH.
  */

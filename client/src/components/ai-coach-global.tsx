@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { authHeaders } from "@/lib/auth-headers";
-import { Bot, Send, Loader2, X, BrainCircuit, Minimize2, ChevronDown, Flame, Sparkles } from "lucide-react";
+import { Bot, Send, Loader2, X, BrainCircuit, Minimize2, ChevronDown, Flame, Sparkles, Mic, Square } from "lucide-react";
+import { useSpeechInput } from "@/hooks/use-speech-input";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -327,6 +328,8 @@ export function AiCoachGlobal() {
     return ctx;
   };
 
+  const speech = useSpeechInput(setInput);
+
   const sendMessage = async (text: string) => {
     if (!text.trim() || loading) return;
 
@@ -370,6 +373,7 @@ export function AiCoachGlobal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (speech.listening) return; // wait for the final transcript
     sendMessage(input);
   };
 
@@ -499,6 +503,7 @@ export function AiCoachGlobal() {
                 </div>
               )}
 
+              {speech.error && <p role="alert" className="mb-1 text-xs text-destructive">{speech.error}</p>}
               <form onSubmit={handleSubmit} className="flex gap-1.5">
                 <Input
                   ref={inputRef}
@@ -509,9 +514,24 @@ export function AiCoachGlobal() {
                   disabled={loading}
                   className="flex-1 h-9 text-xs rounded-lg"
                 />
+                {speech.supported && (
+                  <button
+                    type="button"
+                    onClick={() => (speech.listening ? speech.stop() : speech.start())}
+                    disabled={loading}
+                    aria-label={speech.listening ? "Stop dictation" : "Speak your question"}
+                    aria-pressed={speech.listening}
+                    className={cn(
+                      "p-2 rounded-lg transition-all active:scale-95 shrink-0",
+                      speech.listening ? "bg-red-500 text-white animate-pulse" : "bg-muted/30 text-muted-foreground"
+                    )}
+                  >
+                    {speech.listening ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  </button>
+                )}
                 <button
                   type="submit"
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || speech.listening}
                   className={cn(
                     "p-2 rounded-lg transition-all active:scale-95 shrink-0",
                     input.trim() && !loading

@@ -765,6 +765,13 @@ function TodayFlow({
             >
               Enter all
             </button>
+            <button
+              type="button"
+              onClick={() => navigateTo('/descent')}
+              className="text-xs font-bold text-primary underline-offset-2 hover:underline"
+            >
+              Descent plan
+            </button>
           </span>
           <div className="flex items-center gap-1.5">
             <div className="flex gap-0.5">

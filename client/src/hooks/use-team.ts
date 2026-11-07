@@ -138,3 +138,41 @@ export function useTeam() {
 
   return { ...state, status, reload, createTeam, saveEvent, deleteEvent, joinTeam, leaveTeam, setSkipped };
 }
+
+export interface RosterEntry {
+  userId: string;
+  name: string;
+  weightClass: number | null;
+  joinedAt: string | null;
+  skipped: string[];
+}
+
+/** The coach's roster: who joined, their class, and events they marked "Not wrestling". */
+export function useTeamRoster(teamId: string | null) {
+  const [roster, setRoster] = useState<RosterEntry[] | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt(n => n + 1), []);
+
+  useEffect(() => {
+    if (!teamId) return;
+    let cancelled = false;
+    setStatus('loading');
+    (async () => {
+      const { data, error } = await supabase.rpc('team_roster', { t: teamId });
+      if (cancelled) return;
+      if (error) { setStatus(/team_roster|PGRST202|42883/.test(`${error.code} ${error.message}`) ? 'unavailable' : 'error'); return; }
+      setRoster((data ?? []).map((r: any) => ({
+        userId: r.user_id,
+        name: [r.name, r.last_name].filter(Boolean).join(' ') || 'Unnamed athlete',
+        weightClass: r.weight_class == null ? null : Number(r.weight_class),
+        joinedAt: r.joined_at ?? null,
+        skipped: r.skipped_event_ids ?? [],
+      })));
+      setStatus('ready');
+    })();
+    return () => { cancelled = true; };
+  }, [teamId, attempt]);
+
+  return { roster, status, retry };
+}
