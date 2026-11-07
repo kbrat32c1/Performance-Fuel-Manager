@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { connectWhoop, disconnectWhoop, getWhoopStatus, syncWhoop, type WhoopStatus } from "@/lib/whoop";
 
 export const WHOOP_CHANGED_EVENT = "spar-whoop-changed";
+/** Fired after Sync now / Disconnect so the dashboard reloads its health data. */
+export const WHOOP_DATA_CHANGED_EVENT = "spar-whoop-data-changed";
 
 /** Settings → Health: connect, sync or disconnect the athlete's own WHOOP. */
 export function WhoopCard({ onSynced }: { onSynced?: () => void }) {
@@ -30,6 +32,7 @@ export function WhoopCard({ onSynced }: { onSynced?: () => void }) {
     if (kind !== "connect") {
       await load();
       onSynced?.();
+      window.dispatchEvent(new Event(WHOOP_DATA_CHANGED_EVENT));
     }
   };
 

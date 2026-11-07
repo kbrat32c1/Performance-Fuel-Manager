@@ -47,6 +47,12 @@ export async function connectWhoop(): Promise<string | null> {
   return null;
 }
 
+/** Claim a WHOOP approval returned from WHOOP's page (one-time code, this account only). */
+export async function completeWhoop(nonce: string): Promise<string | null> {
+  const { ok, data } = await post('/api/whoop/complete', { nonce });
+  return ok ? null : data.error || "WHOOP didn't connect.";
+}
+
 export async function syncWhoop(): Promise<string | null> {
   const { ok, data } = await post('/api/whoop/sync');
   return ok ? null : data.error || 'WHOOP sync failed.';

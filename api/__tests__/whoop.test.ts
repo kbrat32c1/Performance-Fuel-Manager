@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { signState, verifyState, authorizeUrl, returnUrl, localDate, toDailyRows, WHOOP_SCOPES } from '../_whoop';
+import { signState, verifyState, authorizeUrl, returnUrl, localDate, toDailyRows, checkPendingClaim, WHOOP_SCOPES } from '../_whoop';
 
 const SECRET = 'test-secret';
 
@@ -30,7 +30,8 @@ describe('URLs', () => {
   });
 
   it('sends web users to the dashboard and app users back into the app', () => {
-    expect(returnUrl('web', 'connected')).toBe('https://performance-fuel-manager.vercel.app/dashboard?whoop=connected');
+    expect(returnUrl('web', 'finish', 'abc')).toBe('https://performance-fuel-manager.vercel.app/dashboard?whoop=finish&n=abc');
+    expect(returnUrl('native', 'finish', 'abc')).toBe('com.sparnutrition.app://whoop?status=finish&n=abc');
     expect(returnUrl('native', 'error')).toBe('com.sparnutrition.app://whoop?status=error');
   });
 });
@@ -73,5 +74,15 @@ describe('toDailyRows', () => {
       [{ ...cycle, score_state: 'UNSCORABLE' }],
     );
     expect(rows).toEqual([]);
+  });
+});
+
+describe('claiming a WHOOP approval', () => {
+  const created = new Date(1_000_000).toISOString();
+  it('only the account that started it, within 15 minutes', () => {
+    expect(checkPendingClaim({ user_id: 'a', created_at: created }, 'a', 1_000_000 + 60_000)).toBe('ok');
+    expect(checkPendingClaim({ user_id: 'a', created_at: created }, 'b', 1_000_000 + 60_000)).toBe('wrong-account');
+    expect(checkPendingClaim({ user_id: 'a', created_at: created }, 'a', 1_000_000 + 16 * 60_000)).toBe('expired');
+    expect(checkPendingClaim(null, 'a')).toBe('missing');
   });
 });

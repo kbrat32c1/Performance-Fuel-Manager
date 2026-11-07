@@ -32,3 +32,20 @@ $$;
 
 REVOKE ALL ON FUNCTION whoop_status() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION whoop_status() TO authenticated;
+
+-- A WHOOP approval waits here (a few minutes, server only) until the signed-in
+-- SPAR account that started it claims it. That stops someone from sending their
+-- approval link to another person and capturing that person's WHOOP data.
+CREATE TABLE IF NOT EXISTS whoop_pending (
+  nonce TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  whoop_user_id TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  scope TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE whoop_pending ENABLE ROW LEVEL SECURITY;
+-- Intentionally no policies: only the server can read or write pending approvals.

@@ -1,7 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { exchangeCode, returnUrl, serviceClient, syncWhoop, verifyState, whoopConfig, whoopGet } from "../_whoop.js";
+import { exchangeCode, newNonce, PENDING_MAX_AGE_MS, returnUrl, serviceClient, verifyState, whoopConfig, whoopGet } from "../_whoop.js";
 
-/** WHOOP sends the athlete back here after they approve (or decline) access. */
+/**
+ * WHOOP sends the athlete back here after they approve (or decline). Nothing is attached to a
+ * SPAR account yet: the tokens wait in whoop_pending until the signed-in app that started the
+ * connection claims them (api/whoop/complete).
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const cfg = whoopConfig();
   const db = serviceClient();
@@ -18,20 +22,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       whoopUserId = profile.user_id != null ? String(profile.user_id) : null;
     } catch { /* profile is optional */ }
 
-    const { error } = await db.from("whoop_connections").upsert({
+    const nonce = newNonce();
+    await db.from("whoop_pending").delete().lt("created_at", new Date(Date.now() - PENDING_MAX_AGE_MS).toISOString());
+    const { error } = await db.from("whoop_pending").insert({
+      nonce,
       user_id: state.userId,
       whoop_user_id: whoopUserId,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       scope: tokens.scope ?? null,
-      connected_at: new Date().toISOString(),
-      last_error: null,
-    }, { onConflict: "user_id" });
+    });
     if (error) return fail();
-
-    try { await syncWhoop(db, cfg, state.userId, 30); } catch { /* the app retries on its next sync */ }
-    return res.redirect(302, returnUrl(platform, "connected"));
+    return res.redirect(302, returnUrl(platform, "finish", nonce));
   } catch {
     return fail();
   }

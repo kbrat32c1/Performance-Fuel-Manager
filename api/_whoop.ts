@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
@@ -63,11 +63,33 @@ export function authorizeUrl(cfg: WhoopConfig, state: string): string {
   return `${WHOOP_AUTH_URL}?${q}`;
 }
 
-/** Where the athlete lands after connecting (or failing to). */
-export function returnUrl(platform: Platform, status: "connected" | "error"): string {
+/**
+ * Where the athlete lands after WHOOP. "finish" carries a one-time code the signed-in app must
+ * claim (POST /api/whoop/complete) before anything is saved to an account.
+ */
+export function returnUrl(platform: Platform, status: "finish" | "error", nonce?: string): string {
+  const n = status === "finish" && nonce ? `&n=${encodeURIComponent(nonce)}` : "";
   return platform === "native"
-    ? `com.sparnutrition.app://whoop?status=${status}`
-    : `${APP_ORIGIN}/dashboard?whoop=${status}`;
+    ? `com.sparnutrition.app://whoop?status=${status}${n}`
+    : `${APP_ORIGIN}/dashboard?whoop=${status}${n}`;
+}
+
+export const PENDING_MAX_AGE_MS = 15 * 60 * 1000;
+
+export function newNonce(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+/** Only the SPAR account that started the connection, within 15 minutes, can claim a WHOOP approval. */
+export function checkPendingClaim(
+  pending: { user_id: string; created_at: string } | null,
+  userId: string,
+  now = Date.now(),
+): "ok" | "missing" | "expired" | "wrong-account" {
+  if (!pending) return "missing";
+  if (now - Date.parse(pending.created_at) > PENDING_MAX_AGE_MS) return "expired";
+  if (pending.user_id !== userId) return "wrong-account";
+  return "ok";
 }
 
 // ─── Tokens ───
