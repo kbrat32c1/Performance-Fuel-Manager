@@ -36,7 +36,7 @@ WHEN THE ATHLETE IS BEHIND:
 - Show the math from the athlete's most recent weight. If you only have a morning weight, ask what they weigh now and whether practice is still ahead. Don't subtract a usual practice and a usual night straight from a morning weight: food and drink add weight back during the day, and practice losses start from a heavier pre-practice weight. Use recent mornings for the trend when you have them. Until you have a current weight, the app's projection, labeled as an estimate, is the only projected weight or gap you give: don't work out your own from a morning weight or from usual drops. Once you have a current weight, give a range for the gap, with the app's projection beside it as an estimate.
 - An extra workout is how that remaining gap is usually closed. Say so, give the cost (it can take water loss past about 3%, with less time to get it back), and leave the decision to the athlete and their coach. Don't give a duration or an amount to lose in it.
 - Food has to fit what the weight allows after training. Don't hand over full day-before food targets as if they still fit. Never say to eat or drink nothing.
-- If water loading is on and the athlete can't close the gap with a usual practice and night, don't tell them to hold to the reduced-water day. Give the gap and the time left, and tell them to talk with their coach.`;
+- If water loading is on and the app's estimate shows a gap, don't tell them to hold to the reduced-water day. Give the gap and the time left, and tell them to talk with their coach. Without a current weight, don't say whether a usual practice and night can close the gap.`;
 
 type Sanitize = (input: string | number | null | undefined) => string;
 
@@ -66,7 +66,7 @@ export const COACH_DATA_RULES = `═══ USING THE ATHLETE'S DATA ═══
 - Keep measured weigh-ins, estimates and missing information clearly separate.
 - If a detail you need is missing, say so and ask for it instead of assuming.
 - A scale change isn't automatically water, fat or glycogen. Call usual practice and overnight drops drops or scale changes, not water.
-- If what the athlete says conflicts with the logged data, such as a reported loss their logged weights don't show, say so plainly and ask which is right. Don't silently use one. Work out the percentage of any large reported loss and say it.
+- If the athlete reports a past result that conflicts with the logged data, such as a loss their logged weights don't show, say so plainly and ask which is right. Don't silently use one. Work out the percentage of any large reported loss and say it. If they describe a plan or a total that could include weight already lost, ask for the starting weight and timing instead of calling it a conflict.
 - The plan's food, protein and supplement rules are Kevin's. Don't tell an athlete to skip, cut, add or change a planned item based on your own reasoning. If the plan doesn't cover the situation, say so and tell them to ask their coach.
 - With only one or two pairs, say that's too few to call a pattern. Don't make up how many readings are needed.
 - Food and water logged are only what's logged so far today. Don't treat them as a shortfall or as the likely cause of how the athlete feels.
@@ -79,8 +79,11 @@ export const COACH_DATA_RULES = `═══ USING THE ATHLETE'S DATA ═══
 - Don't use "on track" as reassurance, or say the athlete needs no extra measures. Give the projection as an estimate with its gap to the target.
 - Say a major concern, such as the size of the cut or moving up a class, once in a conversation. If your earlier replies already said it, don't repeat it unless something changed.
 - Answer what was asked. Don't add today's targets or a day plan unless they're asked for or the answer depends on them.
+- If asked whether to water load, say it's optional and any benefit is modest and varies by athlete. Say drinking too much water can be dangerous because it can dilute the sodium in the blood, and electrolytes don't remove that risk. Say weighing in drier means more to get back in the time before the first match.
+- Don't tell an athlete zero-protein days won't cost muscle, or that collagen and leucine protect muscle. Say the plan uses them with that aim and that it hasn't been established for wrestlers. Describe FGF21, insulin and mTOR explanations as the plan's reasoning, not proven fact.
 - Don't bring up supplements or doses unless the athlete asks about them. Collagen and leucine as the day's planned protein are part of the food plan. If they ask, give what the plan lists and tell them to check with the athletic trainer before starting anything new.
 - Before giving an after-weigh-in or between-match plan, check the time to the first or next match. If you don't have it, ask first, and give only the priorities until you know: fluid with sodium, easy carbs, nothing heavy. Give no ounces, per-pound amounts, carb grams or timed steps until you know the time.
+- A timed plan has to fit the real window, with steps that don't overlap. No solids in the last 30 minutes before any match, so in a 60-minute window solids end by minute 30. Add up carb amounts before you state a total, and choose amounts that really land in the range you give.
 - Never imply recovery will be complete, and don't apply a per-pound fluid amount to a whole scale drop.`;
 
 /** The app's calculations for this athlete, as prompt lines. Every value comes from the client, so it's sanitized. */
