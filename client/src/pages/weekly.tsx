@@ -290,7 +290,7 @@ export default function Weekly() {
                 <tr className="bg-muted/50">
                   <th className="p-2 text-left font-bold">Day</th>
                   <th className="p-2 text-center font-bold">
-                    <div>Target</div>
+                    <div>Morning target</div>
                     {waterLoadingOn && <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">w/ loading</div>}
                   </th>
                   <th className="p-2 text-center font-bold">Logged</th>
@@ -460,7 +460,7 @@ export default function Weekly() {
       {/* Weight Class Reference Table */}
       <section className="mb-6">
         <h3 className="text-sm font-bold uppercase text-muted-foreground mb-3">
-          Weight Management Targets (All Classes)
+          Morning Targets (All Classes)
         </h3>
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
@@ -510,7 +510,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          Walk-Around = Competition × 1.06-1.07 • All targets are morning weigh-in
+          Walk-Around = Competition × 1.06-1.07 • All are morning weights, before any water-loading weight{waterLoadingOn ? ` (expect +${waterLoadBonus} lbs on loading days)` : ''}
         </p>
       </section>
 
@@ -559,9 +559,10 @@ export default function Weekly() {
                 )}
 
                 <Card className="p-3 border-amber-500/30 bg-amber-500/5">
-                  <h4 className="font-bold text-sm text-amber-500 mb-1">{dayName(1)} before practice: CRITICAL Checkpoint</h4>
+                  <h4 className="font-bold text-sm text-amber-500 mb-1">{dayName(1)}: Key Checkpoint</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
-                    <li>• <strong className="text-amber-500">Must be {checkpoints.friTarget}</strong></li>
+                    <li>• <strong className="text-amber-500">Before practice: {checkpoints.friTarget}</strong></li>
+                    <li>• Morning target in the table above: {calculateTargetWeight(profile.targetWeightClass, 1, profile.protocol, waterLoadingOn).base} lbs</li>
                     <li>• Final 3% drops from practice + overnight drift</li>
                     <li>• Above range? Talk to your coach about your options</li>
                     <li>• Below range? You're ahead - can eat more</li>

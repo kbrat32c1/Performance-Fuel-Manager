@@ -1416,7 +1416,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntilWeighIn === 0) {
           currentDayContext = 'Competition day - hit weight class, then rehydrate immediately';
         } else if (daysUntilWeighIn === 1) {
-          currentDayContext = `CRITICAL: Must be ${criticalLow}-${criticalHigh} lbs before practice — practice and overnight drift do the rest`;
+          currentDayContext = `Before practice: ${criticalLow}-${criticalHigh} lbs — practice and overnight drift do the rest`;
         } else if (daysUntilWeighIn === 2) {
           currentDayContext = 'Water restriction day — zero fiber, ADH still flushing.';
         } else if (daysUntilWeighIn === 3) {
@@ -2582,7 +2582,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntil === 1) {
           // Day before competition - sips only
           isCriticalCheckpoint = true;
-          waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs before practice`;
+          waterLoadingNote = `Key checkpoint — before practice: ${Math.round(w * 1.02)}-${baseWeight} lbs`;
         } else if (daysUntil === 2) {
           // 2 days out - water restriction day
           waterLoadingNote = (profile.waterLoading !== false ? `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.` : undefined);
@@ -2662,7 +2662,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } else if (daysUntil === 1) {
         // Critical checkpoint - day before competition (sip only)
         isCriticalCheckpoint = true;
-        waterLoadingNote = `CRITICAL: Must be ${Math.round(w * 1.02)}-${baseWeight} lbs before practice`;
+        waterLoadingNote = `Key checkpoint — before practice: ${Math.round(w * 1.02)}-${baseWeight} lbs`;
       } else if (daysUntil === 2) {
         // 2 days out - water RESTRICTION day. ADH still suppressed from loading → high urine output continues.
         waterLoadingNote = (profile.waterLoading !== false ? `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.` : undefined);

@@ -14,19 +14,21 @@ function WaterLoadingExplainer() {
         shouldn&apos;t need to deliberately dehydrate.
       </p>
       <p>
-        <strong className="text-foreground">What it is:</strong> Drinking more fluid than usual for several days,
-        followed by a reduction before weigh-in. A small{" "}
+        <strong className="text-foreground">What it is:</strong> Drinking more fluid than usual for several days, then
+        cutting back before weigh-in. It&apos;s commonly used in combat sports and may increase short-term weight loss
+        beyond restricting fluids alone. In one controlled{" "}
         <a href={STUDY_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
           study
-        </a>{" "}
-        found that water loading increased short-term weight loss compared with restriction alone, but results vary and
-        the exact approach used in this app hasn&apos;t been established by that study.
+        </a>
+        , athletes lost about 0.6% more body weight on average. The amount varies, and the exact schedule in this app
+        hasn&apos;t been tested.
       </p>
       <p>
-        <strong className="text-foreground">The tradeoff:</strong> Reducing body water can hurt performance, especially
-        when there&apos;s little time between weigh-in and the first match. Drinking too much water can also be
-        dangerous because it can dilute the sodium in your blood. Keep your electrolytes up while you&apos;re drinking
-        more, and don&apos;t drink past what the plan calls for.
+        <strong className="text-foreground">The tradeoff:</strong> Reducing body water can hurt performance. How much
+        depends on you, what else you&apos;ve done to make weight, and how much time you have between weigh-in and your
+        first match. Drinking too much water can also be dangerous because it can dilute the sodium in your blood. Keep
+        your electrolytes up while you&apos;re drinking more, but electrolytes don&apos;t remove that risk, so don&apos;t
+        drink past what the plan calls for.
       </p>
       <p>
         <strong className="text-foreground">If you&apos;re considering it:</strong> Discuss the situation with your

@@ -875,7 +875,7 @@ export default function Recovery() {
                 </p>
                 {water.overSafeCut && (
                   <p className="text-xs text-chart-3 font-medium">
-                    That drop was {Math.round((water.cutPct || 0) * 1000) / 10}% — over 3% usually hurts performance. Follow the fluid plan and give yourself as much time as you can.
+                    That&apos;s a {Math.round((water.cutPct || 0) * 1000) / 10}% drop on the scale. Performance risk rises as dehydration increases, and effects can show up below 3%. Follow the fluid plan and give yourself as much time as you can.
                   </p>
                 )}
               </div>
