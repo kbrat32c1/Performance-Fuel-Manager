@@ -617,9 +617,11 @@ export function AiCoachProactive() {
                   </span>
                   <span className="text-muted-foreground font-normal">•</span>
                   <span className="whitespace-nowrap">
-                    {insights.walkAroundGap <= 0
-                      ? 'At walk-around weight'
-                      : `${insights.walkAroundGap.toFixed(1)} lbs over`}
+                    {insights.walkAroundGap > 0.05
+                      ? `${insights.walkAroundGap.toFixed(1)} lbs over`
+                      : insights.walkAroundGap < -0.05
+                        ? `${Math.abs(insights.walkAroundGap).toFixed(1)} lbs under walk-around`
+                        : 'At walk-around weight'}
                   </span>
                 </>
               ) : (

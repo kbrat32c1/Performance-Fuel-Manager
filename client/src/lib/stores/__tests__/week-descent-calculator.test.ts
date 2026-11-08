@@ -68,4 +68,37 @@ describe("Cut Lab calculations", () => {
     const r = run([...nights(11, 3, 1.2), ...practices([8, 9, 10], 2.5)]);
     expect(r.confidence.reliable).toBe(true);
   });
+
+  it("counts the overnight pair that ends on the first morning of the cycle", () => {
+    // Viewing Sun Nov 8 at 6:30 AM, weigh-in Sat Nov 14: the cycle starts at midnight Nov 8.
+    const sunday = { ...profile, simulatedDate: new Date(2026, 10, 8, 6, 30) } as AthleteProfile;
+    const logs = [
+      at(7, 10, 161.4, "morning"), at(7, 10, 163.0, "pre-practice"), at(7, 11, 160.6, "post-practice"),
+      at(7, 22, 163.0, "before-bed"),
+      { ...at(8, 6, 160.6, "morning", { sleepHours: 7 }), date: new Date(2026, 10, 8, 6, 18) },
+    ];
+    const r = computeWeekDescentData({
+      profile: sunday, logs, daysUntilWeighIn: 6, calculateTarget: () => 157,
+      getDailyTracking: (date: string) => ({ date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0 } as DailyTracking),
+    });
+    expect(r.confidence.driftSamples).toBe(1);
+    expect(r.avgOvernightDrift).toBeCloseTo(2.4, 5);
+    expect(r.avgDriftRateOzPerHr).toBeCloseTo(2.4 / 8.3, 3);
+    // Saturday's practice is before the cycle, so it is not this cycle's pair.
+    expect(r.confidence.practiceSamples).toBe(0);
+  });
+
+  it("gives season averages the same limits and per-hour rate as cycle pairs", () => {
+    // All before the cycle (Nov 8-14), so these feed the season averages.
+    const logs = [
+      at(1, 22, 141, "before-bed"), at(2, 6, 139.5, "morning", { sleepHours: 5 }), // 1.5 lb loss over 8 h
+      at(2, 22, 139, "before-bed"), at(3, 6, 139.4, "morning"),                     // 0.4 lb gain
+      at(4, 15, 141, "pre-practice"), at(4, 17, 139, "post-practice", { duration: 120 }), // 2.0 lb loss
+      at(5, 15, 154, "pre-practice"), at(5, 17, 139, "post-practice", { duration: 120 }), // 15 lb typo
+    ];
+    const r = run(logs);
+    expect(r.historicalPracticeLoss).toBeCloseTo(2.0, 5);
+    expect(r.historicalDrift).toBeLessThan(1.5); // the gain night counts
+    expect(r.historicalDriftRate).toBeCloseTo(1.5 / 8, 5); // hours bed→morning, not sleep hours
+  });
 });

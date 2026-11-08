@@ -167,9 +167,17 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
   const allDrifts: number[] = [];
   const driftRates: number[] = [];
 
-  for (let i = 0; i < sortedLogs.length - 1; i++) {
-    const current = sortedLogs[i];
-    const prev = sortedLogs[i + 1];
+  // Overnight pairs belong to the morning they end on, so the first morning of the cycle
+  // still pairs with the bed weight logged the night before cycleStart.
+  const driftLookbackStart = cycleStart.getTime() - 16 * 60 * 60 * 1000;
+  const driftLogs = [...logs]
+    .filter(l => l.date.getTime() >= driftLookbackStart)
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  for (let i = 0; i < driftLogs.length - 1; i++) {
+    const current = driftLogs[i];
+    const prev = driftLogs[i + 1];
+    if (current.date.getTime() < cycleStart.getTime()) break;
     if (current.type === 'morning' && (prev.type === 'post-practice' || prev.type === 'before-bed')) {
       const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
       if (hoursDiff > 4 && hoursDiff < 16) {
@@ -728,13 +736,15 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
       const prev = allSortedLogs[i + 1];
       if ((morning.type === 'morning' || morning.type === 'weigh-in') &&
           (prev.type === 'before-bed' || prev.type === 'post-practice')) {
+        // Same rules as this cycle's pairs: same time window and typo limits, gains count,
+        // and the rate is per hour from the bed weight to the morning weight.
         const hoursDiff = (morning.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
-        if (hoursDiff >= 4 && hoursDiff <= 16) {
+        if (hoursDiff > 4 && hoursDiff < 16) {
           const drift = prev.weight - morning.weight;
-          if (drift > 0 && drift < 8) {
+          if (drift >= -DRIFT_GAIN_LIMIT && drift <= DRIFT_LOSS_LIMIT) {
             histDrifts.push(drift);
-            if (morning.sleepHours && morning.sleepHours > 0) {
-              histDriftRates.push(drift / morning.sleepHours);
+            if (drift > 0 && prev.type === 'before-bed') {
+              histDriftRates.push(drift / hoursDiff);
             }
           }
         }
@@ -749,6 +759,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
         const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
         if (hoursDiff < 6) {
           const loss = pre.weight - post.weight;
+          if (loss < -PRACTICE_GAIN_LIMIT || loss > PRACTICE_LOSS_LIMIT) continue;
           histPracticeLosses.push(loss);
           if (loss > 0) {
             const hrs = post.duration && post.duration > 0 ? post.duration / 60 : (hoursDiff >= 0.25 ? hoursDiff : null);
