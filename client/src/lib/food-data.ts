@@ -741,7 +741,9 @@ export function alignGuideWithProtein(
     ...guide,
     proteinStatus: 'full',
     proteinTip: `Protein target today: ${range}`,
-    eatProtein: SUGAR_FOODS.protein.filter(f => f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday'),
+    // The day's no-dairy rule still applies, so the recovery-day list is filtered for it.
+    eatProtein: SUGAR_FOODS.protein.filter(f =>
+      (f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday') && !/yogurt|dairy|milk|cheese|whey|casein/i.test(f.name)),
     avoidSummary: 'No dairy, no fiber',
     mealGuide: { morning: guide.mealGuide.morning, afternoon: `Carbs, plus protein toward your ${range} target`, evening: `Carbs, plus protein toward your ${range} target` },
   };

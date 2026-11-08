@@ -8,6 +8,7 @@ describe("Grams food guide follows the protein target", () => {
     expect(g.proteinTip).toContain("25-75 g");
     expect(g.proteinTip).not.toMatch(/zero/i);
     expect(g.eatProtein.length).toBeGreaterThan(0);
+    expect(g.eatProtein.map(f => f.name).join(" ")).not.toMatch(/yogurt|dairy|milk/i);
   });
 
   it("keeps zero protein when the target really is zero", () => {
