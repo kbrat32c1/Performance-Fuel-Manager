@@ -1330,11 +1330,11 @@ export default function Dashboard() {
     // Protocol name for header
     const protocolLabel = (() => {
       switch (profile.protocol) {
-        case '1': return { label: 'Extreme Cut plan', color: 'text-red-500' };
-        case '2': return { label: 'Rapid Cut plan', color: 'text-primary' };
+        case '1': return { label: 'Extreme Cut · Sugar System', color: 'text-red-500' };
+        case '2': return { label: 'Rapid Cut · Sugar System', color: 'text-primary' };
         case '3': return { label: 'Maintain · Sugar System', color: 'text-primary' };
-        case '4': return { label: 'Gain plan', color: 'text-green-500' };
-        case '6': return { label: 'SPAR Competition plan', color: 'text-purple-500' };
+        case '4': return { label: 'Gain · Sugar System', color: 'text-green-500' };
+        case '6': return { label: 'SPAR Competition · Balanced Nutrition', color: 'text-purple-500' };
         default: return { label: 'Your plan', color: 'text-primary' };
       }
     })();
