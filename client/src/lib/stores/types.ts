@@ -18,7 +18,7 @@ import type { TrackingSyncStatus } from './tracking-sync';
 // ─── Protocol & Status ──────────────────────────────────────────────────────
 
 export type Protocol = '1' | '2' | '3' | '4' | '5' | '6';
-// 1: Extreme Cut Phase (12%+ above class, multi-day depletion)
+// 1: Extreme Cut Phase (preseason fat-loss block, body fat over 12%)
 // 2: Rapid Cut Phase (7-12% above class, short-term glycogen + water manipulation)
 // 3: Optimal Cut Phase (Within 6-7% of class, glycogen management, performance protected)
 // 4: Gain Phase (Off-season, performance and strength focus)

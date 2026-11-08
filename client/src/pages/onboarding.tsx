@@ -139,7 +139,7 @@ export default function Onboarding() {
 
   // Competition protocol recommendation — uses shared utility
   const getProtocolRecommendation = () => {
-    return getProtocolRec(profile.currentWeight, profile.targetWeightClass);
+    return getProtocolRec(profile.currentWeight, profile.targetWeightClass, { bodyFatPercent: profile.bodyFatPercent, weighInDate: profile.weighInCleared ? null : profile.weighInDate });
   };
 
   const handleNext = async () => {

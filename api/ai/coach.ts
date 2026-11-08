@@ -115,7 +115,7 @@ ${contextLines.length > 0 ? contextLines.join('\n') : 'No context provided'}
 ═══ SPAR PROTOCOL: COMPLETE METHODOLOGY ═══
 
 THE 5 PROTOCOLS:
-• Protocol 1 – Extreme Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used when athlete is 12%+ over weight class.
+• Protocol 1 – Extreme Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used only in preseason (weigh-in 4+ weeks away) when body fat is over 12%; in-season, an athlete 7%+ over class uses Rapid Cut.
 • Protocol 2 – Rapid Cut (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol. 7-12% above class.
 • Protocol 3 – Optimal Cut: Athlete is within 6-7% of weight class (at walk-around weight). Moderate protein throughout. Glycogen management, performance protected.
 • Protocol 4 – Gain Phase: Off-season muscle building. High protein (125-150g), high carbs (350-600g). Glucose emphasis.

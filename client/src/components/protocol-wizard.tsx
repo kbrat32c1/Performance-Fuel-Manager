@@ -19,12 +19,14 @@ import { activateOnKey } from "@/lib/a11y";
 interface ProtocolWizardProps {
   currentWeight: number;
   targetWeightClass: number;
+  bodyFatPercent?: number | null;
+  weighInDate?: Date | string | null;
   onComplete: (protocol: Protocol) => void;
   onBack?: () => void;
   submitLabel?: string;
 }
 
-export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, onBack, submitLabel }: ProtocolWizardProps) {
+export function ProtocolWizard({ currentWeight, targetWeightClass, bodyFatPercent, weighInDate, onComplete, onBack, submitLabel }: ProtocolWizardProps) {
   const [selectedProtocol, setSelectedProtocol] = useState<Protocol | null>(null);
   const [showScience, setShowScience] = useState<Protocol | false>(false);
 
@@ -32,7 +34,7 @@ export function ProtocolWizard({ currentWeight, targetWeightClass, onComplete, o
   const walkAroundWeight = targetWeightClass * 1.07;
   const percentOver = ((currentWeight - targetWeightClass) / targetWeightClass) * 100;
 
-  const recommendation = getProtocolRecommendation(currentWeight, targetWeightClass);
+  const recommendation = getProtocolRecommendation(currentWeight, targetWeightClass, { bodyFatPercent, weighInDate });
 
   // Pre-select the recommended protocol
   if (selectedProtocol === null) {

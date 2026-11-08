@@ -78,8 +78,8 @@ export const PROTOCOL_CONFIG: Record<Protocol, {
   icon: typeof Flame;
   color: string;
 }> = {
-  '1': { label: 'Extreme Cut Phase', desc: '12%+ above class. Multi-day depletion, strict oversight required.', pickIf: "You're more than 12% over your class. Only with your coach's OK.", icon: Flame, color: 'text-destructive' },
-  '2': { label: 'Rapid Cut Phase', desc: '7-12% above class. Short-term glycogen + water manipulation.', pickIf: "You're 7–12% over your class (above walk-around weight) and need to come down.", icon: Zap, color: 'text-primary' },
+  '1': { label: 'Extreme Cut Phase', desc: 'Preseason fat-loss block when body fat is over 12%. Strict oversight required.', pickIf: "It's preseason, your body fat is over 12%, and you're well above walk-around weight. Only with your coach's OK.", icon: Flame, color: 'text-destructive' },
+  '2': { label: 'Rapid Cut Phase', desc: '7%+ above class. Short-term glycogen + water manipulation.', pickIf: "You're 7%+ over your class (above walk-around weight) and need to come down.", icon: Zap, color: 'text-primary' },
   '3': { label: 'Optimal Cut Phase', desc: 'Within 6-7% of class. Glycogen management, performance protected.', pickIf: "You're within 7% of your class (at walk-around weight) and holding there for the season.", icon: Trophy, color: 'text-primary' },
   '4': { label: 'Gain Phase', desc: 'Off-season. Performance and strength focus.', pickIf: "You're under your class or it's the off-season, and you want to build strength.", icon: Dumbbell, color: 'text-primary' },
   '5': { label: 'SPAR Nutrition', desc: 'Clean eating — count portions, not calories', pickIf: "You're not making a weight. You want to eat well by counting palms and fists, not calories.", icon: Salad, color: 'text-green-500' },
@@ -89,14 +89,35 @@ export const PROTOCOL_CONFIG: Record<Protocol, {
 // ═══════════════════════════════════════════════════════════════════════════════
 // getProtocolRecommendation — Weight-based protocol recommendation
 // ═══════════════════════════════════════════════════════════════════════════════
+export interface ProtocolRecommendationContext {
+  /** Body fat %, if the athlete has entered it. */
+  bodyFatPercent?: number | null;
+  /** Next weigh-in; 4+ weeks away (or none set) counts as preseason. */
+  weighInDate?: Date | string | null;
+  now?: Date;
+}
+
+/** Preseason = no weigh-in coming up within PRESEASON_MIN_DAYS. */
+export function isPreseason(weighInDate: Date | string | null | undefined, now: Date = new Date()): boolean {
+  if (!weighInDate) return true;
+  const wi = new Date(weighInDate);
+  if (isNaN(wi.getTime())) return true;
+  const days = Math.floor((wi.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  // A weigh-in date already in the past is likely stale mid-season, so not preseason.
+  return days >= SAFETY_THRESHOLDS.PRESEASON_MIN_DAYS;
+}
+
 export function getProtocolRecommendation(
   currentWeight: number,
-  targetWeightClass: number
+  targetWeightClass: number,
+  context: ProtocolRecommendationContext = {},
 ): { protocol: Protocol; reason: string; warning?: string } {
   const walkAroundWeight = targetWeightClass * 1.07;
   const percentOver = ((currentWeight - targetWeightClass) / targetWeightClass) * 100;
   const lbsOverWalkAround = currentWeight - walkAroundWeight;
   const lbsOverTarget = currentWeight - targetWeightClass;
+  const bodyFat = context.bodyFatPercent != null && context.bodyFatPercent > 0 ? context.bodyFatPercent : null;
+  const preseason = isPreseason(context.weighInDate, context.now);
 
   // Moving UP in weight class
   if (currentWeight < targetWeightClass) {
@@ -106,20 +127,25 @@ export function getProtocolRecommendation(
     };
   }
 
-  // More than 12% over = need aggressive fat loss first
-  if (percentOver > SAFETY_THRESHOLDS.EXTREME_CUT_TRIGGER) {
+  // Preseason with body fat over the line: a fat-loss block, while there is time to lose fat.
+  // Scale weight alone never triggers it — that's what Rapid Cut handles in-season.
+  if (preseason && bodyFat !== null && bodyFat > SAFETY_THRESHOLDS.EXTREME_CUT_BODY_FAT && currentWeight > walkAroundWeight) {
     return {
       protocol: '1',
-      reason: `You're ${percentOver.toFixed(1)}% over your competition weight (${lbsOverWalkAround.toFixed(1)} lbs above walk-around). Extreme Cut Phase will burn fat without sacrificing performance.`,
+      reason: `Preseason at ${bodyFat.toFixed(1)}% body fat and ${percentOver.toFixed(1)}% over your class. Extreme Cut Phase brings body fat down while there's time.`,
       warning: 'Run 2-4 weeks max, then transition to Rapid Cut or Optimal Cut.',
     };
   }
 
-  // Over walk-around weight but within threshold = need to cut to walk-around
+  // Over walk-around weight (7%+ over class) = cut to walk-around
   if (currentWeight > walkAroundWeight) {
+    const askForBodyFat = preseason && bodyFat === null && percentOver > SAFETY_THRESHOLDS.EXTREME_CUT_TRIGGER;
     return {
       protocol: '2',
       reason: `You're ${lbsOverWalkAround.toFixed(1)} lbs above your walk-around weight (${walkAroundWeight.toFixed(1)} lbs). Rapid Cut Phase manages your weekly cut while preserving performance.`,
+      ...(askForBodyFat
+        ? { warning: `You're ${percentOver.toFixed(1)}% over your class. Add your body fat % in settings: over ${SAFETY_THRESHOLDS.EXTREME_CUT_BODY_FAT}% in preseason, a fat-loss phase may fit better.` }
+        : {}),
     };
   }
 
