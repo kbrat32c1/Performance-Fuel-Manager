@@ -329,6 +329,10 @@ export interface StoreContextType {
       driftSamples: number;
       practiceSamples: number;
       level: 'high' | 'medium' | 'low' | 'none';
+      /** Pairs dropped as implausible (likely typos) */
+      excludedPairs: number;
+      /** Enough overnight and practice pairs to base recommendations on */
+      reliable: boolean;
     };
     makeWeightProb: {
       probability: number;

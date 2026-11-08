@@ -29,6 +29,7 @@ export interface CutScoreInput {
   currentWeight: number | null;        // most recent weight
   grossDailyLoss: number | null;       // total daily loss capacity (drift + practice)
   daysRemaining: number;               // days until weigh-in
+  projectionReliable?: boolean;        // enough real weigh-in pairs behind projectedSaturday
 
   // ── Recovery pillar ──
   // Basic tier
@@ -71,6 +72,8 @@ export interface CutScoreResult {
   label: string;           // "On Track", "Needs Work", etc.
   zone: 'green' | 'yellow' | 'red';
   rationale: string;       // What's driving the score
+  /** Why the score should be read with caution (thin projection data, missing pillars), or null */
+  limitedData: string | null;
   pillars: {
     weight: PillarScore;
     recovery: PillarScore;
@@ -533,7 +536,13 @@ export function computeCutScore(input: CutScoreInput): CutScoreResult {
   const { label, zone } = getZoneAndLabel(score);
   const rationale = getRationale(pillars, input);
 
-  return { score, label, zone, rationale, pillars };
+  // Say plainly when the verdict rests on thin or missing data.
+  const gaps: string[] = [];
+  if (input.projectionReliable === false && input.daysRemaining > 0) gaps.push('few weigh-in pairs behind the projection');
+  if (!pillars.protocol.hasData) gaps.push('no food or water logged today');
+  const limitedData = gaps.length > 0 ? `Limited data: ${gaps.join('; ')}.` : null;
+
+  return { score, label, zone, rationale, pillars, limitedData };
 }
 
 // ═══ UTILS ═══

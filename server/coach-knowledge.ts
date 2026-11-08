@@ -417,6 +417,9 @@ export function formatInsightsForPrompt(insights: any): string {
   if (insights.fluidAllowance) {
     lines.push(`🚰 FLUID ALLOWANCE: ${insights.fluidAllowance.oz} oz allowed, cutoff: ${insights.fluidAllowance.cutoffTime}`);
   }
+  if (insights.projectionNote) {
+    lines.push(`📉 PROJECTION CONFIDENCE LOW: ${insights.projectionNote}`);
+  }
   if (insights.workoutGuidance) {
     lines.push(`🏃 WORKOUT NEEDED: ${insights.workoutGuidance.description} (${insights.workoutGuidance.sessions} session(s), ${insights.workoutGuidance.minutes} min total)`);
   }

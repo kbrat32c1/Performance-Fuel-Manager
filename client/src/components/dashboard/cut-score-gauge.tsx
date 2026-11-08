@@ -145,6 +145,9 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
           <p className="text-xs text-muted-foreground leading-snug mt-0.5">
             {result.rationale}
           </p>
+          {result.limitedData && (
+            <p className="text-xs text-chart-3 leading-snug mt-0.5">{result.limitedData}</p>
+          )}
           {/* Active pillar indicators */}
           <div className="flex items-center gap-2 mt-1.5">
             {(Object.keys(PILLAR_CONFIG) as Array<keyof typeof PILLAR_CONFIG>).map((key) => {

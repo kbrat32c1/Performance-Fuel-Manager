@@ -264,7 +264,7 @@ export function AiCoachGlobal() {
       const expectedDrift = descentData.avgOvernightDrift ?? null;
 
       // Expected practice loss
-      const expectedPracticeLoss = descentData.avgPracticeLoss ? Math.abs(descentData.avgPracticeLoss) : null;
+      const expectedPracticeLoss = descentData.avgPracticeLoss != null ? Math.max(0, descentData.avgPracticeLoss) : null;
 
       // Calculate fluid allowance
       let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
@@ -281,7 +281,9 @@ export function AiCoachGlobal() {
 
       // Calculate workout guidance
       let workoutGuidance: { sessions: number; minutes: number; description: string } | null = null;
-      if (weightToLose > 0 && sweatRate && sweatRate > 0) {
+      // Only suggest extra work when the projection rests on several real weigh-in pairs.
+      const projectionReliable = descentData.confidence?.reliable === true;
+      if (projectionReliable && weightToLose > 0 && sweatRate && sweatRate > 0) {
         const remainingAfterDrift = weightToLose - (expectedDrift ?? 0);
         if (remainingAfterDrift > 0) {
           const lossPerSession = sweatRate * 0.75; // 45 min session
@@ -318,6 +320,10 @@ export function AiCoachGlobal() {
         expectedPracticeLoss: expectedPracticeLoss?.toFixed(1) ?? null,
         fluidAllowance,
         workoutGuidance,
+        projectionReliable,
+        projectionNote: projectionReliable
+          ? null
+          : `Not enough weigh-in pairs yet (${descentData.confidence?.driftSamples ?? 0} overnight, ${descentData.confidence?.practiceSamples ?? 0} practice; need ${3} each). Do not prescribe extra workouts from the projection — tell the athlete to keep logging and follow the plan.`,
         foodGuidance,
         statusRecommendation: statusData.recommendation?.message ?? null,
         projectionWarning: statusData.projectionWarning ?? null,
