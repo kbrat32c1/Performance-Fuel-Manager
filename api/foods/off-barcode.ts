@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { applyCors } from "../_cors.js";
+import { barcodeServingBasis } from "./_fatsecret-utils.js";
 
 /**
  * Barcode Lookup API — FatSecret Premier (primary) with Open Food Facts fallback.
@@ -126,13 +127,14 @@ async function lookupFatSecretBarcode(barcode: string, token: string) {
   const defaultServing = servings.find((s: any) => s.is_default === "1") || servings[0];
   if (!defaultServing) return null;
 
-  const calories = round(parseFloat(defaultServing.calories) || 0);
-  const protein = round(parseFloat(defaultServing.protein) || 0);
-  const carbs = round(parseFloat(defaultServing.carbohydrate) || 0);
-  const fat = round(parseFloat(defaultServing.fat) || 0);
-  const fiber = round(parseFloat(defaultServing.fiber) || 0);
-  const sugar = round(parseFloat(defaultServing.sugar) || 0);
-  const sodium = round(parseFloat(defaultServing.sodium) || 0);
+  const { servingSize, scale } = barcodeServingBasis(defaultServing);
+  const calories = round((parseFloat(defaultServing.calories) || 0) * scale);
+  const protein = round((parseFloat(defaultServing.protein) || 0) * scale);
+  const carbs = round((parseFloat(defaultServing.carbohydrate) || 0) * scale);
+  const fat = round((parseFloat(defaultServing.fat) || 0) * scale);
+  const fiber = round((parseFloat(defaultServing.fiber) || 0) * scale);
+  const sugar = round((parseFloat(defaultServing.sugar) || 0) * scale);
+  const sodium = round((parseFloat(defaultServing.sodium) || 0) * scale);
 
   return {
     barcode,
@@ -145,7 +147,7 @@ async function lookupFatSecretBarcode(barcode: string, token: string) {
     fiber,
     sugar,
     sodium,
-    servingSize: parseFloat(defaultServing.metric_serving_amount) || null,
+    servingSize,
     servingSizeLabel: defaultServing.serving_description || "",
     imageUrl: null,
     reported: { calories: defaultServing.calories != null, fat: defaultServing.fat != null },

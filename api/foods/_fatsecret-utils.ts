@@ -321,3 +321,15 @@ export function scoreMatchConfidence(
 export function round(v: number): number {
   return Math.round(v * 10) / 10;
 }
+
+/**
+ * FatSecret gives a barcode food's nutrients per serving, but the barcode card scales
+ * them as per-100 g values. This is the serving weight and the multiplier to convert.
+ * Without a gram or ml weight, values stay per serving and no weight is offered.
+ */
+export function barcodeServingBasis(serving: { metric_serving_amount?: string; metric_serving_unit?: string }): { servingSize: number | null; scale: number } {
+  const amount = parseFloat(serving.metric_serving_amount ?? "");
+  const unit = (serving.metric_serving_unit || "g").toLowerCase();
+  if (!(amount > 0) || (unit !== "g" && unit !== "ml")) return { servingSize: null, scale: 1 };
+  return { servingSize: amount, scale: 100 / amount };
+}

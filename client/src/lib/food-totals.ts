@@ -306,15 +306,16 @@ export interface LogNutrition {
 export function nutritionFromLog(log: FoodLogEntry[] | undefined): LogNutrition {
   const n: LogNutrition = { calories: 0, carbs: 0, protein: 0, fat: 0, fiber: 0, portions: 0, notTracked: 0, missingFat: 0, estimates: 0, incomplete: false };
   for (const e of log ?? []) {
+    // Carbs and protein count even without calories, so meal lines match the day's bars.
+    const m = entryMacros(e);
+    n.carbs += m.carbs;
+    n.protein += m.protein;
     if (e.calories == null) {
       if (e.nutrientSource === 'portion') n.portions += e.sliceCount ?? 1;
       else n.notTracked += 1;
       continue;
     }
-    const m = entryMacros(e);
     n.calories += e.calories;
-    n.carbs += m.carbs;
-    n.protein += m.protein;
     n.fiber += e.fiber ?? 0;
     if (e.fat != null) n.fat += e.fat;
     else n.missingFat += 1;

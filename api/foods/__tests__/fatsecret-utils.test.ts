@@ -6,6 +6,7 @@ import {
   pickBestServing,
   scoreMatchConfidence,
   autoSparCategory,
+  barcodeServingBasis,
   round,
   type FatSecretServing,
 } from '../_fatsecret-utils';
@@ -252,5 +253,18 @@ describe('pickBestServing', () => {
     const { serving, qty } = pickBestServing([noMetricDefault, metricServing], 200);
     expect(serving.id).toBe('metric');
     expect(qty).toBe(2);
+  });
+});
+
+describe("barcodeServingBasis", () => {
+  it("converts a 30 g serving to per-100 g so scaling back gives the serving's calories", () => {
+    const { servingSize, scale } = barcodeServingBasis({ metric_serving_amount: "30.000", metric_serving_unit: "g" });
+    expect(servingSize).toBe(30);
+    expect(Math.round(200 * scale * 30 / 100)).toBe(200);
+  });
+
+  it("leaves values per serving when there is no gram or ml weight", () => {
+    expect(barcodeServingBasis({})).toEqual({ servingSize: null, scale: 1 });
+    expect(barcodeServingBasis({ metric_serving_amount: "1", metric_serving_unit: "oz" })).toEqual({ servingSize: null, scale: 1 });
   });
 });

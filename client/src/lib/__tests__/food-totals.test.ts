@@ -115,6 +115,12 @@ describe("calorie diary", () => {
     expect(JSON.stringify(old)).toBe(before);
   });
 
+  it("still counts carbs and protein from entries that have no calories", () => {
+    const portion = buildFoodEntries({ name: "Rice", carbs: 0, protein: 0, sliceType: "carb", sliceCount: 1, nutrientSource: "portion" }, { ...ctx, view: "spar" });
+    const grams = buildFoodEntries({ name: "Chicken", carbs: 0, protein: 30 }, { ...ctx, view: "sugar" });
+    expect(nutritionFromLog([...portion, ...grams])).toMatchObject({ calories: 0, carbs: 26, protein: 30, portions: 1, notTracked: 1, incomplete: true });
+  });
+
   it("marks the total incomplete when a counted food has no fat value", () => {
     const rows = buildFoodEntries({ name: "Bar", carbs: 20, protein: 5, calories: 200, nutrientSource: "estimate" }, { ...ctx, view: "calories" });
     const n = nutritionFromLog(rows);

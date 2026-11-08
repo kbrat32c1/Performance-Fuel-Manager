@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
-import { autoSparCategory } from "../api/foods/_fatsecret-utils.js";
+import { autoSparCategory, barcodeServingBasis } from "../api/foods/_fatsecret-utils.js";
 import { verifyUser } from "../api/_auth.js";
 import { resolveShareDate } from "../api/_share-date.js";
 
@@ -254,16 +254,17 @@ export async function registerRoutes(
                   const servings = Array.isArray(srvs) ? srvs : srvs ? [srvs] : [];
                   const def = servings.find((s: any) => s.is_default === "1") || servings[0];
                   if (def) {
-                    const cal = rnd(parseFloat(def.calories)||0), pro = rnd(parseFloat(def.protein)||0);
-                    const carb = rnd(parseFloat(def.carbohydrate)||0), fat = rnd(parseFloat(def.fat)||0);
-                    const fib = rnd(parseFloat(def.fiber)||0), sug = rnd(parseFloat(def.sugar)||0);
-                    const sod = rnd(parseFloat(def.sodium)||0);
+                    const { servingSize, scale } = barcodeServingBasis(def);
+                    const cal = rnd((parseFloat(def.calories)||0)*scale), pro = rnd((parseFloat(def.protein)||0)*scale);
+                    const carb = rnd((parseFloat(def.carbohydrate)||0)*scale), fat = rnd((parseFloat(def.fat)||0)*scale);
+                    const fib = rnd((parseFloat(def.fiber)||0)*scale), sug = rnd((parseFloat(def.sugar)||0)*scale);
+                    const sod = rnd((parseFloat(def.sodium)||0)*scale);
                     return res.json({
                       found: true,
                       food: {
                         barcode, name: food.food_name||"", brand: food.brand_name||"",
                         calories: cal, protein: pro, carbs: carb, fat, fiber: fib, sugar: sug, sodium: sod,
-                        servingSize: parseFloat(def.metric_serving_amount)||null,
+                        servingSize,
                         servingSizeLabel: def.serving_description||"",
                         imageUrl: null,
                         reported: { calories: def.calories != null, fat: def.fat != null },
