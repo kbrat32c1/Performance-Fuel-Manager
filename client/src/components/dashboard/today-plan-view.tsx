@@ -3,7 +3,7 @@
  * previewed with fixed data. The store wiring is in today-plan-card.tsx.
  *
  * Layout (Kevin's pick: mockup 2 + colored weigh-in slots), top to bottom:
- *  1. Headline: morning weight left, orange days to weigh-in right.
+ *  1. Scoreboard: morning weight + class plate left, orange days right, gap-to-class bar.
  *  2. AM / PRE / POST / BED slots.
  *  3. One honest status line (+ automatic reference), then the one named button.
  *  4. Morning weights trend card.
@@ -65,7 +65,7 @@ export function TodayPlanView({ plan, onAction, trend, health, onHealthTap, onCo
     <div className="mb-3 space-y-3" data-testid="today-plan">
       <Card className="overflow-hidden" aria-labelledby="today-plan-title">
         <CardContent className="p-0">
-          {/* 1. Headline: weight left, days to weigh-in right */}
+          {/* 1. Scoreboard: weight + class plate left, orange days right, then the gap-to-class bar */}
           <div className="px-4 pt-3">
             <div className="flex items-center justify-between gap-2">
               <h2 id="today-plan-title" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Today</h2>
@@ -78,16 +78,19 @@ export function TodayPlanView({ plan, onAction, trend, health, onHealthTap, onCo
             <div className="mt-1 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1" data-testid="today-plan-weight">
                 {plan.hero ? (
-                  <>
-                    <div className="font-heading text-5xl font-bold leading-none tabular-nums">{plan.hero.weight.toFixed(1)}</div>
-                    <div className="mt-1 text-sm text-muted-foreground">lbs · {plan.hero.timing.toLowerCase()}</div>
-                  </>
+                  <div className="flex items-end gap-2.5">
+                    <span className="font-heading text-[54px] font-bold uppercase italic leading-[0.85] tracking-tight tabular-nums">{plan.hero.weight.toFixed(1)}</span>
+                    {cd && <ClassPlate weightClass={cd.weightClass} />}
+                  </div>
                 ) : (
-                  <>
-                    <div className="font-heading text-3xl font-bold leading-none">No morning weight</div>
-                    <div className="mt-1 text-sm text-muted-foreground">Log it to compare</div>
-                  </>
+                  <div className="flex items-end gap-2.5">
+                    <span className="font-heading text-3xl font-bold uppercase italic leading-none">No morning weight</span>
+                    {cd && <ClassPlate weightClass={cd.weightClass} />}
+                  </div>
                 )}
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {plan.hero ? `lbs · ${plan.hero.timing.toLowerCase()}` : 'Log it to compare'}
+                </div>
                 {plan.latest && (
                   <div className="whitespace-nowrap text-[15px] text-muted-foreground tabular-nums" data-testid="today-plan-latest">
                     Latest {plan.latest.weight.toFixed(1)} · {plan.latest.timing}
@@ -98,23 +101,24 @@ export function TodayPlanView({ plan, onAction, trend, health, onHealthTap, onCo
                 <div className="shrink-0 text-right" data-testid="today-plan-countdown">
                   {cd.days === null ? (
                     <>
-                      <div className="font-heading text-3xl font-bold leading-none text-muted-foreground">—</div>
+                      <div className="font-heading text-4xl font-bold italic leading-[0.85] text-muted-foreground">—</div>
                       <div className="mt-1 text-xs text-muted-foreground">No weigh-in set</div>
                     </>
                   ) : cd.days === 0 ? (
                     <>
-                      <div className="font-heading text-5xl font-bold uppercase leading-none text-primary">Today</div>
-                      <div className="mt-1 text-xs leading-tight text-muted-foreground">official weigh-in<br />{cd.weightClass} lbs class</div>
+                      <div className="font-heading text-[54px] font-bold uppercase italic leading-[0.85] tracking-tight text-primary">Today</div>
+                      <div className="mt-1 text-xs text-muted-foreground">official weigh-in</div>
                     </>
                   ) : (
                     <>
-                      <div className="font-heading text-5xl font-bold leading-none tabular-nums text-primary">{cd.days}</div>
-                      <div className="mt-1 text-xs leading-tight text-muted-foreground">{cd.days === 1 ? 'day' : 'days'} to weigh-in<br />{cd.weightClass} lbs class</div>
+                      <div className="font-heading text-[54px] font-bold italic leading-[0.85] tracking-tight tabular-nums text-primary">{cd.days}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{cd.days === 1 ? 'day' : 'days'} to weigh-in</div>
                     </>
                   )}
                 </div>
               )}
             </div>
+            {plan.classGap && cd && <GapBar gap={plan.classGap.gap} label={plan.classGap.label} weightClass={cd.weightClass} />}
           </div>
 
           {/* 2. Weigh-in slots */}
@@ -236,6 +240,45 @@ export function TodayPlanView({ plan, onAction, trend, health, onHealthTap, onCo
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ── Scoreboard pieces ────────────────────────────────────────────────────────
+
+/** The weight class as a wrestler's tag. */
+function ClassPlate({ weightClass }: { weightClass: number }) {
+  return (
+    <span className="mb-1 inline-flex flex-col items-center rounded-md border-2 border-foreground px-1.5 pt-0.5 pb-1 leading-none" data-testid="today-plan-class">
+      <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground" aria-hidden="true">Class</span>
+      <span className="font-heading text-xl font-bold italic tabular-nums" aria-label={`Class ${weightClass} lbs`}>{weightClass}</span>
+    </span>
+  );
+}
+
+/**
+ * Measured facts only: the class at a center tick, today's weight as a dot, the gap in words.
+ * No start point, no target, no "% done". Scale grows with the gap so the dot stays on the bar.
+ */
+function GapBar({ gap, label, weightClass }: { gap: number; label: string; weightClass: number }) {
+  const span = Math.max(5, Math.abs(gap) * 1.25);
+  const pos = 50 + (gap / span) * 50;
+  return (
+    <div className="mt-3" data-testid="today-plan-gap">
+      <div className="relative h-5" role="img" aria-label={`${label}: today ${(weightClass + gap).toFixed(1)} lbs, class ${weightClass} lbs`}>
+        <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-muted" />
+        <div
+          className="absolute top-1/2 h-1 -translate-y-1/2 bg-foreground/60"
+          style={gap >= 0 ? { left: '50%', width: `${pos - 50}%` } : { left: `${pos}%`, width: `${50 - pos}%` }}
+        />
+        <div className="absolute left-1/2 top-0 h-5 w-0.5 -translate-x-1/2 bg-foreground" />
+        <div className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-foreground" style={{ left: `${pos}%` }} />
+      </div>
+      <div className="mt-0.5 flex justify-between text-xs text-muted-foreground tabular-nums">
+        <span>Under</span>
+        <span className="font-bold text-foreground">{label}</span>
+        <span>Over</span>
+      </div>
     </div>
   );
 }

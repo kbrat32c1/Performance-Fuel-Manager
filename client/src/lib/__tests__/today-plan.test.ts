@@ -309,3 +309,19 @@ describe("Today's plan: countdown", () => {
     expect(buildTodayPlan(base({ protocol: "5", isGeneralNutrition: true })).countdown).toBeNull();
   });
 });
+
+describe("Today's plan: gap to class (measured only)", () => {
+  it("uses the morning weight against the class", () => {
+    expect(buildTodayPlan(base({ weightClass: 157, logs: { morning: 161.4, postPractice: 160.6 } })).classGap)
+      .toEqual({ gap: 4.4, label: "4.4 lbs over class" });
+    expect(buildTodayPlan(base({ weightClass: 157, logs: { morning: 156.4 } })).classGap)
+      .toEqual({ gap: -0.6, label: "0.6 lbs under class" });
+    expect(buildTodayPlan(base({ weightClass: 157, logs: { morning: 157 } })).classGap!.label).toBe("At class weight");
+  });
+
+  it("uses the official weigh-in on Meet Day, and nothing without a morning or official weight", () => {
+    expect(buildTodayPlan(base({ daysUntilWeighIn: 0, logs: { morning: 142, officialWeighIn: 140.8 } })).classGap!.gap).toBe(-0.2);
+    expect(buildTodayPlan(base({ logs: { postPractice: 140 } })).classGap).toBeNull();
+    expect(buildTodayPlan(base({ protocol: "5", isGeneralNutrition: true })).classGap).toBeNull();
+  });
+});

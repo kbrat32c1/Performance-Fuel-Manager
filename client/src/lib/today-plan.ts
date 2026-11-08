@@ -75,6 +75,11 @@ export interface TodayPlan {
   demo: boolean;
   /** Class and days to the official weigh-in. */
   facts: PlanFact[];
+  /**
+   * Measured gap between the hero weight (morning or official) and the class, for the
+   * scoreboard bar. Positive = over. Null without a hero weight or for general nutrition.
+   */
+  classGap: { gap: number; label: string } | null;
   /** Days to the official weigh-in for the big number: 0 on Meet Day, null when none is set. */
   countdown: { days: number | null; weightClass: number } | null;
   status: PlanStatus;
@@ -427,6 +432,15 @@ export function buildFacts(input: TodayPlanInput): PlanFact[] {
   ];
 }
 
+export function buildClassGap(input: TodayPlanInput): TodayPlan['classGap'] {
+  if (input.isGeneralNutrition || !(input.weightClass > 0)) return null;
+  const w = input.logs.officialWeighIn ?? input.logs.morning;
+  if (w == null) return null;
+  const gap = Math.round((w - input.weightClass) * 10) / 10;
+  const label = gap > 0 ? `${lbs(gap)} over class` : gap < 0 ? `${lbs(-gap)} under class` : 'At class weight';
+  return { gap, label };
+}
+
 export function buildHero(input: TodayPlanInput): Pick<TodayPlan, 'hero' | 'latest'> {
   const { logs } = input;
   const hero = logs.officialWeighIn != null
@@ -452,6 +466,7 @@ export function buildTodayPlan(input: TodayPlanInput): TodayPlan {
     current: input.latest ? { weight: input.latest.weight, timing: TIMING_NAMES[input.latest.timing] ?? 'Weight check' } : null,
     ...buildHero(input),
     reference: buildReference(input),
+    classGap: buildClassGap(input),
     countdown: input.isGeneralNutrition ? null : {
       days: input.weighInCleared || input.daysUntilWeighIn < 0 ? null : input.daysUntilWeighIn,
       weightClass: input.weightClass,
