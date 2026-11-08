@@ -28,11 +28,11 @@ interface FoodDiaryProps {
   onAddFood: (mealSection: MealSection) => void;
 }
 
-const MEAL_CONFIG: { id: MealSection; label: string; emoji: string }[] = [
-  { id: 'breakfast', label: 'Breakfast', emoji: '🌅' },
-  { id: 'lunch', label: 'Lunch', emoji: '☀️' },
-  { id: 'dinner', label: 'Dinner', emoji: '🌙' },
-  { id: 'snacks', label: 'Snacks', emoji: '🍿' },
+const MEAL_CONFIG: { id: MealSection; label: string }[] = [
+  { id: 'breakfast', label: 'Breakfast' },
+  { id: 'lunch', label: 'Lunch' },
+  { id: 'dinner', label: 'Dinner' },
+  { id: 'snacks', label: 'Snacks' },
 ];
 
 // Accent color for food entries
@@ -322,7 +322,6 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                 onClick={() => hasEntries && toggleSection(meal.id)}
                 className="flex items-center gap-2 min-w-0 flex-1"
               >
-                <span className="text-sm">{meal.emoji}</span>
                 <span className="text-[12px] font-bold uppercase tracking-wide text-foreground">
                   {meal.label}
                 </span>
@@ -475,7 +474,6 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                   onClick={() => handleMove(entry.id, m.id)}
                                   className="flex items-center gap-1 px-2 py-1 rounded-md bg-background text-xs font-bold text-foreground hover:bg-primary/10 hover:text-primary active:scale-95 transition-all border border-muted/20"
                                 >
-                                  <span>{m.emoji}</span>
                                   {m.label}
                                 </button>
                               ))}
