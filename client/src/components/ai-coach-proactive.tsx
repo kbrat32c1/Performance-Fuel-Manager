@@ -310,6 +310,7 @@ export function AiCoachProactive() {
       timeUntilWeighIn: daysUntil >= 0 ? getTimeUntilWeighIn() : null,
       weightToLose: weightToLose.toFixed(1),
       isOnTrack: insights.isOnTrack,
+      projectionReliable: insights.projectionReliable,
       fluidAllowance: insights.fluidAllowance,
       workoutGuidance: insights.workoutGuidance,
       foodGuidance: insights.foodGuidance,

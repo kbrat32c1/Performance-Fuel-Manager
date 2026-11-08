@@ -15,12 +15,16 @@ describe("live AI coach insights", () => {
       projectionNote: "Not enough weigh-in pairs yet",
       workoutGuidance: { description: "2 extra sessions" },
       statusRecommendation: "2 extra workouts needed",
+      fluidAllowance: { oz: 0, cutoffTime: "6 PM" },
+      foodGuidance: { maxLbs: 0, lastMealTime: "5 PM" },
     }, clean);
     expect(out).toContain("Weight to lose: 4.0 lbs");
     expect(out).toContain("PROJECTION CONFIDENCE LOW");
     expect(out).toContain("Not enough weigh-in pairs yet");
     expect(out).not.toContain("Projected weigh-in weight");
     expect(out).not.toContain("2 extra");
+    expect(out).not.toContain("Fluid allowance");
+    expect(out).not.toContain("Food: max");
   });
 
   it("passes projections through when they rest on enough pairs", () => {

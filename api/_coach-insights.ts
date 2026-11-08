@@ -40,10 +40,10 @@ export function formatCoachInsights(insights: any, sanitize: Sanitize): string {
   if (insights.sweatRate) lines.push(`Sweat rate: ${sanitize(insights.sweatRate)} lbs/hr`);
   if (insights.expectedOvernightDrift) lines.push(`Expected overnight drift: ${sanitize(insights.expectedOvernightDrift)} lbs`);
   if (insights.expectedPracticeLoss) lines.push(`Expected practice loss: ${sanitize(insights.expectedPracticeLoss)} lbs`);
-  if (insights.fluidAllowance?.oz != null) {
+  if (reliable && insights.fluidAllowance?.oz != null) {
     lines.push(`Fluid allowance: ${sanitize(insights.fluidAllowance.oz)} oz, cutoff ${sanitize(insights.fluidAllowance.cutoffTime)}`);
   }
-  if (insights.foodGuidance?.maxLbs != null) {
+  if (reliable && insights.foodGuidance?.maxLbs != null) {
     lines.push(`Food: max ${sanitize(insights.foodGuidance.maxLbs)} lbs, last meal by ${sanitize(insights.foodGuidance.lastMealTime)}`);
   }
   if (reliable && insights.workoutGuidance?.description) {
