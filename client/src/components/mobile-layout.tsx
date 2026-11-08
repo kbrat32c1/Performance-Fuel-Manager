@@ -67,7 +67,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
             <NavItem
               icon="LayoutDashboard"
               label="Today"
-              active={location === '/dashboard'}
+              active={location === '/dashboard' || location === '/weigh-in' || location === '/descent'}
               onClick={() => setLocation('/dashboard')}
             />
             {isCompetitionProtocol ? (

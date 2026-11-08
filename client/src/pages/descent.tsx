@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Link } from "wouter";
+import { BackToToday } from "@/components/back-to-today";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { useDescentPlan } from "@/hooks/use-descent-plan";
@@ -28,6 +29,7 @@ export default function Descent() {
   return (
     <MobileLayout className="lg:max-w-xl">
       <div className="space-y-4 pb-8">
+        <BackToToday />
         <header className="px-1 pt-1">
           <h1 className="text-lg font-bold">Descent plan</h1>
           <p className="text-xs text-muted-foreground">NCAA/NWCA weight certification. TrackWrestling is the official record.</p>
