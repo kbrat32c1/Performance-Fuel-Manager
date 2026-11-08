@@ -2735,6 +2735,11 @@ function HeroWeight({
 }
 
 // Visual Weekly Calendar with tap-to-expand day details
+/** Weight change for display: a loss (positive) shows as "-1.6", a gain (negative) as "+0.4". */
+function fmtLoss(loss: number): string {
+  return loss >= 0 ? `-${loss.toFixed(1)}` : `+${Math.abs(loss).toFixed(1)}`;
+}
+
 function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilWeighIn, daysUntilWeighIn, healthData, refreshData, healthDayStr }: {
   getTomorrowPlan: () => any;
   getWeeklyPlan: () => any[];
@@ -2777,6 +2782,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
       driftSamples: number;
       practiceSamples: number;
       level: 'high' | 'medium' | 'low' | 'none';
+      excludedPairs: number;
+      reliable: boolean;
     };
     makeWeightProb: {
       probability: number;
@@ -3067,11 +3074,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       Season averages — new cycle data will replace these
                     </div>
                   )}
-                  <div className={cn("grid gap-1 text-center pt-2 mx-4 border-t border-muted", !isHistorical && "mt-3", hasExtras ? "grid-cols-4" : "grid-cols-3", isHistorical && "opacity-60")}>
+                  <div className={cn("grid gap-1 text-center pt-2 mx-4 border-t border-muted", !isHistorical && "mt-3", hasExtras ? "grid-cols-3" : "grid-cols-2", isHistorical && "opacity-60")}>
                     <div>
                       <span className="text-xs text-muted-foreground block">Sleep</span>
                       <span className={cn("font-mono font-bold text-xs", driftVal !== null ? "text-cyan-500" : "")}>
-                        {driftVal !== null ? `-${Math.abs(driftVal).toFixed(1)}` : '—'} lbs
+                        {driftVal !== null ? fmtLoss(driftVal) : '—'} lbs
                       </span>
                       {driftRateVal !== null && (
                         <span className="block text-xs font-mono text-cyan-400">
@@ -3080,15 +3087,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       )}
                     </div>
                     <div>
-                      <span className="text-xs text-muted-foreground block">Awake <span className="text-xs text-muted-foreground/50">(est.)</span></span>
-                      <span className="font-mono font-bold text-xs text-teal-500">
-                        {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)}` : '—'} lbs
-                      </span>
-                    </div>
-                    <div>
                       <span className="text-xs text-muted-foreground block">Practice</span>
                       <span className={cn("font-mono font-bold text-xs", practiceVal !== null ? "text-orange-500" : "")}>
-                        {practiceVal !== null ? `-${Math.abs(practiceVal).toFixed(1)}` : '—'} lbs
+                        {practiceVal !== null ? fmtLoss(practiceVal) : '—'} lbs
                       </span>
                       {sweatVal !== null && (
                         <span className="block text-xs font-mono text-orange-400">
@@ -3114,10 +3115,22 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 );
               })()}
 
-              {/* EMA explanation */}
-              <p className="text-xs text-muted-foreground/40 text-center mt-1 mx-4">
-                Averages use EMA (recency-weighted) — recent data counts more than old data
-              </p>
+              {/* What these numbers rest on — measured pairs, and whether that's enough to project from */}
+              <div className="text-xs text-center mt-1 mx-4 space-y-0.5">
+                <p className="text-muted-foreground">
+                  Based on {descentData.confidence.driftSamples} overnight and {descentData.confidence.practiceSamples} practice weigh-in pair{descentData.confidence.practiceSamples === 1 ? '' : 's'} this cycle · recent pairs count more
+                </p>
+                {!descentData.confidence.reliable && (
+                  <p className="text-chart-3 font-medium">
+                    Too few pairs for a reliable projection (need 3 of each). Log before bed, and before and after practice.
+                  </p>
+                )}
+                {descentData.confidence.excludedPairs > 0 && (
+                  <p className="text-muted-foreground">
+                    {descentData.confidence.excludedPairs} pair{descentData.confidence.excludedPairs === 1 ? '' : 's'} skipped as likely typos — check your log.
+                  </p>
+                )}
+              </div>
 
               {/* ═══ LOGGING STREAK + CORE LOGGED ═══ */}
               <div className="flex items-center justify-center gap-3 mt-3 mx-4 pt-2 border-t border-muted/50">
@@ -3225,7 +3238,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       </div>
                       <span className={cn("font-mono font-bold text-base block", isHistSleep ? "text-foreground/50" : "text-foreground")}>
                         {sleepDrift !== null
-                          ? `-${Math.abs(sleepDrift).toFixed(1)}`
+                          ? fmtLoss(sleepDrift)
                           : '—'}
                         <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
@@ -3246,7 +3259,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       </div>
                       <span className={cn("font-mono font-bold text-base block", isHistPractice ? "text-foreground/50" : "text-foreground")}>
                         {practiceLoss !== null
-                          ? `-${Math.abs(practiceLoss).toFixed(1)}`
+                          ? fmtLoss(practiceLoss)
                           : '—'}
                         <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
@@ -3263,12 +3276,13 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                         <span className="text-xs text-teal-500/80 uppercase font-bold">Awake</span>
                         <span className="text-xs text-muted-foreground/40 font-bold">EST</span>
                       </div>
-                      <span className="font-mono font-bold text-base text-teal-500 block">
+                      <span className="font-mono text-base text-muted-foreground block">
                         {descentData.daytimeBmrDrift > 0
-                          ? `-${descentData.daytimeBmrDrift.toFixed(1)}`
+                          ? `≈${descentData.daytimeBmrDrift.toFixed(1)}`
                           : '—'}
-                        <span className="text-xs text-teal-500/50 font-normal ml-1">lbs</span>
+                        <span className="text-xs font-normal ml-1">lbs</span>
                       </span>
+                      <span className="block text-xs text-muted-foreground mt-0.5">Not measured · not in projection</span>
                     </StatCard>
 
                     {/* Extras */}
@@ -3333,8 +3347,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                     <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Range</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">
                                       {descentData.recentDrifts.length >= 2
-                                        ? `${Math.min(...descentData.recentDrifts.map(Math.abs)).toFixed(1)}–${Math.max(...descentData.recentDrifts.map(Math.abs)).toFixed(1)}`
-                                        : descentData.recentDrifts[0] ? Math.abs(descentData.recentDrifts[0]).toFixed(1) : '—'}
+                                        ? `${fmtLoss(Math.min(...descentData.recentDrifts))} to ${fmtLoss(Math.max(...descentData.recentDrifts))}`
+                                        : descentData.recentDrifts.length === 1 ? fmtLoss(descentData.recentDrifts[0]) : '—'}
                                     </span>
                                     <span className="block text-xs text-muted-foreground/50">lbs</span>
                                   </div>
@@ -3397,8 +3411,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                     <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Range</span>
                                     <span className="block font-mono text-sm font-bold text-foreground">
                                       {descentData.recentPracticeLosses.length >= 2
-                                        ? `${Math.min(...descentData.recentPracticeLosses.map(Math.abs)).toFixed(1)}–${Math.max(...descentData.recentPracticeLosses.map(Math.abs)).toFixed(1)}`
-                                        : descentData.recentPracticeLosses[0] ? Math.abs(descentData.recentPracticeLosses[0]).toFixed(1) : '—'}
+                                        ? `${fmtLoss(Math.min(...descentData.recentPracticeLosses))} to ${fmtLoss(Math.max(...descentData.recentPracticeLosses))}`
+                                        : descentData.recentPracticeLosses.length === 1 ? fmtLoss(descentData.recentPracticeLosses[0]) : '—'}
                                     </span>
                                     <span className="block text-xs text-muted-foreground/50">lbs</span>
                                   </div>

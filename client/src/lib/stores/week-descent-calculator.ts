@@ -6,7 +6,7 @@
  * It computes overnight drift, practice losses, projections,
  * Monte Carlo make-weight probability, and more.
  */
-import { differenceInDays, startOfDay, format } from 'date-fns';
+import { differenceInDays, startOfDay, endOfDay, format } from 'date-fns';
 import type { AthleteProfile, WeightLog, DailyTracking, StoreContextType } from './types';
 
 // Re-export the return type for convenience
@@ -28,6 +28,14 @@ export function computeEMA(values: number[]): number | null {
   return ema;
 }
 
+/** Plausibility limits for one weigh-in pair (lbs). Outside these it's almost certainly a typo or wrong log type. */
+const DRIFT_LOSS_LIMIT = 6;
+const DRIFT_GAIN_LIMIT = 4;
+const PRACTICE_LOSS_LIMIT = 10;
+const PRACTICE_GAIN_LIMIT = 4;
+/** Pairs of each kind needed before projections drive recommendations. */
+export const MIN_RELIABLE_SAMPLES = 3;
+
 export interface WeekDescentInput {
   profile: AthleteProfile;
   logs: WeightLog[];
@@ -39,8 +47,11 @@ export interface WeekDescentInput {
 }
 
 export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData {
-  const { profile, logs, daysUntilWeighIn } = input;
+  const { profile, daysUntilWeighIn } = input;
   const today = startOfDay(profile.simulatedDate || new Date());
+  // Viewing a past day must not see weigh-ins logged after it.
+  const viewEnd = endOfDay(today).getTime();
+  const logs = input.logs.filter(l => new Date(l.date).getTime() <= viewEnd);
   const targetWeight = profile.targetWeightClass;
   const daysRemaining = Math.max(0, differenceInDays(startOfDay(profile.weighInDate), today));
 
@@ -150,6 +161,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
     .sort((a, b) => b.date.getTime() - a.date.getTime());
 
   // Phase-aware overnight drift with EMA
+  let excludedPairs = 0;
   const loadingDrifts: number[] = [];
   const cutDrifts: number[] = [];
   const allDrifts: number[] = [];
@@ -162,6 +174,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
       const hoursDiff = (current.date.getTime() - prev.date.getTime()) / (1000 * 60 * 60);
       if (hoursDiff > 4 && hoursDiff < 16) {
         const drift = prev.weight - current.weight;
+        if (drift < -DRIFT_GAIN_LIMIT || drift > DRIFT_LOSS_LIMIT) { excludedPairs++; continue; }
         allDrifts.push(drift);
 
         if (drift > 0 && prev.type === 'before-bed') {
@@ -191,6 +204,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
       const hoursDiff = (post.date.getTime() - pre.date.getTime()) / (1000 * 60 * 60);
       if (hoursDiff < 6) {
         const loss = pre.weight - post.weight;
+        if (loss < -PRACTICE_GAIN_LIMIT || loss > PRACTICE_LOSS_LIMIT) { excludedPairs++; continue; }
         practiceLosses.push(loss);
         if (loss > 0) {
           const practiceHrs = post.duration && post.duration > 0
@@ -251,18 +265,19 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
   // Gross daily loss capacity
   let grossDailyLoss: number | null = null;
   if (avgOvernightDrift !== null) {
-    grossDailyLoss = Math.abs(avgOvernightDrift) + Math.abs(avgPracticeLoss || 0);
+    // A net gain (negative) means no loss capacity — never flip it into a loss.
+    grossDailyLoss = Math.max(0, avgOvernightDrift) + Math.max(0, avgPracticeLoss || 0);
   }
-  const loadingDrift = avgLoadingDrift !== null ? Math.abs(avgLoadingDrift) : (avgOvernightDrift !== null ? Math.abs(avgOvernightDrift) : 0);
-  const cutDrift = avgCutDrift !== null ? Math.abs(avgCutDrift) : (avgOvernightDrift !== null ? Math.abs(avgOvernightDrift) * 0.6 : 0);
-  const practice = avgPracticeLoss !== null ? Math.abs(avgPracticeLoss) : 0;
+  const loadingDrift = avgLoadingDrift !== null ? Math.max(0, avgLoadingDrift) : (avgOvernightDrift !== null ? Math.max(0, avgOvernightDrift) : 0);
+  const cutDrift = avgCutDrift !== null ? Math.max(0, avgCutDrift) : (avgOvernightDrift !== null ? Math.max(0, avgOvernightDrift) * 0.6 : 0);
+  const practice = avgPracticeLoss !== null ? Math.max(0, avgPracticeLoss) : 0;
 
   // Hybrid projection
   let projectedSaturday: number | null = null;
   let todayRemainingComponents: { sleep: number; practice: number } | null = null;
 
   if (daysRemaining > 0) {
-    const hasDriftData = avgOvernightDrift !== null && Math.abs(avgOvernightDrift!) > 0;
+    const hasDriftData = avgOvernightDrift !== null && avgOvernightDrift > 0;
     const hasNetData = dailyAvgLoss !== null && dailyAvgLoss > 0;
     const hasGrossData = grossDailyLoss !== null && grossDailyLoss > 0;
     const isLoadingToday = daysRemaining >= 3;
@@ -384,7 +399,9 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
   const minSamples = Math.min(driftSamples, practiceSamples);
   const confidenceLevel: 'high' | 'medium' | 'low' | 'none' =
     minSamples >= 5 ? 'high' : minSamples >= 3 ? 'medium' : minSamples >= 1 ? 'low' : 'none';
-  const confidence = { driftSamples, practiceSamples, level: confidenceLevel };
+  // Projections and extra-work suggestions need several real pairs; one odd pair can't drive them.
+  const reliable = driftSamples >= MIN_RELIABLE_SAMPLES && practiceSamples >= MIN_RELIABLE_SAMPLES;
+  const confidence = { driftSamples, practiceSamples, level: confidenceLevel, excludedPairs, reliable };
 
   // Monte Carlo make-weight probability
   let makeWeightProb: { probability: number; worstCase: number; median: number; includesExtraWork: boolean } | null = null;
@@ -454,7 +471,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
     const sweatRate = avgSweatRateOzPerHr;
     let extraWorkoutMean = 0;
     let extraWorkoutStd = 0;
-    if (projectedSaturday > targetWeight && sweatRate && sweatRate > 0) {
+    if (reliable && projectedSaturday > targetWeight && sweatRate && sweatRate > 0) {
       const gap = projectedSaturday - targetWeight;
       const minutesNeeded = Math.round((gap / sweatRate) * 60);
       const cappedMinutes = Math.min(minutesNeeded, 60);
@@ -521,7 +538,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
     const isLoadingToday = daysRemaining >= 3;
     const expectedTotal = isLoadingToday
       ? (dailyAvgLoss || 0)
-      : ((avgOvernightDrift || 0) + (avgPracticeLoss || 0));
+      : (Math.max(0, avgOvernightDrift || 0) + Math.max(0, avgPracticeLoss || 0));
     const pctComplete = expectedTotal > 0 ? Math.min(100, Math.round((lostSoFar / expectedTotal) * 100)) : 0;
     todayProgress = { lostSoFar, expectedTotal, pctComplete };
   }

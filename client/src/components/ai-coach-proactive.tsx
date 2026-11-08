@@ -113,7 +113,9 @@ export function AiCoachProactive() {
       const extraStats = getExtraWorkoutStats();
       // Priority: extra workout sweat rate (actual data) > practice sweat rate > extra avg loss
       const sweatRate = extraStats.avgSweatRateOzPerHr ?? descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
-      const expectedDrift = descentData.avgOvernightDrift ? Math.abs(descentData.avgOvernightDrift) : null;
+      const expectedDrift = descentData.avgOvernightDrift != null ? Math.max(0, descentData.avgOvernightDrift) : null;
+      // Extra work is only suggested when the projection rests on several real weigh-in pairs.
+      const projectionReliable = descentData.confidence?.reliable === true;
 
       // Use the store's projection to determine how much is covered naturally
       // projectedSaturday already accounts for phase-specific drift, practice loss,
@@ -185,7 +187,7 @@ export function AiCoachProactive() {
       // Workout guidance — realistic sessions: 30, 45, or 60 min zone 2
       // Picks session length based on projected gap size
       let workoutGuidance: { minutes: number; lossLbs: number; unlocksOz: number } | null = null;
-      if (weightToLose > 0 && projectedGap > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
+      if (projectionReliable && weightToLose > 0 && projectedGap > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
         // Pick session length: small gap = 30 min, medium = 45, large = 60
         const lossAt30 = adjustedSweatRate * (30 / 60);
         const sessionMinutes = projectedGap <= lossAt30 * 1.2 ? 30
@@ -200,7 +202,7 @@ export function AiCoachProactive() {
       // Includes the COST — glycogen takes 4-6h to refill 70-80%, and extra work
       // this close to competition depletes the glycogen tank
       let tradeoffHint: string | null = null;
-      if (daysUntil >= 1 && daysUntil <= 2 && weightToLose > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
+      if (projectionReliable && daysUntil >= 1 && daysUntil <= 2 && weightToLose > 0 && adjustedSweatRate && adjustedSweatRate > 0) {
         if (fluidAllowance && fluidAllowance.oz === 0 && projectedGap > 0) {
           const mins30loss = adjustedSweatRate * (30 / 60);
           const ozUnlocked = Math.floor(mins30loss * 16);
@@ -227,9 +229,9 @@ export function AiCoachProactive() {
         ? (walkAroundGap <= 2 ? 'holding' : walkAroundGap <= 5 ? 'monitor' : 'high')
         : null;
 
-      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, tradeoffHint, trainingStatus, walkAroundGap, walkAround };
+      return { fluidAllowance, workoutGuidance, foodGuidance, expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, tradeoffHint, trainingStatus, walkAroundGap, walkAround, projectionReliable };
     } catch {
-      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null, trainingStatus: null, walkAroundGap: 0, walkAround: targetWeight * 1.07 };
+      return { fluidAllowance: null, workoutGuidance: null, foodGuidance: null, expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, tradeoffHint: null, trainingStatus: null, walkAroundGap: 0, walkAround: targetWeight * 1.07, projectionReliable: false };
     }
   }, [weightToLose, targetWeight, daysUntil, hour, weighInHour, isAtWeight, getWeekDescentData, getExtraWorkoutStats]);
 
@@ -557,7 +559,7 @@ export function AiCoachProactive() {
   const getQuickAction = (): { label: string; icon: 'scale' | 'workout'; type: string | null } | null => {
     if (isAtWeight || daysUntil < 0) return null;
     // If behind (projected gap > 0), offer "Log Workout" to encourage extra work
-    if (!insights.isOnTrack && insights.projectedGap > 0) {
+    if (insights.projectionReliable && !insights.isOnTrack && insights.projectedGap > 0) {
       return { label: 'Log Workout', icon: 'workout', type: 'extra-workout' };
     }
     // On track — no shortcut needed, the FAB is always available
@@ -622,7 +624,7 @@ export function AiCoachProactive() {
                 </>
               ) : (
                 <>
-                  <span className="whitespace-nowrap">{insights.isOnTrack ? 'ON TRACK' : 'BEHIND'}</span>
+                  <span className="whitespace-nowrap">{isAtWeight || insights.projectionReliable ? (insights.isOnTrack ? 'ON TRACK' : 'BEHIND') : 'MORE DATA NEEDED'}</span>
                   <span className="text-muted-foreground font-normal">•</span>
                   <span className="whitespace-nowrap">{`${weightToLose.toFixed(1)} lbs to go`}</span>
                 </>

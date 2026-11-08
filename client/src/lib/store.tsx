@@ -3244,6 +3244,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       currentWeight: descentData.currentWeight,
       grossDailyLoss: descentData.grossDailyLoss,
       daysRemaining: daysUntil,
+      projectionReliable: descentData.confidence.reliable,
 
       // Recovery pillar — basic tier
       recentSleepHours: descentData.recentSleepHours,
