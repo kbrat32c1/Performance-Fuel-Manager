@@ -22,6 +22,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
   ResponsiveContainer, Cell,
 } from "recharts";
+import { BackToToday } from "@/components/back-to-today";
 
 /* ── calorie constants per slice (from spar-calculator-v2.ts L115-121) ── */
 const SLICE_CAL: Record<string, number> = {
@@ -152,6 +153,7 @@ export default function Reports() {
 
   return (
     <MobileLayout showNav>
+      <BackToToday />
       {/* Header */}
       <div className="mb-1">
         <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">

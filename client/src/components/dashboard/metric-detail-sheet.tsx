@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
+import { useSwipeToClose } from "@/hooks/use-swipe-to-close";
 
 // ═══ TYPES ═══
 
@@ -245,6 +246,7 @@ const METRIC_CONFIGS: Record<MetricKey, {
 // ═══ MAIN COMPONENT ═══
 
 export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveValue, onClose }: MetricDetailSheetProps) {
+  const swipeToClose = useSwipeToClose(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // Prevent body scroll when sheet is open
@@ -324,6 +326,7 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
     >
       <div
         ref={sheetRef}
+        data-swipe-sheet
         className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[92vh] flex flex-col"
       >
         {/* Sticky header with handle + close */}
@@ -331,6 +334,7 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
           {/* Drag handle — tappable to close (natural mobile UX) */}
           <button
             onClick={onClose}
+            {...swipeToClose}
             className="w-full flex justify-center pt-3 pb-2 active:opacity-60 transition-opacity"
             aria-label="Close"
           >
