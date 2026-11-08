@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { applyCors } from "../_cors.js";
 import { requireUserWithinLimit } from "../_auth.js";
+import { COACH_SAFETY_RULES, formatCoachInsights } from "../_coach-insights.js";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -64,6 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       '3': 'Optimal Cut',
       '4': 'Gain Phase',
       '5': 'SPAR Nutrition (portion-based balanced eating)',
+      '6': 'SPAR Competition (portion-based with weigh-in-week adjustments)',
     };
     if (ctx.protocol) contextLines.push(`Protocol: ${protocolNames[ctx.protocol] || sanitizeForPrompt(ctx.protocol)}`);
     if (ctx.phase) contextLines.push(`Current phase: ${sanitizeForPrompt(ctx.phase)}`);
@@ -112,14 +114,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 ═══ ATHLETE CONTEXT ═══
 ${contextLines.length > 0 ? contextLines.join('\n') : 'No context provided'}
 
+═══ APP CALCULATIONS FOR THIS ATHLETE ═══
+${formatCoachInsights(ctx.calculatedInsights, sanitizeForPrompt)}
+
+${COACH_SAFETY_RULES}
+
 ═══ SPAR PROTOCOL: COMPLETE METHODOLOGY ═══
 
-THE 5 PROTOCOLS:
+THE 6 PROTOCOLS:
 • Protocol 1 – Extreme Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used only in preseason (weigh-in 4+ weeks away) when body fat is over 12%; in-season, an athlete 7%+ over class uses Rapid Cut.
-• Protocol 2 – Rapid Cut (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol. 7-12% above class.
+• Protocol 2 – Rapid Cut (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol. 7%+ above class.
 • Protocol 3 – Optimal Cut: Athlete is within 6-7% of weight class (at walk-around weight). Moderate protein throughout. Glycogen management, performance protected.
 • Protocol 4 – Gain Phase: Off-season muscle building. High protein (125-150g), high carbs (350-600g). Glucose emphasis.
 • Protocol 5 – SPAR Nutrition (Simple as Pie for Achievable Results): Portion-based balanced eating using "slices" — palm-sized protein (~110 cal), fist-sized carbs (~120 cal), fist-sized veggies (~50 cal). Uses BMR → TDEE → calorie split (35% protein, 40% carb, 25% veg). No aggressive water/food cutting. Focus on sustainable body composition through portion control. Targets calculated from height, weight, age, activity level, and weekly goal (cut/maintain/build).
+• Protocol 6 – SPAR Competition: The same palm/fist portions as Protocol 5, with calories adjusted automatically by days until weigh-in.
 
 ═══ WEEKLY NUTRITION PHASES (days until weigh-in) ═══
 
