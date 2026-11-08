@@ -874,7 +874,7 @@ function TodayFlow({
                 hasPracticeLog
                   ? "text-muted-foreground/40 cursor-not-allowed"
                   : isRestDay
-                    ? "text-purple-400 bg-purple-500/15"
+                    ? "text-primary bg-primary/10"
                     : "text-muted-foreground bg-muted/50 hover:bg-muted"
               )}
             >
@@ -2530,7 +2530,7 @@ function TodayTimeline({
                 className={cn(
                   "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide transition-colors",
                   noPractice
-                    ? "text-purple-600 bg-purple-500/15 hover:bg-purple-500/25"
+                    ? "text-primary bg-primary/10 hover:bg-primary/20"
                     : "text-muted-foreground bg-muted/50 hover:bg-muted"
                 )}
               >
