@@ -45,7 +45,7 @@ export function ProtocolSwitchBanner() {
   const targetWeightClass = profile.targetWeightClass;
   const hasWeightData = currentWeight > 0 && targetWeightClass > 0;
   const weightRec = hasWeightData
-    ? getProtocolRecommendation(currentWeight, targetWeightClass)
+    ? getProtocolRecommendation(currentWeight, targetWeightClass, { bodyFatPercent: profile.bodyFatPercent, weighInDate: profile.weighInDate })
     : null;
   const hasWeightMismatch = weightRec !== null
     && weightRec.protocol !== profile.protocol

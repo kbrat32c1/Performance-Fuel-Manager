@@ -89,7 +89,7 @@ export function InfoDialog() {
           <div className="space-y-2 border-t border-muted pt-4">
             <h4 className="font-bold">The Protocols:</h4>
             <ul className="space-y-2 text-muted-foreground text-xs">
-              <li><strong className="text-destructive">Extreme Cut:</strong> 12%+ above class. Multi-day depletion, strict oversight required.</li>
+              <li><strong className="text-destructive">Extreme Cut:</strong> preseason fat-loss block when body fat is over 12%. Strict oversight required.</li>
               <li><strong className="text-primary">Rapid Cut:</strong> 7-12% above class. Short-term glycogen + water manipulation.</li>
               <li><strong className="text-primary">Optimal Cut:</strong> Within 6-7% of class. Glycogen management, performance protected.</li>
               <li><strong className="text-primary">Gain:</strong> Off-season. Performance and strength focus.</li>

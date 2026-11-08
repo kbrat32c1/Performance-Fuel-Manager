@@ -212,8 +212,12 @@ export const WEIGHT_CATEGORY_THRESHOLDS = {
 
 // Safety thresholds
 export const SAFETY_THRESHOLDS = {
-  // Percentage over competition weight that triggers Extreme Cut recommendation
+  // Scale % over class at which a preseason athlete with no body fat % is asked for it
   EXTREME_CUT_TRIGGER: 12,
+  // Body fat % above which Extreme Cut (a fat-loss block) is recommended — preseason only
+  EXTREME_CUT_BODY_FAT: 12,
+  // A weigh-in at least this many days away counts as preseason
+  PRESEASON_MIN_DAYS: 28,
 
   // Dangerous cut: losing more than 5% in less than these days
   DANGEROUS_CUT_PERCENT: 5,

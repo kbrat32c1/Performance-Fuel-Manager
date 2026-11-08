@@ -331,7 +331,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   const recommended = !isSparGeneral && getValue('targetWeightClass') > 0
                     ? getProtocolRecommendation(
                         getValue('currentWeight') || profile.currentWeight,
-                        getValue('targetWeightClass') || profile.targetWeightClass
+                        getValue('targetWeightClass') || profile.targetWeightClass,
+                        { bodyFatPercent: getValue('bodyFatPercent') ?? profile.bodyFatPercent, weighInDate: getValue('weighInDate') || profile.weighInDate }
                       )
                     : null;
                   const groups: { title: string; hint: string; protocols: Protocol[] }[] = [
@@ -1561,6 +1562,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               <ProtocolWizard
                 currentWeight={getValue('currentWeight') || profile.currentWeight}
                 targetWeightClass={getValue('targetWeightClass') || profile.targetWeightClass}
+                bodyFatPercent={getValue('bodyFatPercent') ?? profile.bodyFatPercent}
+                weighInDate={getValue('weighInDate') || profile.weighInDate}
                 submitLabel="Select Protocol"
                 onComplete={(protocol: Protocol) => {
                   if (protocol !== profile.protocol) {
