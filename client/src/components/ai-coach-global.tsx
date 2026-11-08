@@ -266,48 +266,7 @@ export function AiCoachGlobal() {
       // Expected practice loss
       const expectedPracticeLoss = descentData.avgPracticeLoss != null ? Math.max(0, descentData.avgPracticeLoss) : null;
 
-      // Calculate fluid allowance
-      let fluidAllowance: { oz: number; cutoffTime: string } | null = null;
-      if (weightToLose > 0 && expectedDrift !== null) {
-        const practiceToday = daysUntil > 0 && expectedPracticeLoss ? expectedPracticeLoss : 0;
-        const naturalLoss = (expectedDrift ?? 0) + practiceToday;
-        const buffer = naturalLoss - weightToLose;
-        if (buffer > 0) {
-          fluidAllowance = { oz: Math.floor(buffer * 16), cutoffTime: hour < 18 ? '6pm' : '8pm' };
-        } else if (buffer <= 0) {
-          fluidAllowance = { oz: 0, cutoffTime: 'now - water restricted' };
-        }
-      }
-
-      // Calculate workout guidance
-      let workoutGuidance: { sessions: number; minutes: number; description: string } | null = null;
-      // Only suggest extra work when the projection rests on several real weigh-in pairs.
       const projectionReliable = descentData.confidence?.reliable === true;
-      if (projectionReliable && weightToLose > 0 && sweatRate && sweatRate > 0) {
-        const remainingAfterDrift = weightToLose - (expectedDrift ?? 0);
-        if (remainingAfterDrift > 0) {
-          const lossPerSession = sweatRate * 0.75; // 45 min session
-          const sessionsNeeded = Math.ceil(remainingAfterDrift / lossPerSession);
-          const minutesNeeded = Math.ceil((remainingAfterDrift / sweatRate) * 60);
-          workoutGuidance = {
-            sessions: sessionsNeeded,
-            minutes: minutesNeeded,
-            description: sessionsNeeded === 1 ? `One ${minutesNeeded}-min workout` : `${sessionsNeeded} sessions (~${Math.round(minutesNeeded / sessionsNeeded)} min each)`
-          };
-        }
-      }
-
-      // Food guidance based on days out
-      let foodGuidance: { maxLbs: number; lastMealTime: string } | null = null;
-      if (weightToLose <= 0) {
-        foodGuidance = null; // At weight, eat normally
-      } else if (daysUntil <= 1) {
-        foodGuidance = { maxLbs: 0.5, lastMealTime: daysUntil === 0 ? 'after weigh-in' : '6pm' };
-      } else if (daysUntil === 2) {
-        foodGuidance = { maxLbs: 1.5, lastMealTime: '7pm' };
-      } else {
-        foodGuidance = { maxLbs: 2.5, lastMealTime: '8pm' };
-      }
 
       // Build calculated insights object
       ctx.calculatedInsights = {
@@ -318,13 +277,10 @@ export function AiCoachGlobal() {
         sweatRate: sweatRate?.toFixed(1) ?? null,
         expectedOvernightDrift: expectedDrift?.toFixed(1) ?? null,
         expectedPracticeLoss: expectedPracticeLoss?.toFixed(1) ?? null,
-        fluidAllowance,
-        workoutGuidance,
         projectionReliable,
         projectionNote: projectionReliable
           ? null
           : `Not enough weigh-in pairs yet (${descentData.confidence?.driftSamples ?? 0} overnight, ${descentData.confidence?.practiceSamples ?? 0} practice; need ${3} each). Do not prescribe extra workouts from the projection — tell the athlete to keep logging and follow the plan.`,
-        foodGuidance,
         statusRecommendation: statusData.recommendation?.message ?? null,
         projectionWarning: statusData.projectionWarning ?? null,
       };

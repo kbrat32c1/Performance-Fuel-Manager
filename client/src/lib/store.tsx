@@ -2732,14 +2732,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     waterLoadingNote?: string;
     projectionWarning?: string;
     recommendation?: {
-      extraWorkoutsNeeded: number;
-      totalWorkoutsNeeded: number;
-      todayWorkoutsDone: number;
-      todayLoss: number;
       message: string;
       urgency: 'moderate' | 'high' | 'critical';
       switchProtocol: boolean;
-      avgExtraWorkoutLoss: number | null;
     };
   } => {
     const waterLoading = isWaterLoadingDay();
@@ -2781,14 +2776,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Check if projection shows we won't make weight
     let projectionWarning: string | undefined;
     let recommendation: {
-      extraWorkoutsNeeded: number;
-      totalWorkoutsNeeded: number;
-      todayWorkoutsDone: number;
-      todayLoss: number;
       message: string;
       urgency: 'moderate' | 'high' | 'critical';
       switchProtocol: boolean;
-      avgExtraWorkoutLoss: number | null;
     } | undefined;
 
     // Warnings and workout counts only come from a projection built on enough real weigh-in pairs.
@@ -2801,51 +2791,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         projectionWarning = `Projected ${projectedOver.toFixed(1)} lbs over by weigh-in` +
           (isLoadingPhase ? ' (based on morning weight — practice dips recover during loading)' : '');
 
-        // Calculate recommendation based on how much over and days remaining
-        const extraStats = getExtraWorkoutStats();
+        // Facts only: how far over, and who to talk to. No session counts or prescriptions.
         const daysRemaining = descentData.daysRemaining;
-
-        // Workout loss estimate priority:
-        // 1. Actual extra workout average (if they've logged extra workouts)
-        // 2. Practice sweat rate × 0.75 hr (45 min estimated extra session)
-        // 3. Average practice loss (from regular practice data)
-        // 4. No estimate — tell them to log a workout
-        const practiceSweatRate = descentData.avgSweatRateOzPerHr; // in lbs/hr now
-        const avgWorkoutLoss = extraStats.avgLoss
-          ?? (practiceSweatRate !== null ? practiceSweatRate * 0.75 : null)
-          ?? descentData.avgPracticeLoss
-          ?? null;
-
-        // Calculate how many extra workouts needed
-        const workoutsNeeded = avgWorkoutLoss !== null && avgWorkoutLoss > 0
-          ? Math.ceil(projectedOver / avgWorkoutLoss)
-          : null;
-
-        // Base recommendation object with common fields
-        const baseRec = {
-          totalWorkoutsNeeded: workoutsNeeded ?? 0,
-          todayWorkoutsDone: extraStats.todayWorkouts,
-          todayLoss: extraStats.todayLoss,
-          avgExtraWorkoutLoss: extraStats.avgLoss
-        };
-
-        // Build data source note — prefer lbs/hr sweat rate for clarity
-        const hasNoData = avgWorkoutLoss === null;
-        const dataSource = practiceSweatRate !== null
-          ? ` Your sweat rate: ${practiceSweatRate.toFixed(1)} lbs/hr.`
-          : extraStats.avgLoss !== null
-          ? ` Avg ${extraStats.avgLoss.toFixed(1)} lb loss per extra session.`
-          : descentData.avgPracticeLoss !== null
-          ? ` Avg ${Math.abs(descentData.avgPracticeLoss).toFixed(1)} lb loss per practice.`
-          : '';
-        const estimateNote = hasNoData
-          ? ' Log a workout to get personalized estimates.'
-          : `${dataSource}${isLoadingPhase ? ' Estimate updates as you log.' : ''}`;
-
-        // Determine urgency and message based on how much over and days remaining
-        const workoutStr = workoutsNeeded !== null
-          ? `About ${workoutsNeeded} extra session${workoutsNeeded > 1 ? 's' : ''} would close it, based on your numbers.${estimateNote}`
-          : `${projectedOver.toFixed(1)} lbs over.${estimateNote}`;
+        const workoutStr = `${projectedOver.toFixed(1)} lbs over.`;
 
         // Extreme Cut is a preseason body-fat decision (getProtocolRecommendation), never an
         // in-season response to a projection, so nothing here offers a protocol switch.
@@ -2855,16 +2803,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // 4+ lbs over - critical
           if (daysRemaining < 3) {
             recommendation = {
-              ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `DANGER: ${projectedOver.toFixed(1)} lbs over with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left. Consider moving up a weight class.`,
               urgency: 'critical',
               switchProtocol: false
             };
           } else {
             recommendation = {
-              ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `${workoutStr} ${coachAdvice}`,
               urgency: 'critical',
               switchProtocol: false
@@ -2874,16 +2818,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // 2-4 lbs over - high urgency
           if (daysRemaining < 3) {
             recommendation = {
-              ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `${workoutStr} ${coachAdvice}`,
               urgency: 'high',
               switchProtocol: false
             };
           } else {
             recommendation = {
-              ...baseRec,
-              extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `${workoutStr} ${coachAdvice}`,
               urgency: 'high',
               switchProtocol: false
@@ -2892,23 +2832,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else {
           // 0.5-2 lbs over - moderate
           recommendation = {
-            ...baseRec,
-            extraWorkoutsNeeded: workoutsNeeded ?? 0,
-            message: workoutStr,
+            message: `${workoutStr} ${coachAdvice}`,
             urgency: 'moderate',
             switchProtocol: false
           };
-        }
-
-        // Adjust message if they have logged extra workouts today
-        if (extraStats.todayWorkouts > 0 && workoutsNeeded !== null) {
-          const remainingWorkouts = Math.max(0, workoutsNeeded - extraStats.todayWorkouts);
-          if (remainingWorkouts === 0) {
-            recommendation.message = `Today's workout${extraStats.todayWorkouts > 1 ? 's' : ''} helped (-${extraStats.todayLoss.toFixed(1)} lbs). Still ${projectedOver.toFixed(1)} lbs over.`;
-          } else {
-            recommendation.message = `About ${remainingWorkouts} more session${remainingWorkouts > 1 ? 's' : ''} would close it. Today: -${extraStats.todayLoss.toFixed(1)} lbs.`;
-          }
-          recommendation.extraWorkoutsNeeded = remainingWorkouts;
         }
       }
     }

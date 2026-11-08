@@ -283,14 +283,9 @@ export interface StoreContextType {
     waterLoadingNote?: string;
     projectionWarning?: string;
     recommendation?: {
-      extraWorkoutsNeeded: number;
-      totalWorkoutsNeeded: number;
-      todayWorkoutsDone: number;
-      todayLoss: number;
       message: string;
       urgency: 'moderate' | 'high' | 'critical';
       switchProtocol: boolean;
-      avgExtraWorkoutLoss: number | null;
     };
   };
   getExtraWorkoutStats: () => { avgLoss: number | null; avgSweatRateOzPerHr: number | null; totalWorkouts: number; todayWorkouts: number; todayLoss: number };

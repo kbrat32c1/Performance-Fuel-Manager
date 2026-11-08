@@ -2180,7 +2180,7 @@ function StatusExplanation({ statusInfo, className }: {
         return {
           title: "AT RISK",
           criteria: "You're more than 2 lbs over today's target weight.",
-          guidance: "You may need extra workouts, stricter nutrition compliance, or to reconsider your weight class if this continues.",
+          guidance: "Talk to your coach about your plan, including whether this weight class still fits.",
           color: "text-red-500",
           bgColor: "bg-red-500/10 border-red-500/30"
         };

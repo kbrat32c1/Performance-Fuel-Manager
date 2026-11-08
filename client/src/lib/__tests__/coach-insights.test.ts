@@ -34,6 +34,22 @@ describe("live AI coach insights", () => {
     expect(out).not.toContain("CONFIDENCE LOW");
   });
 
+  it("never passes food or fluid limits, even with reliable data and an old client sending zeros", () => {
+    const out = formatCoachInsights({
+      projectionReliable: true,
+      fluidAllowance: { oz: 0, cutoffTime: "now" },
+      foodGuidance: { maxLbs: 0, lastMealTime: "after weigh-in" },
+    }, clean);
+    expect(out).not.toMatch(/fluid|food|0 oz|last meal/i);
+  });
+
+  it("drops workout prescriptions and forbids zero food or fluid", () => {
+    const out = formatCoachInsights({ projectionReliable: true, workoutGuidance: { description: "One 30-min workout" } }, clean);
+    expect(out).not.toMatch(/workout/i);
+    expect(COACH_SAFETY_RULES).toMatch(/Not eating or not drinking/);
+    expect(COACH_SAFETY_RULES).toMatch(/hot bath/);
+  });
+
   it("sanitizes values from the client", () => {
     expect(formatCoachInsights({ weightToLose: "<b>`x`</b>", projectionReliable: true }, clean)).not.toMatch(/[`<>]/);
   });
