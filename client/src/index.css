@@ -370,3 +370,64 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Light mode: darken colored text so it passes 4.5:1 on light cards.
+   The 400/500 shades are tuned for the dark theme and read at about 2:1 on white.
+   :where() keeps specificity at one class, so hover/focus variants still win.
+   Surfaces that stay dark in both themes (camera views) opt out with .always-dark. */
+@layer utilities {
+  :where(.light) .text-green-500:not(:where(.always-dark *)) { color: #13703a; }
+  :where(.light) .text-orange-500:not(:where(.always-dark *)) { color: #c2410c; }
+  :where(.light) .text-yellow-500:not(:where(.always-dark *)) { color: #a16207; }
+  :where(.light) .text-cyan-500:not(:where(.always-dark *)) { color: #0e7490; }
+  :where(.light) .text-amber-500:not(:where(.always-dark *)) { color: #b45309; }
+  :where(.light) .text-red-400:not(:where(.always-dark *)) { color: #b91c1c; }
+  :where(.light) .text-red-500:not(:where(.always-dark *)) { color: #b91c1c; }
+  :where(.light) .text-purple-500:not(:where(.always-dark *)) { color: #7e22ce; }
+  :where(.light) .text-blue-500:not(:where(.always-dark *)) { color: #1d4ed8; }
+  :where(.light) .text-orange-400:not(:where(.always-dark *)) { color: #c2410c; }
+  :where(.light) .text-green-400:not(:where(.always-dark *)) { color: #13703a; }
+  :where(.light) .text-yellow-600:not(:where(.always-dark *)) { color: #a16207; }
+  :where(.light) .text-pink-500:not(:where(.always-dark *)) { color: #be185d; }
+  :where(.light) .text-blue-400:not(:where(.always-dark *)) { color: #1d4ed8; }
+  :where(.light) .text-indigo-400:not(:where(.always-dark *)) { color: #4338ca; }
+  :where(.light) .text-purple-400:not(:where(.always-dark *)) { color: #7e22ce; }
+  :where(.light) .text-emerald-400:not(:where(.always-dark *)) { color: #047857; }
+  :where(.light) .text-amber-400:not(:where(.always-dark *)) { color: #b45309; }
+  :where(.light) .text-violet-400:not(:where(.always-dark *)) { color: #6d28d9; }
+  :where(.light) .text-green-600:not(:where(.always-dark *)) { color: #13703a; }
+  :where(.light) .text-teal-500:not(:where(.always-dark *)) { color: #0f766e; }
+  :where(.light) .text-cyan-400:not(:where(.always-dark *)) { color: #0e7490; }
+  :where(.light) .text-yellow-400:not(:where(.always-dark *)) { color: #a16207; }
+  :where(.light) .text-purple-600:not(:where(.always-dark *)) { color: #7e22ce; }
+  :where(.light) .text-orange-400\/70:not(:where(.always-dark *)) { color: color-mix(in oklab, #c2410c 70%, transparent); }
+  :where(.light) .text-green-500\/40:not(:where(.always-dark *)) { color: color-mix(in oklab, #13703a 40%, transparent); }
+  :where(.light) .text-amber-500\/60:not(:where(.always-dark *)) { color: color-mix(in oklab, #b45309 60%, transparent); }
+  :where(.light) .text-yellow-500\/50:not(:where(.always-dark *)) { color: color-mix(in oklab, #a16207 50%, transparent); }
+  :where(.light) .text-violet-300:not(:where(.always-dark *)) { color: #6d28d9; }
+  :where(.light) .text-teal-500\/80:not(:where(.always-dark *)) { color: color-mix(in oklab, #0f766e 80%, transparent); }
+  :where(.light) .text-rose-500:not(:where(.always-dark *)) { color: #be123c; }
+  :where(.light) .text-rose-400:not(:where(.always-dark *)) { color: #be123c; }
+  :where(.light) .text-red-400\/70:not(:where(.always-dark *)) { color: color-mix(in oklab, #b91c1c 70%, transparent); }
+  :where(.light) .text-red-400\/60:not(:where(.always-dark *)) { color: color-mix(in oklab, #b91c1c 60%, transparent); }
+  :where(.light) .text-red-400\/50:not(:where(.always-dark *)) { color: color-mix(in oklab, #b91c1c 50%, transparent); }
+  :where(.light) .text-red-300\/80:not(:where(.always-dark *)) { color: color-mix(in oklab, #b91c1c 80%, transparent); }
+  :where(.light) .text-purple-400\/60:not(:where(.always-dark *)) { color: color-mix(in oklab, #7e22ce 60%, transparent); }
+  :where(.light) .text-orange-500\/60:not(:where(.always-dark *)) { color: color-mix(in oklab, #c2410c 60%, transparent); }
+  :where(.light) .text-orange-500\/50:not(:where(.always-dark *)) { color: color-mix(in oklab, #c2410c 50%, transparent); }
+  :where(.light) .text-orange-400\/80:not(:where(.always-dark *)) { color: color-mix(in oklab, #c2410c 80%, transparent); }
+  :where(.light) .text-orange-400\/50:not(:where(.always-dark *)) { color: color-mix(in oklab, #c2410c 50%, transparent); }
+  :where(.light) .text-indigo-400\/40:not(:where(.always-dark *)) { color: color-mix(in oklab, #4338ca 40%, transparent); }
+  :where(.light) .text-indigo-300:not(:where(.always-dark *)) { color: #4338ca; }
+  :where(.light) .text-green-500\/70:not(:where(.always-dark *)) { color: color-mix(in oklab, #13703a 70%, transparent); }
+  :where(.light) .text-emerald-500:not(:where(.always-dark *)) { color: #047857; }
+  :where(.light) .text-cyan-600:not(:where(.always-dark *)) { color: #0e7490; }
+  :where(.light) .text-cyan-500\/40:not(:where(.always-dark *)) { color: color-mix(in oklab, #0e7490 40%, transparent); }
+  :where(.light) .text-amber-500\/50:not(:where(.always-dark *)) { color: color-mix(in oklab, #b45309 50%, transparent); }
+  :where(.light) .text-amber-500\/40:not(:where(.always-dark *)) { color: color-mix(in oklab, #b45309 40%, transparent); }
+  :where(.light) .text-chart-2:not(:where(.always-dark *)) { color: hsl(225 90% 45%); }
+  :where(.light) .text-chart-3:not(:where(.always-dark *)) { color: hsl(32 95% 33%); }
+  :where(.light) .text-chart-4:not(:where(.always-dark *)) { color: hsl(0 72% 42%); }
+  :where(.light) .text-chart-5:not(:where(.always-dark *)) { color: hsl(142 72% 27%); }
+  :where(.light) .text-chart-3\/60:not(:where(.always-dark *)) { color: hsl(32 95% 33% / 0.6); }
+}

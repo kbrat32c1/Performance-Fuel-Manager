@@ -1146,14 +1146,12 @@ export default function Dashboard() {
   } = useStore();
 
   const phase = getPhase();
-  // WHOOP-style health day: before wake-up (midnight–9AM), "today" is still yesterday.
-  // This ensures the dashboard shows Friday's data when it's 12:53 AM Saturday but
-  // the user hasn't slept yet. getHealthDay() returns the WHOOP-style day, not calendar date.
+  // WHOOP-style health day: before wake-up (midnight–9AM), it is still yesterday.
+  // Used only to look up sleep/recovery data, which belongs to the night before.
   const healthDayStr = getHealthDay();
-  // Parse health day string into a Date. Use T12:00:00 to avoid DST edge cases,
-  // then startOfDay normalizes to midnight. This is safer than T00:00:00.
-  const healthDayDate = startOfDay(new Date(healthDayStr + 'T12:00:00'));
-  const displayDate = profile.simulatedDate || healthDayDate;
+  // The page itself shows the calendar day, like Week, History and the store: weigh-ins
+  // are saved under the calendar date, so a 5:30 AM morning weigh-in must show on today.
+  const displayDate = profile.simulatedDate || startOfDay(new Date());
   const daysUntilWeighIn = getDaysUntilWeighIn();
   const isViewingHistorical = !!profile.simulatedDate;
 
@@ -2873,7 +2871,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
   // Detect historical competition day: if a weigh-in log exists for this day
   const hasWeighInLogForDay = useMemo(() => {
-    const checkDate = profile.simulatedDate || startOfDay(new Date(healthDayStr + 'T12:00:00'));
+    const checkDate = profile.simulatedDate || startOfDay(new Date());
     return logs.some(l => {
       const ld = new Date(l.date);
       return l.type === 'weigh-in' &&
@@ -2881,7 +2879,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
         ld.getMonth() === checkDate.getMonth() &&
         ld.getDate() === checkDate.getDate();
     });
-  }, [logs, profile.simulatedDate, healthDayStr]);
+  }, [logs, profile.simulatedDate]);
   const effectiveCompDay = daysUntilWeighIn === 0 || hasWeighInLogForDay;
 
   // Phase styling for header badge only
@@ -3010,7 +3008,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {daysUntilWeighIn > 5 ? Math.round(descentData.targetWeight * 1.07) : descentData.targetWeight}
                   </span>
                   {daysUntilWeighIn > 5 && (
-                    <span className="text-xs text-muted-foreground/50 block">class: {descentData.targetWeight}</span>
+                    <span className="text-xs text-muted-foreground block">class: {descentData.targetWeight}</span>
                   )}
                 </div>
               </div>
@@ -3070,11 +3068,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <>
                   {isHistorical && (
-                    <div className="text-xs text-muted-foreground/50 text-center mt-3 mx-4">
+                    <div className="text-xs text-muted-foreground text-center mt-3 mx-4">
                       Season averages — new cycle data will replace these
                     </div>
                   )}
-                  <div className={cn("grid gap-1 text-center pt-2 mx-4 border-t border-muted", !isHistorical && "mt-3", hasExtras ? "grid-cols-3" : "grid-cols-2", isHistorical && "opacity-60")}>
+                  <div className={cn("grid gap-1 text-center pt-2 mx-4 border-t border-muted", !isHistorical && "mt-3", hasExtras ? "grid-cols-3" : "grid-cols-2")}>
                     <div>
                       <span className="text-xs text-muted-foreground block">Sleep</span>
                       <span className={cn("font-mono font-bold text-xs", driftVal !== null ? "text-cyan-500" : "")}>
@@ -3117,12 +3115,13 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
               {/* What these numbers rest on — measured pairs, and whether that's enough to project from */}
               <div className="text-xs text-center mt-1 mx-4 space-y-0.5">
-                <p className="text-muted-foreground">
-                  Based on {descentData.confidence.driftSamples} overnight and {descentData.confidence.practiceSamples} practice weigh-in pair{descentData.confidence.practiceSamples === 1 ? '' : 's'} this cycle · recent pairs count more
-                </p>
-                {!descentData.confidence.reliable && (
+                {descentData.confidence.reliable ? (
+                  <p className="text-muted-foreground">
+                    Based on {descentData.confidence.driftSamples} overnight and {descentData.confidence.practiceSamples} practice weigh-in pair{descentData.confidence.practiceSamples === 1 ? '' : 's'} this cycle · recent pairs count more
+                  </p>
+                ) : (
                   <p className="text-chart-3 font-medium">
-                    Too few pairs for a reliable projection (need 3 of each). Log before bed, and before and after practice.
+                    Projection needs 3 overnight and 3 practice pairs (you have {descentData.confidence.driftSamples} and {descentData.confidence.practiceSamples}). Log before bed, and before and after practice.
                   </p>
                 )}
                 {descentData.confidence.excludedPairs > 0 && (
@@ -3135,11 +3134,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ LOGGING STREAK + CORE LOGGED ═══ */}
               <div className="flex items-center justify-center gap-3 mt-3 mx-4 pt-2 border-t border-muted/50">
                 {descentData.loggingStreak > 1 && (
-                  <span className="text-xs font-bold text-muted-foreground/60">
+                  <span className="text-xs font-bold text-muted-foreground">
                     🔥 {descentData.loggingStreak}-day streak
                   </span>
                 )}
-                <span className="text-xs text-muted-foreground/50">
+                <span className="text-xs text-muted-foreground">
                   {descentData.todayCoreLogged}/{descentData.todayCoreTotal} logged today
                   {descentData.todayCoreLogged >= descentData.todayCoreTotal && ' ✓'}
                 </span>
@@ -3152,21 +3151,21 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
                 // Mini bar chart component for recent data
                 const SparkBars = ({ values, color, label, suffix = '' }: { values: number[]; color: string; label?: string; suffix?: string }) => {
-                  if (values.length === 0) return <span className="text-xs text-muted-foreground/40">No data yet</span>;
+                  if (values.length === 0) return <span className="text-xs text-muted-foreground">No data yet</span>;
                   const absValues = values.map(v => Math.abs(v));
                   const maxVal = Math.max(...absValues, 0.1);
                   return (
                     <div>
                       {label && (
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs text-muted-foreground/50 uppercase tracking-wide">{label}</span>
-                          <span className="text-xs text-muted-foreground/40">oldest → newest</span>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wide">{label}</span>
+                          <span className="text-xs text-muted-foreground">oldest → newest</span>
                         </div>
                       )}
                       <div className="flex items-end gap-1.5 h-[48px]">
                         {[...absValues].reverse().map((v, i) => (
                           <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                            <span className="text-xs font-mono text-muted-foreground/60 font-bold leading-none">
+                            <span className="text-xs font-mono text-muted-foreground font-bold leading-none">
                               {v.toFixed(1)}{suffix}
                             </span>
                             <div
@@ -3184,7 +3183,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 const TrendArrow = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
                   if (trend === 'up') return <span className="text-green-500 text-xs font-bold ml-1">▲</span>;
                   if (trend === 'down') return <span className="text-orange-500 text-xs font-bold ml-1">▼</span>;
-                  return <span className="text-muted-foreground/40 text-xs ml-1">—</span>;
+                  return <span className="text-muted-foreground text-xs ml-1">—</span>;
                 };
 
                 // Tappable stat card — dims when another card is expanded
@@ -3225,25 +3224,25 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <>
                   <div className="mx-4 mt-3 mb-1">
-                    <span className="text-xs text-muted-foreground/50 uppercase tracking-wide font-bold">Tap for details</span>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-bold">Tap for details</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-2 mx-4">
                     {/* Sleep */}
                     <StatCard id="sleep">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-muted-foreground/80 uppercase font-bold">
-                          Sleep {isHistSleep && <span className="text-xs text-muted-foreground/40 font-normal">(season)</span>}
+                        <span className="text-xs text-muted-foreground uppercase font-bold">
+                          Sleep {isHistSleep && <span className="text-xs text-muted-foreground font-normal">(season)</span>}
                         </span>
                         {!isHistSleep && <TrendArrow trend={descentData.trends.drift} />}
                       </div>
-                      <span className={cn("font-mono font-bold text-base block", isHistSleep ? "text-foreground/50" : "text-foreground")}>
+                      <span className={cn("font-mono font-bold text-base block", isHistSleep ? "text-foreground/70" : "text-foreground")}>
                         {sleepDrift !== null
                           ? fmtLoss(sleepDrift)
                           : '—'}
                         <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
                       {sleepRate !== null && (
-                        <span className={cn("block text-xs font-mono mt-0.5", isHistSleep ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
+                        <span className={"block text-xs font-mono mt-0.5 text-muted-foreground"}>
                           {sleepRate.toFixed(2)}/hr
                         </span>
                       )}
@@ -3252,19 +3251,19 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {/* Practice */}
                     <StatCard id="practice">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-muted-foreground/80 uppercase font-bold">
-                          Practice {isHistPractice && <span className="text-xs text-muted-foreground/40 font-normal">(season)</span>}
+                        <span className="text-xs text-muted-foreground uppercase font-bold">
+                          Practice {isHistPractice && <span className="text-xs text-muted-foreground font-normal">(season)</span>}
                         </span>
                         {!isHistPractice && <TrendArrow trend={descentData.trends.practice} />}
                       </div>
-                      <span className={cn("font-mono font-bold text-base block", isHistPractice ? "text-foreground/50" : "text-foreground")}>
+                      <span className={cn("font-mono font-bold text-base block", isHistPractice ? "text-foreground/70" : "text-foreground")}>
                         {practiceLoss !== null
                           ? fmtLoss(practiceLoss)
                           : '—'}
                         <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
                       {practiceRate !== null && (
-                        <span className={cn("block text-xs font-mono mt-0.5", isHistPractice ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
+                        <span className={"block text-xs font-mono mt-0.5 text-muted-foreground"}>
                           {practiceRate.toFixed(2)} lbs/hr
                         </span>
                       )}
@@ -3273,8 +3272,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {/* Awake */}
                     <StatCard id="awake" dashed>
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-teal-500/80 uppercase font-bold">Awake</span>
-                        <span className="text-xs text-muted-foreground/40 font-bold">EST</span>
+                        <span className="text-xs text-teal-500 uppercase font-bold">Awake</span>
+                        <span className="text-xs text-muted-foreground font-bold">EST</span>
                       </div>
                       <span className="font-mono text-base text-muted-foreground block">
                         {descentData.daytimeBmrDrift > 0
@@ -3290,7 +3289,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       <StatCard id="extras" dashed>
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-xs text-orange-400/80 uppercase font-bold">Extras</span>
-                          <span className="text-xs text-muted-foreground/40 font-bold">INFO</span>
+                          <span className="text-xs text-muted-foreground font-bold">INFO</span>
                         </div>
                         <span className="font-mono font-bold text-base text-orange-400 block">
                           {extraStats.avgLoss !== null
@@ -3304,7 +3303,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                         "bg-muted/20 rounded-lg p-2.5 border border-dashed border-muted-foreground/10 flex items-center justify-center transition-all duration-200",
                         flippedCard !== null && "opacity-40"
                       )}>
-                        <span className="text-xs text-muted-foreground/40">No extras logged</span>
+                        <span className="text-xs text-muted-foreground">No extras logged</span>
                       </div>
                     )}
                   </div>
