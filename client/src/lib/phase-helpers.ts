@@ -4,7 +4,7 @@
 export const PROTOCOL_NAMES: Record<string, string> = {
   '1': 'Extreme Cut',
   '2': 'Rapid Cut',
-  '3': 'Optimal Cut',
+  '3': 'Maintain · Sugar System',
   '4': 'Gain',
   '5': 'SPAR Nutrition',
   '6': 'SPAR Competition',
@@ -44,7 +44,7 @@ export function getProtocolPhase(protocol: string, daysUntilWeighIn: number, _ra
     if (daysUntilWeighIn <= 2) return { phase: 'PERFORMANCE', emoji: '⚡', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Glucose emphasis — full protein for performance' };
     if (daysUntilWeighIn <= 4) return { phase: 'MIXED', emoji: '🔶', color: 'text-orange-500', bgColor: 'bg-orange-500/10 border-orange-500/30', foodTip: 'Mixed fructose/glucose — moderate protein' };
     if (daysUntilWeighIn === 5) return { phase: 'FGF21 ACTIVATION', emoji: '🔥', color: 'text-red-500', bgColor: 'bg-red-500/10 border-red-500/30', foodTip: 'Fructose heavy — brief FGF21 activation' };
-    return { phase: 'OPTIMAL CUT', emoji: '🏆', color: 'text-primary', bgColor: 'bg-primary/10 border-primary/30', foodTip: 'Full protein + balanced carbs' };
+    return { phase: 'MAINTAIN · SUGAR SYSTEM', emoji: '🏆', color: 'text-primary', bgColor: 'bg-primary/10 border-primary/30', foodTip: 'Full protein + balanced carbs' };
   }
   if (protocol === '4') {
     if (daysUntilWeighIn <= 4) return { phase: 'GLUCOSE EMPHASIS', emoji: '⚡', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Glucose/starch carbs — high protein for growth' };

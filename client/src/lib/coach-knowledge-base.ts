@@ -105,7 +105,7 @@ export const PROTOCOL_KNOWLEDGE = {
     }
   },
   '3': {
-    name: 'Optimal Cut',
+    name: 'Maintain · Sugar System',
     description: 'Minimal manipulation for athletes close to weight class',
     schedule: {
       '6+': { phase: 'Maintenance', carbs: '300-450g', protein: '100g', water: '0.5 oz/lb', key: 'Regular eating' },
