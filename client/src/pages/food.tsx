@@ -65,7 +65,6 @@ export default function Food() {
   // ─── Progress ───
   const waterDone = hydration.targetOz === 0 || (hydration.targetOz > 0 && tracking.waterConsumed >= hydration.targetOz);
 
-  const doNotEat = macros.carbs.max === 0 && macros.protein.max === 0 && macros.weightWarning;
 
   // ─── Add Food Flow ───
   const [addFoodOpen, setAddFoodOpen] = useState(false);
@@ -146,11 +145,10 @@ export default function Food() {
 
         {/* ── Macro Progress Bars ── */}
         <div className="px-1 space-y-2">
-          {doNotEat ? (
-            <div className="text-center py-3">
-              <span className="text-[12px] font-bold text-red-400 bg-red-500/10 px-3 py-1.5 rounded-lg">DO NOT EAT — Weight restriction day</span>
-            </div>
-          ) : showSliceTracker && sliceTargets ? (
+          {macros.weightWarning && (
+            <p className="text-xs font-medium text-chart-3 text-center">{macros.weightWarning}</p>
+          )}
+          {showSliceTracker && sliceTargets ? (
             <>
               {sliceTargets.protein > 0 && (
                 <MacroBar label="Protein" consumed={tracking.proteinSlices} target={sliceTargets.protein} color="bg-orange-500" unit=" slices" />

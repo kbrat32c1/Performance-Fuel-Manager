@@ -855,18 +855,21 @@ export default function Recovery() {
             {weighInWeight && lostWeight > 0 && (
               <div className="text-center -mt-1 space-y-1">
                 <p className="text-xs text-chart-2 font-mono font-medium">
-                  {lostWeight.toFixed(1)} lbs water to recover · {plan.fluidRange} fluids
+                  {lostWeight.toFixed(1)} lbs scale change to recover from · {plan.fluidRange} fluids
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {water.estimated
-                    ? `Estimate: no morning weight logged before your water cut, so we assume you were 3% over your class (${water.weighInWeight.toFixed(1)} + ${lostWeight.toFixed(1)}). Log your morning weight two days out for an exact number.`
+                    ? `Estimate: no morning weight logged before your water cut, so we assume you were 3% over your class (${water.weighInWeight.toFixed(1)} + ${lostWeight.toFixed(1)}). Log your morning weight two days out for a number based on your own weigh-ins.`
                     : water.preCutDaysOut === 2
                       ? `Your ${water.preCutDate ? format(water.preCutDate, 'EEE') : ''} morning weight (${water.preCutWeight?.toFixed(1)}, two days out, before the water cut) minus your weigh-in (${water.weighInWeight.toFixed(1)}).`
                       : `Your ${water.preCutDate ? format(water.preCutDate, 'EEE') : ''} morning weight (${water.preCutWeight?.toFixed(1)}, the day before weigh-in) minus your weigh-in (${water.weighInWeight.toFixed(1)}). No weight was logged two days out, so water you cut that day isn't counted — this may be low.`}
                 </p>
+                <p className="text-xs text-muted-foreground">
+                  A scale change isn&apos;t all water. It can include food in your gut, glycogen and fat, so treat this as a guide.
+                </p>
                 {water.overSafeCut && (
                   <p className="text-xs text-chart-3 font-medium">
-                    That water cut was {Math.round((water.cutPct || 0) * 1000) / 10}% — over 3% usually hurts performance. Drink back the full amount.
+                    That drop was {Math.round((water.cutPct || 0) * 1000) / 10}% — over 3% usually hurts performance. Follow the fluid plan and give yourself as much time as you can.
                   </p>
                 )}
               </div>

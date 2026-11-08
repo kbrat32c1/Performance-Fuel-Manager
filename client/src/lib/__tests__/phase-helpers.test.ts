@@ -230,3 +230,12 @@ describe('PROTEIN_LABELS', () => {
     }
   });
 });
+
+describe("water-loading switch off", () => {
+  it("SPAR Competition phases don't mention a water cut or load", () => {
+    expect(getProtocolPhase("6", 1, undefined, false).phase).toBe("FINAL PREP");
+    expect(getProtocolPhase("6", 4, undefined, false).phase).toBe("COMP WEEK");
+    expect(getProtocolPhase("6", 1, undefined, true).phase).toBe("WATER CUT");
+  });
+});
+

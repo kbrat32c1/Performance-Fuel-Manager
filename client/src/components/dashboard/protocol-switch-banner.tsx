@@ -1,8 +1,7 @@
 /**
- * ProtocolSwitchBanner — Dashboard banner that shows when:
- * 1. The store's getStatus().recommendation.switchProtocol is true (projection-based), OR
- * 2. The wrestler's current protocol doesn't match the weight-based recommendation
- *    (e.g., on Optimal Cut but weight says Rapid Cut).
+ * ProtocolSwitchBanner — Dashboard banner that shows when the wrestler's current
+ * protocol doesn't match the weight-based recommendation
+ * (e.g., on Optimal Cut but weight says Rapid Cut).
  *
  * Dismissal strategy:
  * - "Switch" button: changes protocol to match recommendation → banner naturally hides
@@ -35,12 +34,7 @@ export function ProtocolSwitchBanner() {
     return null;
   });
 
-  // ── Source 1: Projection-based recommendation from store ──
-  const statusInfo = getStatus();
-  const projRec = statusInfo.recommendation;
-  const hasProjectionSwitch = projRec?.switchProtocol === true;
-
-  // ── Source 2: Weight-based recommendation (always available if we have weight data) ──
+  // ── Weight-based recommendation (always available if we have weight data) ──
   const currentWeight = profile.currentWeight;
   const targetWeightClass = profile.targetWeightClass;
   const hasWeightData = currentWeight > 0 && targetWeightClass > 0;
@@ -52,21 +46,13 @@ export function ProtocolSwitchBanner() {
     && profile.protocol !== '5' // Don't nag SPAR General users
     && profile.protocol !== '6'; // Don't nag SPAR Competition users (they have auto-adjusting targets)
 
-  // If neither source triggers, don't show
-  if (!hasProjectionSwitch && !hasWeightMismatch) {
+  if (!hasWeightMismatch) {
     return null;
   }
 
-  // Projection-based takes priority (more urgent, has context about days remaining)
-  const isProjectionBased = hasProjectionSwitch;
-  const isCritical = isProjectionBased && projRec?.urgency === 'critical';
-
-  // Determine target protocol and message
-  const targetProtocol = isProjectionBased ? '1' : weightRec!.protocol;
+  const targetProtocol = weightRec!.protocol;
   const config = PROTOCOL_CONFIG[targetProtocol];
-  const message = isProjectionBased
-    ? projRec!.message
-    : weightRec!.reason + (weightRec!.warning ? ` ${weightRec!.warning}` : '');
+  const message = weightRec!.reason + (weightRec!.warning ? ` ${weightRec!.warning}` : '');
 
   // Check dismissal: only hide if the dismissed target matches the current recommendation
   // AND the current protocol is the same (user hasn't changed protocols since dismissing)
@@ -75,8 +61,6 @@ export function ProtocolSwitchBanner() {
     return null;
   }
 
-  // Color scheme: projection-critical = red, projection-high = amber, weight-based = amber
-  const isRed = isCritical;
 
   const handleDismiss = () => {
     // Store both the recommended target AND current protocol so dismissal is specific
@@ -99,22 +83,20 @@ export function ProtocolSwitchBanner() {
   return (
     <Card className={cn(
       "mb-2 border overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300",
-      isRed
-        ? "bg-red-500/5 border-red-500/30"
-        : "bg-amber-500/5 border-amber-500/30"
+      "bg-amber-500/5 border-amber-500/30"
     )}>
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-start gap-2 flex-1">
             <AlertTriangle className={cn(
               "w-4 h-4 mt-0.5 shrink-0",
-              isRed ? "text-red-500" : "text-amber-500"
+              "text-amber-500"
             )} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className={cn(
                   "text-xs font-bold uppercase",
-                  isRed ? "text-red-500" : "text-amber-500"
+                  "text-amber-500"
                 )}>
                   Protocol Alert
                 </span>
@@ -126,9 +108,7 @@ export function ProtocolSwitchBanner() {
                 size="sm"
                 className={cn(
                   "mt-2 h-7 text-xs font-bold",
-                  isRed
-                    ? "bg-red-500 hover:bg-red-600 text-white"
-                    : "bg-amber-500 hover:bg-amber-600 text-white"
+                  "bg-amber-500 hover:bg-amber-600 text-white"
                 )}
                 onClick={handleSwitch}
               >

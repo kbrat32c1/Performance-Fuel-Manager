@@ -23,6 +23,8 @@ import type { Goal, GoalIntensity } from './spar-calculator-v2';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CompetitionAdjustmentInput {
+  /** Athlete's water-loading switch; off changes the wording only. */
+  waterLoading?: boolean;
   currentWeight: number;
   targetWeightClass: number;
   daysUntilWeighIn: number;
@@ -55,6 +57,7 @@ export function getCompetitionCalorieAdjustment(
   input: CompetitionAdjustmentInput
 ): CompetitionAdjustmentResult {
   const { currentWeight, targetWeightClass, daysUntilWeighIn } = input;
+  const waterLoading = input.waterLoading !== false;
   const walkAroundWeight = targetWeightClass * WALK_AROUND_MULTIPLIER;
   const lbsOverWalkAround = currentWeight - walkAroundWeight;
   const isOverWalkAround = lbsOverWalkAround > 0;
@@ -85,7 +88,7 @@ export function getCompetitionCalorieAdjustment(
       calorieAdjustment: WATER_CUT_DEFICIT,
       sparGoal: 'lose',
       goalIntensity: 'aggressive',
-      reason: 'Water cut — minimal portions, restrict water',
+      reason: waterLoading ? 'Water cut — minimal portions, restrict water' : 'Final days — minimal portions',
     };
   }
 
@@ -97,7 +100,7 @@ export function getCompetitionCalorieAdjustment(
         calorieAdjustment: MIN_DEFICIT,
         sparGoal: 'lose',
         goalIntensity: 'lean',
-        reason: 'Water load — balanced portions, peak hydration',
+        reason: waterLoading ? 'Water load — balanced portions, peak hydration' : 'Competition week — balanced portions',
       };
     }
 
@@ -109,7 +112,7 @@ export function getCompetitionCalorieAdjustment(
       calorieAdjustment: clampedDeficit,
       sparGoal: 'lose',
       goalIntensity: clampedDeficit <= -500 ? 'aggressive' : 'lean',
-      reason: `Water load — ${lbsOverWalkAround.toFixed(1)} lbs over walk-around`,
+      reason: `${waterLoading ? 'Water load' : 'Competition week'} — ${lbsOverWalkAround.toFixed(1)} lbs over walk-around`,
     };
   }
 

@@ -39,3 +39,17 @@ export function displayRecoveryScore(h: DbHealthData, history: DbHealthData[]): 
 export function withDisplayRecovery(history: DbHealthData[]): DbHealthData[] {
   return history.map(h => ({ ...h, recovery_score: displayRecoveryScore(h, history) }));
 }
+
+/**
+ * Which health_data date a screen should read.
+ * A past day that's being viewed wins. Otherwise a row dated today means the night is already
+ * synced (WHOOP doesn't move the wake-up day forward), so use it; before that, the wake-up day.
+ */
+export function healthDateToShow(
+  rows: { date: string }[],
+  today: { viewedDate: string | null; calendarDate: string; healthDay: string },
+): string {
+  if (today.viewedDate) return today.viewedDate;
+  return rows.some(r => r.date === today.calendarDate) ? today.calendarDate : today.healthDay;
+}
+

@@ -461,6 +461,14 @@ export function AiCoachProactive() {
       };
     }
 
+    // Too few weigh-in pairs: say what's measured and what to log; no pace verdict or extra work.
+    if (daysUntil >= 1 && daysUntil <= 5 && !insights.projectionReliable) {
+      return {
+        status: 'on-track',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go, {hl(daysUntil + (daysUntil === 1 ? ' day' : ' days'))} out. Log before bed, and before and after practice, so we can project from your own numbers.</>,
+      };
+    }
+
     // Day before (cut day)
     if (daysUntil === 1) {
       if (onTrack) {
@@ -474,12 +482,12 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over after {lossDescription}. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over after {lossDescription}. At your sweat rate, {hl(formatTime(totalMinutes))} of work would close it. Talk to your coach about your options.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over after {lossDescription}. Extra work needed.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over after {lossDescription}. Talk to your coach about your options.</>,
         };
       }
       return {
@@ -501,12 +509,12 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work needed.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of work would close it. Talk to your coach about your options.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. Extra work needed to make weight.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. Talk to your coach about your options.</>,
         };
       }
       return {
@@ -528,12 +536,12 @@ export function AiCoachProactive() {
         if (totalMinutes) {
           return {
             status: 'behind',
-            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of extra work over the next {hl(daysUntil + ' days')} needed.</>,
+            node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over. At your sweat rate, {hl(formatTime(totalMinutes))} of work over the next {hl(daysUntil + ' days')} would close it. Talk to your coach about your options.</>,
           };
         }
         return {
           status: 'behind',
-          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over with {hl(daysUntil + ' days')} to go. Push in practice.</>,
+          node: <>{checkPrefix}Projected {hl(gap.toFixed(1) + ' lbs', 'text-chart-4')} over with {hl(daysUntil + ' days')} to go. Talk to your coach about your options.</>,
         };
       }
       return {

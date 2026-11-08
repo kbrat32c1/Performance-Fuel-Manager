@@ -19,7 +19,7 @@ export interface PhaseInfo {
 }
 
 /** Get the FGF21 phase name based on protocol and days until weigh-in */
-export function getProtocolPhase(protocol: string, daysUntilWeighIn: number, _ratio?: string): PhaseInfo {
+export function getProtocolPhase(protocol: string, daysUntilWeighIn: number, _ratio?: string, waterLoading: boolean = true): PhaseInfo {
   // Recovery
   if (daysUntilWeighIn < 0) {
     return { phase: 'RECOVERY', emoji: '🟢', color: 'text-green-500', bgColor: 'bg-green-500/10 border-green-500/30', foodTip: 'Eat everything — full recovery refeed' };
@@ -53,6 +53,8 @@ export function getProtocolPhase(protocol: string, daysUntilWeighIn: number, _ra
   }
   // Protocol 6 (SPAR Competition)
   if (protocol === '6') {
+    if (daysUntilWeighIn <= 2 && !waterLoading) return { phase: 'FINAL PREP', emoji: '🎯', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Light portions, normal hydration' };
+    if (daysUntilWeighIn <= 5 && !waterLoading) return { phase: 'COMP WEEK', emoji: '🎯', color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30', foodTip: 'Balanced portions, normal hydration' };
     if (daysUntilWeighIn <= 2) return { phase: 'WATER CUT', emoji: '💧', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Light portions, restrict water' };
     if (daysUntilWeighIn <= 5) return { phase: 'WATER LOAD', emoji: '🌊', color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30', foodTip: 'Balanced portions, peak hydration' };
     return { phase: 'TRAINING', emoji: '💪', color: 'text-purple-500', bgColor: 'bg-purple-500/10 border-purple-500/30', foodTip: 'SPAR portions, auto-adjusting for walk-around' };

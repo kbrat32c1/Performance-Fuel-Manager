@@ -715,6 +715,41 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
 }
 
 /**
+ * The guide's text follows the sugar-system calendar, but protein targets differ by protocol.
+ * Where the two contradict each other, the athlete's actual protein target wins.
+ */
+export function alignGuideWithProtein(
+  guide: FuelGuideResult,
+  daysUntilWeighIn: number,
+  protein: { min: number; max: number },
+): FuelGuideResult {
+  if (daysUntilWeighIn <= 0) return guide;
+  if (protein.max === 0 && guide.proteinStatus !== 'blocked') {
+    return {
+      ...guide,
+      proteinStatus: 'blocked',
+      proteinTip: 'No protein today on this plan',
+      eatProtein: [],
+      mealGuide: { morning: guide.mealGuide.morning, afternoon: 'Carbs only, no protein', evening: 'Carbs only, no protein' },
+    };
+  }
+  const contradicts = (guide.proteinStatus === 'blocked' && protein.max > 0)
+    || (guide.proteinStatus === 'collagen-only' && protein.max >= 50);
+  if (!contradicts) return guide;
+  const range = protein.min === protein.max ? `${protein.max} g` : `${protein.min}-${protein.max} g`;
+  return {
+    ...guide,
+    proteinStatus: 'full',
+    proteinTip: `Protein target today: ${range}`,
+    // The day's no-dairy rule still applies, so the recovery-day list is filtered for it.
+    eatProtein: SUGAR_FOODS.protein.filter(f =>
+      (f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday') && !/yogurt|dairy|milk|cheese|whey|casein/i.test(f.name)),
+    avoidSummary: 'No dairy, no fiber',
+    mealGuide: { morning: guide.mealGuide.morning, afternoon: `Carbs, plus protein toward your ${range} target`, evening: `Carbs, plus protein toward your ${range} target` },
+  };
+}
+
+/**
  * Filter the avoid list based on days until weigh-in.
  * Parses "(5-3 days out)" and "(2-1 days out)" suffixes from food names.
  */

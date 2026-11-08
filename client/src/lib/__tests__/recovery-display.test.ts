@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { displayRecoveryScore, withDisplayRecovery } from "../recovery-display";
+import { displayRecoveryScore, healthDateToShow, withDisplayRecovery } from "../recovery-display";
 import { computeBaselines } from "../recovery-baselines";
 import { computeRecoveryScoreDetailed } from "../healthkit-service";
 import type { DbHealthData } from "../supabase";
@@ -28,5 +28,18 @@ describe("one recovery score per day", () => {
   it("keeps WHOOP's own score on WHOOP days", () => {
     const whoop = day("2026-11-07", { source: "whoop" as DbHealthData["source"], recovery_score: 67 });
     expect(displayRecoveryScore(whoop, [whoop, ...history.slice(1)])).toBe(67);
+  });
+});
+
+describe("healthDateToShow", () => {
+  const dates = { calendarDate: "2026-11-08", healthDay: "2026-11-07" };
+  it("uses today's row once the night has synced, even before the wake-up day moves", () => {
+    expect(healthDateToShow([{ date: "2026-11-08" }, { date: "2026-11-07" }], { viewedDate: null, ...dates })).toBe("2026-11-08");
+  });
+  it("stays on the wake-up day until today has a row", () => {
+    expect(healthDateToShow([{ date: "2026-11-07" }], { viewedDate: null, ...dates })).toBe("2026-11-07");
+  });
+  it("a past day being viewed always wins", () => {
+    expect(healthDateToShow([{ date: "2026-11-08" }], { viewedDate: "2026-11-05", ...dates })).toBe("2026-11-05");
   });
 });

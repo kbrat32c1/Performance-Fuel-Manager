@@ -266,6 +266,19 @@ describe('targets for a past day', () => {
     expect(weekAgo.hydration.targetOz).not.toBe(today.hydration.targetOz);
   });
 
+  it('never cuts food targets for being heavy: it shows a note pointing to the coach', async () => {
+    const { result } = await storeTwoDaysOut();
+    const before = result.current.getMacroTargets();
+    await act(async () => {
+      await result.current.addLog({ weight: result.current.profile.targetWeightClass * 1.2, date: noonOffset(0), type: 'morning' });
+    });
+    const after = result.current.getMacroTargets();
+    expect(after.carbs).toEqual(before.carbs);
+    expect(after.protein).toEqual(before.protein);
+    expect(after.weightWarning).toMatch(/talk to your coach/i);
+    expect(after.weightWarning).not.toMatch(/do not eat|faint|extra workouts|water cut/i);
+  });
+
   it('leaves today\'s getters untouched afterwards', async () => {
     const { result } = await storeTwoDaysOut();
     const before = result.current.getMacroTargets();

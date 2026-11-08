@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/mobile-layout";
-import { displayRecoveryScore } from "@/lib/recovery-display";
+import { displayRecoveryScore, healthDateToShow } from "@/lib/recovery-display";
 import { useStore } from "@/lib/store";
 import { useWhoopAutoSync } from "@/hooks/use-whoop-auto-sync";
 import { useTeam } from "@/hooks/use-team";
@@ -1511,16 +1511,16 @@ export default function Dashboard() {
           text: isTrainingPhase ? 'Below walk-around weight' : 'Ahead of pace to make weight',
           color: 'text-green-500',
         });
-      } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0) {
+      } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0 && (isTrainingPhase || descentData.confidence.reliable)) {
         items.push({
           emoji: '⚠️',
-          text: isTrainingPhase ? 'Above walk-around — monitor intake' : 'Behind pace — extra effort needed',
+          text: isTrainingPhase ? 'Above walk-around — monitor intake' : 'Behind pace',
           color: 'text-yellow-500',
         });
       }
 
       // 4. Projected to make weight — only show during comp week (projection is meaningful)
-      if (!isTrainingPhase && descentData.projectedSaturday !== null && descentData.projectedSaturday <= profile.targetWeightClass && daysUntilWeighIn > 1) {
+      if (!isTrainingPhase && descentData.confidence.reliable && descentData.projectedSaturday !== null && descentData.projectedSaturday <= profile.targetWeightClass && daysUntilWeighIn > 1) {
         items.push({
           emoji: '✅',
           text: `On track for ${descentData.projectedSaturday.toFixed(1)} lbs at weigh-in`,
@@ -2848,7 +2848,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   // Get today's health data for cut score premium tier
   // Priority: V5 direct data > HealthKit data
   // Use health day (WHOOP-style) so at 12:53 AM Saturday we look up Friday's data
-  const todayStr = profile.simulatedDate ? format(profile.simulatedDate, 'yyyy-MM-dd') : healthDayStr;
+  const todayStr = healthDateToShow(healthData, {
+    viewedDate: profile.simulatedDate ? format(profile.simulatedDate, 'yyyy-MM-dd') : null,
+    calendarDate: format(new Date(), 'yyyy-MM-dd'),
+    healthDay: healthDayStr,
+  });
   const hkTodayHealth = healthData.find(h => h.date === todayStr);
 
   // V5 band syncs to the same health_data table with source='v5-direct'
@@ -2858,14 +2862,16 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const todayHealth = v5Today || hkTodayHealth;
 
   // Fall back to most recent health data if nothing for today
-  const latestHealth = todayHealth || healthData[0]; // healthData already sorted newest-first
+  // Every card and detail sheet reads the same days: nothing newer than the day being shown.
+  const healthHistoryToShow = healthData.filter(h => h.date <= todayStr);
+  const latestHealth = todayHealth || healthHistoryToShow[0]; // healthData already sorted newest-first
   const healthIsStale = !!latestHealth && latestHealth.date !== todayStr;
 
   const healthDataForCutScore = latestHealth ? {
     hrv: latestHealth.hrv,
     restingHeartRate: latestHealth.resting_heart_rate,
     sleepScore: latestHealth.sleep_score,
-    recoveryScore: displayRecoveryScore(latestHealth, healthData),
+    recoveryScore: displayRecoveryScore(latestHealth, healthHistoryToShow),
     strainScore: latestHealth.strain_score,
   } : undefined;
 
@@ -3528,7 +3534,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 <div className="px-4 pt-3">
                   <RecoveryScoreCard
                     latestHealth={latestHealth}
-                    healthHistory={healthData}
+                    healthHistory={healthHistoryToShow}
                     isStale={healthIsStale}
                   />
                 </div>
@@ -3539,7 +3545,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 <div className="px-4 pt-2">
                   <StrainScoreCard
                     strain={v5band.currentStrain}
-                    healthHistory={healthData}
+                    healthHistory={healthHistoryToShow}
                     isLive={v5band.hrMonitoringActive}
                     recoveryScore={latestHealth ? displayRecoveryScore(latestHealth, healthData) : null}
                   />
@@ -3549,7 +3555,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ HEALTH METRICS — from V5 band ═══ */}
               {latestHealth && (
                 <div className="px-4 pt-2">
-                  <HealthMetricsCard healthData={latestHealth} healthHistory={healthData} isStale={healthIsStale} />
+                  <HealthMetricsCard healthData={latestHealth} healthHistory={healthHistoryToShow} isStale={healthIsStale} />
                 </div>
               )}
 
