@@ -78,8 +78,30 @@ describe("safety response and wording rules", () => {
   it("keeps weight talk out of a safety response", () => {
     expect(COACH_SAFETY_RULES).toMatch(/SAFETY RESPONSE ONLY/);
     expect(COACH_SAFETY_RULES).toMatch(/purged/);
-    expect(COACH_SAFETY_RULES).toMatch(/whether or not they have symptoms/);
     expect(COACH_SAFETY_RULES).toMatch(/aren't in trouble/);
+  });
+  it("sends a big rapid loss to the coach", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/about 10% or more of body weight in 3 days/);
+    expect(COACH_SAFETY_RULES).toMatch(/talk with their coach today/);
+    expect(COACH_SAFETY_RULES).not.toMatch(/8% of body weight/);
+  });
+  it("names an extra workout as an option without prescribing it", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/extra workout is how that remaining gap/);
+    expect(COACH_SAFETY_RULES).toMatch(/Don't give a duration/);
+    expect(COACH_SAFETY_RULES).not.toMatch(/Saunas over 30 minutes/);
+  });
+  it("doesn't subtract losses straight from a morning weight", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/Don't subtract a usual practice and a usual night straight from a morning weight/);
+  });
+  it("speaks to the athlete about NCAA rules, not to itself", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/tell the athlete they're against NCAA wrestling rules/);
+    expect(COACH_SAFETY_RULES).not.toMatch(/Treat these/);
+  });
+  it("doesn't repeat sips-only to an athlete who's behind", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/don't repeat the sips-only/);
+  });
+  it("keeps the routine trainer line out of ordinary answers", () => {
+    expect(COACH_DATA_RULES).toMatch(/Don't add a routine line/);
   });
   it("doesn't let a number read as clearance", () => {
     expect(COACH_DATA_RULES).toMatch(/never "safe"/);

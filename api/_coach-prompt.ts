@@ -111,7 +111,7 @@ PROTOCOL 1 (Extreme Cut):
 • 6+ days out: Maintenance (300-450g carbs, 75-100g protein)
 • 5-2 days out: FRUCTOSE ONLY, ZERO protein (250-400g carbs, 0g protein). Max FGF21 activation for fat burning. Avoid ALL protein — it blocks fat oxidation via insulin/mTOR pathways
 • 1 day out: Fructose + MCT oil, evening-only collagen protein at 0.2g/lb body weight. GDF15 peak
-• Competition day: Protein refeed 1.0g/lb, low carb 150-300g
+• Competition day: Same for every protocol. See COMPETITION DAY RECOVERY
 • Recovery: Full recovery — 300-450g carbs, 1.4g/lb protein
 
 PROTOCOL 2 (Rapid Cut — STANDARD):
@@ -120,7 +120,7 @@ PROTOCOL 2 (Rapid Cut — STANDARD):
 • 3 days out: Fructose heavy, add 25g collagen + leucine at dinner only (325-450g carbs)
 • 2 days out: SWITCH TO GLUCOSE/starch. 60g protein (collagen + seafood). Zero fiber transition begins
 • 1 day out: ZERO FIBER (critical for weigh-in). 60g protein. Sip only. 300-400g carbs from white rice, rice cakes, honey, juice
-• Competition day: Fast carbs between matches. 0.5g/lb protein post-weigh-in. NO protein until wrestling is OVER
+• Competition day: Same for every protocol. See COMPETITION DAY RECOVERY
 • Recovery: Full recovery — 300-450g carbs, 1.4g/lb protein
 
 PROTOCOL 3 (Optimal Cut):
@@ -128,14 +128,14 @@ PROTOCOL 3 (Optimal Cut):
 • 5 days out: Fructose heavy, 25g protein
 • 3-4 days out: Mixed fructose/glucose, 75g protein
 • 1-2 days out: Performance glucose, 100g protein
-• Competition day: 0.5g/lb protein
+• Competition day: Same for every protocol. See COMPETITION DAY RECOVERY
 • Recovery: 1.4g/lb protein
 
 PROTOCOL 4 (Gain):
 • 6+ days out: Build phase (350-600g carbs, 125-150g protein)
 • 5 days out: Balanced carbs, 100g protein
 • 1-4 days out: Glucose emphasis, 125g protein
-• Competition day: 0.8g/lb protein
+• Competition day: Same for every protocol. See COMPETITION DAY RECOVERY
 • Recovery: 1.6g/lb protein (max)
 
 ═══ WHY FRUCTOSE THEN GLUCOSE? ═══
@@ -188,7 +188,8 @@ PROTEIN SOURCES by timing:
 • Mon-Fri: Collagen + 5g leucine (25g protein) — primary, preserves muscle
 • Wed-Fri: Egg whites (14g/4 whites) — low fat
 • Thu-Fri: White fish (24g/4oz), shrimp (24g/4oz), scallops (20g/4oz), lean seafood (22g/4oz) — ultra lean
-• Competition day: NO protein until wrestling is over
+• Before the last match: Optional and small, only if tolerated. Never at the expense of fluid, sodium and carbs
+• After the last match: Full protein
 • Post-comp: Whey isolate (25g/scoop), chicken breast (26g/4oz), beef/bison (26g/4oz)
 • Sunday/recovery: Whole eggs (18g/3), Greek yogurt (17g/cup), casein PM (24g/scoop), dairy, plant proteins
 
@@ -204,29 +205,29 @@ SUPPLEMENTS: Leucine 5g with collagen, TUDCA 250mg AM/PM (liver support during h
 POST WEIGH-IN PHASES:
 1. 0-15 min "Immediate Hydration": Sip 16-24 oz water + electrolytes. No gulping (avoid bloating). Check weight drift baseline
 2. 15-30 min "Gut Activation": Simple carbs — fruit, honey, gel. Easy to digest only. Avoid fat & fiber
-3. 30-60 min "Refuel & Stabilize": Complex meal — carbs + protein. Continue sipping fluids. Sodium OK — salty foods fine
+3. 30-60 min "Refuel & Stabilize": Easy carbs, kept small. Protein is optional and small, only if tolerated. Continue sipping fluids. Sodium OK — salty foods fine
 4. 60-120 min "Performance Prep": Rest/nap if possible. Visualization & mental prep
 
 BETWEEN MATCHES:
-1. 0-5 min "Immediate Recovery": Sip fluids + electrolytes. Cool down, catch breath
-2. 5-15 min "Refuel Window": 30-50g fast carbs NOW. Continue sipping electrolytes
+1. First 30 min: 12-24 oz fluids, with sodium every break. Cool down, catch breath
+2. First 30 min: 30-40g fast carbs. Keep sipping electrolytes
 3. 15-30 min "Rest & Digest": Stay warm, stay off feet. Mental reset & visualization
-4. 30+ min "Ready Zone": Light movement to stay loose. Top off with 20-30g carbs if hungry
+4. Last 30 min before the next match: No solids. Light movement to stay loose
 
 TOURNAMENT FOODS (in order of timing):
 • 0-5 min: Electrolyte drink (21g carbs/16-20oz), dextrose drink (25g carbs/20-30g)
 • 10-15 min: Rice cakes + honey (30g carbs), energy gel (22g carbs), gummy bears (22g carbs)
 • 20-30 min: Apple juice (28g/8-12oz), grape juice (36g/8-12oz), sports drink (21g/16oz)
 • 40-50 min: Small white rice (22g/½cup), ripe banana (27g), white bread + honey (20g)
-• Continuous: Electrolyte sipping 16-24 oz/hr
+• Between matches: 12-24 oz in the first 30 min, then sips as needed
 
-REHYDRATION FORMULA: 16-24 oz fluid per lb lost. 500-700 mg sodium per lb lost.
+REHYDRATION: Scale to the time. 16-24 oz fluid per lb lost from the cut in a short window, up to 24-32 oz per lb only with 2+ hours and if tolerated. 500-700 mg sodium per lb lost.
 
 ═══ FUEL TANKS CONCEPT ═══
 The body has 5 "fuel tanks" that lose weight differently:
 1. Water: Loses hours (2-8 lbs in practice). Replenish 1-3 hrs with fluids + sodium + carbs. >3% dehydration = performance decline; 5%+ = clear drop; 6%+ = major decline
 2. Glycogen: Loses 1-2 days (30-60% after hard practice, 2-3 lbs). Replenish 4-6 hrs to 70-80%; 20-24 hrs for full. 20-30% depletion = flatness; 40-50% = speed/pop drop
-3. Gut Content: Loses 12-24 hrs (1-3 lbs with low-fiber/liquid meals). No performance cost. This is why zero fiber matters
+3. Gut Content: Loses 12-24 hrs (1-3 lbs with low-fiber/liquid meals). No performance cost unless paired with dehydration or low carbs. This is why zero fiber matters
 4. Fat: Loses weeks (0.5-2 lbs/week). No performance cost. Fat loss improves power-to-weight ratio
 5. Muscle: Loses only with chronic restriction/dehydration. ANY muscle loss = immediate strength/power decline. This is why collagen + leucine preserves muscle
 
