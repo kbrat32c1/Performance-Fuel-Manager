@@ -58,8 +58,9 @@ export function getMeetDayWater(opts: {
   const preCut = morningOn(logs, addDays(day, -2)) ?? morningOn(logs, addDays(day, -1));
   const preCutWeight = preCut ? preCut.weight : null;
 
-  if (preCutWeight !== null && preCutWeight > weighInWeight) {
-    const lbs = preCutWeight - weighInWeight;
+  if (preCutWeight !== null) {
+    // A known baseline wins even when it shows no drop: no water cut means nothing to drink back.
+    const lbs = Math.max(0, preCutWeight - weighInWeight);
     const pct = lbs / preCutWeight;
     return {
       weighInWeight, weighInSource, preCutWeight,

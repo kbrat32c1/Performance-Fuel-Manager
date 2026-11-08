@@ -31,6 +31,12 @@ describe("Meet Day water to recover", () => {
     expect(r.lbsToRecover).toBe(5);
   });
 
+  it("shows zero, not the estimate, when the logged pre-cut weight shows no drop", () => {
+    const r = getMeetDayWater({ logs: [log(2, 133)], weighInDate: weighIn, weightClass: 133 });
+    expect(r.estimated).toBe(false);
+    expect(r.lbsToRecover).toBe(0);
+  });
+
   it("flags a water cut over 3%", () => {
     const r = getMeetDayWater({ logs: [log(2, 139)], weighInDate: weighIn, weightClass: 133 });
     expect(r.lbsToRecover).toBe(6);
