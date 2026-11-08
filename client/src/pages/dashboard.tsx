@@ -39,6 +39,7 @@ import { HealthMetricsCard } from "@/components/dashboard/health-metrics-card";
 import { RecoveryScoreCard } from "@/components/dashboard/recovery-score-card";
 import { StrainScoreCard } from "@/components/dashboard/strain-score-card";
 import { RecoveryReadyModal } from "@/components/dashboard/recovery-ready-modal";
+import { TodayPlanCard } from "@/components/dashboard/today-plan-card";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useV5BandContext } from "@/lib/v5band-context";
@@ -1814,6 +1815,15 @@ export default function Dashboard() {
             </Button>
           </div>
         )}
+
+      {/* TODAY'S PLAN — next action, targets, status, confidence. Cards below are the detail. */}
+      {!isViewingHistorical && (
+        <TodayPlanCard
+          todayLogs={todayLogs}
+          isRestDay={isRestDay}
+          hasRecoveryData={healthData.some(h => h.date === healthDayStr && (h.sleep_hours != null || h.hrv != null || h.resting_heart_rate != null))}
+        />
+      )}
 
       {/* Protocol Switch Banner — shows when wrestler should switch to Extreme Cut */}
       {!isViewingHistorical && !isSparGeneral && (
