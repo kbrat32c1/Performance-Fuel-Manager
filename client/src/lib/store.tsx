@@ -1057,24 +1057,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (log.sleepHours !== undefined) insertData.sleep_hours = log.sleepHours;
 
           // The DB unique index (user_id, DATE(date) in UTC, type) covers only the
-          // one-per-day types. Clear a same-UTC-day record of those types to avoid a
-          // constraint violation; extra-workout logs allow multiples and must be kept.
+          // one-per-day types. If the database already has that day's entry (e.g. this
+          // device's copy was stale), overwrite it in place. Never delete first: if the
+          // save then failed, the old weight would be lost.
+          let existingId: string | null = null;
           if (UNIQUE_PER_DAY_TYPES.includes(log.type as any)) {
             const utcDate = insertData.date.split('T')[0]; // "2025-02-18"
-            await supabase
+            const { data: existing, error: lookupError } = await supabase
               .from('weight_logs')
-              .delete()
+              .select('id')
               .eq('user_id', user.id)
               .eq('type', log.type)
               .gte('date', `${utcDate}T00:00:00.000Z`)
-              .lte('date', `${utcDate}T23:59:59.999Z`);
+              .lte('date', `${utcDate}T23:59:59.999Z`)
+              .limit(1);
+            if (lookupError) throw lookupError;
+            existingId = existing && existing.length > 0 ? existing[0].id : null;
           }
 
-          const { data, error } = await supabase
-            .from('weight_logs')
-            .insert(insertData)
-            .select()
-            .single();
+          const { user_id: _uid, ...replacement } = insertData;
+          const { data, error } = existingId
+            ? await supabase
+                .from('weight_logs')
+                .update(replacement)
+                .eq('id', existingId)
+                .eq('user_id', user.id)
+                .select()
+                .single()
+            : await supabase
+                .from('weight_logs')
+                .insert(insertData)
+                .select()
+                .single();
 
           if (error) {
             // Rollback on error
@@ -1087,8 +1101,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data) {
-            // Update with real ID
-            setLogs(prev => prev.map(l => l.id === tempId ? { ...l, id: data.id } : l));
+            // Update with real ID (and drop any stale local copy of the row we overwrote)
+            setLogs(prev => prev
+              .filter(l => l.id === tempId || l.id !== data.id)
+              .map(l => l.id === tempId ? { ...l, id: data.id } : l));
             savedId = data.id;
           }
         }

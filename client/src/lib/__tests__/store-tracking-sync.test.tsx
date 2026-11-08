@@ -200,14 +200,15 @@ describe('weight log cloud cleanup', () => {
     expect(db.weightLogDeletes).toEqual([]);
   });
 
-  it('still clears a same-day record for one-per-day weigh-in types', async () => {
+  it('never deletes before saving one-per-day weigh-in types (a failed save would lose the old weight)', async () => {
     const { result } = await renderLoadedStore();
 
     await act(async () => {
       await result.current.addLog({ weight: 161, date: new Date(2026, 10, 7, 7, 0), type: 'morning' });
     });
 
-    expect(db.weightLogDeletes).toEqual([{ table: 'weight_logs', user_id: 'athlete-1', type: 'morning' }]);
+    // Replacement now overwrites in place; see weight-log-replace.test.tsx.
+    expect(db.weightLogDeletes).toEqual([]);
   });
 });
 
