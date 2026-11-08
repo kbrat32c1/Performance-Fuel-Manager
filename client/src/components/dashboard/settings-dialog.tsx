@@ -328,7 +328,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 })()}
 
                 <p className="text-xs text-muted-foreground leading-snug">
-                  Your plan determines your guidance; your tracking method determines how you log food. Slices or Grams work with any plan.
+                  Your plan determines your guidance; your tracking method determines how you log food. Slices, Grams or Calories work with any plan.
                 </p>
 
                 {/* Help Me Choose — opens ProtocolWizard dialog */}
