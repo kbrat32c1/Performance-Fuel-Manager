@@ -4,6 +4,7 @@ import { authHeaders } from "@/lib/auth-headers";
 import { X, Loader2, Camera, Check, AlertTriangle, Pencil, Plus, Minus, Trash2, Ban, ChevronDown, ArrowLeftRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { checkSugarDietFood } from "@/lib/food-data";
+import { isListed } from "@/lib/food-totals";
 
 export interface PhotoFood {
   name: string;
@@ -15,6 +16,8 @@ export interface PhotoFood {
   fiber: number;
   sparCategory: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat';
   sliceCount: number;
+  /** The matched food doesn't list fat, so `fat` is a placeholder 0 */
+  fatUnknown?: boolean;
 }
 
 // ─── FatSecret-matched food types (mirrors server MatchedFood) ──────────────
@@ -31,6 +34,7 @@ export interface FatSecretServing {
   metricAmount: number | null;
   metricUnit: string;
   isDefault: boolean;
+  reported?: { calories: boolean; fat: boolean };
 }
 
 export interface FatSecretFood {
@@ -123,6 +127,7 @@ export function matchedFoodToPhotoFood(mf: MatchedFood, servingOverride?: FatSec
     name: mf.fsMatch.name + (mf.fsMatch.brand ? ` (${mf.fsMatch.brand})` : ''),
     estimatedGrams, calories, protein, carbs, fat, fiber,
     sparCategory, sliceCount,
+    ...(isListed(serving.fat, serving.reported?.fat) ? {} : { fatUnknown: true }),
   };
 }
 

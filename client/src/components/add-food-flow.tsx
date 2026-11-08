@@ -22,7 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { buildFoodEntries, classifyFood, type FoodToLog, type SliceType, type TrackingView, nextTotals } from "@/lib/food-totals";
+import { barcodeMultiplier, buildFoodEntries, classifyFood, isListed, type FoodToLog, type SliceType, type TrackingView, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -173,11 +173,14 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       category: 'fatsecret',
       sliceType,
       sliceCount,
-      calories: Math.round((serving.calories || 0) * qty),
-      fat,
-      fiber: Math.round((serving.fiber || 0) * qty * 10) / 10,
-      nutrientSource: 'database',
-      servings: qty,
+      // A value the database doesn't list stays blank rather than becoming zero.
+      ...(isListed(serving.calories, serving.reported?.calories) ? {
+        calories: Math.round((serving.calories || 0) * qty),
+        ...(isListed(serving.fat, serving.reported?.fat) ? { fat } : {}),
+        fiber: Math.round((serving.fiber || 0) * qty * 10) / 10,
+        nutrientSource: 'database' as const,
+        servings: qty,
+      } : {}),
     });
     addToRecents(food, serving);
     setSelectedFS(null);
@@ -202,20 +205,23 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   // ─── Add scanned barcode food ───
   const handleOFFAdd = useCallback(() => {
     if (!selectedOFF) return;
-    const grams = parseFloat(offServingGrams) || 100;
-    const carbs = Math.round(selectedOFF.carbs * grams / 100);
-    const protein = Math.round(selectedOFF.protein * grams / 100);
+    const perServing = selectedOFF.nutrientBasis === 'serving';
+    const multiplier = barcodeMultiplier(selectedOFF.nutrientBasis, offServingGrams);
+    const carbs = Math.round(selectedOFF.carbs * multiplier);
+    const protein = Math.round(selectedOFF.protein * multiplier);
     const brandLabel = selectedOFF.brand ? ` (${selectedOFF.brand})` : '';
-    const servingLabel = selectedOFF.servingSizeLabel || `${grams}g`;
+    const servingLabel = perServing
+      ? `${selectedOFF.servingSizeLabel || 'serving'}${multiplier !== 1 ? ` ×${multiplier}` : ''}`
+      : selectedOFF.servingSizeLabel || `${Math.round(multiplier * 100)}g`;
     const foodName = `${selectedOFF.name}${brandLabel} — ${servingLabel}`;
 
-    const fat = Math.round((selectedOFF.fat || 0) * grams / 100);
+    const fat = Math.round((selectedOFF.fat || 0) * multiplier);
     const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat });
 
     // Barcode data is crowd-sourced and the serving is a guess, so it is never treated as exact.
     // A value the product doesn't list stays blank rather than becoming zero.
-    const caloriesListed = selectedOFF.reported?.calories ?? selectedOFF.calories > 0;
-    const fatListed = selectedOFF.reported?.fat ?? selectedOFF.fat > 0;
+    const caloriesListed = isListed(selectedOFF.calories, selectedOFF.reported?.calories);
+    const fatListed = isListed(selectedOFF.fat, selectedOFF.reported?.fat);
     logFoodEntry({
       name: foodName,
       carbs,
@@ -224,10 +230,11 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
       sliceType,
       sliceCount,
       ...(caloriesListed ? {
-        calories: Math.round(selectedOFF.calories * grams / 100),
+        calories: Math.round(selectedOFF.calories * multiplier),
         ...(fatListed ? { fat } : {}),
-        fiber: Math.round((selectedOFF.fiber || 0) * grams / 10) / 10,
+        fiber: Math.round((selectedOFF.fiber || 0) * multiplier * 10) / 10,
         nutrientSource: 'estimate' as const,
+        ...(perServing ? { servings: multiplier } : {}),
       } : {}),
     });
     setSelectedOFF(null);
@@ -263,7 +270,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
         // Photo and voice amounts are estimates. An unrecognized food has no numbers at all.
         ...(food.calories > 0 ? {
           calories: Math.round(food.calories),
-          fat,
+          ...(food.fatUnknown ? {} : { fat }),
           fiber: Math.round((food.fiber || 0) * 10) / 10,
           nutrientSource: 'estimate' as const,
         } : {}),
@@ -490,17 +497,17 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
 
             {/* Nutrition per serving */}
             {(() => {
-              const g = parseFloat(offServingGrams) || 100;
-              const cal = Math.round(selectedOFF.calories * g / 100);
-              const c = Math.round(selectedOFF.carbs * g / 100);
-              const p = Math.round(selectedOFF.protein * g / 100);
-              const f = Math.round(selectedOFF.fat * g / 100);
+              const m = barcodeMultiplier(selectedOFF.nutrientBasis, offServingGrams);
+              const cal = Math.round(selectedOFF.calories * m);
+              const c = Math.round(selectedOFF.carbs * m);
+              const p = Math.round(selectedOFF.protein * m);
+              const f = Math.round(selectedOFF.fat * m);
               return (
                 <div className="flex items-center gap-3 text-xs font-mono font-bold">
                   <span className="text-muted-foreground">{cal} cal</span>
                   <span className="text-amber-500">{c}g C</span>
                   <span className="text-orange-500">{p}g P</span>
-                  <span className="text-yellow-600">{f}g F</span>
+                  <span className="text-yellow-600">{isListed(selectedOFF.fat, selectedOFF.reported?.fat) ? `${f}g F` : 'Fat not listed'}</span>
                 </div>
               );
             })()}
@@ -508,13 +515,13 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
             {/* Serving size input */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground/60 shrink-0">Serving:</span>
-              <input aria-label="Serving size in grams"
+              <input aria-label={selectedOFF.nutrientBasis === 'serving' ? "Number of servings" : "Serving size in grams"}
                 type="number"
                 value={offServingGrams}
                 onChange={(e) => setOffServingGrams(e.target.value)}
                 className="w-16 h-7 text-[12px] font-mono font-bold text-center bg-background border border-muted/30 rounded px-1"
               />
-              <span className="text-xs text-muted-foreground/60">g</span>
+              <span className="text-xs text-muted-foreground/60">{selectedOFF.nutrientBasis === 'serving' ? 'serving' : 'g'}</span>
               {selectedOFF.servingSizeLabel && (
                 <span className="text-xs text-muted-foreground/40 truncate">
                   ({selectedOFF.servingSizeLabel})
@@ -933,7 +940,7 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
             <span className="text-muted-foreground">{totalCal} cal</span>
             <span className="text-amber-500">{totalCarbs}g C</span>
             <span className="text-orange-500">{totalProtein}g P</span>
-            <span className="text-muted-foreground/60">{totalFat}g F</span>
+            <span className="text-muted-foreground/60">{activeServing && isListed(activeServing.fat, activeServing.reported?.fat) ? `${totalFat}g F` : 'Fat not listed'}</span>
           </div>
 
           {/* Add button */}

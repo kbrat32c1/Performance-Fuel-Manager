@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildFoodEntries, classifyFood, copyEntry, entryCalorieLabel, establishedNutritionGoals, gramsToSlices, incompleteReasons, nextTotals,
+  buildFoodEntries, classifyFood, barcodeMultiplier, copyEntry, entryCalorieLabel, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
   nutritionFromLog, totalsFromFoodLog, withGramAmount, withServings, withSliceCount,
 } from "../food-totals";
 import type { FoodLogEntry } from "../stores/types";
@@ -180,8 +180,29 @@ describe("calorie diary", () => {
     expect(entryCalorieLabel(spar({ sliceCount: 1, gramAmount: 25 }))).toBe("Not tracked");
   });
 
-  it("only gives calorie and fat goals where the calculator sets them", () => {
-    expect(establishedNutritionGoals({ isV2: true, totalCalories: 2400, fatGrams: 70 })).toEqual({ calories: 2400, fat: 70 });
-    expect(establishedNutritionGoals({ isV2: false, totalCalories: 900 })).toBeNull();
+  it("treats unknown fat as unknown, and a listed 0 as a real zero", () => {
+    expect(isListed(0, false)).toBe(false);
+    expect(isListed(0, true)).toBe(true);
+    expect(isListed(0, undefined)).toBe(false);
+    expect(isListed(4, undefined)).toBe(true);
+    const unknown = buildFoodEntries({ name: "A", carbs: 20, protein: 2, calories: 100, nutrientSource: "database" }, { ...ctx, view: "calories" });
+    const zero = buildFoodEntries({ name: "B", carbs: 20, protein: 2, calories: 100, fat: 0, nutrientSource: "database" }, { ...ctx, view: "calories" });
+    expect(nutritionFromLog(unknown)).toMatchObject({ missingFat: 1, incomplete: true });
+    expect(incompleteReasons(nutritionFromLog(unknown))).toEqual(["1 food has no fat value"]);
+    expect(nutritionFromLog(zero)).toMatchObject({ fat: 0, missingFat: 0, incomplete: false });
+  });
+
+  it("scales a barcode with no weight by servings, and a normal one by grams", () => {
+    expect(barcodeMultiplier("serving", "1")).toBe(1);
+    expect(barcodeMultiplier("serving", "2")).toBe(2);
+    expect(barcodeMultiplier("serving", "")).toBe(1);
+    expect(barcodeMultiplier("100g", "30")).toBeCloseTo(0.3);
+    expect(barcodeMultiplier(undefined, "")).toBe(1);
+  });
+
+  it("spots a very old day that has totals but no food entries", () => {
+    expect(hasTotalsWithoutEntries({ foodLog: [], carbSlices: 2 })).toBe(true);
+    expect(hasTotalsWithoutEntries({ foodLog: [], carbsConsumed: 0 })).toBe(false);
+    expect(hasTotalsWithoutEntries({ foodLog: [spar({})], carbSlices: 2 })).toBe(false);
   });
 });

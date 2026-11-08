@@ -7,6 +7,7 @@ import {
   scoreMatchConfidence,
   autoSparCategory,
   barcodeServingBasis,
+  reportedNutrients,
   round,
   type FatSecretServing,
 } from '../_fatsecret-utils';
@@ -266,5 +267,13 @@ describe("barcodeServingBasis", () => {
   it("leaves values per serving when there is no gram or ml weight", () => {
     expect(barcodeServingBasis({})).toEqual({ servingSize: null, scale: 1 });
     expect(barcodeServingBasis({ metric_serving_amount: "1", metric_serving_unit: "oz" })).toEqual({ servingSize: null, scale: 1 });
+  });
+});
+
+describe("reportedNutrients", () => {
+  it("tells a missing fat value apart from a listed zero", () => {
+    expect(reportedNutrients({ calories: "120" })).toEqual({ calories: true, fat: false });
+    expect(reportedNutrients({ calories: "120", fat: "" })).toEqual({ calories: true, fat: false });
+    expect(reportedNutrients({ calories: "0", fat: "0.000" })).toEqual({ calories: true, fat: true });
   });
 });

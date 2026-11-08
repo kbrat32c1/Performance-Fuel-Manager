@@ -8,7 +8,7 @@
 import { useState, useMemo } from "react";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore, type MealSection, inferMealSection } from "@/lib/store";
-import { establishedNutritionGoals, nutritionFromLog } from "@/lib/food-totals";
+import { hasTotalsWithoutEntries, nutritionFromLog } from "@/lib/food-totals";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -114,7 +114,8 @@ export default function Reports() {
         proteinSlices, carbSlices, vegSlices, fruitSlices, fatSlices,
         totalSlices: proteinSlices + carbSlices + vegSlices + fruitSlices + fatSlices,
         estimatedCalories,
-        caloriesIncomplete: tracksCalories && logged.incomplete,
+        // Older entries, portions or bare day totals exist, but have no calories to count.
+        caloriesIncomplete: tracksCalories && (logged.portions > 0 || logged.notTracked > 0 || hasTotalsWithoutEntries(tracking)),
       };
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -153,9 +154,9 @@ export default function Reports() {
   }
 
   /* ── calorie goal ── */
-  // The Calories diary shows a goal only where the plan has an established one.
+  // No goal in the Calories diary yet: the calculator's figures rest on unchecked portion calories.
   const calorieGoal = tracksCalories
-    ? establishedNutritionGoals(getSliceTargets())?.calories ?? null
+    ? null
     : sliceTargets?.totalCalories || (macroTargets.carbs.max * 4 + macroTargets.protein.max * 4);
 
   return (
@@ -302,14 +303,15 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode, tracksCalories }: {
 
   /* Foods eaten aggregation */
   const foodsEaten = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; totalCal: number }>();
+    const map = new Map<string, { name: string; count: number; totalCal: number; hasCalories: boolean }>();
     for (const day of weekData) {
       if (day.isFuture) continue;
       for (const entry of day.foodLog) {
         const key = entry.name?.toLowerCase() || "unknown";
-        const existing = map.get(key) || { name: entry.name || "Unknown", count: 0, totalCal: 0 };
+        const existing = map.get(key) || { name: entry.name || "Unknown", count: 0, totalCal: 0, hasCalories: false };
         existing.count += 1;
         existing.totalCal += estimateEntryCal(entry, tracksCalories);
+        if (entry.calories != null) existing.hasCalories = true;
         map.set(key, existing);
       }
     }
@@ -319,7 +321,8 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode, tracksCalories }: {
   const [showAllFoods, setShowAllFoods] = useState(false);
   const displayedFoods = showAllFoods ? foodsEaten : foodsEaten.slice(0, 8);
 
-  if (daysWithData.length === 0) return <EmptyState />;
+  const hasIncompleteDays = weekData.some((d: any) => !d.isFuture && d.caloriesIncomplete);
+  if (daysWithData.length === 0 && !hasIncompleteDays) return <EmptyState />;
 
   return (
     <>
@@ -332,7 +335,7 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode, tracksCalories }: {
             <span className="text-xs text-muted-foreground">Daily Average: {dailyAvg}</span>
             {calorieGoal != null && <span className="text-xs text-muted-foreground ml-auto">Goal: {calorieGoal.toLocaleString()}</span>}
           </div>
-          {weekData.some((d: any) => !d.isFuture && d.caloriesIncomplete) && (
+          {hasIncompleteDays && (
             <p className="text-xs text-muted-foreground -mt-2 mb-3">Incomplete: some portions or entries have no calories.</p>
           )}
           <ResponsiveContainer width="100%" height={180}>
@@ -391,7 +394,7 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode, tracksCalories }: {
               <div key={i} className="flex items-center py-1.5 border-b border-border/50 last:border-0">
                 <span className="flex-1 text-sm truncate pr-2">{f.name}</span>
                 <span className="w-14 text-center text-xs text-muted-foreground">{f.count}</span>
-                <span className="w-16 text-right text-xs font-mono">{Math.round(f.totalCal).toLocaleString()}</span>
+                <span className="w-16 text-right text-xs font-mono">{tracksCalories && !f.hasCalories ? "Not tracked" : Math.round(f.totalCal).toLocaleString()}</span>
               </div>
             ))}
             <div className="flex items-center pt-2 font-bold border-t border-border mt-1">
@@ -632,7 +635,8 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
     hitTarget: d.waterOz >= targetOz,
   }));
 
-  if (daysWithData.length === 0) return <EmptyState />;
+  const hasIncompleteDays = weekData.some((d: any) => !d.isFuture && d.caloriesIncomplete);
+  if (daysWithData.length === 0 && !hasIncompleteDays) return <EmptyState />;
 
   return (
     <>

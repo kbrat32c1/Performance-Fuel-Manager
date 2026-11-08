@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
-import { autoSparCategory, barcodeServingBasis } from "../api/foods/_fatsecret-utils.js";
+import { autoSparCategory, barcodeServingBasis, reportedNutrients } from "../api/foods/_fatsecret-utils.js";
 import { verifyUser } from "../api/_auth.js";
 import { resolveShareDate } from "../api/_share-date.js";
 
@@ -267,7 +267,8 @@ export async function registerRoutes(
                         servingSize,
                         servingSizeLabel: def.serving_description||"",
                         imageUrl: null,
-                        reported: { calories: def.calories != null, fat: def.fat != null },
+                        reported: reportedNutrients(def),
+                        nutrientBasis: servingSize ? "100g" as const : "serving" as const,
                         dataQuality: (cal > 0 && (pro > 0 || carb > 0)) ? "complete" as const : "partial" as const,
                       },
                     });
@@ -325,6 +326,7 @@ export async function registerRoutes(
           servingSizeLabel: p.serving_size || "",
           imageUrl: p.image_small_url || null,
           reported: { calories: n["energy-kcal_100g"] != null, fat: n.fat_100g != null },
+          nutrientBasis: "100g" as const,
           dataQuality,
         },
       });
@@ -423,7 +425,7 @@ export async function registerRoutes(
             carbs: rnd(parseFloat(s.carbohydrate)||0), fat: rnd(parseFloat(s.fat)||0),
             fiber: rnd(parseFloat(s.fiber)||0), sugar: rnd(parseFloat(s.sugar)||0),
             metricAmount: parseFloat(s.metric_serving_amount)||null, metricUnit: s.metric_serving_unit||"g",
-            isDefault: s.is_default === "1",
+            isDefault: s.is_default === "1", reported: reportedNutrients(s),
           })),
         };
       }).filter(Boolean);
@@ -548,7 +550,7 @@ export async function registerRoutes(
                     carbs: rnd(parseFloat(s.carbohydrate)||0), fat: rnd(parseFloat(s.fat)||0),
                     fiber: rnd(parseFloat(s.fiber)||0), sugar: rnd(parseFloat(s.sugar)||0),
                     metricAmount: parseFloat(s.metric_serving_amount)||null, metricUnit: s.metric_serving_unit||"g",
-                    isDefault: s.is_default === "1",
+                    isDefault: s.is_default === "1", reported: reportedNutrients(s),
                   })),
                 };
               }).filter(Boolean);

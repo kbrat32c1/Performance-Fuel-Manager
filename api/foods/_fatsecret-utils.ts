@@ -22,6 +22,7 @@ export interface FatSecretServing {
   metricAmount: number | null;
   metricUnit: string;
   isDefault: boolean;
+  reported?: { calories: boolean; fat: boolean };
 }
 
 export interface FatSecretFood {
@@ -245,6 +246,7 @@ export async function searchFatSecret(
         metricAmount: parseFloat(s.metric_serving_amount) || null,
         metricUnit: s.metric_serving_unit || "g",
         isDefault: s.is_default === "1",
+        reported: reportedNutrients(s),
       })),
     } as FatSecretFood;
   }).filter(Boolean) as FatSecretFood[];
@@ -320,6 +322,12 @@ export function scoreMatchConfidence(
 
 export function round(v: number): number {
   return Math.round(v * 10) / 10;
+}
+
+/** Whether a serving actually lists these, since a missing value is read as 0 everywhere else. */
+export function reportedNutrients(serving: { calories?: unknown; fat?: unknown }): { calories: boolean; fat: boolean } {
+  const listed = (v: unknown) => v != null && v !== "" && !Number.isNaN(parseFloat(String(v)));
+  return { calories: listed(serving.calories), fat: listed(serving.fat) };
 }
 
 /**

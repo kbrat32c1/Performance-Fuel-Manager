@@ -22,6 +22,8 @@ export interface FatSecretServing {
   metricAmount: number | null;
   metricUnit: string;
   isDefault: boolean;
+  /** Whether the database actually lists these, since a missing value arrives as 0 */
+  reported?: { calories: boolean; fat: boolean };
 }
 
 export interface FatSecretFood {
@@ -59,6 +61,8 @@ export interface OFFFood {
   imageUrl: string | null;
   /** Whether the product actually lists these, since a missing value arrives as 0 */
   reported?: { calories: boolean; fat: boolean };
+  /** What the nutrients are measured against: per 100 g, or one serving with no known weight */
+  nutrientBasis?: '100g' | 'serving';
   dataQuality: 'complete' | 'partial' | 'poor';
 }
 
@@ -172,7 +176,7 @@ export function useFoodSearch(): UseFoodSearchReturn {
         setSelectedOFF(data.food);
         setOffResults([data.food]);
         setOffSearched(true);
-        setOffServingGrams(data.food.servingSize ? String(Math.round(data.food.servingSize)) : '100');
+        setOffServingGrams(data.food.nutrientBasis === 'serving' ? '1' : data.food.servingSize ? String(Math.round(data.food.servingSize)) : '100');
         setQuery('');
         return data.food;
       }

@@ -340,16 +340,25 @@ export function incompleteReasons(n: LogNutrition): string[] {
   return reasons;
 }
 
-/**
- * Calorie and fat goals, only where the SPAR calculator sets them. Extreme, Rapid,
- * Optimal and Gain have carb and protein targets but no established calorie or fat
- * target, so those plans show totals without a goal.
- */
-export function establishedNutritionGoals(
-  slices: { isV2?: boolean; totalCalories?: number; fatGrams?: number },
-): { calories: number; fat: number } | null {
-  if (!slices.isV2 || !(slices.totalCalories && slices.totalCalories > 0) || slices.fatGrams == null) return null;
-  return { calories: slices.totalCalories, fat: slices.fatGrams };
+/** Whether a nutrient is known. Older saved data has no flag, so a 0 there counts as unknown. */
+export function isListed(value: number, reported: boolean | undefined): boolean {
+  return reported ?? value > 0;
+}
+
+/** How much of a scanned product's listed nutrients the entered amount represents. */
+export function barcodeMultiplier(basis: '100g' | 'serving' | undefined, input: string): number {
+  const amount = parseFloat(input);
+  if (basis === 'serving') return amount > 0 ? amount : 1;
+  return (amount > 0 ? amount : 100) / 100;
+}
+
+/** Very old days can have totals with no food entries behind them. */
+export function hasTotalsWithoutEntries(t: {
+  foodLog?: FoodLogEntry[]; carbsConsumed?: number; proteinConsumed?: number; proteinSlices?: number;
+  carbSlices?: number; vegSlices?: number; fruitSlices?: number; fatSlices?: number;
+}): boolean {
+  if (t.foodLog?.length) return false;
+  return [t.carbsConsumed, t.proteinConsumed, t.proteinSlices, t.carbSlices, t.vegSlices, t.fruitSlices, t.fatSlices].some(v => (v ?? 0) > 0);
 }
 
 /** What an entry shows in the Calories diary. Portions and older entries never show a number. */

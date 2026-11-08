@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { applyCors } from "../_cors.js";
-import { barcodeServingBasis } from "./_fatsecret-utils.js";
+import { barcodeServingBasis, reportedNutrients } from "./_fatsecret-utils.js";
 
 /**
  * Barcode Lookup API — FatSecret Premier (primary) with Open Food Facts fallback.
@@ -150,7 +150,8 @@ async function lookupFatSecretBarcode(barcode: string, token: string) {
     servingSize,
     servingSizeLabel: defaultServing.serving_description || "",
     imageUrl: null,
-    reported: { calories: defaultServing.calories != null, fat: defaultServing.fat != null },
+    reported: reportedNutrients(defaultServing),
+    nutrientBasis: servingSize ? "100g" as const : "serving" as const,
     dataQuality: (calories > 0 && (protein > 0 || carbs > 0)) ? "complete" as const : "partial" as const,
   };
 }
@@ -212,6 +213,7 @@ async function lookupOFF(barcode: string, res: VercelResponse) {
       servingSizeLabel: p.serving_size || "",
       imageUrl: p.image_small_url || null,
       reported: { calories: n["energy-kcal_100g"] != null, fat: n.fat_100g != null },
+      nutrientBasis: "100g" as const,
       dataQuality,
     },
   });
