@@ -22,6 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
+import { CARB_G_PER_SLICE, PROTEIN_G_PER_SLICE, classifyFood, type SliceType, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -130,116 +131,54 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   }, [dateKey]);
 
   // ─── Core: log a food entry to the store ───
+  // Each entry carries its own grams and portions; the day's totals are rebuilt from the log.
   const logFoodEntry = useCallback((
     name: string,
     carbs: number,
     protein: number,
-    opts?: { liquidOz?: number; category?: string; sliceType?: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat'; sliceCount?: number; gramAmount?: number }
+    opts?: { liquidOz?: number; category?: string; sliceType?: SliceType; sliceCount?: number; fat?: number }
   ) => {
-    const updates: Record<string, any> = {};
+    const existingLog = tracking.foodLog || [];
+    const entries: StoreFoodLogEntry[] = [];
+    const now = Date.now();
 
     if (showSliceTracker) {
-      // Determine slice type
-      const cat = opts?.sliceType || (protein > 0 && carbs === 0 ? 'protein' : 'carb');
-      const sliceCount = opts?.sliceCount ?? 1;
-      const sliceKey = cat === 'protein' ? 'proteinSlices'
-        : cat === 'carb' ? 'carbSlices'
-        : cat === 'veg' ? 'vegSlices'
-        : cat === 'fruit' ? 'fruitSlices'
-        : 'fatSlices';
-      const currentSlices = cat === 'protein' ? tracking.proteinSlices
-        : cat === 'carb' ? tracking.carbSlices
-        : cat === 'veg' ? tracking.vegSlices
-        : cat === 'fruit' ? (tracking.fruitSlices || 0)
-        : (tracking.fatSlices || 0);
-      updates[sliceKey] = currentSlices + sliceCount;
-
-      // Cross-sync grams
-      if (carbs > 0) updates.carbsConsumed = tracking.carbsConsumed + carbs;
-      if (protein > 0) updates.proteinConsumed = tracking.proteinConsumed + protein;
-      updates.nutritionMode = 'spar';
-
-      // Build food log entry
-      const entry: StoreFoodLogEntry = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      const portion = opts?.sliceType
+        ? { sliceType: opts.sliceType, sliceCount: opts.sliceCount ?? 1 }
+        : classifyFood({ carbs, protein, fat: opts?.fat });
+      entries.push({
+        id: `${now}-${Math.random().toString(36).substr(2, 9)}`,
         name,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(now).toISOString(),
         mode: 'spar',
         mealSection: activeMeal,
-        sliceType: cat,
-        sliceCount,
-        gramAmount: opts?.gramAmount || (protein > 0 && carbs === 0 ? protein : carbs),
+        sliceType: portion.sliceType,
+        sliceCount: portion.sliceCount,
+        // A quick portion with no grams counts as a standard portion in the Grams view.
+        carbs: carbs === 0 && protein === 0 && portion.sliceType === 'carb' ? CARB_G_PER_SLICE * portion.sliceCount : carbs,
+        protein: carbs === 0 && protein === 0 && portion.sliceType === 'protein' ? PROTEIN_G_PER_SLICE * portion.sliceCount : protein,
         ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}),
-      };
-      const existingLog = tracking.foodLog || [];
-      updates.foodLog = [...existingLog, entry];
+      });
     } else {
-      // Sugar/gram mode
-      if (carbs > 0) {
-        updates.carbsConsumed = tracking.carbsConsumed + carbs;
-        updates.carbSlices = tracking.carbSlices + Math.max(1, Math.round(carbs / 26));
+      // Gram mode: one entry per macro (a zero-macro food like black coffee still gets one).
+      const base = { name, mode: 'sugar' as const, mealSection: activeMeal, category: opts?.category || 'custom' };
+      if (carbs > 0 || protein === 0) {
+        entries.push({ ...base, id: `${now}-c-${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date(now).toISOString(), macroType: 'carbs', amount: carbs, ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}) });
       }
       if (protein > 0) {
-        updates.proteinConsumed = tracking.proteinConsumed + protein;
-        updates.proteinSlices = tracking.proteinSlices + Math.max(1, Math.round(protein / 25));
+        entries.push({ ...base, id: `${now}-p-${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date(now + 1).toISOString(), macroType: 'protein', amount: protein });
       }
-
-      const existingLog = tracking.foodLog || [];
-      const entries: StoreFoodLogEntry[] = [];
-
-      if (carbs > 0) {
-        entries.push({
-          id: `${Date.now()}-c-${Math.random().toString(36).substr(2, 9)}`,
-          name,
-          timestamp: new Date().toISOString(),
-          mode: 'sugar',
-          mealSection: activeMeal,
-          macroType: 'carbs',
-          amount: carbs,
-          gramAmount: carbs,
-          category: opts?.category || 'custom',
-          ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}),
-        });
-      }
-      if (protein > 0) {
-        entries.push({
-          id: `${Date.now()}-p-${Math.random().toString(36).substr(2, 9)}`,
-          name,
-          timestamp: new Date(Date.now() + 1).toISOString(),
-          mode: 'sugar',
-          mealSection: activeMeal,
-          macroType: 'protein',
-          amount: protein,
-          gramAmount: protein,
-          category: opts?.category || 'custom',
-        });
-      }
-
-      // If both macros are 0 (e.g. black coffee), still log the food for tracking
-      if (carbs === 0 && protein === 0) {
-        entries.push({
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name,
-          timestamp: new Date().toISOString(),
-          mode: 'sugar',
-          mealSection: activeMeal,
-          macroType: 'carbs',
-          amount: 0,
-          gramAmount: 0,
-          category: opts?.category || 'custom',
-          ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}),
-        });
-      }
-
-      updates.foodLog = [...existingLog, ...entries];
     }
 
+    const foodLog = [...existingLog, ...entries];
+    const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
+    if (showSliceTracker) updates.nutritionMode = 'spar';
     if (opts?.liquidOz && opts.liquidOz > 0) {
       updates.waterConsumed = tracking.waterConsumed + opts.liquidOz;
     }
 
     updateDailyTracking(dateKey, updates);
-    syncLocalStorage(updates.foodLog);
+    syncLocalStorage(foodLog);
     hapticSuccess();
 
     // Flash feedback
@@ -256,26 +195,14 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const qtyLabel = qty !== 1 ? ` ×${qty % 1 === 0 ? qty : qty.toFixed(1)}` : '';
     const foodName = `${formatUSDAName(food.name)}${brandLabel} — ${serving.description}${qtyLabel}`;
 
-    // Calculate slice type and count from actual macros
-    // Determine which macro dominates — only count as protein if meaningfully high
-    const sliceType: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat' =
-      (food.sparCategory as 'protein' | 'carb' | 'veg' | 'fruit' | 'fat') || (protein >= 10 && protein > carbs ? 'protein' : 'carb');
-
-    let sliceCount = 0;
-    if (sliceType === 'protein') {
-      sliceCount = Math.round(protein / 25);  // 1 palm ≈ 25g protein
-    } else if (sliceType === 'carb') {
-      sliceCount = Math.round(carbs / 26);     // 1 fist ≈ 26g carbs
-    } else if (sliceType === 'veg' || sliceType === 'fruit' || sliceType === 'fat') {
-      sliceCount = Math.round(qty);             // 1 serving = 1 slice
-    }
-    // Keep sliceCount at 0 for negligible-macro foods (coffee, water, etc.)
-    // — they still get logged for tracking but don't count as a SPAR portion
+    const fat = Math.round((serving.fat || 0) * qty);
+    const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, (food.sparCategory as SliceType) || null, qty);
 
     logFoodEntry(foodName, carbs, protein, {
       category: 'fatsecret',
       sliceType,
       sliceCount,
+      fat,
     });
     addToRecents(food, serving);
     setSelectedFS(null);
@@ -307,20 +234,14 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const servingLabel = selectedOFF.servingSizeLabel || `${grams}g`;
     const foodName = `${selectedOFF.name}${brandLabel} — ${servingLabel}`;
 
-    // Same slice logic as handleFSAdd
-    const sliceType: 'protein' | 'carb' | 'veg' | 'fruit' | 'fat' =
-      protein >= 10 && protein > carbs ? 'protein' : 'carb';
-    let sliceCount = 0;
-    if (sliceType === 'protein') {
-      sliceCount = Math.round(protein / 25);
-    } else {
-      sliceCount = Math.round(carbs / 26);
-    }
+    const fat = Math.round((selectedOFF.fat || 0) * grams / 100);
+    const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat });
 
     logFoodEntry(foodName, carbs, protein, {
       category: 'off',
       sliceType,
       sliceCount,
+      fat,
     });
     setSelectedOFF(null);
   }, [selectedOFF, offServingGrams, logFoodEntry, setSelectedOFF]);
@@ -335,106 +256,45 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const validFoods = foods.filter(f => f.name);
     if (validFoods.length === 0) return;
 
-    const updates: Record<string, any> = {};
     const existingLog = tracking.foodLog || [];
     const newEntries: StoreFoodLogEntry[] = [];
-
-    // Accumulate totals across ALL foods before writing
-    let addCarbSlices = 0;
-    let addProteinSlices = 0;
-    let addVegSlices = 0;
-    let addFruitSlices = 0;
-    let addFatSlices = 0;
-    let addCarbs = 0;
-    let addProtein = 0;
+    const now = Date.now();
 
     for (const food of validFoods) {
       const carbs = Math.round(food.carbs || 0);
       const protein = Math.round(food.protein || 0);
-      const sliceCount = food.sliceCount ?? 1;
-      const cat = food.sparCategory || (protein > 0 && carbs === 0 ? 'protein' : 'carb');
+      const fat = Math.round(food.fat || 0);
+      const n = newEntries.length;
 
       if (showSliceTracker) {
-        // Accumulate slice counts
-        if (cat === 'protein') addProteinSlices += sliceCount;
-        else if (cat === 'carb') addCarbSlices += sliceCount;
-        else if (cat === 'veg') addVegSlices += sliceCount;
-        else if (cat === 'fruit') addFruitSlices += sliceCount;
-        else if (cat === 'fat') addFatSlices += sliceCount;
-
-        if (carbs > 0) addCarbs += carbs;
-        if (protein > 0) addProtein += protein;
-
+        // Same portion rule as search and barcode: grams decide protein/carb portions.
+        const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, food.sparCategory || null, food.sliceCount ?? 1);
         newEntries.push({
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: `${now}-${n}-${Math.random().toString(36).substr(2, 9)}`,
           name: food.name,
-          timestamp: new Date(Date.now() + newEntries.length).toISOString(),
+          timestamp: new Date(now + n).toISOString(),
           mode: 'spar',
           mealSection: activeMeal,
-          sliceType: cat,
+          sliceType,
           sliceCount,
-          gramAmount: protein > 0 && carbs === 0 ? protein : carbs,
+          carbs,
+          protein,
         });
       } else {
-        // Grams mode
-        if (carbs > 0) addCarbs += carbs;
-        if (protein > 0) addProtein += protein;
-
         if (carbs > 0) {
-          addCarbSlices += Math.max(1, Math.round(carbs / 26));
-          newEntries.push({
-            id: `${Date.now()}-c-${Math.random().toString(36).substr(2, 9)}`,
-            name: food.name,
-            timestamp: new Date(Date.now() + newEntries.length).toISOString(),
-            mode: 'sugar',
-            mealSection: activeMeal,
-            macroType: 'carbs',
-            amount: carbs,
-            gramAmount: carbs,
-            category: 'voice',
-          });
+          newEntries.push({ id: `${now}-${n}-c-${Math.random().toString(36).substr(2, 9)}`, name: food.name, timestamp: new Date(now + n).toISOString(), mode: 'sugar', mealSection: activeMeal, macroType: 'carbs', amount: carbs, category: source });
         }
         if (protein > 0) {
-          addProteinSlices += Math.max(1, Math.round(protein / 25));
-          newEntries.push({
-            id: `${Date.now()}-p-${Math.random().toString(36).substr(2, 9)}`,
-            name: food.name,
-            timestamp: new Date(Date.now() + newEntries.length + 1).toISOString(),
-            mode: 'sugar',
-            mealSection: activeMeal,
-            macroType: 'protein',
-            amount: protein,
-            gramAmount: protein,
-            category: 'voice',
-          });
+          newEntries.push({ id: `${now}-${n}-p-${Math.random().toString(36).substr(2, 9)}`, name: food.name, timestamp: new Date(now + n + 1).toISOString(), mode: 'sugar', mealSection: activeMeal, macroType: 'protein', amount: protein, category: source });
         }
       }
     }
 
-    // Apply all accumulated changes in ONE update
-    if (showSliceTracker) {
-      if (addProteinSlices > 0) updates.proteinSlices = tracking.proteinSlices + addProteinSlices;
-      if (addCarbSlices > 0) updates.carbSlices = tracking.carbSlices + addCarbSlices;
-      if (addVegSlices > 0) updates.vegSlices = tracking.vegSlices + addVegSlices;
-      if (addFruitSlices > 0) updates.fruitSlices = (tracking.fruitSlices || 0) + addFruitSlices;
-      if (addFatSlices > 0) updates.fatSlices = (tracking.fatSlices || 0) + addFatSlices;
-      if (addCarbs > 0) updates.carbsConsumed = tracking.carbsConsumed + addCarbs;
-      if (addProtein > 0) updates.proteinConsumed = tracking.proteinConsumed + addProtein;
-      updates.nutritionMode = 'spar';
-    } else {
-      if (addCarbs > 0) {
-        updates.carbsConsumed = tracking.carbsConsumed + addCarbs;
-        updates.carbSlices = tracking.carbSlices + addCarbSlices;
-      }
-      if (addProtein > 0) {
-        updates.proteinConsumed = tracking.proteinConsumed + addProtein;
-        updates.proteinSlices = tracking.proteinSlices + addProteinSlices;
-      }
-    }
-
-    updates.foodLog = [...existingLog, ...newEntries];
+    const foodLog = [...existingLog, ...newEntries];
+    const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
+    if (showSliceTracker) updates.nutritionMode = 'spar';
     updateDailyTracking(dateKey, updates);
-    syncLocalStorage(updates.foodLog);
+    syncLocalStorage(foodLog);
     hapticSuccess();
 
   }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);

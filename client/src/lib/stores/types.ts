@@ -126,7 +126,10 @@ export interface FoodLogEntry {
   amount?: number;             // grams
   category?: string;           // fructose, glucose, zerofiber, protein, custom, meals
   liquidOz?: number;           // for juices/liquids that also count as water
-  gramAmount?: number;         // gram equivalent per slice for cross-sync undo
+  gramAmount?: number;         // legacy: main-macro grams for the entry (older portion entries only)
+  // Portion entries: grams for the whole entry, so totals can always be rebuilt from the log
+  carbs?: number;
+  protein?: number;
 }
 
 export interface DailyTracking {

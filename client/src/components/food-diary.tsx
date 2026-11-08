@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { entryMacros, nextTotals, withSliceCount } from "@/lib/food-totals";
 
 interface FoodDiaryProps {
   dateKey: string;
@@ -106,9 +107,10 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     for (const section of MEAL_CONFIG) {
       for (const entry of grouped[section.id]) {
         if (entry.mode === 'spar') {
-          totals[section.id].slices += entry.sliceCount || 1;
+          totals[section.id].slices += entry.sliceCount ?? 1;
         }
-        totals[section.id].grams += entry.amount || entry.gramAmount || 0;
+        const m = entryMacros(entry);
+        totals[section.id].grams += m.carbs + m.protein;
         totals[section.id].water += entry.liquidOz || 0;
       }
     }
@@ -128,83 +130,20 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     }
   }, [dateKey]);
 
-  // ─── Subtract entry contribution from tracking totals ───
-  const subtractEntry = useCallback((entry: FoodLogEntry): Record<string, any> => {
-    const updates: Record<string, any> = {};
-    if (entry.mode === 'spar') {
-      const sliceCount = entry.sliceCount || 1;
-      const cat = entry.sliceType || 'protein';
-      const sliceKey = cat === 'protein' ? 'proteinSlices'
-        : cat === 'carb' ? 'carbSlices'
-        : cat === 'veg' ? 'vegSlices'
-        : cat === 'fruit' ? 'fruitSlices'
-        : 'fatSlices';
-      const current = cat === 'protein' ? tracking.proteinSlices
-        : cat === 'carb' ? tracking.carbSlices
-        : cat === 'veg' ? tracking.vegSlices
-        : cat === 'fruit' ? (tracking.fruitSlices || 0)
-        : (tracking.fatSlices || 0);
-      updates[sliceKey] = Math.max(0, current - sliceCount);
-      const gramAmount = entry.gramAmount || (cat === 'protein' ? 25 * sliceCount : cat === 'carb' ? 30 * sliceCount : 0);
-      if (gramAmount > 0 && cat !== 'veg' && cat !== 'fruit' && cat !== 'fat') {
-        const gramKey = cat === 'protein' ? 'proteinConsumed' : 'carbsConsumed';
-        const currentGrams = gramKey === 'proteinConsumed' ? tracking.proteinConsumed : tracking.carbsConsumed;
-        updates[gramKey] = Math.max(0, currentGrams - gramAmount);
-      }
-    } else {
-      const amount = entry.amount || 0;
-      if (entry.macroType === 'carbs') {
-        updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - amount);
-        updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(amount / 26)));
-      } else if (entry.macroType === 'protein') {
-        updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - amount);
-        updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(amount / 25)));
-      }
-    }
-    if (entry.liquidOz && entry.liquidOz > 0) {
-      updates.waterConsumed = Math.max(0, tracking.waterConsumed - entry.liquidOz);
-    }
-    return updates;
-  }, [tracking]);
+  // Totals are always rebuilt from the log, so an entry's grams and portions come and go together.
+  const saveLog = useCallback((newLog: FoodLogEntry[], waterDelta = 0) => {
+    const current = getDailyTracking(dateKey);
+    const updates: Record<string, any> = { ...nextTotals(current, newLog), foodLog: newLog };
+    if (waterDelta !== 0) updates.waterConsumed = Math.max(0, current.waterConsumed + waterDelta);
+    updateDailyTracking(dateKey, updates);
+    syncLocalStorage(newLog);
+  }, [dateKey, getDailyTracking, updateDailyTracking, syncLocalStorage]);
 
   // ─── Re-add a previously deleted entry ───
   const restoreEntry = useCallback((entry: FoodLogEntry) => {
-    const current = getDailyTracking(dateKey);
-    const updates: Record<string, any> = {};
-
-    if (entry.mode === 'spar') {
-      const sliceCount = entry.sliceCount || 1;
-      const cat = entry.sliceType || 'protein';
-      const sliceKey = cat === 'protein' ? 'proteinSlices'
-        : cat === 'carb' ? 'carbSlices'
-        : cat === 'veg' ? 'vegSlices'
-        : cat === 'fruit' ? 'fruitSlices'
-        : 'fatSlices';
-      updates[sliceKey] = (current[sliceKey as keyof typeof current] as number || 0) + sliceCount;
-      const gramAmount = entry.gramAmount || 0;
-      if (gramAmount > 0) {
-        const gramKey = cat === 'protein' ? 'proteinConsumed' : 'carbsConsumed';
-        updates[gramKey] = (current[gramKey as keyof typeof current] as number || 0) + gramAmount;
-      }
-    } else {
-      const amount = entry.amount || 0;
-      if (entry.macroType === 'carbs') {
-        updates.carbsConsumed = current.carbsConsumed + amount;
-        updates.carbSlices = current.carbSlices + Math.max(1, Math.round(amount / 26));
-      } else if (entry.macroType === 'protein') {
-        updates.proteinConsumed = current.proteinConsumed + amount;
-        updates.proteinSlices = current.proteinSlices + Math.max(1, Math.round(amount / 25));
-      }
-    }
-    if (entry.liquidOz && entry.liquidOz > 0) {
-      updates.waterConsumed = current.waterConsumed + entry.liquidOz;
-    }
-
-    const currentLog = current.foodLog || [];
-    const restoredLog = [...currentLog, entry];
-    updateDailyTracking(dateKey, { ...updates, foodLog: restoredLog });
-    syncLocalStorage(restoredLog);
-  }, [dateKey, getDailyTracking, updateDailyTracking, syncLocalStorage]);
+    const currentLog = getDailyTracking(dateKey).foodLog || [];
+    saveLog([...currentLog, entry], entry.liquidOz && entry.liquidOz > 0 ? entry.liquidOz : 0);
+  }, [dateKey, getDailyTracking, saveLog]);
 
   // ─── Delete entry immediately, with inline undo ───
   const handleDelete = useCallback((entryId: string) => {
@@ -215,11 +154,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     // Clear any previous undo timer
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
 
-    // Delete immediately — no stale closure risk
-    const trackingUpdates = subtractEntry(entry);
-    const newLog = foodLog.filter(e => e.id !== entryId);
-    updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
-    syncLocalStorage(newLog);
+    saveLog(foodLog.filter(e => e.id !== entryId), entry.liquidOz && entry.liquidOz > 0 ? -entry.liquidOz : 0);
 
     // Show inline undo bar
     setUndoEntry(entry);
@@ -228,7 +163,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     undoTimerRef.current = setTimeout(() => {
       setUndoEntry(null);
     }, 4000);
-  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage]);
+  }, [foodLog, saveLog]);
 
   const handleUndo = useCallback(() => {
     if (!undoEntry) return;
@@ -238,46 +173,18 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     hapticTap();
   }, [undoEntry, restoreEntry]);
 
-  // ─── Edit entry amount ───
+  // ─── Edit entry amount (grams for gram entries, portions for portion entries) ───
   const handleEdit = useCallback((entryId: string, newAmount: number) => {
     const entry = foodLog.find(e => e.id === entryId);
     if (!entry || newAmount <= 0) return;
-    const updates: Record<string, any> = {};
-    if (entry.mode === 'sugar') {
-      const diff = newAmount - (entry.amount || 0);
-      if (entry.macroType === 'carbs') {
-        updates.carbsConsumed = Math.max(0, tracking.carbsConsumed + diff);
-        updates.carbSlices = Math.max(0, tracking.carbSlices + Math.round(diff / 26));
-      } else if (entry.macroType === 'protein') {
-        updates.proteinConsumed = Math.max(0, tracking.proteinConsumed + diff);
-        updates.proteinSlices = Math.max(0, tracking.proteinSlices + Math.round(diff / 25));
-      }
-    }
-    if (entry.mode === 'spar') {
-      const oldSlices = entry.sliceCount || 1;
-      const diff = newAmount - oldSlices;
-      const cat = entry.sliceType || 'protein';
-      const sliceKey = cat === 'protein' ? 'proteinSlices'
-        : cat === 'carb' ? 'carbSlices'
-        : cat === 'veg' ? 'vegSlices'
-        : cat === 'fruit' ? 'fruitSlices'
-        : 'fatSlices';
-      const current = cat === 'protein' ? tracking.proteinSlices
-        : cat === 'carb' ? tracking.carbSlices
-        : cat === 'veg' ? tracking.vegSlices
-        : cat === 'fruit' ? (tracking.fruitSlices || 0)
-        : (tracking.fatSlices || 0);
-      updates[sliceKey] = Math.max(0, current + diff);
-    }
     const newLog = foodLog.map(e => {
       if (e.id !== entryId) return e;
-      return entry.mode === 'sugar' ? { ...e, amount: newAmount } : { ...e, sliceCount: newAmount };
+      return entry.mode === 'sugar' ? { ...e, amount: newAmount } : withSliceCount(e, newAmount);
     });
-    updateDailyTracking(dateKey, { ...updates, foodLog: newLog });
-    syncLocalStorage(newLog);
+    saveLog(newLog);
     setEditingId(null);
     setEditingValue('');
-  }, [foodLog, dateKey, tracking, updateDailyTracking, syncLocalStorage]);
+  }, [foodLog, saveLog]);
 
   // ─── Move entry to different meal section ───
   const handleMove = useCallback((entryId: string, toSection: MealSection) => {
@@ -383,7 +290,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 textColor: "text-white",
                                 onClick: () => {
                                   setEditingId(entry.id);
-                                  setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
+                                  setEditingValue(String(isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
                                   setSwipedId(null);
                                 },
                               },
