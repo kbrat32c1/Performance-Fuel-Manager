@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Activity, Heart, Moon, Wind, TrendingUp, TrendingDown, Minus, HelpCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
-import { computeRecoveryScoreDetailed } from "@/lib/healthkit-service";
+import { computeRecoveryScoreDetailed, getRecoveryRecommendation } from "@/lib/healthkit-service";
 import type { RecoveryResult, RecoveryContribution } from "@/lib/healthkit-service";
 import { computeBaselines } from "@/lib/recovery-baselines";
 import { withDisplayRecovery, isWhoopDay } from "@/lib/recovery-display";
@@ -134,7 +134,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
               {getScoreLabel(score)}
             </div>
             <div className="text-xs text-muted-foreground leading-relaxed">
-              {recovery.recommendation}
+              {fromWhoop ? getRecoveryRecommendation(score) : recovery.recommendation}
             </div>
           </div>
         </div>

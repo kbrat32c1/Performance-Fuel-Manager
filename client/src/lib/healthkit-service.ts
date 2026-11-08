@@ -406,7 +406,7 @@ function scoreRespiratoryRate(
 
 // ═══ RECOMMENDATIONS ═══
 
-function getRecoveryRecommendation(score: number): string {
+export function getRecoveryRecommendation(score: number): string {
   if (score >= 80) return 'Your body is recovered. Great day for high-intensity training.';
   if (score >= 60) return 'Moderate recovery. Stick to your plan but listen to your body.';
   if (score >= 40) return 'Recovery is limited. Consider reducing intensity.';
