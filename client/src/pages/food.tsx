@@ -244,7 +244,7 @@ export default function Food() {
         <div className="flex gap-2 px-1">
           <button
             onClick={() => handleAddFood(inferMealSection(new Date().toISOString()))}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold active:scale-[0.98] transition-all shadow-sm"
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-11 py-2.5 rounded-xl bg-primary text-primary-foreground text-[12px] font-bold active:scale-[0.98] transition-all shadow-sm"
           >
             <Plus className="w-4 h-4" />
             Add Food
@@ -252,7 +252,7 @@ export default function Food() {
           {tracking.waterConsumed > 0 && (
             <button
               onClick={() => handleQuickWater(-8)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-muted/15 text-muted-foreground text-[12px] font-bold hover:bg-muted/25 active:scale-[0.98] transition-all"
+              className="flex items-center justify-center gap-1.5 px-3 min-h-11 py-2.5 rounded-xl bg-muted/15 text-muted-foreground text-[12px] font-bold hover:bg-muted/25 active:scale-[0.98] transition-all"
             >
               <Minus className="w-3.5 h-3.5" />
               8oz
@@ -261,7 +261,7 @@ export default function Food() {
           {!waterDone && (
             <button
               onClick={() => handleQuickWater(8)}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-cyan-500/15 text-cyan-600 text-[12px] font-bold hover:bg-cyan-500/20 active:scale-[0.98] transition-all"
+              className="flex items-center justify-center gap-1.5 px-3 min-h-11 py-2.5 rounded-xl bg-cyan-500/15 text-cyan-600 text-[12px] font-bold hover:bg-cyan-500/20 active:scale-[0.98] transition-all"
             >
               <Plus className="w-3.5 h-3.5" />
               8oz
@@ -271,7 +271,7 @@ export default function Food() {
             <button
               aria-label="Repeat yesterday's food"
               onClick={handleRepeatYesterday}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-muted/15 text-muted-foreground text-[12px] font-bold hover:bg-muted/25 active:scale-[0.98] transition-all"
+              className="flex items-center justify-center gap-1.5 px-3 min-h-11 py-2.5 rounded-xl bg-muted/15 text-muted-foreground text-[12px] font-bold hover:bg-muted/25 active:scale-[0.98] transition-all"
             >
               <CalendarDays className="w-3.5 h-3.5" aria-hidden="true" />
             </button>

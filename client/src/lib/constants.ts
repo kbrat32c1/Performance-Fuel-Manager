@@ -324,7 +324,7 @@ export const SODIUM_MG_BY_DAY = {
   4: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
   3: { target: 5000, label: 'High — salt-load', color: 'text-amber-500' },
   2: { target: 2500, label: 'Normal — stop adding salt', color: 'text-primary' },
-  1: { target: 1000, label: 'Minimal — under 1,000mg', color: 'text-orange-500' },
+  1: { target: 1000, label: 'Minimal — under 1,000mg', color: 'text-amber-500' },
   0: { target: 0, label: 'Reintroduce post weigh-in', color: 'text-cyan-500' },
   [-1]: { target: 3000, label: 'Normal — replenish', color: 'text-green-500' },
 } as const;

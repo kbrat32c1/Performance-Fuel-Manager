@@ -687,7 +687,7 @@ export function AiCoachProactive() {
         {!showAiSection ? (
           <button
             onClick={() => setShowAiSection(true)}
-            className="w-full px-4 py-3 border-t border-border flex items-center justify-center gap-2 text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/5 transition-colors"
+            className="w-full px-4 py-3 border-t border-border flex items-center justify-center gap-2 text-sm text-primary hover:text-primary/80 hover:bg-primary/5 transition-colors"
           >
             <Sparkles className="w-4 h-4" />
             <span>Ask AI Coach</span>
@@ -695,17 +695,17 @@ export function AiCoachProactive() {
         ) : (
           <div className="border-t border-border">
             {/* AI Header */}
-            <div className="px-4 py-2 flex items-center justify-between bg-violet-500/5">
+            <div className="px-4 py-2 flex items-center justify-between bg-primary/5">
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
                   <Sparkles className="w-2.5 h-2.5 text-white" />
                 </div>
-                <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">AI Coach</span>
+                <span className="text-xs font-bold text-primary uppercase tracking-wide">AI Coach</span>
               </div>
               <button
                 aria-label="Close AI coach"
                 onClick={() => { setShowAiSection(false); setMessages([]); setAiMessage(null); }}
-                className="p-1 rounded-full relative after:absolute after:-inset-2.5 hover:bg-violet-500/20 transition-colors"
+                className="p-1 rounded-full relative after:absolute after:-inset-2.5 hover:bg-primary/20 transition-colors"
               >
                 <X className="w-4 h-4 text-muted-foreground" aria-hidden="true" />
               </button>
@@ -721,13 +721,13 @@ export function AiCoachProactive() {
                   className={cn(
                     "w-full py-2.5 rounded-lg text-sm font-medium mb-3 transition-colors",
                     loading
-                      ? "bg-violet-500/20 text-violet-300"
-                      : "bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
+                      ? "bg-primary/20 text-primary"
+                      : "bg-primary/10 text-primary hover:bg-primary/20"
                   )}
                 >
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
-                      <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                      <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                       Analyzing...
                     </span>
                   ) : (
@@ -738,7 +738,7 @@ export function AiCoachProactive() {
 
               {/* AI quick advice response */}
               {aiMessage && messages.length === 0 && (
-                <div className="mb-3 p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                <div className="mb-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
                   <p className="text-sm text-foreground leading-relaxed">{aiMessage}</p>
                 </div>
               )}
@@ -758,7 +758,7 @@ export function AiCoachProactive() {
                   ))}
                   {loading && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <div className="w-3 h-3 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
+                      <div className="w-3 h-3 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                       Thinking...
                     </div>
                   )}
@@ -799,7 +799,7 @@ export function AiCoachProactive() {
                   className={cn(
                     "h-9 px-3 rounded-lg relative after:absolute after:-inset-1 transition-colors",
                     input.trim() && !loading
-                      ? "bg-violet-500 text-white hover:bg-violet-600"
+                      ? "bg-primary text-white hover:bg-primary/90"
                       : "bg-muted text-muted-foreground"
                   )}
                 >

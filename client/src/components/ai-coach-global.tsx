@@ -394,7 +394,7 @@ export function AiCoachGlobal() {
         <button
           onClick={() => setOpen(true)}
           data-tour="ai-coach"
-          className="fixed bottom-[7.5rem] left-5 z-40 w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 shadow-lg shadow-purple-500/30 flex items-center justify-center active:scale-90 transition-all group hover:shadow-xl hover:shadow-purple-500/40"
+          className="fixed bottom-[7.5rem] left-5 z-40 w-12 h-12 rounded-full bg-primary shadow-lg shadow-primary/30 flex items-center justify-center active:scale-90 transition-all group hover:shadow-xl hover:shadow-primary/40"
           aria-label="Open SPAR Coach"
         >
           <Sparkles className="w-6 h-6 text-white drop-shadow-sm" />
@@ -407,7 +407,7 @@ export function AiCoachGlobal() {
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-background/95 backdrop-blur-sm shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 via-purple-600 to-indigo-600 flex items-center justify-center shadow-sm shadow-purple-500/40">
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/40">
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
               <div>
@@ -466,7 +466,7 @@ export function AiCoachGlobal() {
                 className={cn(
                   "rounded-lg px-3 py-2 text-xs max-w-[90%]",
                   msg.role === "user"
-                    ? "bg-purple-600 text-white ml-auto"
+                    ? "bg-primary text-white ml-auto"
                     : msg.role === "error"
                     ? "bg-destructive/10 text-destructive border border-destructive/20"
                     : "bg-muted/30 text-foreground"
@@ -544,7 +544,7 @@ export function AiCoachGlobal() {
                   className={cn(
                     "p-2 rounded-lg relative after:absolute after:-inset-1 transition-all active:scale-95 shrink-0",
                     input.trim() && !loading
-                      ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20"
+                      ? "bg-primary text-white shadow-lg shadow-primary/20"
                       : "bg-muted/30 text-muted-foreground"
                   )}
                 >

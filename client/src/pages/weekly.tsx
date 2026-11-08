@@ -328,7 +328,7 @@ export default function Weekly() {
                       className={cn(
                         "border-t border-muted",
                         planDay.isToday && phaseStyle.bgLight,
-                        isCritical && !planDay.isToday && "bg-orange-500/5"
+                        isCritical && !planDay.isToday && "bg-amber-500/5"
                       )}
                     >
                       <td className="p-2">
@@ -336,16 +336,16 @@ export default function Weekly() {
                           <span className={cn(
                             "font-bold",
                             planDay.isToday && phaseStyle.text,
-                            isCritical && !planDay.isToday && "text-orange-500"
+                            isCritical && !planDay.isToday && "text-amber-500"
                           )}>{planDay.day.slice(0, 3)} <span className="text-xs text-muted-foreground font-normal">{dateLabel}</span></span>
                           {planDay.isToday && <span className={cn("text-xs text-black px-1 rounded", phaseStyle.bg)}>TODAY</span>}
-                          {isCritical && !planDay.isToday && <span className="text-xs bg-orange-500/20 text-orange-500 px-1 rounded">KEY</span>}
+                          {isCritical && !planDay.isToday && <span className="text-xs bg-amber-500/20 text-amber-500 px-1 rounded">KEY</span>}
                         </div>
                         <span className="text-xs text-muted-foreground">{planDay.phase}</span>
                         {planDay.waterLoadingNote && (
                           <div className={cn(
                             "text-xs",
-                            isLoadingDay ? "text-cyan-500" : isCritical ? "text-orange-500 font-bold" : "text-muted-foreground"
+                            isLoadingDay ? "text-cyan-500" : isCritical ? "text-amber-500 font-bold" : "text-muted-foreground"
                           )}>
                             {planDay.waterLoadingNote}
                           </div>
@@ -354,7 +354,7 @@ export default function Weekly() {
                       <td className="p-2 text-center">
                         <span className={cn(
                           "font-mono font-bold",
-                          isCritical && "text-orange-500"
+                          isCritical && "text-amber-500"
                         )}>{planDay.weightTarget}</span>
                       </td>
                       <td className="p-2 text-center">
@@ -423,7 +423,7 @@ export default function Weekly() {
                           "font-mono font-bold",
                           daysOut >= 3 && "text-cyan-500",
                           daysOut === 2 && "text-yellow-500",
-                          daysOut === 1 && "text-orange-500",
+                          daysOut === 1 && "text-amber-500",
                           daysOut === 0 && "text-green-500"
                         )}>
                           {waterAmount}
@@ -558,10 +558,10 @@ export default function Weekly() {
                 </Card>
                 )}
 
-                <Card className="p-3 border-orange-500/30 bg-orange-500/5">
-                  <h4 className="font-bold text-sm text-orange-500 mb-1">{dayName(1)} before practice: CRITICAL Checkpoint</h4>
+                <Card className="p-3 border-amber-500/30 bg-amber-500/5">
+                  <h4 className="font-bold text-sm text-amber-500 mb-1">{dayName(1)} before practice: CRITICAL Checkpoint</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
-                    <li>• <strong className="text-orange-500">Must be {checkpoints.friTarget}</strong></li>
+                    <li>• <strong className="text-amber-500">Must be {checkpoints.friTarget}</strong></li>
                     <li>• Final 3% drops from practice + overnight drift</li>
                     <li>• Above range? May need extra activity or hot bath</li>
                     <li>• Below range? You're ahead - can eat more</li>
