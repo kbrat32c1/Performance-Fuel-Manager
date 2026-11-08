@@ -33,6 +33,7 @@ export function TodayPlanCard({ todayLogs, isRestDay, hasRecoveryData, hour }: T
   const statusInfo = store.getStatus();
   const todayTarget = store.calculateTarget();
   const daysUntilWeighIn = store.getDaysUntilWeighIn();
+  const descent = store.getWeekDescentData();
 
   // Cheap, and the store returns fresh objects each render, so no memo.
   const plan = buildTodayPlan({
@@ -71,6 +72,11 @@ export function TodayPlanCard({ todayLogs, isRestDay, hasRecoveryData, hour }: T
       foodLogCount: tracking.foodLog?.length ?? 0,
     },
     hasRecoveryData,
+    projection: {
+      reliable: descent.confidence.reliable,
+      driftSamples: descent.confidence.driftSamples,
+      practiceSamples: descent.confidence.practiceSamples,
+    },
   });
 
   const runAction = () => {

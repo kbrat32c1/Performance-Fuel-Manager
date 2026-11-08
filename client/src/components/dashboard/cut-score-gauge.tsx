@@ -6,6 +6,8 @@ import type { CutScoreResult } from "@/lib/cut-score";
 interface CutScoreGaugeProps {
   result?: CutScoreResult;
   locked?: boolean;
+  /** Smaller ring for when the score's inputs aren't trusted yet (too few pairs or limited data). */
+  compact?: boolean;
 }
 
 const ZONE_COLORS = {
@@ -38,7 +40,7 @@ const PILLAR_CONFIG = {
   protocol: { label: "Protocol", icon: Utensils, description: "Nutrition & hydration" },
 } as const;
 
-export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
+export function CutScoreGauge({ result, locked, compact = false }: CutScoreGaugeProps) {
   const [expanded, setExpanded] = useState(false);
 
   // SVG circular gauge math
@@ -90,7 +92,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
         className="w-full flex items-center gap-4 group"
       >
         {/* Circular Gauge */}
-        <div className="relative w-[96px] h-[96px] flex-shrink-0">
+        <div className={cn("relative flex-shrink-0", compact ? "w-[64px] h-[64px]" : "w-[96px] h-[96px]")}>
           <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
             {/* Background track */}
             <circle
@@ -120,14 +122,17 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
           {/* Center: score number + label */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={cn(
-              "text-2xl font-bold font-mono leading-none animate-number-pop",
+              "font-bold font-mono leading-none animate-number-pop",
+              compact ? "text-lg" : "text-2xl",
               colors.text
             )}>
               {Math.round(result.score)}
             </span>
-            <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
-              Cut Score
-            </span>
+            {!compact && (
+              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
+                Cut Score
+              </span>
+            )}
           </div>
         </div>
 
@@ -135,7 +140,7 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
         <div className="flex-1 text-left min-w-0">
           <div className="flex items-center gap-1.5">
             <span className={cn("text-sm font-bold", colors.label)}>
-              {result.label}
+              {compact ? `Cut Score: ${result.label}` : result.label}
             </span>
             <ChevronDown className={cn(
               "w-3.5 h-3.5 text-muted-foreground/40 transition-transform group-hover:text-muted-foreground/70",

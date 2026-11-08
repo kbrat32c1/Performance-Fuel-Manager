@@ -35,17 +35,24 @@ export function TodayPlanView({ plan, onAction }: { plan: TodayPlan; onAction: (
   return (
     <Card className={cn("mb-3 overflow-hidden border", style.ring)} data-testid="today-plan" aria-labelledby="today-plan-title">
       <CardContent className="p-0">
-        {/* Status */}
+        {/* Facts, then one status line */}
         <div className={cn("px-4 pt-3 pb-3", style.tint)}>
-          <div className="flex items-center justify-between gap-2">
-            <h2 id="today-plan-title" className="text-base font-heading font-bold uppercase tracking-wide">Today's plan</h2>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-background/70 px-2.5 py-1 text-xs font-bold" data-testid="today-plan-status">
+          <h2 id="today-plan-title" className="text-base font-heading font-bold uppercase tracking-wide">Today's plan</h2>
+          <dl className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1" data-testid="today-plan-facts">
+            {plan.facts.map(f => (
+              <div key={f.label} className="flex items-baseline gap-1.5">
+                <dt className="text-xs text-muted-foreground">{f.label}</dt>
+                <dd className="text-sm font-bold tabular-nums text-foreground">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-2 text-sm leading-snug" data-testid="today-plan-status">
+            <span className="mr-1.5 inline-flex items-center gap-1.5 font-bold text-foreground">
               <span className={cn("h-2 w-2 rounded-full", style.dot)} aria-hidden="true" />
-              {style.label}
+              {style.label}:
             </span>
-          </div>
-          <p className="mt-1.5 text-sm font-semibold text-foreground">{plan.headline}</p>
-          <p className="text-sm text-muted-foreground">{plan.reason}</p>
+            <span className="text-muted-foreground">{plan.reason}</span>
+          </p>
         </div>
 
         {/* Next action */}

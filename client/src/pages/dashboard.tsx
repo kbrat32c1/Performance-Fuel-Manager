@@ -2844,6 +2844,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const v5band = useV5BandContext();
   const [isExpanded, setIsExpanded] = useState(true);
   const [flippedCard, setFlippedCard] = useState<'sleep' | 'practice' | 'awake' | 'extras' | null>(null);
+  const [showStatDetails, setShowStatDetails] = useState(false);
 
   // Refresh health data after V5 band sync completes
   // V5 band writes to the same Supabase health_data table, but useHealthKitSync
@@ -2905,7 +2906,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const compDayZone = effectiveCompDay && descentData.currentWeight !== null
     ? (descentData.currentWeight <= descentData.targetWeight ? 'green' : 'yellow')
     : 'neutral';
-  const statusZone = cutScore ? cutScore.zone : compDayZone;
+  // Until its inputs are trusted, the Cut Score stays small and doesn't color the card.
+  const cutScoreTrusted = descentData.confidence.reliable && !cutScore?.limitedData;
+  const statusZone = cutScore ? (cutScoreTrusted ? cutScore.zone : 'neutral') : compDayZone;
   const cardBorder = statusZone === 'green' ? 'border-green-500/50'
     : statusZone === 'yellow' ? 'border-yellow-500/50'
     : statusZone === 'red' ? 'border-red-500/50'
@@ -2967,7 +2970,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ CUT SCORE GAUGE — locked until morning weight logged ═══ */}
               {!effectiveCompDay && daysUntilWeighIn > 0 && (
                 hasTodayMorningWeight()
-                  ? <CutScoreGauge result={getCutScore(healthDataForCutScore)} />
+                  ? <CutScoreGauge result={getCutScore(healthDataForCutScore)} compact={!cutScoreTrusted} />
                   : <CutScoreGauge locked />
               )}
 
@@ -3155,8 +3158,20 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 </span>
               </div>
 
-              {/* ═══ INTERACTIVE STAT CARDS — tap to expand ═══ */}
-              {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null || descentData.historicalDrift !== null || descentData.historicalPracticeLoss !== null) && (() => {
+              {/* ═══ INTERACTIVE STAT CARDS — behind "Show details", closed by default ═══ */}
+              {(descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null || descentData.historicalDrift !== null || descentData.historicalPracticeLoss !== null) && (
+                <button
+                  type="button"
+                  onClick={() => { setShowStatDetails(v => !v); setFlippedCard(null); }}
+                  aria-expanded={showStatDetails}
+                  aria-controls="cut-lab-stat-details"
+                  className="mx-4 mt-2 flex min-h-11 w-[calc(100%-2rem)] items-center justify-center gap-1 text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                >
+                  {showStatDetails ? 'Hide details' : 'Show details'}
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showStatDetails && "rotate-180")} />
+                </button>
+              )}
+              {showStatDetails && (descentData.avgOvernightDrift !== null || descentData.avgPracticeLoss !== null || descentData.historicalDrift !== null || descentData.historicalPracticeLoss !== null) && (() => {
                 const extraStats = getExtraWorkoutStats();
                 const hasExtras = extraStats.totalWorkouts > 0;
 
@@ -3233,8 +3248,8 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 const isHistPractice = descentData.avgPracticeLoss === null && descentData.historicalPracticeLoss !== null;
 
                 return (
-                  <>
-                  <div className="mx-4 mt-3 mb-1">
+                  <div id="cut-lab-stat-details">
+                  <div className="mx-4 mt-1 mb-1">
                     <span className="text-xs text-muted-foreground/50 uppercase tracking-wide font-bold">Tap for details</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-2 mx-4">
@@ -3530,7 +3545,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       </div>
                     </div>
                   )}
-                  </>
+                  </div>
                 );
               })()}
 

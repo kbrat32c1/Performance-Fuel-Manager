@@ -200,3 +200,54 @@ describe("Today's plan: targets and confidence", () => {
     expect(labels(p.estimated)).not.toContain("Today's target weight");
   });
 });
+
+describe("Today's plan: facts and Cut Lab reliability", () => {
+  it("shows morning weight, class and days to the official weigh-in", () => {
+    expect(buildTodayPlan(base()).facts).toEqual([
+      { label: "Morning", value: "145.4 lbs" },
+      { label: "Class", value: "141 lbs" },
+      { label: "Official weigh-in", value: "4 days" },
+    ]);
+  });
+
+  it("shows the official weight and 'Today' on Meet Day, and 'Not set' without a date", () => {
+    const meet = buildTodayPlan(base({ daysUntilWeighIn: 0, logs: { officialWeighIn: 140.8 } })).facts;
+    expect(meet[0]).toEqual({ label: "Official", value: "140.8 lbs" });
+    expect(meet[2].value).toBe("Today");
+    expect(buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999, logs: {} })).facts.map(f => f.value))
+      .toEqual(["Not logged", "141 lbs", "Not set"]);
+  });
+
+  it("general nutrition shows weight only", () => {
+    expect(buildTodayPlan(base({ protocol: "5", isGeneralNutrition: true })).facts).toHaveLength(1);
+  });
+
+  it("lists Cut Lab projections as missing when there are too few pairs", () => {
+    const p = buildTodayPlan(base({ projection: { reliable: false, driftSamples: 1, practiceSamples: 2 } }));
+    expect(labels(p.missing)).toContain("Cut Lab projections");
+    expect(labels(p.estimated)).not.toContain("Cut Lab projections");
+    expect(p.missing.find(i => i.label === "Cut Lab projections")!.detail).toContain("1 overnight, 2 practice");
+  });
+
+  it("lists them as estimated, with pair counts, when reliable", () => {
+    const p = buildTodayPlan(base({ projection: { reliable: true, driftSamples: 5, practiceSamples: 4 } }));
+    expect(p.estimated.find(i => i.label === "Cut Lab projections")!.detail).toBe("From 5 overnight and 4 practice pairs");
+  });
+
+  it("unreliable projections never change the status", () => {
+    const p = buildTodayPlan(base({ projection: { reliable: false, driftSamples: 0, practiceSamples: 0 } }));
+    expect(p.status).toBe("on-track");
+  });
+
+  it("every status reason stands on its own as one line", () => {
+    const cases = [
+      base(), base({ logs: {} }), base({ weighInCleared: true, daysUntilWeighIn: 999 }),
+      base({ daysUntilWeighIn: 0, logs: {} }), base({ daysUntilWeighIn: 0, logs: { officialWeighIn: 140 } }),
+    ];
+    for (const c of cases) {
+      const r = buildTodayPlan(c).reason;
+      expect(r.length).toBeGreaterThan(20);
+      expect(r).not.toContain("\n");
+    }
+  });
+});

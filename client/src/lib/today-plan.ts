@@ -51,7 +51,14 @@ export interface ConfidenceItem {
   detail: string;
 }
 
+export interface PlanFact {
+  label: string;
+  value: string;
+}
+
 export interface TodayPlan {
+  /** Weight, class and days to the official weigh-in, at a glance. */
+  facts: PlanFact[];
   status: PlanStatus;
   headline: string;
   reason: string;
@@ -111,6 +118,8 @@ export interface TodayPlanInput {
   };
   /** Recovery or sleep data from a band, WHOOP or HealthKit for today. */
   hasRecoveryData: boolean;
+  /** getWeekDescentData().confidence: whether Cut Lab has enough pairs to project from. */
+  projection?: { reliable: boolean; driftSamples: number; practiceSamples: number };
 }
 
 const lbs = (n: number) => `${n.toFixed(1)} lbs`;
@@ -276,7 +285,17 @@ export function buildConfidence(input: TodayPlanInput): Pick<TodayPlan, 'measure
       missing.push({ label: 'Official weigh-in date', detail: 'Not set' });
     } else if (input.daysUntilWeighIn > 0) {
       estimated.push({ label: "Today's target weight", detail: `${lbs(input.todayTarget)}, from your descent plan` });
-      estimated.push({ label: 'Cut Lab projections', detail: 'Estimates from your recent weigh-ins' });
+      const pr = input.projection;
+      if (pr && !pr.reliable) {
+        missing.push({
+          label: 'Cut Lab projections',
+          detail: `Too few pairs to project (${pr.driftSamples} overnight, ${pr.practiceSamples} practice; need 3 of each)`,
+        });
+      } else if (pr) {
+        estimated.push({ label: 'Cut Lab projections', detail: `From ${pr.driftSamples} overnight and ${pr.practiceSamples} practice pairs` });
+      } else {
+        estimated.push({ label: 'Cut Lab projections', detail: 'Estimates from your recent weigh-ins' });
+      }
     }
   }
 
@@ -292,7 +311,7 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   // Meet Day: the official weigh-in decides it.
   if (competition && !input.weighInCleared && input.daysUntilWeighIn === 0 && logs.officialWeighIn != null) {
     if (logs.officialWeighIn <= input.weightClass) {
-      return { status: 'on-track', headline: 'Made weight', reason: `Official weigh-in ${lbs(logs.officialWeighIn)} for ${input.weightClass}. Stick with your recovery plan.` };
+      return { status: 'on-track', headline: 'Made weight', reason: `Made weight: official weigh-in ${lbs(logs.officialWeighIn)} for ${input.weightClass}. Stick with your recovery plan.` };
     }
     return {
       status: 'coach',
@@ -306,8 +325,8 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
       status: 'data-check',
       headline: input.weighInCleared ? 'No official weigh-in set' : 'Official weigh-in has passed',
       reason: input.weighInCleared
-        ? 'There is no descent plan to check today against until you set one.'
-        : 'Set the next one to get a new descent plan.',
+        ? 'No official weigh-in set, so there is no descent plan to check today against.'
+        : 'Your last official weigh-in has passed. Set the next one to get a new descent plan.',
     };
   }
 
@@ -316,7 +335,7 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
     return {
       status: 'coach',
       headline: 'Food cut for your weight',
-      reason: "Today's food was cut because of your weight. Go over this plan with your coach before you cut further.",
+      reason: "Today's food was cut for your weight. Go over this plan with your coach before you cut further.",
     };
   }
 
@@ -326,8 +345,8 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
       status: 'data-check',
       headline: input.daysUntilWeighIn === 0 && competition ? 'Waiting on your official weigh-in' : 'No morning weight yet',
       reason: input.daysUntilWeighIn === 0 && competition
-        ? 'Status updates when you log it.'
-        : "Today can't be checked against your plan until you log it.",
+        ? 'Waiting on your official weigh-in. Status updates when you log it.'
+        : "No morning weight yet, so today can't be checked against your plan.",
     };
   }
 
@@ -356,8 +375,27 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   };
 }
 
+export function buildFacts(input: TodayPlanInput): PlanFact[] {
+  const { logs } = input;
+  const facts: PlanFact[] = [];
+  const weight = logs.officialWeighIn ?? logs.morning ?? null;
+  facts.push({
+    label: logs.officialWeighIn != null ? 'Official' : 'Morning',
+    value: weight != null ? lbs(weight) : 'Not logged',
+  });
+  if (input.isGeneralNutrition) return facts;
+  facts.push({ label: 'Class', value: `${input.weightClass} lbs` });
+  const d = input.daysUntilWeighIn;
+  facts.push({
+    label: 'Official weigh-in',
+    value: input.weighInCleared || d < 0 ? 'Not set' : d === 0 ? 'Today' : `${d} ${plural(d, 'day', 'days')}`,
+  });
+  return facts;
+}
+
 export function buildTodayPlan(input: TodayPlanInput): TodayPlan {
   return {
+    facts: buildFacts(input),
     ...buildStatus(input),
     next: buildNextAction(input),
     food: buildFoodLines(input),
