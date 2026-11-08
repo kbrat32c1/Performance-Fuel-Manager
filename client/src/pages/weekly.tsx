@@ -290,7 +290,7 @@ export default function Weekly() {
                 <tr className="bg-muted/50">
                   <th className="p-2 text-left font-bold">Day</th>
                   <th className="p-2 text-center font-bold">
-                    <div>Target</div>
+                    <div>Morning target</div>
                     {waterLoadingOn && <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">w/ loading</div>}
                   </th>
                   <th className="p-2 text-center font-bold">Logged</th>
