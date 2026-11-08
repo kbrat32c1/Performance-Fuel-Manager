@@ -151,7 +151,7 @@ export function FoodPhotoCamera({ open, onClose, onCapture }: FoodPhotoCameraPro
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+    <div className="always-dark fixed inset-0 z-[100] bg-black flex flex-col">
       {/* Header — with safe-area padding for iOS notch */}
       <div className="flex items-center justify-between p-4 z-10 bg-gradient-to-b from-black/80 to-transparent" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
         <div className="flex items-center gap-2 text-white">
