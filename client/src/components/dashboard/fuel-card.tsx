@@ -67,7 +67,6 @@ export function FuelCard({
   }, [nutritionMode, tracking, dateKey, updateDailyTracking]);
 
   // ─── Progress calculations ───
-  const doNotEat = macros.carbs.max === 0 && macros.protein.max === 0 && macros.weightWarning;
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
 
   const sparBlockedSet = useMemo(() => {
@@ -162,7 +161,6 @@ export function FuelCard({
   // ─── Category segments for multi-segment ring ───
   const segments = useMemo(() => {
     const segs: Array<{ pct: number; stroke: string; label: string; done: boolean }> = [];
-    if (doNotEat) return segs;
     if (showSliceTracker && sliceTargets) {
       if (!isProteinBlocked && sliceTargets.protein > 0) segs.push({ pct: sparProteinPct, stroke: 'stroke-orange-500', label: 'Pro', done: sparProteinDone });
       if (!isCarbBlocked && sliceTargets.carb > 0) segs.push({ pct: sparCarbPct, stroke: 'stroke-amber-500', label: 'Carb', done: sparCarbDone });
@@ -175,7 +173,7 @@ export function FuelCard({
     }
     segs.push({ pct: waterProgress, stroke: 'stroke-cyan-500', label: '💧', done: waterDone });
     return segs;
-  }, [doNotEat, showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked, isV2,
+  }, [showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked, isV2,
     sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct, sparProteinDone, sparCarbDone,
     sparVegDone, sparFruitDone, sparFatDone, carbProgress, proteinProgress, sugarCarbsDone,
     sugarProteinDone, waterProgress, waterDone, macros]);
@@ -190,7 +188,6 @@ export function FuelCard({
   // Category pills for bottom row
   const pills = useMemo(() => {
     const p: Array<{ label: string; consumed: number | string; target: number | string; pct: number; done: boolean; color: string; blocked?: boolean }> = [];
-    if (doNotEat) return p;
     if (showSliceTracker && sliceTargets) {
       if (sliceTargets.protein > 0) p.push({ label: 'Pro', consumed: tracking.proteinSlices, target: sliceTargets.protein, pct: sparProteinPct, done: sparProteinDone, color: 'orange', blocked: isProteinBlocked });
       if (sliceTargets.carb > 0) p.push({ label: 'Carb', consumed: tracking.carbSlices, target: sliceTargets.carb, pct: sparCarbPct, done: sparCarbDone, color: 'amber', blocked: isCarbBlocked });
@@ -203,7 +200,7 @@ export function FuelCard({
     }
     p.push({ label: 'Water', consumed: `${tracking.waterConsumed}`, target: `${hydration.targetOz}oz`, pct: waterProgress, done: waterDone, color: 'cyan' });
     return p;
-  }, [doNotEat, showSliceTracker, sliceTargets, isV2, tracking, macros, hydration,
+  }, [showSliceTracker, sliceTargets, isV2, tracking, macros, hydration,
     sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct,
     sparProteinDone, sparCarbDone, sparVegDone, sparFruitDone, sparFatDone,
     isProteinBlocked, isCarbBlocked, isVegBlocked,
@@ -311,18 +308,18 @@ export function FuelCard({
                 </div>
               )}
 
-              {/* DO NOT EAT warning */}
-              {doNotEat && (
-                <div className="flex items-center gap-1.5 mt-1.5 text-red-400">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span className="text-xs font-bold uppercase">Do not eat</span>
+              {/* Over today's target: facts and a pointer to the coach, never a food cut */}
+              {macros.weightWarning && (
+                <div className="flex items-start gap-1.5 mt-1.5 text-chart-3">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />
+                  <span className="text-xs font-medium">{macros.weightWarning}</span>
                 </div>
               )}
             </div>
           </div>
 
           {/* ── Category progress pills ── */}
-          {!doNotEat && pills.length > 0 && (
+          {pills.length > 0 && (
             <div className="flex gap-1.5 mt-3 overflow-x-auto">
               {pills.map((pill) => {
                 const c = colorMap[pill.color] || colorMap.amber;

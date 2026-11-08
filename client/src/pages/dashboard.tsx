@@ -1514,7 +1514,7 @@ export default function Dashboard() {
       } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0 && (isTrainingPhase || descentData.confidence.reliable)) {
         items.push({
           emoji: '⚠️',
-          text: isTrainingPhase ? 'Above walk-around — monitor intake' : 'Behind pace — extra effort needed',
+          text: isTrainingPhase ? 'Above walk-around — monitor intake' : 'Behind pace',
           color: 'text-yellow-500',
         });
       }

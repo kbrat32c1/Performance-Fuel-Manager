@@ -81,7 +81,7 @@ export function InfoDialog() {
               <li>Hit your hydration target</li>
               <li>Log pre-practice and post-practice weights</li>
               <li>Log before bed weight</li>
-              <li>Add extra workouts if needed</li>
+              <li>Behind? Talk to your coach about your options</li>
             </ol>
           </div>
 

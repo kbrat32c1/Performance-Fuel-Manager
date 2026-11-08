@@ -1820,8 +1820,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const protocol = profile.protocol;
     const daysUntilWeighIn = getDaysUntilWeighIn();
 
-    // Weight-awareness: check how far over target the athlete currently is
-    // This modifies the targets returned below when significantly overweight on cut/prep days
+    // Weight-awareness: note when the athlete is well over today's target on cut/prep days.
     const getWeightAdjustedResult = (result: { carbs: { min: number; max: number }; protein: { min: number; max: number }; ratio: string }) => {
       // Gain athletes are trying to add weight: never cut their food for being heavy.
       if (protocol === PROTOCOLS.GAIN) return result;
@@ -1837,50 +1836,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const latestWeight = todayLogs.length > 0 ? todayLogs[0].weight : 0;
       if (latestWeight === 0) return result;
 
-      const overTarget = latestWeight - profile.targetWeightClass;
-      const pctOver = (overTarget / profile.targetWeightClass) * 100;
-
-      // Also factor in days remaining — 1 day out is more critical than 3 days out
-      const dayMultiplier = daysUntilWeighIn === 1 ? 1.5 : daysUntilWeighIn === 2 ? 1.2 : 1.0;
-      const effectivePctOver = pctOver * dayMultiplier;
-
-      // 10%+ effective (e.g., 8%+ on day 1, or 12%+ on day 3) — DO NOT EAT
-      if (effectivePctOver >= 10) {
-        return {
-          carbs: { min: 0, max: 0 },
-          protein: { min: 0, max: 0 },
-          ratio: result.ratio,
-          weightWarning: `${overTarget.toFixed(1)} lbs over with ${daysUntilWeighIn} day${daysUntilWeighIn > 1 ? 's' : ''} left. Do not eat — any food adds weight. Focus entirely on extra workouts and water cut.`,
-        };
-      }
-      // 7-10% effective — near-zero, survival only
-      if (effectivePctOver >= 7) {
-        return {
-          carbs: { min: 0, max: Math.round(result.carbs.max * 0.15) },
-          protein: { min: 0, max: Math.round(result.protein.max * 0.2) },
-          ratio: result.ratio,
-          weightWarning: `${overTarget.toFixed(1)} lbs over — eat only if you feel faint. Every gram counts. Extra workouts are the priority.`,
-        };
-      }
-      // 5-7% effective — heavily restrict
-      if (effectivePctOver >= 5) {
-        return {
-          carbs: { min: Math.round(result.carbs.min * 0.3), max: Math.round(result.carbs.max * 0.4) },
-          protein: { min: Math.round(result.protein.min * 0.5), max: Math.round(result.protein.max * 0.5) },
-          ratio: result.ratio,
-          weightWarning: `${overTarget.toFixed(1)} lbs over — minimize intake. Focus on extra workouts and water cut.`,
-        };
-      }
-      // 3-5% effective — moderate reduction
-      if (effectivePctOver >= 3) {
-        return {
-          carbs: { min: Math.round(result.carbs.min * 0.6), max: Math.round(result.carbs.max * 0.7) },
-          protein: { min: Math.round(result.protein.min * 0.8), max: Math.round(result.protein.max * 0.8) },
-          ratio: result.ratio,
-          weightWarning: `${overTarget.toFixed(1)} lbs over target — reduce intake and add extra workouts.`,
-        };
-      }
-      return result;
+      // Measured against today's own target (which sits above the class), so an athlete on plan
+      // sees nothing. Food targets never change here: the note gives the facts and points to the coach.
+      const todayTarget = calculateTarget();
+      const overToday = latestWeight - todayTarget;
+      if (todayTarget <= 0 || (overToday / todayTarget) * 100 < 3) return result;
+      return {
+        ...result,
+        weightWarning: `${overToday.toFixed(1)} lbs over today's target with ${daysUntilWeighIn} day${daysUntilWeighIn > 1 ? 's' : ''} left. Stay on your fueling plan and talk to your coach about your options.`,
+      };
     };
 
     // Base targets come from the protocol tables (shared with the weekly plan), then the weight adjustment
@@ -2387,48 +2351,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Shared: apply weight-based macro override to today's entry in any weekly plan
-  const applyWeightAdjustmentToToday = (plan: DayPlan[]): DayPlan[] => {
-    const todayEntry = plan.find(d => d.isToday);
-    if (!todayEntry) return plan;
-
-    // Gain athletes are trying to add weight: never cut their food for being heavy.
-    if (profile.protocol === PROTOCOLS.GAIN) return plan;
-    const daysUntil = getDaysUntilWeighIn();
-    // Only adjust on cut/prep days (1-3 days out)
-    if (daysUntil < 1 || daysUntil > 3) return plan;
-
-    // Get latest weight
-    const today = startOfDay(profile.simulatedDate || new Date());
-    const todayStr = format(today, 'yyyy-MM-dd');
-    const todayLogs = logs
-      .filter(l => format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === todayStr)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const latestWeight = todayLogs.length > 0 ? todayLogs[0].weight : 0;
-    if (latestWeight === 0) return plan;
-
-    if (!profile.targetWeightClass || profile.targetWeightClass <= 0) return plan;
-    const overTarget = latestWeight - profile.targetWeightClass;
-    const pctOver = (overTarget / profile.targetWeightClass) * 100;
-    const dayMultiplier = daysUntil === 1 ? 1.5 : daysUntil === 2 ? 1.2 : 1.0;
-    const effectivePctOver = pctOver * dayMultiplier;
-
-    if (effectivePctOver < 3) return plan;
-
-    return plan.map(d => {
-      if (!d.isToday) return d;
-      if (effectivePctOver >= 10) {
-        return { ...d, carbs: { min: 0, max: 0 }, protein: { min: 0, max: 0 }, weightWarning: `${overTarget.toFixed(1)} lbs over target with ${daysUntil} day${daysUntil > 1 ? 's' : ''} left. Do not eat.` };
-      }
-      if (effectivePctOver >= 7) {
-        return { ...d, carbs: { min: 0, max: Math.round(d.carbs.max * 0.15) }, protein: { min: 0, max: Math.round(d.protein.max * 0.2) }, weightWarning: `${overTarget.toFixed(1)} lbs over — eat only if you feel faint.` };
-      }
-      if (effectivePctOver >= 5) {
-        return { ...d, carbs: { min: Math.round(d.carbs.min * 0.3), max: Math.round(d.carbs.max * 0.4) }, protein: { min: Math.round(d.protein.min * 0.5), max: Math.round(d.protein.max * 0.5) }, weightWarning: `${overTarget.toFixed(1)} lbs over — minimize intake.` };
-      }
-      return { ...d, carbs: { min: Math.round(d.carbs.min * 0.6), max: Math.round(d.carbs.max * 0.7) }, protein: { min: Math.round(d.protein.min * 0.8), max: Math.round(d.protein.max * 0.8) }, weightWarning: `${overTarget.toFixed(1)} lbs over — reduce intake.` };
-    });
-  };
-
   const getWeeklyPlan = (): DayPlan[] => {
     const w = profile.targetWeightClass;
     // Same body weight the daily targets use for g/lb protein.
@@ -2518,7 +2440,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           isTomorrow: i === 1,
         };
       });
-      return applyWeightAdjustmentToToday(sparDays);
+      return sparDays;
     }
 
     // Protocol 6 (SPAR Competition) — SPAR portions + competition water loading
@@ -2582,7 +2504,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           isWaterLoading: isWaterLoadingForDays(daysUntil),
         };
       });
-      return applyWeightAdjustmentToToday(sparCompDays);
+      return sparCompDays;
     }
 
     // Protocol 4 (Gain Phase) - No weight cutting, maintain/gain weight
@@ -2617,7 +2539,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           isTomorrow: i === 1
         };
       });
-      return applyWeightAdjustmentToToday(buildDays);
+      return buildDays;
     }
 
     // Protocol 3 (Optimal Cut) - Maintenance-level nutrition WITH water loading
@@ -2691,7 +2613,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           isCriticalCheckpoint
         };
       });
-      return applyWeightAdjustmentToToday(holdDays);
+      return holdDays;
     }
 
     // Protocols 1 & 2 (Extreme Cut & Rapid Cut) - Full cutting protocol
@@ -2773,7 +2695,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Apply weight-based adjustments to today's entry (same logic as getMacroTargets weight adjustment)
-    return applyWeightAdjustmentToToday(days);
+    return days;
   };
 
   const getTomorrowPlan = (): DayPlan | null => {
@@ -2922,7 +2844,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Determine urgency and message based on how much over and days remaining
         const workoutStr = workoutsNeeded !== null
-          ? `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed before weigh-in.${estimateNote}`
+          ? `About ${workoutsNeeded} extra session${workoutsNeeded > 1 ? 's' : ''} would close it, based on your numbers.${estimateNote}`
           : `${projectedOver.toFixed(1)} lbs over.${estimateNote}`;
 
         // Extreme Cut is a preseason body-fat decision (getProtocolRecommendation), never an
@@ -2982,9 +2904,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (extraStats.todayWorkouts > 0 && workoutsNeeded !== null) {
           const remainingWorkouts = Math.max(0, workoutsNeeded - extraStats.todayWorkouts);
           if (remainingWorkouts === 0) {
-            recommendation.message = `Today's workout${extraStats.todayWorkouts > 1 ? 's' : ''} helped (-${extraStats.todayLoss.toFixed(1)} lbs). Still ${projectedOver.toFixed(1)} lbs over - keep cutting.`;
+            recommendation.message = `Today's workout${extraStats.todayWorkouts > 1 ? 's' : ''} helped (-${extraStats.todayLoss.toFixed(1)} lbs). Still ${projectedOver.toFixed(1)} lbs over.`;
           } else {
-            recommendation.message = `${remainingWorkouts} more workout${remainingWorkouts > 1 ? 's' : ''} needed before weigh-in. Today: -${extraStats.todayLoss.toFixed(1)} lbs.`;
+            recommendation.message = `About ${remainingWorkouts} more session${remainingWorkouts > 1 ? 's' : ''} would close it. Today: -${extraStats.todayLoss.toFixed(1)} lbs.`;
           }
           recommendation.extraWorkoutsNeeded = remainingWorkouts;
         }

@@ -19,7 +19,7 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     title: "Your Daily Coach",
-    description: "This card adapts to your situation — showing your status, what to focus on today, and how many extra workouts you need.",
+    description: "This card adapts to your situation — showing your status, what to focus on today, and what your numbers show.",
     icon: <Zap className="w-5 h-5" />,
     target: "daily-coach",
   },

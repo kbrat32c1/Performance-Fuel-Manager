@@ -82,7 +82,6 @@ export default function Fuel() {
   const sparFruitDone = !sliceTargets || sliceTargets.fruit === 0 || (tracking.fruitSlices || 0) >= sliceTargets.fruit;
   const sparFatDone = !sliceTargets || sliceTargets.fat === 0 || (tracking.fatSlices || 0) >= sliceTargets.fat;
   const waterDone = hydration.targetOz === 0 || waterProgress >= 100;
-  const doNotEat = macros.carbs.max === 0 && macros.protein.max === 0 && macros.weightWarning;
   const isSipOnly = hydration.type === 'Sip Only';
 
   const allDone = showSliceTracker
@@ -256,21 +255,14 @@ export default function Fuel() {
                 </>
               ) : (
                 <>
-                  {doNotEat ? (
-                    <div className="flex items-center gap-2 text-red-400">
-                      <AlertTriangle className="w-4 h-4" />
-                      <span className="text-xs font-bold">DO NOT EAT</span>
-                    </div>
-                  ) : (
-                    <>
+                  <>
                       {macros.carbs.max > 0 && (
                         <MacroBar label="Carbs" consumed={tracking.carbsConsumed} target={macros.carbs.max} color="bg-amber-500" unit="g" variant="stacked" />
                       )}
                       {macros.protein.max > 0 && (
                         <MacroBar label="Protein" consumed={tracking.proteinConsumed} target={macros.protein.max} color="bg-orange-500" unit="g" variant="stacked" />
                       )}
-                    </>
-                  )}
+                  </>
                 </>
               )}
               <MacroBar label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
@@ -575,12 +567,13 @@ export default function Fuel() {
 
             {/* Progress bars */}
             <div className="space-y-2.5">
-              {doNotEat ? (
-                <div className="flex items-center gap-2 text-red-400 bg-red-500/10 rounded-lg px-3 py-2.5">
-                  <AlertTriangle className="w-4 h-4 shrink-0" />
-                  <span className="text-xs font-bold">DO NOT EAT — Focus on extra workouts</span>
+              {macros.weightWarning && (
+                <div className="flex items-start gap-2 text-chart-3 bg-chart-3/10 rounded-lg px-3 py-2.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  <span className="text-xs font-medium">{macros.weightWarning}</span>
                 </div>
-              ) : showSliceTracker && sliceTargets ? (
+              )}
+              {showSliceTracker && sliceTargets ? (
                 <>
                   {!isProteinBlocked && sliceTargets.protein > 0 && (
                     <MacroBar label="Protein" consumed={tracking.proteinSlices} target={sliceTargets.protein} color="bg-orange-500" variant="stacked" />
@@ -611,7 +604,6 @@ export default function Fuel() {
             </div>
 
             {/* Add Food button */}
-            {!doNotEat && (
               <button
                 onClick={openAddFood}
                 className="w-full flex items-center justify-center gap-2 mt-4 py-3 rounded-xl bg-primary/10 text-primary font-bold text-sm active:scale-[0.98] transition-all"
@@ -619,7 +611,6 @@ export default function Fuel() {
                 <Plus className="w-4 h-4" />
                 Add Food
               </button>
-            )}
           </Card>
         </div>
         </div>{/* end grid */}
