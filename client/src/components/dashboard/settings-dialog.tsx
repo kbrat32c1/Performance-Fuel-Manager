@@ -327,6 +327,23 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   );
                 })()}
 
+                <p className="text-xs text-muted-foreground leading-snug">
+                  Your plan determines your guidance; your tracking method determines how you log food. Slices or Grams work with any plan.
+                </p>
+
+                {/* Help Me Choose — opens ProtocolWizard dialog */}
+                {!isSparGeneral && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-11 text-xs"
+                    onClick={() => setShowProtocolWizard(true)}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
+                    Help Me Choose
+                  </Button>
+                )}
+
                 {(() => {
                   const recommended = !isSparGeneral && getValue('targetWeightClass') > 0
                     ? getProtocolRecommendation(
@@ -342,8 +359,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       protocols: [PROTOCOLS.EXTREME_CUT, PROTOCOLS.RAPID_CUT, PROTOCOLS.OPTIMAL_CUT, PROTOCOLS.GAIN],
                     },
                     {
-                      title: 'SPAR portion plans',
-                      hint: 'Count palms and fists instead of calories.',
+                      title: 'SPAR plans',
+                      hint: "Pick by whether you're making a weight.",
                       protocols: [PROTOCOLS.SPAR, PROTOCOLS.SPAR_COMPETITION],
                     },
                   ];
@@ -383,7 +400,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                                 <span className="text-sm font-bold">{PROTOCOL_NAMES[p]}</span>
                                 {isRecommended && (
                                   <span className="text-xs font-bold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
-                                    Recommended for you
+                                    Suggested by weight from these 4
                                   </span>
                                 )}
                               </div>
@@ -398,19 +415,6 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     </div>
                   ));
                 })()}
-
-                {/* Help Me Choose — opens ProtocolWizard dialog */}
-                {!isSparGeneral && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-8 text-xs"
-                    onClick={() => setShowProtocolWizard(true)}
-                  >
-                    <HelpCircle className="w-3.5 h-3.5 mr-1.5" />
-                    Help Me Choose
-                  </Button>
-                )}
               </div>
 
               {/* Age — needed for strain HR zone calculations (all protocols) */}
@@ -434,6 +438,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Nutrition Mode Toggle */}
               <div className="space-y-2 pt-2 border-t border-muted">
                 <Label className="text-xs">Nutrition Tracking</Label>
+                <p className="text-xs text-muted-foreground">Use Slices or Grams with any plan.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleChange({ nutritionPreference: 'spar' })}
