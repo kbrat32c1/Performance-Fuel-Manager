@@ -17,10 +17,10 @@ export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInC
   const getMessage = () => {
     if (!waterLoadingOn) return daysUntilWeighIn === 1 ? "Day before weigh-in" : "Until weigh-in";
     if (daysUntilWeighIn === 5) return "Water loading day 1";
-    if (daysUntilWeighIn === 4) return "Peak water loading today";
-    if (daysUntilWeighIn === 3) return "Last water loading day";
-    if (daysUntilWeighIn === 2) return "Water restriction — zero fiber";
-    if (daysUntilWeighIn === 1) return "Final cut — sip only";
+    if (daysUntilWeighIn === 4) return "Water loading today";
+    if (daysUntilWeighIn === 3) return "Peak water day";
+    if (daysUntilWeighIn === 2) return "High water, low sodium — zero fiber";
+    if (daysUntilWeighIn === 1) return "Final cut — reduced water";
     return "Until weigh-in";
   };
 

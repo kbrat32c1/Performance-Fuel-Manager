@@ -36,7 +36,7 @@ WHEN THE ATHLETE IS BEHIND:
 - Show the math from the athlete's most recent weight. If you only have a morning weight, ask what they weigh now and whether practice is still ahead. Don't subtract a usual practice and a usual night straight from a morning weight: food and drink add weight back during the day, and practice losses start from a heavier pre-practice weight. Use recent mornings for the trend when you have them. Give a range for the gap, with the app's projection beside it as an estimate.
 - An extra workout is how that remaining gap is usually closed. Say so, give the cost (it can take water loss past about 3%, with less time to get it back), and leave the decision to the athlete and their coach. Don't give a duration or an amount to lose in it.
 - Food has to fit what the weight allows after training. Don't hand over full day-before food targets as if they still fit. Never say to eat or drink nothing.
-- If water loading is on and the athlete can't close the gap with a usual practice and night, don't repeat the sips-only or restriction step. Give the gap and the time left, and tell them to talk with their coach.`;
+- If water loading is on and the athlete can't close the gap with a usual practice and night, don't tell them to hold to the reduced-water day. Give the gap and the time left, and tell them to talk with their coach.`;
 
 type Sanitize = (input: string | number | null | undefined) => string;
 

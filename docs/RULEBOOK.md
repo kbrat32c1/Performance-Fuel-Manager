@@ -222,6 +222,18 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
   - **Fluid after weigh-in:** scale to the time. 16–24 oz per lb lost as the floor in a short window, up to 24–32 oz per lb (FINAL_13) only with 2+ hours and if tolerated.
   - **First 15 minutes:** sip 16–24 oz with electrolytes, carbs from 15 minutes (live coach, over FINAL_13's immediate carbs).
   - **Between matches:** 12–24 oz and 30–40 g fast carbs in the first 30 minutes, sodium every break, no solids in the last 30 minutes before the next match (FINAL_13).
+  - **Water-loading week** (replaces the app's oz-per-lb schedule; FINAL_13 volumes). By weigh-in class, in gallons:
+
+    | Day | 125–141 | 149–165 | 174–197 and 285 | Sodium |
+    |---|---|---|---|---|
+    | 5 days out (Mon) | 1.0 | 1.25 | 1.5 | Normal, 1–2 g per liter |
+    | 4 days out (Tue) | 1.25 | 1.5 | 1.75 | Normal, 1–2 g per liter |
+    | 3 days out (Wed) | 1.5 | 1.75 | 2.0 | Normal to moderate |
+    | 2 days out (Thu) | 1.25 | 1.5 | 1.75 | Low, about 2,500 mg (estimate) |
+    | 1 day out (Fri) | 0.25–0.5 | 0.25–0.5 | 0.25–0.5 | Very low, under 1,000 mg (estimate) |
+    | Day after (Sun) | 1.0 | 1.25 | 1.5 | Normal |
+
+    Regular water, not distilled. FINAL_13's distilled-water claim stays unproven until researched. 285 has no numbers in FINAL_13 and uses the 174–197 column by Kevin's choice.
   - **Sodium early in a water-loading week:** normal, 1–2 g per liter, until Thursday (FINAL_13). Replaces the 5,000 mg salt-load, which has no source in FINAL_13.
   - **Peak water volume:** gallons by weight group: 1.5 gal for 125–141 lb, 1.75 for 149–165, 2.0 for 174–197 (FINAL_13). Replaces 1.5 oz/lb.
   - **Glycogen refill:** 4–6 hours to about 70–80%, 20–24 hours for full (FINAL_13 Fuel Tanks table), labeled as an estimate. Not "fully recoverable in 2 hours."

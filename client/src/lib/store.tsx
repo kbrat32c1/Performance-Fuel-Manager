@@ -1418,11 +1418,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntilWeighIn === 1) {
           currentDayContext = `Before practice: ${criticalLow}-${criticalHigh} lbs — practice and overnight drift do the rest`;
         } else if (daysUntilWeighIn === 2) {
-          currentDayContext = 'Water restriction day — zero fiber, ADH still flushing.';
+          currentDayContext = 'Water stays high, sodium low — zero fiber.';
         } else if (daysUntilWeighIn === 3) {
-          currentDayContext = `Last load day - checkpoint is ${midWeekBaselineLow}-${midWeekBaselineHigh} lbs. Water restriction starts tomorrow.`;
+          currentDayContext = `Peak water day - checkpoint is ${midWeekBaselineLow}-${midWeekBaselineHigh} lbs.`;
         } else if (daysUntilWeighIn === 4) {
-          currentDayContext = 'Peak loading day - continue high water intake';
+          currentDayContext = 'Water loading day - continue high water intake';
         } else if (daysUntilWeighIn === 5) {
           currentDayContext = 'Water loading day - stay hydrated, weight may fluctuate';
         } else {
@@ -1550,13 +1550,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 5 days out: water loading day 1
     // 4 days out: water loading day 2 (peak)
     // 3 days out: water loading day 3
-    // 2 days out: water restriction day, zero fiber transition
-    // 1 day out: performance prep (sip only, final cut)
+    // 2 days out: water high, sodium low, zero fiber transition
+    // 1 day out: performance prep (reduced water, final cut)
     // 0 days: competition
 
     if (daysUntilWeighIn >= 6) return 'metabolic'; // Maintenance/build phase
     if (daysUntilWeighIn >= 3) return 'metabolic'; // Water loading phase (days 5,4,3) - same phase, different hydration
-    if (daysUntilWeighIn === 2) return 'transition'; // Water restriction day, zero fiber
+    if (daysUntilWeighIn === 2) return 'transition'; // Water high, sodium low, zero fiber
     if (daysUntilWeighIn === 1) return 'performance-prep'; // Cut day
 
     return 'metabolic';
@@ -1594,10 +1594,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     else if (!(profile.waterLoading !== false) && daysUntilWeighIn > 0) note = "Water loading off — drink normally";
     else if (daysUntilWeighIn < 0) note = "Rehydrate fully";
     else if (daysUntilWeighIn === 0) note = "Post-weigh-in rehydration";
-    else if (daysUntilWeighIn === 1) note = "Sip only — final cut";
-    else if (daysUntilWeighIn === 2) note = "Water restriction — zero fiber, ADH still flushing";
+    else if (daysUntilWeighIn === 1) note = "Reduced water — 0.25-0.5 gal";
+    else if (daysUntilWeighIn === 2) note = "High water, low sodium — zero fiber";
     else if (daysUntilWeighIn === 3) note = "Water loading day 3 (peak)";
-    else if (daysUntilWeighIn === 4) note = "Water loading day 2 (peak)";
+    else if (daysUntilWeighIn === 4) note = "Water loading day 2";
     else if (daysUntilWeighIn === 5) note = "Water loading day 1";
     else if (daysUntilWeighIn === 6) note = "Prep for water loading";
 
@@ -1631,15 +1631,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Gain phase never cuts water, whatever the switch says.
     const loading = profile.waterLoading !== false && profile.protocol !== PROTOCOLS.GAIN;
-    const targetOz = getWaterTargetOz(daysUntil, athleteWeight, loading);
-    const amount = getWaterTargetGallons(daysUntil, athleteWeight, loading);
+    const targetOz = getWaterTargetOz(daysUntil, athleteWeight, loading, profile.targetWeightClass);
+    const amount = getWaterTargetGallons(daysUntil, athleteWeight, loading, profile.targetWeightClass);
 
     // Determine type label based on phase
     let type = "Regular";
     if (daysUntil === 0) type = "Rehydrate";
     else if (!loading) type = daysUntil < 0 ? "Recovery" : "Regular";
-    else if (daysUntil === 1) type = "Sip Only";
-    else if (daysUntil === 2) type = "Restriction";
+    else if (daysUntil === 1) type = "Reduced";
+    else if (daysUntil === 2) type = "Low Sodium";
     else if (daysUntil >= 3 && daysUntil <= 5) type = "Loading";
     else if (daysUntil < 0) type = "Recovery";
 
@@ -2580,18 +2580,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } else if (daysUntil === 0) {
           // Competition day
         } else if (daysUntil === 1) {
-          // Day before competition - sips only
+          // Day before competition - reduced water
           isCriticalCheckpoint = true;
           waterLoadingNote = `Key checkpoint — before practice: ${Math.round(w * 1.02)}-${baseWeight} lbs`;
         } else if (daysUntil === 2) {
-          // 2 days out - water restriction day
-          waterLoadingNote = (profile.waterLoading !== false ? `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.` : undefined);
+          // 2 days out - water high, sodium low
+          waterLoadingNote = (profile.waterLoading !== false ? `Water stays high, sodium low. ZERO fiber. Water drops sharply tomorrow.` : undefined);
         } else if (daysUntil === 3) {
           // Last load day
-          waterLoadingNote = (profile.waterLoading !== false ? `Last load day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Water restriction starts tomorrow.` : undefined);
+          waterLoadingNote = (profile.waterLoading !== false ? `Peak water day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs.` : undefined);
         } else if (daysUntil === 4) {
           // Peak water loading day
-          waterLoadingNote = (profile.waterLoading !== false ? `Peak loading day - heaviest day is normal (+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs)` : undefined);
+          waterLoadingNote = (profile.waterLoading !== false ? `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : undefined);
         } else if (daysUntil === 5) {
           // First water loading day
           waterLoadingNote = (profile.waterLoading !== false ? `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : undefined);
@@ -2621,8 +2621,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 5 days out: Water loading starts (walk-around + water bonus)
     // 4 days out: Peak water loading
     // 3 days out: Last load day
-    // 2 days out: Flush/transition (zero fiber)
-    // 1 day out: Critical checkpoint (sip only)
+    // 2 days out: Water high, sodium low (zero fiber)
+    // 1 day out: Critical checkpoint (reduced water)
     // 0 days: Competition day
     // -1 day: Recovery
     // 6+ days out: Maintenance/build phase
@@ -2660,18 +2660,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } else if (daysUntil === 0) {
         // Competition day
       } else if (daysUntil === 1) {
-        // Critical checkpoint - day before competition (sip only)
+        // Critical checkpoint - day before competition (reduced water)
         isCriticalCheckpoint = true;
         waterLoadingNote = `Key checkpoint — before practice: ${Math.round(w * 1.02)}-${baseWeight} lbs`;
       } else if (daysUntil === 2) {
-        // 2 days out - water RESTRICTION day. ADH still suppressed from loading → high urine output continues.
-        waterLoadingNote = (profile.waterLoading !== false ? `Water restriction day — ADH still suppressed, body keeps flushing. ZERO fiber. Sips only tomorrow.` : undefined);
+        // 2 days out - water high, sodium low
+        waterLoadingNote = (profile.waterLoading !== false ? `Water stays high, sodium low. ZERO fiber. Water drops sharply tomorrow.` : undefined);
       } else if (daysUntil === 3) {
         // Last load day (day 3 of loading)
-        waterLoadingNote = (profile.waterLoading !== false ? `Last load day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs. Water restriction starts tomorrow.` : undefined);
+        waterLoadingNote = (profile.waterLoading !== false ? `Peak water day — still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs.` : undefined);
       } else if (daysUntil === 4) {
         // Peak water loading day
-        waterLoadingNote = (profile.waterLoading !== false ? `Peak loading day - heaviest day is normal (+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs)` : undefined);
+        waterLoadingNote = (profile.waterLoading !== false ? `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : undefined);
       } else if (daysUntil === 5) {
         // First water loading day
         waterLoadingNote = (profile.waterLoading !== false ? `Water loading day - expect +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : undefined);
@@ -2960,10 +2960,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // P6 competition-specific priorities
       if (protocol === '6') {
         if (daysUntilWeighIn === 1) {
-          return { priority: waterOn ? "WATER CUT — minimal portions, sip only" : "Day before weigh-in — minimal portions, check your weight", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
+          return { priority: waterOn ? "Day before weigh-in — minimal portions, water 0.25-0.5 gal" : "Day before weigh-in — minimal portions, check your weight", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
         }
         if (daysUntilWeighIn === 2) {
-          return { priority: waterOn ? "WATER CUT — light portions, restrict water" : "Two days out — light portions, stay hydrated", subtext: buildSubtext(), urgency: 'high', icon: 'droplet' };
+          return { priority: waterOn ? "Two days out — light portions, water stays high, sodium low" : "Two days out — light portions, stay hydrated", subtext: buildSubtext(), urgency: 'high', icon: 'droplet' };
         }
         if (daysUntilWeighIn <= 5) {
           const note = sliceTargets.competitionReason ? ` (${sliceTargets.competitionReason})` : '';
@@ -3005,7 +3005,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { priority: "COMPETE - rehydrate smart, fuel between matches", subtext: buildSubtext(), urgency: 'high', icon: 'trophy' };
     }
     if (daysUntilWeighIn === 1) {
-      return { priority: waterOn ? "SIP ONLY - monitor weight hourly. Final push to make weight." : "Day before weigh-in - stay on plan and check your weight.", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
+      return { priority: waterOn ? "Reduced water today, 0.25-0.5 gal. Check your weight after practice." : "Day before weigh-in - stay on plan and check your weight.", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
     }
     if (daysUntilWeighIn === 2) {
       return { priority: waterOn ? "ZERO FIBER - check every bite. Water weight dropping." : "ZERO FIBER - check every bite.", subtext: buildSubtext(), urgency: 'high', icon: 'alert', actionType: 'check-food' };

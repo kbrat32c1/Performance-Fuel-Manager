@@ -4,15 +4,39 @@ import {
   calculateTargetWeight, getPhaseForDaysUntil, isWaterLoadingDay,
 } from '../constants';
 
-describe('water loading on (the default — unchanged plan)', () => {
-  it('keeps the existing schedule by days before weigh-in', () => {
-    expect([6, 5, 4, 3, 2].map(d => getWaterTargetOz(d, 160))).toEqual([112, 192, 240, 240, 48]);
-    expect(getWaterTargetGallons(1, 160)).toBe('Sips only');
-    expect(getWaterTargetGallons(0, 160)).toBe('Rehydrate');
+describe('water loading on (Kevin\'s FINAL_13 week)', () => {
+  it('uses gallons by weigh-in class', () => {
+    expect([5, 4, 3, 2].map(d => getWaterTargetGallons(d, 135, true, 133))).toEqual(['1.0 gal', '1.25 gal', '1.50 gal', '1.25 gal']);
+    expect([5, 4, 3, 2].map(d => getWaterTargetGallons(d, 160, true, 157))).toEqual(['1.25 gal', '1.50 gal', '1.75 gal', '1.50 gal']);
+    expect([5, 4, 3, 2].map(d => getWaterTargetOz(d, 160, true, 157))).toEqual([160, 192, 224, 192]);
+    expect([5, 4, 3, 2].map(d => getWaterTargetGallons(d, 200, true, 197))).toEqual(['1.50 gal', '1.75 gal', '2.0 gal', '1.75 gal']);
   });
 
-  it('keeps the existing sodium plan', () => {
-    expect([5, 4, 3, 2, 1].map(d => getSodiumTarget(d).target)).toEqual([5000, 5000, 5000, 2500, 1000]);
+  it('puts heavyweights in the top column', () => {
+    expect(getWaterTargetOz(3, 280, true, 285)).toBe(256);
+  });
+
+  it('keeps training days on normal drinking', () => {
+    expect(getWaterTargetOz(6, 160, true, 157)).toBe(112);
+  });
+
+  it('reduces the day before, without sips only', () => {
+    expect(getWaterTargetGallons(1, 160, true, 157)).toBe('0.25-0.5 gal');
+    expect(getWaterTargetOz(1, 160, true, 157)).toBe(64);
+    expect(getWaterTargetGallons(0, 160, true, 157)).toBe('Rehydrate');
+  });
+
+  it('uses the group table the day after', () => {
+    expect(getWaterTargetOz(-1, 160, true, 157)).toBe(160);
+  });
+
+  it('has no salt-load, and never zero the day before', () => {
+    expect([5, 4, 3, 2, 1].map(d => getSodiumTarget(d).target)).toEqual([3000, 3000, 3000, 2500, 1000]);
+  });
+
+  it('carries the water-weight allowance through 2 days out, not the day before', () => {
+    expect(calculateTargetWeight(157, 2, '2').range).toEqual({ min: 165, max: 167 });
+    expect(calculateTargetWeight(157, 1, '2').range).toBeNull();
   });
 
   it('keeps the loading allowance and Load days', () => {

@@ -119,7 +119,7 @@ PROTOCOL 2 (Rapid Cut — STANDARD):
 • 5-4 days out: FRUCTOSE HEAVY (60:40 ratio), ZERO protein (325-450g carbs, 0g protein). Protein blocks fat burning
 • 3 days out: Fructose heavy, add 25g collagen + leucine at dinner only (325-450g carbs)
 • 2 days out: SWITCH TO GLUCOSE/starch. 60g protein (collagen + seafood). Zero fiber transition begins
-• 1 day out: ZERO FIBER (critical for weigh-in). 60g protein. Sip only. 300-400g carbs from white rice, rice cakes, honey, juice
+• 1 day out: ZERO FIBER (critical for weigh-in). 60g protein. 300-400g carbs from white rice, rice cakes, honey, juice
 • Competition day: Same for every protocol. See COMPETITION DAY RECOVERY
 • Recovery: Full recovery — 300-450g carbs, 1.4g/lb protein
 
@@ -144,34 +144,33 @@ PROTOCOL 4 (Gain):
 • Zero protein (4-5 days out, protocols 1&2): Protein triggers insulin and mTOR pathways that shut down fat oxidation. Removing it lets the body burn more actual body fat.
 
 ═══ WATER & SODIUM PROTOCOL ═══
-If the athlete has water loading OFF (context says "Water loading: off"), skip this schedule: they drink normally, about 0.7 oz/lb every day, with normal sodium — no loading, restriction, sips-only day or salt-loading.
-Based on research: PubMed 29182412, ISSN Position Stand PMC11894756.
-Protocol: 3 days water load → 1 day restrict → 1 day sips → weigh-in → rehydrate.
-Water is scaled by body weight (oz per lb):
+If the athlete has water loading OFF (context says "Water loading: off"), skip this schedule: they drink normally, about 0.7 oz/lb every day, with normal sodium — no loading, reduced-water day or sodium changes.
+Source: Kevin's system. This day-by-day schedule is coaching practice, not a tested protocol. Water loading is optional.
+Protocol: build water for 3 days → hold it high with low sodium → reduced water the day before → weigh-in → rehydrate. Regular water, not distilled.
+Gallons per day by weigh-in class (125-141 / 149-165 / 174 and up):
 
-• 5 days out: 1.2 oz/lb (~1.0-1.5 gal) — Baseline loading
-• 4 days out: 1.5 oz/lb (~1.5-2.0 gal) — PEAK loading, maximize diuresis
-• 3 days out: 1.5 oz/lb (~1.5-2.0 gal) — Peak loading continues
-• 2 days out: 0.3 oz/lb — SHARP RESTRICTION. ADH still suppressed from loading = high urine output continues even with low intake. This is key to the water cut
-• 1 day out: 0.08 oz/lb — SIPS ONLY (~5 ml/kg). Final flush
-• Competition day: 0 until weigh-in → REHYDRATE immediately after
-• Recovery: 0.75 oz/lb — normalize
+• 5 days out: 1.0 / 1.25 / 1.5 gal
+• 4 days out: 1.25 / 1.5 / 1.75 gal
+• 3 days out: 1.5 / 1.75 / 2.0 gal (peak)
+• 2 days out: 1.25 / 1.5 / 1.75 gal
+• 1 day out: 0.25-0.5 gal for every class. Spread it through the day and around practice
+• Competition day: Until weigh-in → REHYDRATE immediately after
+• Day after: 1.0 / 1.25 / 1.5 gal
 
 SODIUM SCHEDULE:
-• 5-3 days out: 5,000 mg/day — salt-load (trains kidneys to excrete aggressively)
-• 2 days out: 2,500 mg — stop adding salt (kidneys still excreting at high rate)
-• 1 day out: <1,000 mg — minimal sodium
+• 5-4 days out: Normal
+• 3 days out: Normal to moderate
+• 2 days out: Low, about 2,500 mg (estimate)
+• 1 day out: Very low, under 1,000 mg (estimate). Never zero
 • Competition day: Reintroduce post weigh-in
-• Recovery: 3,000 mg — replenish
-
-MAX WATER CAP: 320 oz (~2.5 gal) for safety regardless of body weight.
+• Day after: Normal
 
 ═══ WEIGHT TARGETS BY DAY ═══
 Target weight = competition weight × multiplier:
 • 5 days out: ×1.07 + water loading bonus (2-4 lbs)
 • 4 days out: ×1.06 + water loading bonus (2-4 lbs)
 • 3 days out: ×1.05 + water loading bonus (2-4 lbs)
-• 2 days out: ×1.04 (flush day — should be dropping)
+• 2 days out: ×1.04 + water loading bonus (2-4 lbs)
 • 1 day out: ×1.03 (critical checkpoint)
 • Competition: ×1.00 (make weight)
 • Recovery: ×1.07 (back to walk-around)

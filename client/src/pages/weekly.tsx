@@ -71,7 +71,7 @@ export default function Weekly() {
   // Compute water targets using ml/kg scaling from research
   const getWaterForDay = (dayKey: string) => {
     const daysOut = dayToDaysUntil[dayKey] ?? 5;
-    return getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn);
+    return getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn, profile.targetWeightClass);
   };
 
   // Compute sodium target for each day
@@ -108,16 +108,16 @@ export default function Weekly() {
         withLoading: null, note: 'CRITICAL checkpoint'
       };
       if (du === 2) return {
-        label: 'Restriction', target: t.range ? t.range.max : t.base, range: `${t.base}`,
+        label: 'Low Sodium', target: t.range ? t.range.max : t.base, range: `${t.base}`,
         withLoading: t.range ? `${t.range.min}-${t.range.max}` : null,
         note: t.range ? `Still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : 'Water weight dropping'
       };
       if (du >= 3 && du <= 4) return {
-        label: du === 4 ? 'Peak Loading' : 'Loading',
+        label: du === 4 ? 'Loading' : 'Peak Water',
         target: t.range ? t.range.max : t.base,
         range: t.range ? `${t.range.min}-${t.range.max}` : `${t.base}`,
         withLoading: du === 3 ? (t.range ? `${t.range.min}-${t.range.max}` : null) : null,
-        note: du === 4 ? 'Heaviest day is normal' : (t.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs loading` : undefined)
+        note: du === 3 ? 'Heaviest day is normal' : (t.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs loading` : undefined)
       };
       // du === 5 or du > 5
       return {
@@ -252,7 +252,7 @@ export default function Weekly() {
           The Plan
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {profile.targetWeightClass} lb class • Water scaled to {athleteWeightLbs} lbs
+          {profile.targetWeightClass} lb class
         </p>
         <WaterLoadingSwitch className="mt-3" />
       </header>
@@ -402,7 +402,7 @@ export default function Weekly() {
                 {getWeeklyPlan().map((planDay) => {
                   const dayDate = new Date(planDay.date);
                   const daysOut = differenceInCalendarDays(new Date(profile.weighInDate), dayDate);
-                  const waterAmount = getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn);
+                  const waterAmount = getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn, profile.targetWeightClass);
                   const sodiumInfo = getSodiumTarget(daysOut, waterLoadingOn);
                   const dateLabel = format(dayDate, 'M/d');
 
@@ -453,7 +453,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          {waterLoadingOn ? 'Based on Reale et al. acute weight management protocol (100 ml/kg peak loading)' : 'Water loading off — the same normal amount every day'} • Scaled to {athleteWeightLbs} lbs ({Math.round(athleteWeightLbs * 0.4536)} kg)
+          {waterLoadingOn ? 'Coaching schedule by weight class. Optional, and not a tested protocol' : `Water loading off — the same normal amount every day • Scaled to ${athleteWeightLbs} lbs`}
         </p>
       </section>
 
@@ -537,17 +537,17 @@ export default function Weekly() {
                     <li>• <strong className="text-cyan-500">Expect to be +{waterLoadBonus} lbs heavier</strong> than baseline targets</li>
                     <li>• Walk-around weight: {checkpoints.walkAround}</li>
                     <li>• Being heavier during loading is NORMAL and part of the protocol</li>
-                    <li>• Peak water intake {dayName(4)} (heaviest day)</li>
+                    <li>• Peak water intake {dayName(3)} (heaviest day)</li>
                   </ul>
                 </Card>
 
                 <Card className="p-3 border-violet-400/30 bg-violet-400/5">
-                  <h4 className="font-bold text-sm text-violet-400 mb-1">{dayName(2)}: Water Restriction Begins</h4>
+                  <h4 className="font-bold text-sm text-violet-400 mb-1">{dayName(2)}: High Water, Low Sodium</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
-                    <li>• Sharp water drop — ADH still suppressed from loading, urine output stays high</li>
-                    <li>• Sodium back to normal (~2,500mg) — stop adding extra salt</li>
+                    <li>• Water stays high: a step down from peak, not a cut</li>
+                    <li>• Sodium low, about 2,500mg</li>
                     <li>• ZERO fiber — check every bite</li>
-                    <li>• Water weight drops fast as body keeps flushing</li>
+                    <li>• Water weight is still on: the sharp drop comes the next day</li>
                   </ul>
                 </Card>
                 </>) : (
