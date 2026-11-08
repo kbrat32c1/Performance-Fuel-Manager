@@ -43,7 +43,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
   const [selectedMetric, setSelectedMetric] = useState<MetricKey | null>(null);
 
   // Memoize baselines + recovery to avoid recomputing (and logging) on every render
-  const recovery: RecoveryResult = useMemo(() => {
+  const { recovery, baselines } = useMemo(() => {
     const baselines = computeBaselines(healthHistory, latestHealth.date);
 
     // Cache the RHR baseline for strain computation (used by V5BandProvider).
@@ -59,7 +59,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
       } catch { /* quota exceeded — ignore */ }
     }
 
-    return computeRecoveryScoreDetailed({
+    const recovery: RecoveryResult = computeRecoveryScoreDetailed({
       hrv: latestHealth.hrv,
       restingHeartRate: latestHealth.resting_heart_rate,
       sleepHours: latestHealth.sleep_hours,
@@ -73,7 +73,17 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
         respiratoryRate: baselines.respiratoryRate,
       },
     });
+    return { recovery, baselines };
   }, [latestHealth, healthHistory]);
+
+  // Today's reading next to the athlete's usual, so the points explain themselves.
+  const fmt = (v: number | null | undefined, digits = 0) => (v == null ? null : v.toFixed(digits));
+  const readings: Record<RecoveryContribution['metric'], string | null> = {
+    hrv: fmt(latestHealth.hrv) && `${fmt(latestHealth.hrv)} ms${baselines.hrv ? ` · usual ${fmt(baselines.hrv.mean)}` : ''}`,
+    rhr: fmt(latestHealth.resting_heart_rate) && `${fmt(latestHealth.resting_heart_rate)} bpm${baselines.restingHeartRate ? ` · usual ${fmt(baselines.restingHeartRate.mean)}` : ''}`,
+    sleep: fmt(latestHealth.sleep_hours, 1) && `${fmt(latestHealth.sleep_hours, 1)} h${baselines.sleepHours ? ` · usual ${fmt(baselines.sleepHours.mean, 1)}` : ''}`,
+    respiratory: fmt(latestHealth.respiratory_rate, 1) && `${fmt(latestHealth.respiratory_rate, 1)} /min${baselines.respiratoryRate ? ` · usual ${fmt(baselines.respiratoryRate.mean, 1)}` : ''}`,
+  };
 
   // Same score source for the ring, the 7-day bars and the detail sheet.
   const scoredHistory = useMemo(() => withDisplayRecovery(healthHistory), [healthHistory]);
@@ -145,6 +155,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
             <ContributionBar
               key={c.metric}
               contribution={c}
+              reading={readings[c.metric]}
               onTap={() => setSelectedMetric(CONTRIBUTION_TO_METRIC[c.metric])}
             />
           ))}
@@ -260,7 +271,7 @@ function ScoreRing({ score, size = 72 }: { score: number; size?: number }) {
 /**
  * Single metric contribution bar — tappable for detail view
  */
-function ContributionBar({ contribution, onTap }: { contribution: RecoveryContribution; onTap?: () => void }) {
+function ContributionBar({ contribution, reading, onTap }: { contribution: RecoveryContribution; reading?: string | null; onTap?: () => void }) {
   const { metric, points, maxPoints, trend, status } = contribution;
   const percentage = maxPoints > 0 ? (points / maxPoints) * 100 : 0;
 
@@ -281,8 +292,9 @@ function ContributionBar({ contribution, onTap }: { contribution: RecoveryContri
   return (
     <button
       onClick={onTap}
-      className="flex items-center gap-2 w-full hover:bg-muted/20 rounded-md px-1 py-0.5 -mx-1 transition-colors active:scale-[0.98]"
+      className="block w-full hover:bg-muted/20 rounded-md px-1 py-0.5 -mx-1 transition-colors active:scale-[0.98]"
     >
+     <span className="flex items-center gap-2 w-full">
       {/* Icon */}
       <div className="flex items-center gap-1 w-14 flex-shrink-0">
         {metricConfig.icon}
@@ -305,6 +317,10 @@ function ContributionBar({ contribution, onTap }: { contribution: RecoveryContri
       {/* Trend */}
       {trend !== 'unknown' && (
         <TrendIcon className={cn("w-2.5 h-2.5 flex-shrink-0", trendColor)} />
+      )}
+     </span>
+      {reading && (
+        <span className="block pl-16 text-left text-xs text-muted-foreground font-mono">{reading}</span>
       )}
     </button>
   );
