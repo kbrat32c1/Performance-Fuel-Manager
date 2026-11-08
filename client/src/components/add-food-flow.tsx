@@ -359,8 +359,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     <div className="flex flex-col h-full" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
       {/* ── Header: Close + Meal Selector ── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-muted/20 shrink-0">
-        <button aria-label="Close" onClick={onClose} className="w-8 h-8 rounded-full relative after:absolute after:-inset-1.5 bg-muted/30 flex items-center justify-center hover:bg-muted/50">
-          <X className="w-4 h-4" aria-hidden="true" />
+        <button aria-label="Close" onClick={onClose} className="w-11 h-11 rounded-full relative bg-muted/30 flex items-center justify-center hover:bg-muted/50">
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
         <div className="flex-1 min-w-0">
           {!hideMealSelector ? (

@@ -17,6 +17,7 @@ import { QuickLogWaterTab } from './quick-log-water-tab';
 import { activateOnKey } from "@/lib/a11y";
 import { useLocation } from "wouter";
 import { sleepSourceName } from "@/lib/sleep-source";
+import { useSwipeToClose } from "@/hooks/use-swipe-to-close";
 
 type FabTab = 'weight' | 'food' | 'water';
 
@@ -271,6 +272,7 @@ export function QuickLogFAB() {
   const { user } = useAuth();
   const { healthData } = useHealthKitSync(user?.id ?? null);
   const [sleepAutoFilled, setSleepAutoFilled] = useState(false);
+  const swipeToClose = useSwipeToClose(() => { setIsOpen(false); resetForm(); });
   const [sleepSourceLabel, setSleepSourceLabel] = useState<string | null>(null);
 
   // Auto-fill sleep hours from the wearable when morning weigh-in selected.
@@ -812,11 +814,12 @@ export function QuickLogFAB() {
           />
 
           {/* Panel — fixed to bottom, doesn't shift with keyboard */}
-          <div className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[80vh] flex flex-col" role="document">
+          <div data-swipe-sheet className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[80vh] flex flex-col" role="document">
             {/* Drag handle — tappable to close */}
             <div
               role="button" tabIndex={0} aria-label="Close" onKeyDown={activateOnKey}
-              className="flex justify-center pt-3 pb-1 shrink-0 cursor-pointer"
+              {...swipeToClose}
+              className="flex justify-center pt-3 pb-2 shrink-0 cursor-pointer"
               onClick={() => { setIsOpen(false); resetForm(); }}
             >
               <div className="w-12 h-1.5 rounded-full bg-muted" />
