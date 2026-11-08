@@ -265,7 +265,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               <WhyExplanation title="water loading (3-5 days out)">
                 <strong>Water loading triggers natural diuresis.</strong> By drinking 1-2 gallons daily, your body
                 increases urine production. When you cut water the day before, your body keeps flushing even without
-                intake, helping you drop water weight safely without severe dehydration.
+                intake, which can lower water weight. How much varies by athlete.
               </WhyExplanation>
             )}
             {daysUntilWeighIn === 2 && (

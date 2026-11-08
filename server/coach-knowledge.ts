@@ -239,10 +239,10 @@ const SAFETY_RULES = `
 
 STOP cutting if:
 - More than 8% body weight in 3 days
-- Severe dizziness, confusion, fainting
+- Dizziness, confusion, fainting (severe or worsening symptoms, confusion, collapse or seizure: emergency care now; don't assume more water or electrolytes is the fix)
 - Dark brown urine (severe dehydration)
 - Heart palpitations or irregular heartbeat
-- Muscle cramps that won't resolve
+- Muscle cramps during a cut
 - Athlete under 15 cutting more than 3%
 
 NEVER RECOMMEND:

@@ -197,7 +197,7 @@ AVOID LIST:
 • Thu-Fri: ALL fiber (vegetables, fruits, whole grains, brown rice, oatmeal, beans, nuts, seeds) — fiber = gut weight
 • Always avoid: Fatty meats, fried foods, dairy during cut (bloating), carbonated drinks (gas), alcohol, spicy foods Thu-Fri, large meals Thu-Fri
 
-SUPPLEMENTS: Leucine 5g with collagen, TUDCA 250mg AM/PM (liver support during high fructose), Choline 500mg AM/PM (fat metabolism), electrolyte powder 1-2 scoops in all water, magnesium 400mg (prevents cramping), potassium from food (bananas, potatoes)
+SUPPLEMENTS: Leucine 5g with collagen, TUDCA 250mg AM/PM (liver support during high fructose), Choline 500mg AM/PM (fat metabolism), electrolyte powder 1-2 scoops in water (none the day before weigh-in when water loading), magnesium 400mg (prevents cramping), potassium from food (bananas, potatoes)
 
 ═══ COMPETITION DAY RECOVERY ═══
 
