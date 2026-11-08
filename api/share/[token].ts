@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient } from "@supabase/supabase-js";
+import { resolveShareDate } from "../_share-date.js";
 
 /**
  * Supabase Configuration for Vercel Edge Function
@@ -84,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .order("date", { ascending: true });
 
     // Fetch today's daily tracking (water, macros)
-    const todayDate = new Date().toISOString().split("T")[0];
+    const todayDate = resolveShareDate(req.query.date);
     const { data: dailyTrackingData } = await supabase
       .from("daily_tracking")
       .select("date, water_consumed, carbs_consumed, protein_consumed")

@@ -54,7 +54,7 @@ export function AddFoodSheet() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="bottom" className="h-[92vh] p-0 rounded-t-2xl flex flex-col [&>button.absolute]:hidden">
+      <SheetContent side="bottom" className="h-[92vh] p-0 rounded-t-2xl flex flex-col md:mx-auto md:max-w-md md:h-[min(85vh,760px)] md:bottom-4 md:rounded-2xl md:border [&>button.absolute]:hidden">
         <AddFoodFlow
           mealSection={mealSection}
           mode={showSliceTracker ? 'spar' : 'sugar'}

@@ -712,7 +712,7 @@ export default function Recovery() {
 
               <div className="text-center space-y-2">
                 <h1 className="text-2xl font-heading font-black italic uppercase text-cyan-500">
-                  Competition Day
+                  Meet Day
                 </h1>
                 <p className="text-muted-foreground text-sm max-w-[280px] mx-auto leading-relaxed">
                   This tool guides you through post weigh-in recovery, fueling, and between-match nutrition on competition day.
@@ -769,10 +769,10 @@ export default function Recovery() {
 
             <div className="text-center space-y-2">
               <h1 className="text-2xl font-heading font-black italic uppercase text-primary">
-                Competition Day
+                Meet Day
               </h1>
               <p className="text-muted-foreground text-sm max-w-[280px] mx-auto leading-relaxed">
-                Your post weigh-in recovery protocol. Guides you from weigh-in through every match.
+                For the day you compete: refuel after weigh-in, then eat and drink right between matches.
               </p>
             </div>
 
@@ -842,7 +842,7 @@ export default function Recovery() {
               onClick={startCompDay}
               className="w-full h-14 text-base font-bold uppercase bg-primary text-white rounded-xl shadow-lg shadow-primary/20"
             >
-              <Play className="w-5 h-5 mr-2" /> Start Competition Day
+              <Play className="w-5 h-5 mr-2" /> Start Meet Day
             </Button>
 
             {/* Notification / Alerts UI — compact */}
@@ -1211,7 +1211,7 @@ export default function Recovery() {
             variant="ghost"
             className="w-full h-10 text-xs text-muted-foreground hover:text-destructive rounded-xl"
           >
-            <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> End Competition Day
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" /> End Meet Day
           </Button>
         </div>
       </div>
@@ -1219,7 +1219,7 @@ export default function Recovery() {
       {/* Confirmation Dialogs */}
       <ConfirmDialog
         open={confirmEndOpen}
-        title="End Competition Day?"
+        title="End Meet Day?"
         description="This will reset all timers, checklists, and match data. You'll need to start fresh next time."
         confirmLabel="End Day"
         confirmClass="bg-destructive hover:bg-destructive/90 text-destructive-foreground"

@@ -353,7 +353,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                 {entries.length === 0 ? (
                   <button
                     onClick={() => { hapticTap(); onAddFood(meal.id); }}
-                    className="w-full px-3 py-3 text-xs text-muted-foreground/40 text-center hover:bg-muted/5 transition-colors"
+                    className="w-full min-h-11 px-3 py-3 text-xs text-muted-foreground text-center hover:bg-muted/10 transition-colors"
                   >
                     Tap + to add food
                   </button>
