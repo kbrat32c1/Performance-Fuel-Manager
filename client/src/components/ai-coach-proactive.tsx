@@ -60,7 +60,7 @@ export function AiCoachProactive() {
   // Training/hold phase (>2 days out): morning weight is the baseline — before-bed
   // weight is inflated from food/water and isn't representative of actual progress.
   // Cut phase (≤2 days out): every weigh-in matters, use most recent.
-  const { currentWeight, latestLogType, hasMorningWeight } = (() => {
+  const { currentWeight, latestLogType, hasMorningWeight, weightLoggedAt } = (() => {
     const today = new Date();
     const todayLogs = logs.filter(l => {
       const ld = new Date(l.date);
@@ -75,11 +75,11 @@ export function AiCoachProactive() {
 
       if (isCutPhase) {
         // Cut phase: use most recent weigh-in for real-time tracking
-        return { currentWeight: sorted[0].weight, latestLogType: sorted[0].type, hasMorningWeight: !!morningLog };
+        return { currentWeight: sorted[0].weight, latestLogType: sorted[0].type, hasMorningWeight: !!morningLog, weightLoggedAt: new Date(sorted[0].date) };
       } else {
         // Training/hold phase: use morning weight as baseline
         if (morningLog) {
-          return { currentWeight: morningLog.weight, latestLogType: morningLog.type, hasMorningWeight: true };
+          return { currentWeight: morningLog.weight, latestLogType: morningLog.type, hasMorningWeight: true, weightLoggedAt: new Date(morningLog.date) };
         }
         // No morning weight today — fall through to profile
       }
@@ -92,8 +92,14 @@ export function AiCoachProactive() {
       currentWeight: recentMorning?.weight || profile.currentWeight,
       latestLogType: null as string | null,
       hasMorningWeight: false,
+      weightLoggedAt: recentMorning ? new Date(recentMorning.date) : null,
     };
   })();
+  const weightLoggedLabel = !weightLoggedAt
+    ? 'From profile'
+    : weightLoggedAt.toDateString() === new Date().toDateString()
+      ? `Logged ${format(weightLoggedAt, 'h:mm a')}`
+      : format(weightLoggedAt, 'EEE h:mm a');
   const targetWeight = profile.targetWeightClass;
   const weightToLose = Math.max(0, currentWeight - targetWeight);
   const isAtWeight = weightToLose <= 0;
@@ -321,7 +327,7 @@ export function AiCoachProactive() {
   // Status color: green = on track, orange = behind, red = critical
   // Training phase: use walk-around proximity, not projection
   const statusColor = isAtWeight ? 'green' :
-    insights.trainingStatus === 'holding' ? 'green' :
+    insights.trainingStatus === 'holding' ? 'neutral' :
     insights.trainingStatus === 'monitor' ? 'orange' :
     insights.trainingStatus === 'high' ? 'red' :
     insights.isOnTrack ? 'green' :
@@ -451,7 +457,9 @@ export function AiCoachProactive() {
     if (daysUntil >= 6) {
       return {
         status: 'on-track',
-        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go. Plenty of time — train hard.</>,
+        node: insights.projectionReliable
+          ? <>{checkPrefix}Estimated {hl((targetWeight + gap).toFixed(1) + ' lbs')} at weigh-in, based on your recent logs.</>
+          : <>{checkPrefix}Not enough logged weights yet for a weigh-in estimate. Keep logging morning and practice weights.</>,
       };
     }
 
@@ -471,7 +479,7 @@ export function AiCoachProactive() {
             <div className={cn("grid gap-2 mb-2", insights.trainingStatus ? "grid-cols-3" : "grid-cols-2")}>
               {[
                 {
-                  label: 'Now',
+                  label: weightLoggedLabel,
                   value: currentWeight.toFixed(1),
                   color: statusColor === 'green' ? "text-green-500" :
                     statusColor === 'orange' ? "text-orange-400" :
@@ -479,7 +487,7 @@ export function AiCoachProactive() {
                 },
                 ...(insights.trainingStatus
                   ? [
-                      { label: 'Walk-around', value: String(Math.round(insights.walkAround * 10) / 10), color: "text-foreground" },
+                      { label: 'Est. walk-around', value: String(Math.round(insights.walkAround * 10) / 10), color: "text-foreground" },
                       { label: 'Class', value: String(targetWeight), color: "text-muted-foreground" },
                     ]
                   : [{ label: 'Target', value: String(targetWeight), color: "text-foreground" }]),
@@ -495,23 +503,19 @@ export function AiCoachProactive() {
             <div className={cn(
               "inline-flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1 rounded-2xl text-xs font-bold",
               statusColor === 'green' && "bg-green-500/10 text-green-500",
+              statusColor === 'neutral' && "bg-muted text-foreground",
               statusColor === 'orange' && "bg-orange-500/10 text-orange-500",
               statusColor === 'red' && "bg-red-500/10 text-red-400"
             )}>
               {isAtWeight ? <span className="whitespace-nowrap">✓ AT WEIGHT</span> : insights.trainingStatus ? (
                 <>
-                  <span className="whitespace-nowrap">
-                    {insights.trainingStatus === 'holding' ? 'HOLDING' :
-                     insights.trainingStatus === 'monitor' ? 'MONITOR' : 'HIGH'}
-                  </span>
-                  <span className="text-muted-foreground font-normal">•</span>
-                  <span className="whitespace-nowrap">
-                    {insights.walkAroundGap > 0.05
-                      ? `${insights.walkAroundGap.toFixed(1)} lbs over`
-                      : insights.walkAroundGap < -0.05
-                        ? `${Math.abs(insights.walkAroundGap).toFixed(1)} lbs under walk-around`
-                        : 'At walk-around weight'}
-                  </span>
+                  <span className="whitespace-nowrap">{`${weightToLose.toFixed(1)} lbs to class`}</span>
+                  {insights.walkAroundGap > 0.05 && (
+                    <>
+                      <span className="text-muted-foreground font-normal">•</span>
+                      <span className="whitespace-nowrap">{`${insights.walkAroundGap.toFixed(1)} lbs over est. walk-around`}</span>
+                    </>
+                  )}
                 </>
               ) : (
                 <>
@@ -521,7 +525,7 @@ export function AiCoachProactive() {
                 </>
               )}
               {timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME' && !isAtWeight && (
-                <span className="whitespace-nowrap text-muted-foreground font-normal">• {timeUntilWeighIn}</span>
+                <span className="whitespace-nowrap text-muted-foreground font-normal">• {timeUntilWeighIn} until weigh-in</span>
               )}
             </div>
           </div>
