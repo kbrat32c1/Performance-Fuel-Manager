@@ -34,7 +34,7 @@ export function MacroBar({
             {done && <Check className="w-3 h-3 inline mr-0.5" />}{consumed}{unit} / {target}{unit}
           </span>
         </div>
-        <div className="h-2 bg-muted/20 rounded-full overflow-hidden">
+        <div className="h-2 bg-muted-foreground/20 rounded-full overflow-hidden">
           <div
             className={cn("h-full rounded-full transition-all duration-500 ease-out", done ? "bg-green-500" : color)}
             style={{ width: `${Math.min(pct, 100)}%` }}
@@ -48,7 +48,7 @@ export function MacroBar({
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">{label}</span>
-      <div className="flex-1 h-2 bg-muted/15 rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-muted-foreground/20 rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-500 ease-out", done ? "bg-green-500" : color)}
           style={{ width: `${pct}%` }}
@@ -56,7 +56,7 @@ export function MacroBar({
       </div>
       <span className={cn(
         "text-xs font-mono font-bold w-28 text-right shrink-0 whitespace-nowrap",
-        done ? "text-green-500" : "text-muted-foreground/70"
+        done ? "text-green-500" : "text-muted-foreground"
       )}>
         {done ? (
           <><Check className="w-3 h-3 inline mr-0.5" />{consumed}{unit}</>
