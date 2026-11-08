@@ -2307,7 +2307,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
        if (phase === 'metabolic') actions.push("Maximize Fat Burning (Keep Protein Low)");
        if (phase === 'transition') actions.push("Switch to Glucose/Starch + Seafood");
     } else if (protocol === '3') {
-       title = "Today's Mission: Optimal Cut";
+       title = "Today's Mission: Maintain · Sugar System";
        actions.push("Focus on Performance & Recovery");
        actions.push(`Hit Protein Target: ${fuel.protein}`);
     } else if (protocol === '4') {

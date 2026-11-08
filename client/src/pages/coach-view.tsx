@@ -10,7 +10,7 @@ import { getWaterTargetOz, getWeightMultiplier, getPhaseForDaysUntil } from "@/l
 const PROTOCOL_LABELS: Record<string, string> = {
   '1': 'Extreme Cut',
   '2': 'Rapid Cut',
-  '3': 'Optimal Cut',
+  '3': 'Maintain · Sugar System',
   '4': 'Gain',
   '5': 'SPAR Nutrition',
 };

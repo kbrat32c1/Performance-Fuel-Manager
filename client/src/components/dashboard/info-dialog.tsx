@@ -91,7 +91,7 @@ export function InfoDialog() {
             <ul className="space-y-2 text-muted-foreground text-xs">
               <li><strong className="text-destructive">Extreme Cut:</strong> preseason fat-loss block when body fat is over 12%. Strict oversight required.</li>
               <li><strong className="text-primary">Rapid Cut:</strong> 7%+ above class. Short-term glycogen + water manipulation.</li>
-              <li><strong className="text-primary">Optimal Cut:</strong> Within 6-7% of class. Glycogen management, performance protected.</li>
+              <li><strong className="text-primary">Maintain · Sugar System:</strong> Within 6-7% of class. Glycogen management, performance protected.</li>
               <li><strong className="text-primary">Gain:</strong> Off-season. Performance and strength focus.</li>
             </ul>
           </div>
