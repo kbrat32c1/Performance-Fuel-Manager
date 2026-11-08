@@ -45,6 +45,8 @@ export interface HealthKitSyncState {
   refreshData: () => Promise<void>;
 }
 
+const HEALTH_UPDATED_EVENT = 'spar-health-data-updated';
+
 export function useHealthKitSync(userId: string | null): HealthKitSyncState {
   const [available] = useState(() => isHealthKitAvailable());
   const [authorized, setAuthorized] = useState(() => {
@@ -79,11 +81,26 @@ export function useHealthKitSync(userId: string | null): HealthKitSyncState {
   }, [available]);
 
   // Load health data from Supabase
-  const refreshData = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!userId) return;
     const data = await loadHealthData(userId, 14);
     setHealthData(data);
   }, [userId]);
+
+  // Several components use this hook. After a sync, tell the others so none keeps old rows.
+  const instanceId = useRef(Symbol('health-sync'));
+  const refreshData = useCallback(async () => {
+    await loadData();
+    window.dispatchEvent(new CustomEvent(HEALTH_UPDATED_EVENT, { detail: instanceId.current }));
+  }, [loadData]);
+
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      if ((e as CustomEvent).detail !== instanceId.current) loadData();
+    };
+    window.addEventListener(HEALTH_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(HEALTH_UPDATED_EVENT, onUpdated);
+  }, [loadData]);
 
   // Sync from HealthKit → Supabase, then refresh local state
   const syncNow = useCallback(async () => {
@@ -122,9 +139,9 @@ export function useHealthKitSync(userId: string | null): HealthKitSyncState {
   // Load health data from Supabase on mount (reads V5 or HealthKit rows)
   useEffect(() => {
     if (userId) {
-      refreshData();
+      loadData();
     }
-  }, [userId, refreshData]);
+  }, [userId, loadData]);
 
   return {
     available,

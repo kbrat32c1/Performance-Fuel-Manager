@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { buildAthleteSnapshot, hoursUntilWeighIn, weightPairs } from "../coach-context";
+import { displayRecoveryScore } from "../recovery-display";
 import type { WeightLog, FoodLogEntry } from "../stores/types";
+import type { DbHealthData } from "../supabase";
 
 const at = (day: number, hour: number, weight: number, type: WeightLog["type"]): WeightLog =>
   ({ id: `${day}-${hour}-${type}`, date: new Date(2026, 10, day, hour, 0), weight, type });
@@ -35,7 +37,14 @@ describe("coach athlete snapshot", () => {
     const s = buildAthleteSnapshot({ logs: [], now: NOW, health: [
       { date: "2026-11-09", sleep_hours: 8, recovery_score: 90 },
       { date: "2026-11-08", sleep_hours: 4.3, recovery_score: 41, source: "whoop" },
-    ]});
+    ] as unknown as DbHealthData[] });
     expect(s.recentHealth).toEqual([{ date: "2026-11-08", sleepHours: 4.3, recovery: 41, source: "whoop" }]);
+  });
+
+  it("sends the same recovery score the athlete sees, not the raw stored one", () => {
+    const row = { date: "2026-11-08", sleep_hours: 8, hrv: 60, resting_heart_rate: 50, sleep_score: 85, recovery_score: 12, source: "v5-direct" } as unknown as DbHealthData;
+    const s = buildAthleteSnapshot({ logs: [], now: NOW, health: [row] });
+    expect(s.recentHealth[0].recovery).toBe(displayRecoveryScore(row, [row]));
+    expect(s.recentHealth[0].recovery).not.toBe(12);
   });
 });

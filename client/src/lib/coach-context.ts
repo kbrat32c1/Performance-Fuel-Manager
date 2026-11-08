@@ -5,6 +5,8 @@
 import { format } from "date-fns";
 import type { FoodLogEntry, WeightLog } from "@/lib/stores/types";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+import type { DbHealthData } from "@/lib/supabase";
+import { displayRecoveryScore } from "@/lib/recovery-display";
 import {
   DRIFT_GAIN_LIMIT, DRIFT_LOSS_LIMIT, PRACTICE_GAIN_LIMIT, PRACTICE_LOSS_LIMIT,
 } from "@/lib/stores/week-descent-calculator";
@@ -21,8 +23,6 @@ export interface AthleteSnapshot {
   practicePairs: WeightPair[];
   recentHealth: { date: string; sleepHours: number | null; recovery: number | null; source: string | null }[];
 }
-
-interface HealthRow { date: string; sleep_hours: number | null; recovery_score: number | null; source?: string | null }
 
 const MAX_PAIRS = 8;
 const MAX_FOODS = 20;
@@ -84,7 +84,7 @@ function foodAmount(e: FoodLogEntry): string {
 export function buildAthleteSnapshot(input: {
   logs: WeightLog[];
   foodLog?: FoodLogEntry[];
-  health?: HealthRow[];
+  health?: DbHealthData[];
   bodyFatPercent?: number | null;
   weighInDate?: Date | string | null;
   weighInTime?: string | null;
@@ -105,7 +105,7 @@ export function buildAthleteSnapshot(input: {
     overnightPairs: overnight,
     practicePairs: practice,
     recentHealth: (input.health ?? []).filter(h => h.date <= today).slice(0, 3).map(h => ({
-      date: h.date, sleepHours: h.sleep_hours, recovery: h.recovery_score, source: h.source ?? null,
+      date: h.date, sleepHours: h.sleep_hours, recovery: displayRecoveryScore(h, input.health ?? []), source: h.source ?? null,
     })),
   };
 }
