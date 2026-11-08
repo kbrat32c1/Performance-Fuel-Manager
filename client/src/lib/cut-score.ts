@@ -182,8 +182,8 @@ function computeWeight(input: CutScoreInput): number {
   }
 
   // ── Comp week: use projection ──
-  // Primary: use projection
-  if (input.projectedSaturday !== null) {
+  // Primary: use projection, when enough real weigh-in pairs stand behind it
+  if (input.projectedSaturday !== null && input.projectionReliable !== false) {
     const gap = input.projectedSaturday - input.targetWeight;
 
     if (gap <= 0) {
@@ -525,7 +525,7 @@ export function computeCutScore(input: CutScoreInput): CutScoreResult {
   // can't mask the fact that you're not going to make weight.
   // BUT: During training phase (6+ days out), the projection is unreliable
   // (often just flat-lines current weight), so don't apply the guardrail.
-  if (input.daysRemaining <= 5 && input.projectedSaturday !== null && input.projectedSaturday > input.targetWeight) {
+  if (input.daysRemaining <= 5 && input.projectionReliable !== false && input.projectedSaturday !== null && input.projectedSaturday > input.targetWeight) {
     const gap = input.projectedSaturday - input.targetWeight;
     if (gap > 3) rawScore = Math.min(rawScore, 40);       // Way over → stays red
     else if (gap > 1) rawScore = Math.min(rawScore, 55);  // Significantly over → can't reach green

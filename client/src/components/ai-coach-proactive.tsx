@@ -460,6 +460,14 @@ export function AiCoachProactive() {
       };
     }
 
+    // Too few weigh-in pairs: say what's measured and what to log; no pace verdict or extra work.
+    if (daysUntil >= 1 && daysUntil <= 5 && !insights.projectionReliable) {
+      return {
+        status: 'on-track',
+        node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go, {hl(daysUntil + (daysUntil === 1 ? ' day' : ' days'))} out. Log before bed, and before and after practice, so we can project from your own numbers.</>,
+      };
+    }
+
     // Day before (cut day)
     if (daysUntil === 1) {
       if (onTrack) {

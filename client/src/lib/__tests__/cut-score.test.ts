@@ -419,3 +419,14 @@ describe('computeCutScore', () => {
     });
   });
 });
+
+describe("unreliable projections", () => {
+  it("does not cap or perfect the score on a projection with too few weigh-in pairs", () => {
+    const over = { daysRemaining: 3, projectedSaturday: 171, currentWeight: 166, targetWeight: 165 };
+    const reliable = computeCutScore(makeInput({ ...over, projectionReliable: true }));
+    const thin = computeCutScore(makeInput({ ...over, projectionReliable: false }));
+    expect(reliable.pillars.weight.raw).toBeLessThan(thin.pillars.weight.raw);
+    expect(thin.limitedData).toMatch(/few weigh-in pairs/);
+  });
+});
+

@@ -1668,6 +1668,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (protocol === '6') {
       const daysUntil = getDaysUntilWeighIn();
       const compAdj = getCompetitionCalorieAdjustment({
+        waterLoading: profile.waterLoading,
         currentWeight: profile.currentWeight || profile.targetWeightClass,
         targetWeightClass: profile.targetWeightClass,
         daysUntilWeighIn: daysUntil,
@@ -2532,6 +2533,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Get competition-adjusted calorie info for this day
         const compAdj = getCompetitionCalorieAdjustment({
+        waterLoading: profile.waterLoading,
           currentWeight: profile.currentWeight || profile.targetWeightClass,
           targetWeightClass: profile.targetWeightClass,
           daysUntilWeighIn: daysUntil,
@@ -2867,7 +2869,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       avgExtraWorkoutLoss: number | null;
     } | undefined;
 
-    if (descentData.projectedSaturday !== null && descentData.daysRemaining > 0) {
+    // Warnings and workout counts only come from a projection built on enough real weigh-in pairs.
+    if (descentData.projectedSaturday !== null && descentData.daysRemaining > 0 && descentData.confidence.reliable) {
       const projectedOver = descentData.projectedSaturday - profile.targetWeightClass;
       // Any projection over target weight class is a warning - you need to hit exactly target on weigh-in day
       // Allow small tolerance (0.5 lbs) for measurement variance
@@ -2922,14 +2925,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ? `${workoutsNeeded} extra workout${workoutsNeeded > 1 ? 's' : ''} needed before weigh-in.${estimateNote}`
           : `${projectedOver.toFixed(1)} lbs over.${estimateNote}`;
 
-        // Protocol-aware switch advice
-        const isAlreadyExtremeCut = profile.protocol === '1';
-        const protocolAdvice = isAlreadyExtremeCut
-          ? 'Maximize extra workouts and water cut.'
-          : 'Switch to Extreme Cut protocol.';
-        const protocolAdviceHigh = isAlreadyExtremeCut
-          ? 'Increase workout intensity.'
-          : 'Consider switching protocols.';
+        // Extreme Cut is a preseason body-fat decision (getProtocolRecommendation), never an
+        // in-season response to a projection, so nothing here offers a protocol switch.
+        const coachAdvice = 'Talk to your coach about how to close the gap.';
 
         if (projectedOver > 4) {
           // 4+ lbs over - critical
@@ -2939,15 +2937,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
               message: `DANGER: ${projectedOver.toFixed(1)} lbs over with ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left. Consider moving up a weight class.`,
               urgency: 'critical',
-              switchProtocol: !isAlreadyExtremeCut
+              switchProtocol: false
             };
           } else {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} ${protocolAdvice}`,
+              message: `${workoutStr} ${coachAdvice}`,
               urgency: 'critical',
-              switchProtocol: !isAlreadyExtremeCut
+              switchProtocol: false
             };
           }
         } else if (projectedOver > 2) {
@@ -2956,15 +2954,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} ${protocolAdviceHigh}`,
+              message: `${workoutStr} ${coachAdvice}`,
               urgency: 'high',
-              switchProtocol: !isAlreadyExtremeCut
+              switchProtocol: false
             };
           } else {
             recommendation = {
               ...baseRec,
               extraWorkoutsNeeded: workoutsNeeded ?? 0,
-              message: `${workoutStr} ${isAlreadyExtremeCut ? 'Stay the course.' : 'OR switch protocol.'}`,
+              message: `${workoutStr} ${coachAdvice}`,
               urgency: 'high',
               switchProtocol: false
             };
@@ -3074,6 +3072,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getDailyPriority = (): { priority: string; subtext?: string; urgency: 'normal' | 'high' | 'critical'; icon: string; actionType?: 'log-weight' | 'log-workout' | 'check-food' } => {
     const protocol = profile.protocol;
+    const waterOn = profile.waterLoading !== false;
     const daysUntilWeighIn = getDaysUntilWeighIn();
     const statusData = getStatus();
 
@@ -3112,15 +3111,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // P6 competition-specific priorities
       if (protocol === '6') {
         if (daysUntilWeighIn === 1) {
-          return { priority: "WATER CUT — minimal portions, sip only", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
+          return { priority: waterOn ? "WATER CUT — minimal portions, sip only" : "Day before weigh-in — minimal portions, check your weight", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
         }
         if (daysUntilWeighIn === 2) {
-          return { priority: "WATER CUT — light portions, restrict water", subtext: buildSubtext(), urgency: 'high', icon: 'droplet' };
+          return { priority: waterOn ? "WATER CUT — light portions, restrict water" : "Two days out — light portions, stay hydrated", subtext: buildSubtext(), urgency: 'high', icon: 'droplet' };
         }
         if (daysUntilWeighIn <= 5) {
           const note = sliceTargets.competitionReason ? ` (${sliceTargets.competitionReason})` : '';
           if (totalLogged === 0) {
-            return { priority: `WATER LOAD — hit ${totalTarget} slices${note}`, subtext: 'Peak hydration today. Tap Fuel to start tracking.', urgency: 'normal', icon: 'droplet', actionType: 'check-food' };
+            return { priority: `${waterOn ? 'WATER LOAD' : 'Competition week'} — hit ${totalTarget} slices${note}`, subtext: waterOn ? 'Peak hydration today. Tap Fuel to start tracking.' : 'Tap Fuel to start tracking.', urgency: 'normal', icon: 'droplet', actionType: 'check-food' };
           }
         }
       }
@@ -3157,26 +3156,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { priority: "COMPETE - rehydrate smart, fuel between matches", subtext: buildSubtext(), urgency: 'high', icon: 'trophy' };
     }
     if (daysUntilWeighIn === 1) {
-      return { priority: "SIP ONLY - monitor weight hourly. Final push to make weight.", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
+      return { priority: waterOn ? "SIP ONLY - monitor weight hourly. Final push to make weight." : "Day before weigh-in - stay on plan and check your weight.", subtext: buildSubtext(), urgency: 'critical', icon: 'scale', actionType: 'log-weight' };
     }
     if (daysUntilWeighIn === 2) {
-      return { priority: "ZERO FIBER - check every bite. Water weight dropping.", subtext: buildSubtext(), urgency: 'high', icon: 'alert', actionType: 'check-food' };
+      return { priority: waterOn ? "ZERO FIBER - check every bite. Water weight dropping." : "ZERO FIBER - check every bite.", subtext: buildSubtext(), urgency: 'high', icon: 'alert', actionType: 'check-food' };
     }
     if (daysUntilWeighIn === 3) {
-      return { priority: "Peak water day - hit your full water target", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
+      return { priority: waterOn ? "Peak water day - hit your full water target" : "Stay on plan - normal hydration", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     if (daysUntilWeighIn === 4) {
-      return { priority: "Continue loading - fructose heavy, peak water intake tomorrow", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
+      return { priority: waterOn ? "Continue loading - fructose heavy, peak water intake tomorrow" : "Stay on plan - fructose heavy, normal hydration", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     if (daysUntilWeighIn === 5) {
-      return { priority: "Fill the tank - high fructose carbs, max hydration starts", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
+      return { priority: waterOn ? "Fill the tank - high fructose carbs, max hydration starts" : "Fill the tank - high fructose carbs, normal hydration", subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     // 6+ days out - protocol-specific training guidance
     if (protocol === '1') {
       return { priority: `${daysUntilWeighIn} days out — fructose-only fueling, zero protein windows`, subtext: buildSubtext(), urgency: 'normal', icon: 'flame' };
     }
     if (protocol === '2') {
-      return { priority: `${daysUntilWeighIn} days out — follow macro targets, water loading starts at 5 days`, subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
+      return { priority: `${daysUntilWeighIn} days out — follow macro targets${waterOn ? ', water loading starts at 5 days' : ''}`, subtext: buildSubtext(), urgency: 'normal', icon: 'droplets' };
     }
     if (protocol === '3') {
       return { priority: `${daysUntilWeighIn} days out — train hard, eat balanced`, subtext: buildSubtext(), urgency: 'normal', icon: 'check' };

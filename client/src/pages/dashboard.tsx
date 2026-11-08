@@ -1511,7 +1511,7 @@ export default function Dashboard() {
           text: isTrainingPhase ? 'Below walk-around weight' : 'Ahead of pace to make weight',
           color: 'text-green-500',
         });
-      } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0) {
+      } else if (descentData.pace === 'behind' && daysUntilWeighIn > 0 && (isTrainingPhase || descentData.confidence.reliable)) {
         items.push({
           emoji: '⚠️',
           text: isTrainingPhase ? 'Above walk-around — monitor intake' : 'Behind pace — extra effort needed',
@@ -1520,7 +1520,7 @@ export default function Dashboard() {
       }
 
       // 4. Projected to make weight — only show during comp week (projection is meaningful)
-      if (!isTrainingPhase && descentData.projectedSaturday !== null && descentData.projectedSaturday <= profile.targetWeightClass && daysUntilWeighIn > 1) {
+      if (!isTrainingPhase && descentData.confidence.reliable && descentData.projectedSaturday !== null && descentData.projectedSaturday <= profile.targetWeightClass && daysUntilWeighIn > 1) {
         items.push({
           emoji: '✅',
           text: `On track for ${descentData.projectedSaturday.toFixed(1)} lbs at weigh-in`,

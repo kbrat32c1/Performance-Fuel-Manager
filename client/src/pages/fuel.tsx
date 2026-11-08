@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { MacroBar } from "@/components/ui/macro-bar";
-import { getTodaysFuelGuide } from "@/lib/food-data";
+import { alignGuideWithProtein, getTodaysFuelGuide } from "@/lib/food-data";
 import { getProtocolPhase, CARB_LABELS, PROTEIN_LABELS } from "@/lib/phase-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { FoodHistoryPanel } from "@/components/food-history-panel";
@@ -37,13 +37,13 @@ export default function Fuel() {
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
   // todaysFoods/foodLists removed — embedded trackers replaced with AddFoodFlow
 
-  const phaseInfo = getProtocolPhase(protocol, daysUntilWeighIn, macros.ratio);
+  const phaseInfo = getProtocolPhase(protocol, daysUntilWeighIn, macros.ratio, profile.waterLoading !== false);
 
   // Guide data — only shown in grams mode (sugar system food recommendations)
   const guide = useMemo(() => {
     if (isSparMode) return null;
-    return getTodaysFuelGuide(protocol, daysUntilWeighIn);
-  }, [protocol, daysUntilWeighIn, isSparMode]);
+    return alignGuideWithProtein(getTodaysFuelGuide(protocol, daysUntilWeighIn), daysUntilWeighIn, macros.protein);
+  }, [protocol, daysUntilWeighIn, isSparMode, macros.protein.min, macros.protein.max]);
 
   // ─── Progress calculations ───
   const carbProgress = macros.carbs.max > 0 ? Math.min(100, (tracking.carbsConsumed / macros.carbs.max) * 100) : 0;
