@@ -37,11 +37,11 @@ interface AddFoodFlowProps {
   dateKey?: string;
 }
 
-const MEAL_OPTIONS: { id: MealSection; label: string; emoji: string }[] = [
-  { id: 'breakfast', label: 'Breakfast', emoji: '🌅' },
-  { id: 'lunch', label: 'Lunch', emoji: '☀️' },
-  { id: 'dinner', label: 'Dinner', emoji: '🌙' },
-  { id: 'snacks', label: 'Snacks', emoji: '🍿' },
+const MEAL_OPTIONS: { id: MealSection; label: string }[] = [
+  { id: 'breakfast', label: 'Breakfast' },
+  { id: 'lunch', label: 'Lunch' },
+  { id: 'dinner', label: 'Dinner' },
+  { id: 'snacks', label: 'Snacks' },
 ];
 
 export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCategories, onClose, hideMealSelector, dateKey: dateKeyProp }: AddFoodFlowProps) {
@@ -509,7 +509,6 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 onClick={() => setShowMealDropdown(!showMealDropdown)}
                 className="flex items-center gap-1.5 text-sm font-bold"
               >
-                <span>{MEAL_OPTIONS.find(m => m.id === activeMeal)?.emoji}</span>
                 <span>{MEAL_OPTIONS.find(m => m.id === activeMeal)?.label}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
               </button>
@@ -524,7 +523,6 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                         activeMeal === meal.id && "bg-primary/10 text-primary font-bold"
                       )}
                     >
-                      <span>{meal.emoji}</span>
                       <span>{meal.label}</span>
                     </button>
                   ))}

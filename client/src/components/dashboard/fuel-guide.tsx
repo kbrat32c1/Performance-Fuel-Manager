@@ -134,7 +134,6 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
       {guide.recoveryFoods && !tournamentGroups && (
         <div className="space-y-2">
           <MealSection
-            emoji="🌅"
             label="Recovery Foods"
             tip="All foods allowed — rebuild everything"
             foods={guide.recoveryFoods.slice(0, 6).map(f => ({
@@ -148,7 +147,6 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
           />
           {eveningProteins.length > 0 && (
             <MealSection
-              emoji="🥩"
               label="Protein Recovery"
               tip="Full protein — all sources allowed"
               foods={eveningProteins.map(f => ({
@@ -169,7 +167,6 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
         <div className="space-y-2">
           {/* Morning */}
           <MealSection
-            emoji="🌅"
             label="Morning"
             tip={guide.mealGuide.morning}
             foods={morningCarbs.map(f => ({
@@ -185,7 +182,6 @@ export function FuelGuide({ guide, phase, macros, daysUntilWeighIn, onLogFood }:
 
           {/* Evening */}
           <MealSection
-            emoji="🌙"
             label="Evening"
             tip={guide.mealGuide.evening}
             foods={[
@@ -271,14 +267,12 @@ interface MealFoodItem {
 }
 
 function MealSection({
-  emoji,
   label,
   tip,
   foods,
   flashedFood,
   onLog,
 }: {
-  emoji: string;
   label: string;
   tip: string;
   foods: MealFoodItem[];
@@ -289,10 +283,9 @@ function MealSection({
   return (
     <div className="bg-muted/10 border border-muted/30 rounded-lg p-2">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="text-sm">{emoji}</span>
         <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">{label}</span>
       </div>
-      <p className="text-xs text-muted-foreground/70 mb-2 pl-6">{tip}</p>
+      <p className="text-xs text-muted-foreground mb-2">{tip}</p>
       {foods.map(food => (
         <FoodRow
           key={food.name}
