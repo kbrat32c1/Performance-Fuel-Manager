@@ -820,8 +820,14 @@ export default function Recovery() {
                 </>
               ) : (
                 <p className="text-sm">
-                  Weighed in at <span className="font-mono font-bold">{weighInWeight}</span>
-                  <span className="text-muted-foreground"> · {water.weighInSource === 'class' ? 'your class' : water.weighInSource === 'logged' ? 'from your log' : 'entered'}</span>
+                  {water.weighInSource === 'class' ? (
+                    <>Using your class, <span className="font-mono font-bold">{weighInWeight}</span>, until you enter your real weigh-in.</>
+                  ) : (
+                    <>
+                      Weighed in at <span className="font-mono font-bold">{weighInWeight}</span>
+                      <span className="text-muted-foreground"> · {water.weighInSource === 'logged' ? 'from your log' : 'entered'}</span>
+                    </>
+                  )}
                   <button type="button" onClick={() => setEditingWeighIn(true)} className="ml-2 min-h-11 px-2 text-primary font-bold underline-offset-2 hover:underline">
                     Edit
                   </button>
@@ -1054,7 +1060,7 @@ export default function Recovery() {
                 <Droplets className="w-3.5 h-3.5" /> Rehydration
               </span>
               <span className="text-xs font-mono text-muted-foreground">
-                {lostWeight.toFixed(1)} lbs water lost
+                {lostWeight.toFixed(1)} lbs scale change
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2">

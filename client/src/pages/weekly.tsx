@@ -563,7 +563,7 @@ export default function Weekly() {
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• <strong className="text-amber-500">Must be {checkpoints.friTarget}</strong></li>
                     <li>• Final 3% drops from practice + overnight drift</li>
-                    <li>• Above range? May need extra activity or hot bath</li>
+                    <li>• Above range? Talk to your coach about your options</li>
                     <li>• Below range? You're ahead - can eat more</li>
                   </ul>
                 </Card>

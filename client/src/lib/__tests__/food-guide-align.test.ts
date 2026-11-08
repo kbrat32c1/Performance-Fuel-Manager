@@ -26,4 +26,17 @@ describe("Grams food guide follows the protein target", () => {
     const g = alignGuideWithProtein(getTodaysFuelGuide("2", 3), 3, { min: 25, max: 25 });
     expect(g.proteinStatus).toBe("collagen-only");
   });
+
+  it("doesn't say 'no fiber' on a day it recommends whole fruit", () => {
+    const g = getTodaysFuelGuide("1", 4);
+    expect(g.eatCarbs.some(f => f.name === "Apples")).toBe(true);
+    expect(g.avoidSummary).not.toMatch(/fiber/i);
+  });
+
+  it("recommends no whole fruit on the no-fiber days", () => {
+    const g = getTodaysFuelGuide("2", 1);
+    expect(g.avoidSummary).toMatch(/fiber/i);
+    expect(g.eatCarbs.some(f => /^(apples|pears|grapes|mango|watermelon|bananas|blueberries)/i.test(f.name))).toBe(false);
+  });
 });
+

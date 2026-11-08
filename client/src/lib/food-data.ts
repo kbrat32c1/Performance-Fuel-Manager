@@ -688,7 +688,7 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
       eatCarbs: [...SUGAR_FOODS.highFructose],
       eatProtein: [],
       avoidFoods: filterAvoidFoods(daysUntilWeighIn),
-      avoidSummary: 'No protein, no dairy, no fiber',
+      avoidSummary: 'No protein, no dairy',
       mealGuide: {
         morning: 'Fructose carbs — juice, fruit, honey',
         afternoon: 'Continue fructose, stay hydrated',
@@ -744,7 +744,7 @@ export function alignGuideWithProtein(
     // The day's no-dairy rule still applies, so the recovery-day list is filtered for it.
     eatProtein: SUGAR_FOODS.protein.filter(f =>
       (f.timing === 'Post-comp' || f.timing === 'Post-comp/Sun' || f.timing === 'Sunday') && !/yogurt|dairy|milk|cheese|whey|casein/i.test(f.name)),
-    avoidSummary: 'No dairy, no fiber',
+    avoidSummary: 'No dairy',
     mealGuide: { morning: guide.mealGuide.morning, afternoon: `Carbs, plus protein toward your ${range} target`, evening: `Carbs, plus protein toward your ${range} target` },
   };
 }

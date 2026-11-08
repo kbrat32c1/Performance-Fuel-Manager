@@ -224,18 +224,8 @@ ALWAYS think in terms of which tanks are being drained and what the recovery cos
 const CALCULATION_RULES = `
 ## HOW TO USE THE DATA FOR TRADEOFFS
 
-### FLUID ALLOWANCE:
-Use fluidAllowance from insights — already calculated from the projection system.
-
-### EXTRA WORKOUT TRADEOFF:
-The goal is MINIMUM effort to make weight — every extra session costs glycogen.
-1. If athlete is projected to make weight naturally → no extra work (best option)
-2. If athlete needs extra work → present it as an option with the cost:
-   "A 20-min zone 2 session would drop ~X lbs based on your sweat rate, opening up Y oz of fluids.
-   But it costs glycogen that takes 4-6 hours to restore."
-3. Always frame extra work as zone 2 / light sweat — never high intensity near competition
-4. The tradeoffHint field shows what a light session would unlock
-
+### EXTRA WORK:
+Do not prescribe extra work. If the athlete asks, explain the glycogen and fluid cost and leave the decision to the athlete and coach.
 ### WEIGHT BREAKDOWN (what's still in the tanks):
 Of a typical 10-12 lb weekly drop:
 - Glycogen + bound water: 2-3 lbs (returns in 2 hours post weigh-in)
@@ -262,6 +252,7 @@ NEVER RECOMMEND:
 - Laxatives for weight loss
 - Spitting (ineffective and dangerous)
 - Cutting more than 10% body weight
+- Not eating or not drinking, or a food or fluid limit of zero. If an athlete is behind, give the facts and tell them to talk to their coach
 
 ALWAYS:
 - Recommend consulting athletic trainer if unwell
@@ -373,9 +364,9 @@ CONTENT RULES:
 1. Keep answers under 150 words — short, clear, actionable
 2. Be specific with numbers: "you can drink up to 12 oz before 7pm" not "limit water"
 3. Use the calculated insights above — they reflect the athlete's actual data
-4. When asked about fluid intake: Use fluidAllowance from insights
-5. When asked about workouts: Use workoutGuidance from insights
-6. When asked about food: Reference current phase and foodGuidance
+4. When asked about fluid intake: Use the hydration target for today
+5. When asked about workouts: Explain the tradeoffs; don't prescribe extra sessions
+6. When asked about food: Reference the current phase and today's targets
 7. Use bullet points for multi-step advice
 8. If the athlete CAN eat or drink something, lead with that positive framing
 9. Present options, not commands. Let the athlete choose based on how they feel.
@@ -414,17 +405,8 @@ export function formatInsightsForPrompt(insights: any): string {
   if (insights.expectedPracticeLoss) {
     lines.push(`🏋️ Expected practice loss: ${insights.expectedPracticeLoss} lbs`);
   }
-  if (insights.fluidAllowance) {
-    lines.push(`🚰 FLUID ALLOWANCE: ${insights.fluidAllowance.oz} oz allowed, cutoff: ${insights.fluidAllowance.cutoffTime}`);
-  }
   if (insights.projectionNote) {
     lines.push(`📉 PROJECTION CONFIDENCE LOW: ${insights.projectionNote}`);
-  }
-  if (insights.workoutGuidance) {
-    lines.push(`🏃 WORKOUT NEEDED: ${insights.workoutGuidance.description} (${insights.workoutGuidance.sessions} session(s), ${insights.workoutGuidance.minutes} min total)`);
-  }
-  if (insights.foodGuidance) {
-    lines.push(`🍽️ FOOD: Max ${insights.foodGuidance.maxLbs} lbs food, last meal by ${insights.foodGuidance.lastMealTime}`);
   }
   if (insights.dehydrationPct) {
     const pct = parseFloat(insights.dehydrationPct);

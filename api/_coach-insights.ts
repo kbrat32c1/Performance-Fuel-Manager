@@ -19,6 +19,8 @@ NEVER recommend:
 - Laxatives for weight loss
 - Spitting
 - Cutting more than 10% of body weight
+- Adding extra workouts, a hot bath or a sauna to make weight. If asked, explain the cost and leave the decision to the athlete and coach
+- Not eating or not drinking, or a food or fluid limit of zero. If an athlete is behind, give the facts (how far over, time left, what it costs performance), and tell them to talk to their coach
 
 ALWAYS:
 - Recommend the athletic trainer if the athlete feels unwell
@@ -40,15 +42,7 @@ export function formatCoachInsights(insights: any, sanitize: Sanitize): string {
   if (insights.sweatRate) lines.push(`Sweat rate: ${sanitize(insights.sweatRate)} lbs/hr`);
   if (insights.expectedOvernightDrift) lines.push(`Expected overnight drift: ${sanitize(insights.expectedOvernightDrift)} lbs`);
   if (insights.expectedPracticeLoss) lines.push(`Expected practice loss: ${sanitize(insights.expectedPracticeLoss)} lbs`);
-  if (reliable && insights.fluidAllowance?.oz != null) {
-    lines.push(`Fluid allowance: ${sanitize(insights.fluidAllowance.oz)} oz, cutoff ${sanitize(insights.fluidAllowance.cutoffTime)}`);
-  }
-  if (reliable && insights.foodGuidance?.maxLbs != null) {
-    lines.push(`Food: max ${sanitize(insights.foodGuidance.maxLbs)} lbs, last meal by ${sanitize(insights.foodGuidance.lastMealTime)}`);
-  }
-  if (reliable && insights.workoutGuidance?.description) {
-    lines.push(`Workout: ${sanitize(insights.workoutGuidance.description)}`);
-  }
+  // Food limits, fluid limits and workout prescriptions are never passed along, even from older app builds that still send them.
   if (reliable && insights.statusRecommendation) lines.push(`App recommendation: ${sanitize(insights.statusRecommendation)}`);
   if (reliable && insights.projectionWarning) lines.push(`App warning: ${sanitize(insights.projectionWarning)}`);
   if (!reliable) {
