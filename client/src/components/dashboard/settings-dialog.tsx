@@ -434,7 +434,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Nutrition Mode Toggle */}
               <div className="space-y-2 pt-2 border-t border-muted">
                 <Label className="text-xs">Nutrition Tracking</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => handleChange({ nutritionPreference: 'spar' })}
                     className={cn(
@@ -459,7 +459,22 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     <span className="text-base">⚖️</span>
                     <span className="text-xs font-bold">Grams</span>
                   </button>
+                  <button
+                    onClick={() => handleChange({ nutritionPreference: 'calories' })}
+                    className={cn(
+                      "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all",
+                      getValue('nutritionPreference') === 'calories'
+                        ? "border-primary bg-primary/10"
+                        : "border-muted hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <span className="text-base">🔢</span>
+                    <span className="text-xs font-bold">Calories</span>
+                  </button>
                 </div>
+                {getValue('nutritionPreference') === 'calories' && (
+                  <p className="text-xs text-muted-foreground">Full food diary: calories, carbs, protein, fat and fiber.</p>
+                )}
               </div>
 
               {/* SPAR Nutrition Settings */}

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { withSliceCount, nextTotals } from "@/lib/food-totals";
+import { withSliceCount, nextTotals, withGramAmount } from "@/lib/food-totals";
 
 interface FoodHistoryPanelProps {
   dateKey: string;
@@ -113,7 +113,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
     if (!entry || newAmount <= 0) return;
     const newLog = foodLog.map(e => {
       if (e.id !== entryId) return e;
-      return entry.mode === 'sugar' ? { ...e, amount: newAmount } : withSliceCount(e, newAmount);
+      return entry.mode === 'sugar' ? withGramAmount(e, newAmount) : withSliceCount(e, newAmount);
     });
     saveLog(newLog);
     setEditingId(null);

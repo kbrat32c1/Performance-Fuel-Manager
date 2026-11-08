@@ -57,6 +57,8 @@ export interface OFFFood {
   servingSize: number | null;
   servingSizeLabel: string;
   imageUrl: string | null;
+  /** Whether the product actually lists these, since a missing value arrives as 0 */
+  reported?: { calories: boolean; fat: boolean };
   dataQuality: 'complete' | 'partial' | 'poor';
 }
 

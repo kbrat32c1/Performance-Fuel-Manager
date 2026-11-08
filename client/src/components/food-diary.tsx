@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { entryMacros, nextTotals, withSliceCount } from "@/lib/food-totals";
+import { entryCalorieLabel, entryMacros, nextTotals, nutritionFromLog, type LogNutrition, withGramAmount, withServings, withSliceCount } from "@/lib/food-totals";
 
 interface FoodDiaryProps {
   dateKey: string;
@@ -75,6 +75,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     return `on ${format(new Date(y, m - 1, d), 'EEE, MMM d')}`;
   })();
   const foodLog = tracking.foodLog || [];
+  const tracksCalories = profile.nutritionPreference === 'calories';
+  // In the Calories diary, a food with numbers is edited by servings so all of them move together.
+  const editsServings = (entry: FoodLogEntry) => tracksCalories && entry.calories != null;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
@@ -114,6 +117,12 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
         totals[section.id].water += entry.liquidOz || 0;
       }
     }
+    return totals;
+  }, [grouped]);
+
+  const sectionNutrition = useMemo(() => {
+    const totals = {} as Record<MealSection, LogNutrition>;
+    for (const section of MEAL_CONFIG) totals[section.id] = nutritionFromLog(grouped[section.id]);
     return totals;
   }, [grouped]);
 
@@ -179,12 +188,13 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     if (!entry || newAmount <= 0) return;
     const newLog = foodLog.map(e => {
       if (e.id !== entryId) return e;
-      return entry.mode === 'sugar' ? { ...e, amount: newAmount } : withSliceCount(e, newAmount);
+      if (editsServings(entry)) return withServings(e, newAmount);
+      return entry.mode === 'sugar' ? withGramAmount(e, newAmount) : withSliceCount(e, newAmount);
     });
     saveLog(newLog);
     setEditingId(null);
     setEditingValue('');
-  }, [foodLog, saveLog]);
+  }, [foodLog, saveLog, tracksCalories]);
 
   // ─── Move entry to different meal section ───
   const handleMove = useCallback((entryId: string, toSection: MealSection) => {
@@ -236,6 +246,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                   <span className="text-xs text-muted-foreground/60 font-mono">
                     {entries.length} {entries.length === 1 ? 'item' : 'items'}
                     {mode === 'spar' && totals.slices > 0 && ` · ${totals.slices} slices`}
+                    {tracksCalories && ` · ${sectionNutrition[meal.id].calories.toLocaleString()} cal${sectionNutrition[meal.id].incomplete ? ', incomplete' : ''}`}
                   </span>
                 )}
                 {hasEntries && (
@@ -252,6 +263,12 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                 <Plus className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
+
+            {tracksCalories && hasEntries && (
+              <p className="px-3 pb-2 bg-muted/10 text-xs font-mono tabular-nums text-muted-foreground">
+                {sectionNutrition[meal.id].carbs}g C · {sectionNutrition[meal.id].protein}g P · {sectionNutrition[meal.id].fat}g F
+              </p>
+            )}
 
             {/* Entries */}
             {!isCollapsed && (
@@ -271,6 +288,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                       const isEditing = editingId === entry.id;
                       const isMoving = movingId === entry.id;
                       const currentSection = entry.mealSection || inferMealSection(entry.timestamp);
+                      const usesServings = editsServings(entry);
+                      const editFallback = usesServings || isSpar ? 1 : entry.amount || 0;
+                      const macros = entryMacros(entry);
                       const sliceN = entry.sliceCount ?? 0;
                       const displayAmount = isSpar
                         ? (sliceN > 0 ? `${sliceN}` : '')
@@ -290,7 +310,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 textColor: "text-white",
                                 onClick: () => {
                                   setEditingId(entry.id);
-                                  setEditingValue(String(isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
+                                  setEditingValue(String(usesServings ? (entry.servings ?? 1) : isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
                                   setSwipedId(null);
                                 },
                               },
@@ -328,6 +348,8 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 <span className="text-[12px] font-medium truncate block leading-tight">{entry.name}</span>
                                 <span className="text-xs text-muted-foreground/50 font-mono">
                                   {(() => { try { return format(new Date(entry.timestamp), 'h:mm a'); } catch { return ''; } })()}
+                                  {tracksCalories && entry.calories != null && ` · ${macros.carbs}C ${macros.protein}P${entry.fat != null ? ` ${entry.fat}F` : ''}`}
+                                  {tracksCalories && entry.nutrientSource === 'portion' && ' · not in calories'}
                                 </span>
                               </div>
 
@@ -335,12 +357,12 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                               <div className="flex items-center gap-1 shrink-0">
                                 {isEditing ? (
                                   <div className="flex items-center gap-1">
-                                    <input aria-label="Amount"
+                                    <input aria-label={usesServings ? "Servings" : "Amount"}
                                       type="number"
                                       value={editingValue}
                                       onChange={(e) => setEditingValue(e.target.value)}
                                       onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0));
+                                        if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || editFallback);
                                         if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
                                       }}
                                       autoFocus
@@ -348,7 +370,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                     />
                                     <button
                                       aria-label="Save amount"
-                                      onClick={() => handleEdit(entry.id, parseFloat(editingValue) || (isSpar ? 1 : entry.amount || 0))}
+                                      onClick={() => handleEdit(entry.id, parseFloat(editingValue) || editFallback)}
                                       className="w-7 h-7 relative after:absolute after:-inset-2 flex items-center justify-center rounded bg-primary/20 text-primary"
                                     >
                                       <Check className="w-3 h-3" aria-hidden="true" />
@@ -357,10 +379,10 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 ) : (
                                   <>
                                     <span className={cn(
-                                      "text-xs font-mono font-bold px-2 py-0.5",
-                                      TEXT_ACCENT[accent] || 'text-muted-foreground'
+                                      "text-xs font-mono font-bold px-2 py-0.5 tabular-nums",
+                                      tracksCalories ? (entry.calories != null ? 'text-foreground' : 'text-muted-foreground') : (TEXT_ACCENT[accent] || 'text-muted-foreground')
                                     )}>
-                                      {displayAmount} {displayUnit}
+                                      {tracksCalories ? entryCalorieLabel(entry) : `${displayAmount} ${displayUnit}`}
                                     </span>
                                     {entry.liquidOz && (
                                       <span className="text-xs font-mono font-bold text-cyan-500">+{entry.liquidOz}oz</span>

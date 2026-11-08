@@ -148,6 +148,7 @@ async function lookupFatSecretBarcode(barcode: string, token: string) {
     servingSize: parseFloat(defaultServing.metric_serving_amount) || null,
     servingSizeLabel: defaultServing.serving_description || "",
     imageUrl: null,
+    reported: { calories: defaultServing.calories != null, fat: defaultServing.fat != null },
     dataQuality: (calories > 0 && (protein > 0 || carbs > 0)) ? "complete" as const : "partial" as const,
   };
 }
@@ -208,6 +209,7 @@ async function lookupOFF(barcode: string, res: VercelResponse) {
       servingSize: p.serving_quantity || null,
       servingSizeLabel: p.serving_size || "",
       imageUrl: p.image_small_url || null,
+      reported: { calories: n["energy-kcal_100g"] != null, fat: n.fat_100g != null },
       dataQuality,
     },
   });

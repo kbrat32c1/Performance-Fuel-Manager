@@ -21,7 +21,8 @@ import {
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
 import { MacroBar } from "@/components/ui/macro-bar";
-import { copyEntry, nextTotals } from "@/lib/food-totals";
+import { copyEntry, establishedNutritionGoals, nextTotals, nutritionFromLog } from "@/lib/food-totals";
+import { CalorieSummary } from "@/components/calorie-summary";
 
 export default function Food() {
   const {
@@ -47,6 +48,14 @@ export default function Food() {
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? dayTargets.slices : null;
   const daysUntilWeighIn = dayTargets.daysUntilWeighIn;
+  const tracksCalories = profile.nutritionPreference === 'calories';
+  const dayNutrition = useMemo(() => nutritionFromLog(tracking.foodLog), [tracking.foodLog]);
+  const nutritionGoals = establishedNutritionGoals(dayTargets.slices);
+  // Very old days can have totals with no food entries behind them.
+  const hasTotalsWithoutEntries = !(tracking.foodLog?.length) && (
+    tracking.carbsConsumed > 0 || tracking.proteinConsumed > 0 || tracking.proteinSlices > 0 ||
+    tracking.carbSlices > 0 || tracking.vegSlices > 0 || (tracking.fruitSlices ?? 0) > 0 || (tracking.fatSlices ?? 0) > 0
+  );
 
   // Blocked categories for protocol restrictions
   const blockedCategories = useMemo(() => {
@@ -147,6 +156,9 @@ export default function Food() {
         <div className="px-1 space-y-2">
           {macros.weightWarning && (
             <p className="text-xs font-medium text-chart-3 text-center">{macros.weightWarning}</p>
+          )}
+          {tracksCalories && (
+            <CalorieSummary nutrition={dayNutrition} goals={nutritionGoals} hasTotalsWithoutEntries={hasTotalsWithoutEntries} />
           )}
           {showSliceTracker && sliceTargets ? (
             <>

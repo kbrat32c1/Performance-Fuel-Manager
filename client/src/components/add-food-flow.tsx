@@ -22,7 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { CARB_G_PER_SLICE, PROTEIN_G_PER_SLICE, classifyFood, type SliceType, nextTotals } from "@/lib/food-totals";
+import { buildFoodEntries, classifyFood, type FoodToLog, type SliceType, type TrackingView, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -60,6 +60,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   const isSparMode = nutritionMode === 'spar';
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? dayTargets.slices : null;
+  const tracksCalories = profile.nutritionPreference === 'calories';
+  const trackingView: TrackingView = tracksCalories ? 'calories' : nutritionMode;
 
   const [activeMeal, setActiveMeal] = useState<MealSection>(initialMeal);
   const [activeTab, setActiveTab] = useState<FlowTab>('recent');
@@ -75,6 +77,9 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   const [customName, setCustomName] = useState('');
   const [customCarbs, setCustomCarbs] = useState('');
   const [customProtein, setCustomProtein] = useState('');
+  const [customCalories, setCustomCalories] = useState('');
+  const [customFat, setCustomFat] = useState('');
+  const [customFiber, setCustomFiber] = useState('');
   const [customSliceType, setCustomSliceType] = useState<'protein' | 'carb' | 'veg' | 'fruit' | 'fat'>('carb');
 
   const { isFavorite, toggleFavorite, getFavoriteNames } = useFavorites(mode === 'spar' ? 'spar' : 'macro');
@@ -131,50 +136,13 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   }, [dateKey]);
 
   // ─── Core: log a food entry to the store ───
-  // Each entry carries its own grams and portions; the day's totals are rebuilt from the log.
-  const logFoodEntry = useCallback((
-    name: string,
-    carbs: number,
-    protein: number,
-    opts?: { liquidOz?: number; category?: string; sliceType?: SliceType; sliceCount?: number; fat?: number }
-  ) => {
-    const existingLog = tracking.foodLog || [];
-    const entries: StoreFoodLogEntry[] = [];
-    const now = Date.now();
-
-    if (showSliceTracker) {
-      const portion = opts?.sliceType
-        ? { sliceType: opts.sliceType, sliceCount: opts.sliceCount ?? 1 }
-        : classifyFood({ carbs, protein, fat: opts?.fat });
-      entries.push({
-        id: `${now}-${Math.random().toString(36).substr(2, 9)}`,
-        name,
-        timestamp: new Date(now).toISOString(),
-        mode: 'spar',
-        mealSection: activeMeal,
-        sliceType: portion.sliceType,
-        sliceCount: portion.sliceCount,
-        // A quick portion with no grams counts as a standard portion in the Grams view.
-        carbs: carbs === 0 && protein === 0 && portion.sliceType === 'carb' ? CARB_G_PER_SLICE * portion.sliceCount : carbs,
-        protein: carbs === 0 && protein === 0 && portion.sliceType === 'protein' ? PROTEIN_G_PER_SLICE * portion.sliceCount : protein,
-        ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}),
-      });
-    } else {
-      // Gram mode: one entry per macro (a zero-macro food like black coffee still gets one).
-      const base = { name, mode: 'sugar' as const, mealSection: activeMeal, category: opts?.category || 'custom' };
-      if (carbs > 0 || protein === 0) {
-        entries.push({ ...base, id: `${now}-c-${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date(now).toISOString(), macroType: 'carbs', amount: carbs, ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}) });
-      }
-      if (protein > 0) {
-        entries.push({ ...base, id: `${now}-p-${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date(now + 1).toISOString(), macroType: 'protein', amount: protein });
-      }
-    }
-
-    const foodLog = [...existingLog, ...entries];
+  // Each entry carries its own grams, portions and calories; the day's totals are rebuilt from the log.
+  const logFoodEntry = useCallback((food: FoodToLog) => {
+    const foodLog = [...(tracking.foodLog || []), ...buildFoodEntries(food, { view: trackingView, mealSection: activeMeal, nowMs: Date.now() })];
     const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
     if (showSliceTracker) updates.nutritionMode = 'spar';
-    if (opts?.liquidOz && opts.liquidOz > 0) {
-      updates.waterConsumed = tracking.waterConsumed + opts.liquidOz;
+    if (food.liquidOz && food.liquidOz > 0) {
+      updates.waterConsumed = tracking.waterConsumed + food.liquidOz;
     }
 
     updateDailyTracking(dateKey, updates);
@@ -182,10 +150,10 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     hapticSuccess();
 
     // Flash feedback
-    setFlashedFood(name);
+    setFlashedFood(food.name);
     if (flashRef.current) clearTimeout(flashRef.current);
     flashRef.current = setTimeout(() => setFlashedFood(null), 1200);
-  }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
+  }, [showSliceTracker, trackingView, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
 
   // ─── FatSecret food add ───
   const handleFSAdd = useCallback((food: FatSecretFood, serving: FatSecretServing, qty: number = 1) => {
@@ -198,11 +166,18 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const fat = Math.round((serving.fat || 0) * qty);
     const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, (food.sparCategory as SliceType) || null, qty);
 
-    logFoodEntry(foodName, carbs, protein, {
+    logFoodEntry({
+      name: foodName,
+      carbs,
+      protein,
       category: 'fatsecret',
       sliceType,
       sliceCount,
+      calories: Math.round((serving.calories || 0) * qty),
       fat,
+      fiber: Math.round((serving.fiber || 0) * qty * 10) / 10,
+      nutrientSource: 'database',
+      servings: qty,
     });
     addToRecents(food, serving);
     setSelectedFS(null);
@@ -237,11 +212,23 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const fat = Math.round((selectedOFF.fat || 0) * grams / 100);
     const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat });
 
-    logFoodEntry(foodName, carbs, protein, {
+    // Barcode data is crowd-sourced and the serving is a guess, so it is never treated as exact.
+    // A value the product doesn't list stays blank rather than becoming zero.
+    const caloriesListed = selectedOFF.reported?.calories ?? selectedOFF.calories > 0;
+    const fatListed = selectedOFF.reported?.fat ?? selectedOFF.fat > 0;
+    logFoodEntry({
+      name: foodName,
+      carbs,
+      protein,
       category: 'off',
       sliceType,
       sliceCount,
-      fat,
+      ...(caloriesListed ? {
+        calories: Math.round(selectedOFF.calories * grams / 100),
+        ...(fatListed ? { fat } : {}),
+        fiber: Math.round((selectedOFF.fiber || 0) * grams / 10) / 10,
+        nutrientSource: 'estimate' as const,
+      } : {}),
     });
     setSelectedOFF(null);
   }, [selectedOFF, offServingGrams, logFoodEntry, setSelectedOFF]);
@@ -260,35 +247,28 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const newEntries: StoreFoodLogEntry[] = [];
     const now = Date.now();
 
-    for (const food of validFoods) {
+    validFoods.forEach((food, index) => {
       const carbs = Math.round(food.carbs || 0);
       const protein = Math.round(food.protein || 0);
       const fat = Math.round(food.fat || 0);
-      const n = newEntries.length;
-
-      if (showSliceTracker) {
-        // Same portion rule as search and barcode: grams decide protein/carb portions.
-        const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, food.sparCategory || null, food.sliceCount ?? 1);
-        newEntries.push({
-          id: `${now}-${n}-${Math.random().toString(36).substr(2, 9)}`,
-          name: food.name,
-          timestamp: new Date(now + n).toISOString(),
-          mode: 'spar',
-          mealSection: activeMeal,
-          sliceType,
-          sliceCount,
-          carbs,
-          protein,
-        });
-      } else {
-        if (carbs > 0) {
-          newEntries.push({ id: `${now}-${n}-c-${Math.random().toString(36).substr(2, 9)}`, name: food.name, timestamp: new Date(now + n).toISOString(), mode: 'sugar', mealSection: activeMeal, macroType: 'carbs', amount: carbs, category: source });
-        }
-        if (protein > 0) {
-          newEntries.push({ id: `${now}-${n}-p-${Math.random().toString(36).substr(2, 9)}`, name: food.name, timestamp: new Date(now + n + 1).toISOString(), mode: 'sugar', mealSection: activeMeal, macroType: 'protein', amount: protein, category: source });
-        }
-      }
-    }
+      // Same portion rule as search and barcode: grams decide protein/carb portions.
+      const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, food.sparCategory || null, food.sliceCount ?? 1);
+      newEntries.push(...buildFoodEntries({
+        name: food.name,
+        carbs,
+        protein,
+        category: source,
+        sliceType,
+        sliceCount,
+        // Photo and voice amounts are estimates. An unrecognized food has no numbers at all.
+        ...(food.calories > 0 ? {
+          calories: Math.round(food.calories),
+          fat,
+          fiber: Math.round((food.fiber || 0) * 10) / 10,
+          nutrientSource: 'estimate' as const,
+        } : {}),
+      }, { view: trackingView, mealSection: activeMeal, nowMs: now, index: index * 2 }));
+    });
 
     const foodLog = [...existingLog, ...newEntries];
     const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
@@ -297,7 +277,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     syncLocalStorage(foodLog);
     hapticSuccess();
 
-  }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
+  }, [showSliceTracker, trackingView, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
 
   // ─── Voice result handler ───
   const handleVoiceFoods = useCallback((foods: PhotoFood[], confidence: string) => {
@@ -331,21 +311,48 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     }
     const carbs = parseFloat(customCarbs) || 0;
     const protein = parseFloat(customProtein) || 0;
-    if (carbs === 0 && protein === 0 && !showSliceTracker) {
-      toast({ title: "Enter carbs or protein amount", variant: "destructive" });
-      return;
+    if (tracksCalories) {
+      const calories = parseFloat(customCalories);
+      if (!(calories >= 0)) {
+        toast({ title: "Enter calories", variant: "destructive" });
+        return;
+      }
+      logFoodEntry({
+        name,
+        carbs,
+        protein,
+        category: 'custom',
+        calories: Math.round(calories),
+        ...(customFat.trim() !== '' ? { fat: parseFloat(customFat) || 0 } : {}),
+        ...(customFiber.trim() !== '' ? { fiber: parseFloat(customFiber) || 0 } : {}),
+        nutrientSource: 'entered',
+        servings: 1,
+      });
+    } else {
+      if (carbs === 0 && protein === 0 && !showSliceTracker) {
+        toast({ title: "Enter carbs or protein amount", variant: "destructive" });
+        return;
+      }
+      logFoodEntry({
+        name,
+        carbs,
+        protein,
+        category: 'custom',
+        sliceType: showSliceTracker ? customSliceType : undefined,
+        sliceCount: 1,
+        // A quick portion has no checked calorie value, so it stays out of calorie totals.
+        ...(showSliceTracker ? { nutrientSource: 'portion' as const } : {}),
+      });
     }
-    logFoodEntry(name, carbs, protein, {
-      category: 'custom',
-      sliceType: showSliceTracker ? customSliceType : undefined,
-      sliceCount: 1,
-    });
     // Reset form
     setCustomName('');
     setCustomCarbs('');
     setCustomProtein('');
+    setCustomCalories('');
+    setCustomFat('');
+    setCustomFiber('');
     setShowCustomEntry(false);
-  }, [customName, customCarbs, customProtein, customSliceType, showSliceTracker, logFoodEntry, toast]);
+  }, [customName, customCarbs, customProtein, customCalories, customFat, customFiber, customSliceType, tracksCalories, showSliceTracker, logFoodEntry, toast]);
 
   // ─── Favorites list ───
   const favoriteNames = useMemo(() => getFavoriteNames(), [getFavoriteNames]);
@@ -681,6 +688,28 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
               ))}
             </div>
           ) : (
+            <>
+            {tracksCalories && (
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { id: 'custom-food-calories', label: 'Calories', value: customCalories, set: setCustomCalories },
+                  { id: 'custom-food-fat', label: 'Fat (g)', value: customFat, set: setCustomFat },
+                  { id: 'custom-food-fiber', label: 'Fiber (g)', value: customFiber, set: setCustomFiber },
+                ]).map(field => (
+                  <div key={field.id}>
+                    <label htmlFor={field.id} className="text-xs font-bold text-muted-foreground uppercase mb-0.5 block">{field.label}</label>
+                    <input id={field.id}
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      value={field.value}
+                      onChange={(e) => field.set(e.target.value)}
+                      className="w-full min-h-11 px-3 py-2 rounded-lg bg-background border border-muted/30 text-[12px] font-mono text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
               <div className="flex-1">
                 <label htmlFor="custom-food-carbs" className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Carbs (g)</label>
@@ -703,6 +732,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 />
               </div>
             </div>
+            </>
           )}
           <button
             onClick={handleCustomAdd}

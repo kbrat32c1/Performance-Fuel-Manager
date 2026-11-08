@@ -266,6 +266,7 @@ export async function registerRoutes(
                         servingSize: parseFloat(def.metric_serving_amount)||null,
                         servingSizeLabel: def.serving_description||"",
                         imageUrl: null,
+                        reported: { calories: def.calories != null, fat: def.fat != null },
                         dataQuality: (cal > 0 && (pro > 0 || carb > 0)) ? "complete" as const : "partial" as const,
                       },
                     });
@@ -322,6 +323,7 @@ export async function registerRoutes(
           servingSize: p.serving_quantity || null,
           servingSizeLabel: p.serving_size || "",
           imageUrl: p.image_small_url || null,
+          reported: { calories: n["energy-kcal_100g"] != null, fat: n.fat_100g != null },
           dataQuality,
         },
       });

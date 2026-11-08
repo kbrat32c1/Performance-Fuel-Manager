@@ -495,7 +495,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           age: profileData.age || undefined,
           gender: profileData.gender as 'male' | 'female' | undefined,
           activityLevel: profileData.activity_level as AthleteProfile['activityLevel'],
-          nutritionPreference: (profileData.nutrition_preference === 'sugar' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
+          nutritionPreference: (profileData.nutrition_preference === 'sugar' || profileData.nutrition_preference === 'calories' ? profileData.nutrition_preference : 'spar') as AthleteProfile['nutritionPreference'],
           trackPracticeWeighIns: profileData.track_practice_weigh_ins || false,
           waterLoading: profileData.water_loading !== false,
           targetWeight: profileData.target_weight || undefined,
@@ -1648,7 +1648,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // ─── Nutrition Mode ───
   const getNutritionMode = (): 'spar' | 'sugar' => {
-    return profile.nutritionPreference === 'sugar' ? 'sugar' : 'spar';
+    // The Calories diary is gram-based, so every other screen treats it like Grams.
+    return profile.nutritionPreference === 'sugar' || profile.nutritionPreference === 'calories' ? 'sugar' : 'spar';
   };
 
   // ─── SPAR Slice Targets (cached) ───
