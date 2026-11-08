@@ -6,6 +6,8 @@ import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
+import { calculateTargetWeight } from "@/lib/constants";
+import { getTodayScale, targetLabelLeftPct } from "@/lib/today-scale";
 import { Input } from "@/components/ui/input";
 import { CoachText } from "@/components/coach-text";
 import { coachHistory, COACH_REPLY_FAILED, buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
@@ -143,17 +145,9 @@ export function AiCoachProactive() {
 
       const isOnTrack = isAtWeight || (projected !== null && projected <= targetWeight);
 
-      // Training phase (6+ days out): score against walk-around, not target
-      const isTrainingPhase = daysUntil > 5;
-      const walkAround = targetWeight * 1.07;
-      const walkAroundGap = currentWeight - walkAround;
-      const trainingStatus: 'holding' | 'monitor' | 'high' | null = isTrainingPhase
-        ? (walkAroundGap <= 2 ? 'holding' : walkAroundGap <= 5 ? 'monitor' : 'high')
-        : null;
-
-      return { expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, trainingStatus, walkAroundGap, walkAround, projectionReliable };
+      return { expectedDrift, sweatRate, adjustedSweatRate, isOnTrack, projectedGap, projectionReliable };
     } catch {
-      return { expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, trainingStatus: null, walkAroundGap: 0, walkAround: targetWeight * 1.07, projectionReliable: false };
+      return { expectedDrift: null, sweatRate: null, adjustedSweatRate: null, isOnTrack: false, projectedGap: weightToLose, projectionReliable: false };
     }
   }, [weightToLose, targetWeight, daysUntil, hour, weighInHour, isAtWeight, getWeekDescentData, getExtraWorkoutStats]);
 
@@ -324,19 +318,33 @@ export function AiCoachProactive() {
     return null;
   }
 
-  // Status color: green = on track, orange = behind, red = critical
-  // Training phase: use walk-around proximity, not projection
-  const statusColor = isAtWeight ? 'green' :
-    insights.trainingStatus === 'holding' ? 'neutral' :
-    insights.trainingStatus === 'monitor' ? 'orange' :
-    insights.trainingStatus === 'high' ? 'red' :
-    insights.isOnTrack ? 'green' :
-    (weightToLose > 3 && daysUntil <= 1) ? 'red' :
-    'orange';
+  // Same morning target the Week page shows for today.
+  const todayTargetCalc = calculateTargetWeight(targetWeight, daysUntil, profile.protocol, profile.waterLoading !== false);
+  const todayTarget = todayTargetCalc.range ? todayTargetCalc.range.max : todayTargetCalc.base;
+  const todayScale = daysUntil >= 0
+    ? getTodayScale({
+        weight: currentWeight,
+        weightClass: targetWeight,
+        target: todayTarget,
+        isComparable: latestLogType === 'morning' || latestLogType === 'weigh-in',
+      })
+    : null;
+  const targetDelta = todayScale?.targetDelta ?? null;
+  const statusPill = isAtWeight
+    ? { label: 'At weight', className: 'bg-chart-5/10 text-chart-5' }
+    : targetDelta === null
+      ? null
+      : Math.abs(targetDelta) < 0.05
+        ? { label: "At today's target", className: 'bg-muted text-foreground' }
+        : targetDelta > 0
+          ? { label: `${targetDelta.toFixed(1)} over target`, className: 'bg-chart-3/15 text-chart-3' }
+          : { label: `${Math.abs(targetDelta).toFixed(1)} under target`, className: 'bg-muted text-foreground' };
+  const showLbsToClass = !isAtWeight && daysUntil >= 0;
   const showDetailedGuidance = !isAtWeight && daysUntil >= 0 && daysUntil <= 7;
 
   // Use store's precise countdown (matches Week tab)
   const timeUntilWeighIn = daysUntil >= 0 ? getTimeUntilWeighIn() : null;
+  const showCountdown = !!timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME' && !isAtWeight;
 
   // ─── Coaching insight ───
   // Uses PROJECTED GAP (not raw deficit) — sleep drift and practice losses are accounted for.
@@ -473,62 +481,77 @@ export function AiCoachProactive() {
   return (
     <div className="mb-4">
       <div className="rounded-xl overflow-hidden bg-card border border-border">
-        {/* Weight Display Header — compact */}
-        <div className="px-4 pt-3 pb-2">
-          <div className="text-center">
-            <div className={cn("grid gap-2 mb-2", insights.trainingStatus ? "grid-cols-3" : "grid-cols-2")}>
-              {[
-                {
-                  label: weightLoggedLabel,
-                  value: currentWeight.toFixed(1),
-                  color: statusColor === 'green' ? "text-green-500" :
-                    statusColor === 'orange' ? "text-orange-400" :
-                    statusColor === 'red' ? "text-red-400" : "",
-                },
-                ...(insights.trainingStatus
-                  ? [
-                      { label: 'Est. walk-around', value: String(Math.round(insights.walkAround * 10) / 10), color: "text-foreground" },
-                      { label: 'Class', value: String(targetWeight), color: "text-muted-foreground" },
-                    ]
-                  : [{ label: 'Target', value: String(targetWeight), color: "text-foreground" }]),
-              ].map(({ label, value, color }) => (
-                <div key={label} className="flex flex-col items-center">
-                  <span className={cn("text-3xl font-mono font-bold tracking-tight leading-none tabular-nums", color)}>
-                    {value}
-                  </span>
-                  <span className="text-xs text-muted-foreground mt-1">{label}</span>
-                </div>
-              ))}
+        {/* Weight, today's target and class on one scale */}
+        <div className="px-4 pt-4 pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-1">
+                <span className="font-heading text-[64px] font-bold leading-[0.9] tabular-nums text-foreground">
+                  {currentWeight.toFixed(1)}
+                </span>
+                <span className="font-heading text-xl font-semibold text-muted-foreground">lbs</span>
+              </div>
+              <span className="mt-1.5 block text-xs text-muted-foreground">{weightLoggedLabel}</span>
             </div>
-            <div className={cn(
-              "inline-flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-3 py-1 rounded-2xl text-xs font-bold",
-              statusColor === 'green' && "bg-green-500/10 text-green-500",
-              statusColor === 'neutral' && "bg-muted text-foreground",
-              statusColor === 'orange' && "bg-orange-500/10 text-orange-500",
-              statusColor === 'red' && "bg-red-500/10 text-red-400"
-            )}>
-              {isAtWeight ? <span className="whitespace-nowrap">✓ AT WEIGHT</span> : insights.trainingStatus ? (
-                <>
-                  <span className="whitespace-nowrap">{`${weightToLose.toFixed(1)} lbs to class`}</span>
-                  {insights.walkAroundGap > 0.05 && (
-                    <>
-                      <span className="text-muted-foreground font-normal">•</span>
-                      <span className="whitespace-nowrap">{`${insights.walkAroundGap.toFixed(1)} lbs over est. walk-around`}</span>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <span className="whitespace-nowrap">{isAtWeight || insights.projectionReliable ? (insights.isOnTrack ? 'ON TRACK' : 'BEHIND') : 'MORE DATA NEEDED'}</span>
-                  <span className="text-muted-foreground font-normal">•</span>
-                  <span className="whitespace-nowrap">{`${weightToLose.toFixed(1)} lbs to go`}</span>
-                </>
-              )}
-              {timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME' && !isAtWeight && (
-                <span className="whitespace-nowrap text-muted-foreground font-normal">• {timeUntilWeighIn} until weigh-in</span>
-              )}
-            </div>
+            {statusPill && (
+              <span className={cn("mt-1 shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-medium", statusPill.className)}>
+                {statusPill.label}
+              </span>
+            )}
           </div>
+
+          {todayScale && (
+            <div
+              role="img"
+              aria-label={`${currentWeight.toFixed(1)} pounds. ${todayScale.targetPct !== null ? `Today's target ${todayTarget} pounds. ` : ''}Class ${targetWeight} pounds.`}
+              className="px-2"
+            >
+              <div className="relative mt-6 h-1 rounded-full bg-border">
+                <div className="absolute inset-y-0 left-0 rounded-full bg-foreground" style={{ width: `${todayScale.weightPct}%` }} />
+                {todayScale.targetPct !== null && (
+                  <div className="absolute -top-1 h-3 w-0.5 -translate-x-1/2 bg-muted-foreground" style={{ left: `${todayScale.targetPct}%` }} />
+                )}
+                <div className="absolute -top-1 right-0 h-3 w-0.5 bg-primary" />
+                <div
+                  className="absolute -top-[7px] h-[18px] w-[18px] -translate-x-1/2 rounded-full border-[3px] border-card bg-primary"
+                  style={{ left: `${todayScale.weightPct}%` }}
+                />
+              </div>
+              <div className="relative mt-2.5 h-[34px]">
+                {todayScale.targetPct !== null && (
+                  <div className="absolute top-0 -translate-x-1/2 text-center" style={{ left: `${targetLabelLeftPct(todayScale.targetPct)}%` }}>
+                    <span className="block font-heading text-lg font-semibold leading-none tabular-nums text-foreground">{todayTarget}</span>
+                    <span className="mt-0.5 block whitespace-nowrap text-xs text-muted-foreground">Today's target</span>
+                  </div>
+                )}
+                <div className="absolute right-0 top-0 text-right">
+                  <span className="block font-heading text-lg font-semibold leading-none tabular-nums text-primary">{targetWeight}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">Class</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(showLbsToClass || showCountdown) && (
+            <div className="mt-3 grid grid-cols-2 border-t border-border pt-3">
+              <div>
+                {showLbsToClass && (
+                  <>
+                    <span className="block font-heading text-2xl font-semibold leading-none tabular-nums text-foreground">{weightToLose.toFixed(1)} lbs</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">to class</span>
+                  </>
+                )}
+              </div>
+              <div className="text-right">
+                {showCountdown && (
+                  <>
+                    <span className="block font-heading text-2xl font-semibold leading-none tabular-nums text-foreground">{timeUntilWeighIn}</span>
+                    <span className="mt-1 block text-xs text-muted-foreground">until weigh-in</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Daily Insight Card — clean sentence with highlighted numbers */}
