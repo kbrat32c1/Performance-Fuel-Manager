@@ -332,7 +332,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     ? getProtocolRecommendation(
                         getValue('currentWeight') || profile.currentWeight,
                         getValue('targetWeightClass') || profile.targetWeightClass,
-                        { bodyFatPercent: getValue('bodyFatPercent') ?? profile.bodyFatPercent, weighInDate: getValue('weighInDate') || profile.weighInDate }
+                        { bodyFatPercent: getValue('bodyFatPercent') ?? profile.bodyFatPercent, weighInDate: (getValue('weighInCleared') ?? profile.weighInCleared) ? null : (getValue('weighInDate') || profile.weighInDate) }
                       )
                     : null;
                   const groups: { title: string; hint: string; protocols: Protocol[] }[] = [
@@ -1563,7 +1563,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 currentWeight={getValue('currentWeight') || profile.currentWeight}
                 targetWeightClass={getValue('targetWeightClass') || profile.targetWeightClass}
                 bodyFatPercent={getValue('bodyFatPercent') ?? profile.bodyFatPercent}
-                weighInDate={getValue('weighInDate') || profile.weighInDate}
+                weighInDate={(getValue('weighInCleared') ?? profile.weighInCleared) ? null : (getValue('weighInDate') || profile.weighInDate)}
                 submitLabel="Select Protocol"
                 onComplete={(protocol: Protocol) => {
                   if (protocol !== profile.protocol) {
