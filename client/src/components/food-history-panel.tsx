@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
+import { totalsFromFoodLog, withSliceCount } from "@/lib/food-totals";
 
 interface FoodHistoryPanelProps {
   dateKey: string;
@@ -82,120 +83,39 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
     }
   }, [dateKey]);
 
-  // ─── Subtract entry's contribution from tracking totals ───
-  const subtractEntry = useCallback((entry: FoodLogEntry): Record<string, any> => {
-    const updates: Record<string, any> = {};
-
-    if (entry.mode === 'spar') {
-      const sliceCount = entry.sliceCount || 1;
-      const cat = entry.sliceType || 'protein';
-      const sliceKey = cat === 'protein' ? 'proteinSlices'
-        : cat === 'carb' ? 'carbSlices'
-        : cat === 'veg' ? 'vegSlices'
-        : cat === 'fruit' ? 'fruitSlices'
-        : 'fatSlices';
-      const current = cat === 'protein' ? tracking.proteinSlices
-        : cat === 'carb' ? tracking.carbSlices
-        : cat === 'veg' ? tracking.vegSlices
-        : cat === 'fruit' ? (tracking.fruitSlices || 0)
-        : (tracking.fatSlices || 0);
-      updates[sliceKey] = Math.max(0, current - sliceCount);
-
-      // Cross-sync gram equivalent
-      const gramAmount = entry.gramAmount || (cat === 'protein' ? 25 * sliceCount : cat === 'carb' ? 30 * sliceCount : 0);
-      if (gramAmount > 0 && cat !== 'veg' && cat !== 'fruit' && cat !== 'fat') {
-        const gramKey = cat === 'protein' ? 'proteinConsumed' : 'carbsConsumed';
-        const currentGrams = gramKey === 'proteinConsumed' ? tracking.proteinConsumed : tracking.carbsConsumed;
-        updates[gramKey] = Math.max(0, currentGrams - gramAmount);
-      }
-    } else {
-      // Sugar mode
-      const amount = entry.amount || 0;
-      if (entry.macroType === 'carbs') {
-        updates.carbsConsumed = Math.max(0, tracking.carbsConsumed - amount);
-        updates.carbSlices = Math.max(0, tracking.carbSlices - Math.max(1, Math.round(amount / 26)));
-      } else if (entry.macroType === 'protein') {
-        updates.proteinConsumed = Math.max(0, tracking.proteinConsumed - amount);
-        updates.proteinSlices = Math.max(0, tracking.proteinSlices - Math.max(1, Math.round(amount / 25)));
-      }
-    }
-
-    // Water
-    if (entry.liquidOz && entry.liquidOz > 0) {
-      updates.waterConsumed = Math.max(0, tracking.waterConsumed - entry.liquidOz);
-    }
-
-    return updates;
-  }, [tracking]);
+  // Totals are always rebuilt from the log, so an entry's grams and portions come and go together.
+  const saveLog = useCallback((newLog: FoodLogEntry[], waterDelta = 0) => {
+    const updates: Record<string, any> = { ...totalsFromFoodLog(newLog), foodLog: newLog };
+    if (waterDelta !== 0) updates.waterConsumed = Math.max(0, tracking.waterConsumed + waterDelta);
+    updateDailyTracking(dateKey, updates);
+    syncLocalStorage(newLog);
+  }, [tracking, dateKey, updateDailyTracking, syncLocalStorage]);
 
   // ─── Delete entry ───
   const handleDelete = useCallback((entryId: string) => {
     const entry = foodLog.find(e => e.id === entryId);
     if (!entry) return;
     hapticTap();
-
-    const trackingUpdates = subtractEntry(entry);
-    const newLog = foodLog.filter(e => e.id !== entryId);
-    updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
-    syncLocalStorage(newLog);
-  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage]);
+    saveLog(foodLog.filter(e => e.id !== entryId), entry.liquidOz && entry.liquidOz > 0 ? -entry.liquidOz : 0);
+  }, [foodLog, saveLog]);
 
   // ─── Undo last entry ───
   const handleUndo = useCallback(() => {
     if (foodLog.length === 0) return;
     hapticTap();
-
     const lastEntry = foodLog[foodLog.length - 1];
-    const trackingUpdates = subtractEntry(lastEntry);
-    const newLog = foodLog.slice(0, -1);
-    updateDailyTracking(dateKey, { ...trackingUpdates, foodLog: newLog });
-    syncLocalStorage(newLog);
-  }, [foodLog, dateKey, subtractEntry, updateDailyTracking, syncLocalStorage]);
+    saveLog(foodLog.slice(0, -1), lastEntry.liquidOz && lastEntry.liquidOz > 0 ? -lastEntry.liquidOz : 0);
+  }, [foodLog, saveLog]);
 
   // ─── Edit entry amount ───
   const handleEdit = useCallback((entryId: string, newAmount: number) => {
     const entry = foodLog.find(e => e.id === entryId);
     if (!entry || newAmount <= 0) return;
-
-    const updates: Record<string, any> = {};
-
-    if (entry.mode === 'sugar') {
-      const diff = newAmount - (entry.amount || 0);
-      if (entry.macroType === 'carbs') {
-        updates.carbsConsumed = Math.max(0, tracking.carbsConsumed + diff);
-        updates.carbSlices = Math.max(0, tracking.carbSlices + Math.round(diff / 26));
-      } else if (entry.macroType === 'protein') {
-        updates.proteinConsumed = Math.max(0, tracking.proteinConsumed + diff);
-        updates.proteinSlices = Math.max(0, tracking.proteinSlices + Math.round(diff / 25));
-      }
-    }
-    // SPAR mode: edit sliceCount
-    if (entry.mode === 'spar') {
-      const oldSlices = entry.sliceCount || 1;
-      const diff = newAmount - oldSlices;
-      const cat = entry.sliceType || 'protein';
-      const sliceKey = cat === 'protein' ? 'proteinSlices'
-        : cat === 'carb' ? 'carbSlices'
-        : cat === 'veg' ? 'vegSlices'
-        : cat === 'fruit' ? 'fruitSlices'
-        : 'fatSlices';
-      const current = cat === 'protein' ? tracking.proteinSlices
-        : cat === 'carb' ? tracking.carbSlices
-        : cat === 'veg' ? tracking.vegSlices
-        : cat === 'fruit' ? (tracking.fruitSlices || 0)
-        : (tracking.fatSlices || 0);
-      updates[sliceKey] = Math.max(0, current + diff);
-    }
-
-    // Update the entry
     const newLog = foodLog.map(e => {
       if (e.id !== entryId) return e;
-      return entry.mode === 'sugar'
-        ? { ...e, amount: newAmount }
-        : { ...e, sliceCount: newAmount };
+      return entry.mode === 'sugar' ? { ...e, amount: newAmount } : withSliceCount(e, newAmount);
     });
-    updateDailyTracking(dateKey, { ...updates, foodLog: newLog });
-    syncLocalStorage(newLog);
+    saveLog(newLog);
     setEditingId(null);
     setEditingValue('');
   }, [foodLog, dateKey, tracking, updateDailyTracking, syncLocalStorage]);
@@ -222,7 +142,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
     (acc, e) => {
       if (e.mode === 'spar') {
         const cat = e.sliceType || 'protein';
-        const count = e.sliceCount || 1;
+        const count = e.sliceCount ?? 1;
         return {
           ...acc,
           proteinSlices: acc.proteinSlices + (cat === 'protein' ? count : 0),
@@ -406,7 +326,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
                       <button
                         onClick={() => {
                           setEditingId(entry.id);
-                          setEditingValue(String(isSpar ? (entry.sliceCount || 1) : (entry.amount || 0)));
+                          setEditingValue(String(isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
                         }}
                         className={cn(
                           "text-[12px] font-mono font-bold px-2.5 py-1 rounded-md hover:ring-1 hover:ring-current transition-all",

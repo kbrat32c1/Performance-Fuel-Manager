@@ -21,6 +21,7 @@ import {
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
 import { MacroBar } from "@/components/ui/macro-bar";
+import { copyEntry, totalsFromFoodLog } from "@/lib/food-totals";
 
 export default function Food() {
   const {
@@ -84,51 +85,17 @@ export default function Food() {
 
   const handleRepeatYesterday = useCallback(() => {
     if (!hasYesterday) return;
-    const updates: Record<string, any> = {};
-    let carbsAdded = 0;
-    let proteinAdded = 0;
-    let waterAdded = 0;
-    const sliceDelta: Record<string, number> = {};
-
-    for (const entry of yesterdayFoodLog) {
-      if (entry.mode === 'spar' && entry.sliceType) {
-        const key = entry.sliceType === 'protein' ? 'proteinSlices'
-          : entry.sliceType === 'carb' ? 'carbSlices'
-          : entry.sliceType === 'veg' ? 'vegSlices'
-          : entry.sliceType === 'fruit' ? 'fruitSlices'
-          : 'fatSlices';
-        sliceDelta[key] = (sliceDelta[key] || 0) + (entry.sliceCount || 1);
-        if (entry.sliceType === 'protein') proteinAdded += (entry.gramAmount || 25) * (entry.sliceCount || 1);
-        if (entry.sliceType === 'carb') carbsAdded += (entry.gramAmount || 30) * (entry.sliceCount || 1);
-      } else if (entry.mode === 'sugar' && entry.macroType) {
-        if (entry.macroType === 'carbs') carbsAdded += (entry.gramAmount || 0);
-        if (entry.macroType === 'protein') proteinAdded += (entry.gramAmount || 0);
-      }
-      if (entry.liquidOz) waterAdded += entry.liquidOz;
-    }
-
-    for (const [key, delta] of Object.entries(sliceDelta)) {
-      const current = key === 'proteinSlices' ? tracking.proteinSlices
-        : key === 'carbSlices' ? tracking.carbSlices
-        : key === 'vegSlices' ? tracking.vegSlices
-        : key === 'fruitSlices' ? (tracking.fruitSlices || 0)
-        : (tracking.fatSlices || 0);
-      updates[key] = current + delta;
-    }
-
-    if (carbsAdded > 0) updates.carbsConsumed = tracking.carbsConsumed + carbsAdded;
-    if (proteinAdded > 0) updates.proteinConsumed = tracking.proteinConsumed + proteinAdded;
-    if (waterAdded > 0) updates.waterConsumed = tracking.waterConsumed + waterAdded;
-    if (showSliceTracker) updates.nutritionMode = 'spar';
-
-    const newEntries = yesterdayFoodLog.map(e => ({
-      ...e,
-      id: `${Date.now()}-copy-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date().toISOString(),
+    const now = Date.now();
+    // Each copied entry keeps its own numbers; totals are rebuilt from the whole log.
+    const newEntries = yesterdayFoodLog.map((e, i) => ({
+      ...copyEntry(e, `${now}-copy-${i}-${Math.random().toString(36).substr(2, 9)}`, new Date(now + i).toISOString()),
       mealSection: e.mealSection || inferMealSection(e.timestamp),
     }));
-    const existingLog = tracking.foodLog || [];
-    updates.foodLog = [...existingLog, ...newEntries];
+    const foodLog = [...(tracking.foodLog || []), ...newEntries];
+    const waterAdded = yesterdayFoodLog.reduce((sum, e) => sum + (e.liquidOz || 0), 0);
+    const updates: Record<string, any> = { ...totalsFromFoodLog(foodLog), foodLog };
+    if (waterAdded > 0) updates.waterConsumed = tracking.waterConsumed + waterAdded;
+    if (showSliceTracker) updates.nutritionMode = 'spar';
 
     updateDailyTracking(dateKey, updates);
     hapticSuccess();

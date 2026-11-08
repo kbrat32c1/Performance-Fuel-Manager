@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { useStore } from "@/lib/store";
 import { activateOnKey } from "@/lib/a11y";
+import { totalsFromFoodLog } from "@/lib/food-totals";
 
 interface FuelCardProps {
   macros: {
@@ -51,28 +52,18 @@ export function FuelCard({
   const isSparMode = nutritionMode === 'spar';
   const showSliceTracker = isSparMode;
 
-  // ─── Cross-sync reconciliation on mode switch ───
+  // ─── On a Slices/Grams view switch, rebuild totals from the food log ───
+  // Both views read the same entries, so switching never rewrites one view's numbers
+  // from the other's (it used to set grams to portions × 30).
   const prevModeRef = useRef(nutritionMode);
   useEffect(() => {
     if (prevModeRef.current === nutritionMode) return;
     prevModeRef.current = nutritionMode;
-
-    const lastLoggedMode = tracking.nutritionMode;
-    const updates: Record<string, any> = {};
-
-    if (lastLoggedMode === 'spar') {
-      const expectedCarbs = tracking.carbSlices * 30;
-      const expectedProtein = tracking.proteinSlices * 25;
-      if (Math.abs(tracking.carbsConsumed - expectedCarbs) > 5) updates.carbsConsumed = expectedCarbs;
-      if (Math.abs(tracking.proteinConsumed - expectedProtein) > 5) updates.proteinConsumed = expectedProtein;
-    } else {
-      const expectedCarbSlices = Math.round(tracking.carbsConsumed / 26);
-      const expectedProteinSlices = Math.round(tracking.proteinConsumed / 25);
-      if (Math.abs(tracking.carbSlices - expectedCarbSlices) > 0) updates.carbSlices = expectedCarbSlices;
-      if (Math.abs(tracking.proteinSlices - expectedProteinSlices) > 0) updates.proteinSlices = expectedProteinSlices;
-    }
-
-    if (Object.keys(updates).length > 0) updateDailyTracking(dateKey, updates);
+    const log = tracking.foodLog || [];
+    if (log.length === 0) return;
+    const totals = totalsFromFoodLog(log);
+    const changed = (Object.keys(totals) as (keyof typeof totals)[]).some(k => (tracking[k] ?? 0) !== totals[k]);
+    if (changed) updateDailyTracking(dateKey, totals);
   }, [nutritionMode, tracking, dateKey, updateDailyTracking]);
 
   // ─── Progress calculations ───

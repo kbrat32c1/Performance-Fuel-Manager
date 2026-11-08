@@ -43,7 +43,7 @@ type ReportTab = "calories" | "slices" | "macros" | "hydration";
 /* ── helpers ── */
 function estimateEntryCal(entry: { mode: string; sliceType?: string; sliceCount?: number; amount?: number }) {
   if (entry.mode === "spar") {
-    return (SLICE_CAL[entry.sliceType || "protein"] || 100) * (entry.sliceCount || 1);
+    return (SLICE_CAL[entry.sliceType || "protein"] || 100) * (entry.sliceCount ?? 1);
   }
   return (entry.amount || 0) * 4; // grams × 4 cal/g (approx)
 }

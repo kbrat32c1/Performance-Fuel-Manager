@@ -78,7 +78,7 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
           const sliceCounts: Record<string, number> = {};
           entries.forEach(e => {
             if (e.sliceType) {
-              sliceCounts[e.sliceType] = (sliceCounts[e.sliceType] || 0) + (e.sliceCount || 1);
+              sliceCounts[e.sliceType] = (sliceCounts[e.sliceType] || 0) + (e.sliceCount ?? 1);
             }
           });
           const parts = [];
@@ -207,7 +207,7 @@ export function CopyFoodModal({ open, onClose, onCopy, mode, currentDateKey }: C
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {entry.mode === 'spar' && entry.sliceType && (
                         <span className={cn("text-xs font-bold shrink-0", sparColor)}>
-                          +{entry.sliceCount || 1}
+                          +{entry.sliceCount ?? 1}
                         </span>
                       )}
                       {entry.mode === 'sugar' && entry.macroType && (
