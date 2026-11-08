@@ -9,6 +9,9 @@ import { useStore } from "@/lib/store";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
+import { buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
+import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
+import { useAuth } from "@/lib/auth";
 
 interface Message {
   role: "user" | "assistant" | "error";
@@ -87,6 +90,8 @@ export function AiCoachGlobal() {
   const [location] = useLocation();
 
   const store = useStore();
+  const { user } = useAuth();
+  const { healthData } = useHealthKitSync(user?.id ?? null);
   const { profile, logs, getDaysUntilWeighIn, getMacroTargets, getTodaysFoods, getPhase, getStatus, getDriftMetrics, getDailyTracking, getDailyPriority, getHydrationTarget, calculateTarget, getNutritionMode, getSliceTargets, getWeekDescentData, getExtraWorkoutStats } = store;
 
   const daysUntil = getDaysUntilWeighIn();
@@ -231,6 +236,19 @@ export function AiCoachGlobal() {
       }
     }
 
+    try {
+      ctx.athleteSnapshot = buildAthleteSnapshot({
+        logs,
+        foodLog: getDailyTracking(format(new Date(), 'yyyy-MM-dd'))?.foodLog,
+        health: healthData,
+        bodyFatPercent: profile.bodyFatPercent,
+        weighInDate: profile.weighInDate,
+        weighInTime: profile.weighInTime,
+        weighInCleared: profile.weighInCleared,
+        minutesToFirstMatch: readMinutesToFirstMatch(daysUntil, recoveryMode),
+      });
+    } catch {}
+
     // ─── CALCULATED INSIGHTS (DecisionZone-style) ───
     // These are the smart calculations the AI should use for recommendations
     try {
@@ -241,24 +259,12 @@ export function AiCoachGlobal() {
       const targetWeight = profile.targetWeightClass;
       const weightToLose = Math.max(0, currentWeight - targetWeight);
 
-      // Hours until weigh-in
-      const now = new Date();
-      const hour = now.getHours();
-      let hoursUntilWeighIn: number | null = null;
-      if (daysUntil >= 0) {
-        if (daysUntil === 0) {
-          const weighInHour = 6; // Assume 6am weigh-in
-          hoursUntilWeighIn = hour >= weighInHour ? 0 : weighInHour - hour;
-        } else {
-          const hoursLeftToday = 24 - hour;
-          const fullDays = daysUntil - 1;
-          const hoursOnWeighInDay = 6;
-          hoursUntilWeighIn = hoursLeftToday + (fullDays * 24) + hoursOnWeighInDay;
-        }
-      }
+      // Hours until weigh-in, at the athlete's actual weigh-in time
+      const hoursUntil = profile.weighInCleared ? null : hoursUntilWeighIn(profile.weighInDate, profile.weighInTime);
 
       // Sweat rate (lbs/hr)
-      const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
+      // lbs/hr only; pounds per session isn't a rate.
+      const sweatRate = descentData.avgSweatRateOzPerHr ?? extraStats.avgSweatRateOzPerHr ?? null;
 
       // Expected overnight drift
       const expectedDrift = descentData.avgOvernightDrift ?? null;
@@ -270,7 +276,7 @@ export function AiCoachGlobal() {
 
       // Build calculated insights object
       ctx.calculatedInsights = {
-        hoursUntilWeighIn,
+        hoursUntilWeighIn: hoursUntil,
         weightToLose: weightToLose.toFixed(1),
         projectedWeight: descentData.projectedSaturday?.toFixed(1) ?? null,
         isOnTrack: descentData.pace === 'on-track' || descentData.pace === 'ahead',

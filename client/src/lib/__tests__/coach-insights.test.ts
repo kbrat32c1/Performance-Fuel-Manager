@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { COACH_SAFETY_RULES, formatCoachInsights } from "../../../../api/_coach-insights";
+import { COACH_DATA_RULES, COACH_SAFETY_RULES, formatAthleteSnapshot, formatCoachInsights } from "../../../../api/_coach-insights";
 
 const clean = (v: unknown) => String(v ?? "").replace(/[`<>]/g, "");
 
@@ -48,6 +48,25 @@ describe("live AI coach insights", () => {
     expect(out).not.toMatch(/workout/i);
     expect(COACH_SAFETY_RULES).toMatch(/Not eating or not drinking/);
     expect(COACH_SAFETY_RULES).toMatch(/hot bath/);
+  });
+
+  it("turns the athlete snapshot into prompt lines, sanitized and capped", () => {
+    const lines = formatAthleteSnapshot({
+      weighInTime: "16:00", hoursUntilWeighIn: 28, minutesToFirstMatch: 90,
+      foodToday: Array.from({ length: 30 }, (_, i) => ({ name: `<b>food${i}</b>`, amount: "1 carb portion" })),
+      overnightPairs: [{ date: "11/8", from: 163, to: 160.6, change: -2.4 }],
+    }, clean);
+    const text = lines.join("\n");
+    expect(text).toContain("Weigh-in time: 16:00");
+    expect(text).toContain("90 minutes");
+    expect(text).toContain("11/8: 163 to 160.6 (-2.4 lb)");
+    expect(text).not.toMatch(/[<>]/);
+    expect(text).not.toContain("food20");
+    expect(COACH_DATA_RULES).toMatch(/Never invent/);
+  });
+
+  it("ignores a missing snapshot", () => {
+    expect(formatAthleteSnapshot(undefined, clean)).toEqual([]);
   });
 
   it("sanitizes values from the client", () => {

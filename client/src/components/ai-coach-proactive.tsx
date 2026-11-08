@@ -7,6 +7,9 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
+import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
+import { useAuth } from "@/lib/auth";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -29,6 +32,8 @@ export function AiCoachProactive() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const store = useStore();
+  const { user } = useAuth();
+  const { healthData } = useHealthKitSync(user?.id ?? null);
   const {
     profile,
     logs,
@@ -112,7 +117,7 @@ export function AiCoachProactive() {
       const descentData = getWeekDescentData();
       const extraStats = getExtraWorkoutStats();
       // Priority: extra workout sweat rate (actual data) > practice sweat rate > extra avg loss
-      const sweatRate = extraStats.avgSweatRateOzPerHr ?? descentData.avgSweatRateOzPerHr ?? extraStats.avgLoss ?? null;
+      const sweatRate = extraStats.avgSweatRateOzPerHr ?? descentData.avgSweatRateOzPerHr ?? null;
       const expectedDrift = descentData.avgOvernightDrift != null ? Math.max(0, descentData.avgOvernightDrift) : null;
       // Extra work is only suggested when the projection rests on several real weigh-in pairs.
       const projectionReliable = descentData.confidence?.reliable === true;
@@ -211,16 +216,26 @@ export function AiCoachProactive() {
       if (hydration) ctx.hydrationTarget = hydration;
     } catch {}
 
-    // Dehydration level for AI context
-    const dehydrationPct = targetWeight > 0 ? ((currentWeight - targetWeight) / currentWeight) * 100 : 0;
+    try {
+      ctx.athleteSnapshot = buildAthleteSnapshot({
+        logs,
+        foodLog: getDailyTracking(format(new Date(), 'yyyy-MM-dd'))?.foodLog,
+        health: healthData,
+        bodyFatPercent: profile.bodyFatPercent,
+        weighInDate: profile.weighInDate,
+        weighInTime: profile.weighInTime,
+        weighInCleared: profile.weighInCleared,
+        minutesToFirstMatch: readMinutesToFirstMatch(daysUntil, null),
+      });
+    } catch {}
 
     ctx.calculatedInsights = {
       timeUntilWeighIn: daysUntil >= 0 ? getTimeUntilWeighIn() : null,
+      hoursUntilWeighIn: profile.weighInCleared ? null : hoursUntilWeighIn(profile.weighInDate, profile.weighInTime),
       weightToLose: weightToLose.toFixed(1),
       isOnTrack: insights.isOnTrack,
       projectionReliable: insights.projectionReliable,
       expectedOvernightDrift: insights.expectedDrift?.toFixed(1) ?? null,
-      dehydrationPct: dehydrationPct.toFixed(1),
     };
 
     return ctx;
