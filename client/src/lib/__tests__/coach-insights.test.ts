@@ -73,3 +73,22 @@ describe("live AI coach insights", () => {
     expect(formatCoachInsights({ weightToLose: "<b>`x`</b>", projectionReliable: true }, clean)).not.toMatch(/[`<>]/);
   });
 });
+
+describe("safety response and wording rules", () => {
+  it("keeps weight talk out of a safety response", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/SAFETY RESPONSE ONLY/);
+    expect(COACH_SAFETY_RULES).toMatch(/purged/);
+    expect(COACH_SAFETY_RULES).toMatch(/whether or not they have symptoms/);
+    expect(COACH_SAFETY_RULES).toMatch(/aren't in trouble/);
+  });
+  it("doesn't let a number read as clearance", () => {
+    expect(COACH_DATA_RULES).toMatch(/never "safe"/);
+    expect(COACH_DATA_RULES).toMatch(/"on track" as reassurance/);
+  });
+  it("admits it can't see how a label was worked out", () => {
+    expect(COACH_DATA_RULES).toMatch(/can't see the calculation/);
+  });
+  it("asks for match timing before an after-weigh-in plan", () => {
+    expect(COACH_DATA_RULES).toMatch(/time to the first or next match/);
+  });
+});

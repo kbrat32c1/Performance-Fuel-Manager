@@ -109,3 +109,21 @@ export function buildAthleteSnapshot(input: {
     })),
   };
 }
+
+/** Shown when a coach request fails. Never sent back to the coach as if it had said it. */
+export const COACH_REPLY_FAILED = "Sorry, I couldn't process that. Try again?";
+
+/** The most recent exchanges to send with a question, so the coach can follow the conversation. */
+export function coachHistory(
+  messages: { role: string; content: string }[],
+  opener?: { question: string; answer: string } | null,
+): { role: "user" | "assistant"; content: string }[] {
+  const said = messages.filter(m => (m.role === "user" || m.role === "assistant") && m.content !== COACH_REPLY_FAILED);
+  const turns = [
+    ...(opener ? [{ role: "user", content: opener.question }, { role: "assistant", content: opener.answer }] : []),
+    ...said,
+  ].slice(-6) as { role: "user" | "assistant"; content: string }[];
+  // The conversation sent to the model has to start with the athlete.
+  while (turns[0]?.role === "assistant") turns.shift();
+  return turns;
+}

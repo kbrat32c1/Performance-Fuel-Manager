@@ -133,7 +133,7 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
 
 ## Rule 5: After weigh-in
 
-**Status:** draft. **Kevin to decide** protein timing, sodium amount and between-match guidance.
+**Status:** draft, except that food type doesn't depend on cut type (decided). **Kevin to decide** protein timing, sodium amount and between-match guidance.
 
 **Rule:** Have familiar, easy-to-tolerate food and drinks ready before weigh-in, and start promptly. Prioritize fluid with sodium, and carbohydrate. Avoid large, high-fat or high-fiber meals before wrestling. Size targets to the time available. Weight coming back on the scale doesn't prove recovery.
 
@@ -213,3 +213,4 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
 - **No automatic "do not eat", extra-workout or water-cut commands.** Facts and "talk to your coach" instead. *In the app.*
 - **Water loading is optional and off by default for new athletes.** *In the app.*
 - **Coaching experience counts as evidence** and is labeled as such.
+- **After weigh-in, food type doesn't depend on the cut type** (Kevin, 2026-11-08). One after-weigh-in plan for every protocol. *Not in the app yet:* the coach, Food and protocol text still differ by protocol, and the Rapid Cut line both gives post-weigh-in protein and forbids it until wrestling is over.
