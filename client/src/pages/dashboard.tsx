@@ -1,4 +1,5 @@
 import { MobileLayout } from "@/components/mobile-layout";
+import { displayRecoveryScore } from "@/lib/recovery-display";
 import { useStore } from "@/lib/store";
 import { useWhoopAutoSync } from "@/hooks/use-whoop-auto-sync";
 import { useTeam } from "@/hooks/use-team";
@@ -2859,7 +2860,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
     hrv: latestHealth.hrv,
     restingHeartRate: latestHealth.resting_heart_rate,
     sleepScore: latestHealth.sleep_score,
-    recoveryScore: latestHealth.recovery_score,
+    recoveryScore: displayRecoveryScore(latestHealth, healthData),
     strainScore: latestHealth.strain_score,
   } : undefined;
 
@@ -3527,7 +3528,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     strain={v5band.currentStrain}
                     healthHistory={healthData}
                     isLive={v5band.hrMonitoringActive}
-                    recoveryScore={latestHealth?.recovery_score}
+                    recoveryScore={latestHealth ? displayRecoveryScore(latestHealth, healthData) : null}
                   />
                 </div>
               )}

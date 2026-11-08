@@ -3,6 +3,7 @@ import { addDays, differenceInDays, getDay, parseISO, format, startOfDay } from 
 import { supabase, type UserFoodsJson } from './supabase';
 import { useAuth } from './auth';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import {
   getWeightMultiplier,
   isWaterLoadingDay as checkWaterLoadingDay,
@@ -807,8 +808,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       normalizedUpdates.simulatedDate = new Date(normalizedUpdates.simulatedDate);
     }
 
+    const previousProfile = profile;
     const newProfile = { ...profile, ...normalizedUpdates };
     setProfile(newProfile);
+
+    // A failed save must not leave the screen showing a plan that isn't stored:
+    // put the old settings back and offer to try again.
+    const revertAfterFailedSave = (detail?: string) => {
+      setProfile(previousProfile);
+      try {
+        localStorage.setItem(STORAGE_KEYS.WEIGH_IN_CLEARED, JSON.stringify(previousProfile.weighInCleared || false));
+        localStorage.setItem(STORAGE_KEYS.NEXT_CYCLE_DISMISSED, JSON.stringify(previousProfile.nextCyclePromptDismissed || false));
+      } catch {}
+      toast({
+        title: 'Not saved',
+        description: `Your change didn't save, so your previous settings are back.${detail ? ` (${detail})` : ''}`,
+        variant: 'destructive',
+        duration: 10000,
+        action: (
+          <ToastAction altText="Try saving again" onClick={() => { updateProfile(updates, options); }}>
+            Retry
+          </ToastAction>
+        ),
+      });
+    };
 
     if (user) {
       try {
@@ -890,7 +913,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // (that would overwrite user's v2 settings!)
         if (upsertError) {
           console.error('Profile save failed:', upsertError.message, upsertError.code, upsertError.details);
-          toast({ title: 'Save failed', description: `Error: ${upsertError.message}`, variant: 'destructive' });
+          revertAfterFailedSave(upsertError.message);
           // DON'T fall back - just report the error
           return;
         }
@@ -899,7 +922,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // This code block is intentionally disabled and kept for reference only
       } catch (error) {
         console.error('Error saving profile:', error);
-        toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+        revertAfterFailedSave();
       }
     }
   };
