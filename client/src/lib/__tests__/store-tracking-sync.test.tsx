@@ -19,6 +19,7 @@ vi.mock('../supabase', () => {
       gte: () => chain,
       lte: () => chain,
       order: () => chain,
+      limit: () => chain,
       select: () => chain,
       single: () => Promise.resolve(value),
       then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(value).then(res, rej),
@@ -203,10 +204,12 @@ describe('weight log cloud cleanup', () => {
   it('never deletes before saving one-per-day weigh-in types (a failed save would lose the old weight)', async () => {
     const { result } = await renderLoadedStore();
 
+    let savedId: string | null = null;
     await act(async () => {
-      await result.current.addLog({ weight: 161, date: new Date(2026, 10, 7, 7, 0), type: 'morning' });
+      savedId = await result.current.addLog({ weight: 161, date: new Date(2026, 10, 7, 7, 0), type: 'morning' });
     });
 
+    expect(savedId).not.toBeNull();
     // Replacement now overwrites in place; see weight-log-replace.test.tsx.
     expect(db.weightLogDeletes).toEqual([]);
   });

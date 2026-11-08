@@ -118,6 +118,14 @@ describe('saving a weigh-in over a stale copy', () => {
     expect(db.weightLogs[0].weight).toBe(136.8);
   });
 
+  it('clears a duration the new entry does not carry', async () => {
+    const { result } = await loadedStore();
+    db.weightLogs = [{ ...existingRow(), type: 'post-practice', duration: 120 }];
+    await act(async () => { await result.current.addLog({ weight: 136.8, date: morning, type: 'post-practice' }); });
+    expect(db.weightLogs).toHaveLength(1);
+    expect(db.weightLogs[0].duration).toBeNull();
+  });
+
   it('inserts a new row when there is nothing to replace', async () => {
     const { result } = await loadedStore();
     db.weightLogs = [];

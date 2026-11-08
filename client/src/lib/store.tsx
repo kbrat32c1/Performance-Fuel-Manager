@@ -1075,7 +1075,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             existingId = existing && existing.length > 0 ? existing[0].id : null;
           }
 
-          const { user_id: _uid, ...replacement } = insertData;
+          // A replacement is the whole new entry: clear optional fields it doesn't carry,
+          // so an old duration or sleep value can't linger on the overwritten row.
+          const { user_id: _uid, ...newFields } = insertData;
+          const replacement = {
+            ...newFields,
+            duration: insertData.duration ?? null,
+            sleep_hours: insertData.sleep_hours ?? null,
+          };
           const { data, error } = existingId
             ? await supabase
                 .from('weight_logs')
