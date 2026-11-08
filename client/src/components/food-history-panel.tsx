@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { totalsFromFoodLog, withSliceCount } from "@/lib/food-totals";
+import { withSliceCount, nextTotals } from "@/lib/food-totals";
 
 interface FoodHistoryPanelProps {
   dateKey: string;
@@ -85,7 +85,7 @@ export function FoodHistoryPanel({ dateKey }: FoodHistoryPanelProps) {
 
   // Totals are always rebuilt from the log, so an entry's grams and portions come and go together.
   const saveLog = useCallback((newLog: FoodLogEntry[], waterDelta = 0) => {
-    const updates: Record<string, any> = { ...totalsFromFoodLog(newLog), foodLog: newLog };
+    const updates: Record<string, any> = { ...nextTotals(tracking, newLog), foodLog: newLog };
     if (waterDelta !== 0) updates.waterConsumed = Math.max(0, tracking.waterConsumed + waterDelta);
     updateDailyTracking(dateKey, updates);
     syncLocalStorage(newLog);

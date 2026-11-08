@@ -21,7 +21,7 @@ import {
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
 import { MacroBar } from "@/components/ui/macro-bar";
-import { copyEntry, totalsFromFoodLog } from "@/lib/food-totals";
+import { copyEntry, nextTotals } from "@/lib/food-totals";
 
 export default function Food() {
   const {
@@ -93,7 +93,7 @@ export default function Food() {
     }));
     const foodLog = [...(tracking.foodLog || []), ...newEntries];
     const waterAdded = yesterdayFoodLog.reduce((sum, e) => sum + (e.liquidOz || 0), 0);
-    const updates: Record<string, any> = { ...totalsFromFoodLog(foodLog), foodLog };
+    const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
     if (waterAdded > 0) updates.waterConsumed = tracking.waterConsumed + waterAdded;
     if (showSliceTracker) updates.nutritionMode = 'spar';
 

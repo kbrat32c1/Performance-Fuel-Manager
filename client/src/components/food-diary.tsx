@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { entryMacros, totalsFromFoodLog, withSliceCount } from "@/lib/food-totals";
+import { entryMacros, nextTotals, withSliceCount } from "@/lib/food-totals";
 
 interface FoodDiaryProps {
   dateKey: string;
@@ -133,7 +133,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
   // Totals are always rebuilt from the log, so an entry's grams and portions come and go together.
   const saveLog = useCallback((newLog: FoodLogEntry[], waterDelta = 0) => {
     const current = getDailyTracking(dateKey);
-    const updates: Record<string, any> = { ...totalsFromFoodLog(newLog), foodLog: newLog };
+    const updates: Record<string, any> = { ...nextTotals(current, newLog), foodLog: newLog };
     if (waterDelta !== 0) updates.waterConsumed = Math.max(0, current.waterConsumed + waterDelta);
     updateDailyTracking(dateKey, updates);
     syncLocalStorage(newLog);

@@ -22,7 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { CARB_G_PER_SLICE, PROTEIN_G_PER_SLICE, classifyFood, totalsFromFoodLog, type SliceType } from "@/lib/food-totals";
+import { CARB_G_PER_SLICE, PROTEIN_G_PER_SLICE, classifyFood, type SliceType, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -171,7 +171,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     }
 
     const foodLog = [...existingLog, ...entries];
-    const updates: Record<string, any> = { ...totalsFromFoodLog(foodLog), foodLog };
+    const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
     if (showSliceTracker) updates.nutritionMode = 'spar';
     if (opts?.liquidOz && opts.liquidOz > 0) {
       updates.waterConsumed = tracking.waterConsumed + opts.liquidOz;
@@ -291,7 +291,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     }
 
     const foodLog = [...existingLog, ...newEntries];
-    const updates: Record<string, any> = { ...totalsFromFoodLog(foodLog), foodLog };
+    const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
     if (showSliceTracker) updates.nutritionMode = 'spar';
     updateDailyTracking(dateKey, updates);
     syncLocalStorage(foodLog);

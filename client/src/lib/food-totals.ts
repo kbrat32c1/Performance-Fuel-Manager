@@ -69,7 +69,9 @@ export function entryMacros(e: FoodLogEntry): { carbs: number; protein: number }
   if (e.carbs != null || e.protein != null) {
     return { carbs: e.carbs ?? 0, protein: e.protein ?? 0 };
   }
-  // Older portion entries: gramAmount was the main macro for the entry as logged.
+  // Older portion entries stored a single gramAmount (carbs unless the food had protein
+  // and no carbs), so their exact grams are unknown. Best estimate; nextTotals() keeps the
+  // day's recorded grams for these instead of recomputing them.
   const count = e.sliceCount ?? 1;
   if (e.sliceType === 'protein') return { carbs: 0, protein: e.gramAmount ?? PROTEIN_G_PER_SLICE * count };
   if (e.sliceType === 'carb') return { carbs: e.gramAmount ?? CARB_G_PER_SLICE * count, protein: 0 };
@@ -110,7 +112,9 @@ export function totalsFromFoodLog(log: FoodLogEntry[] | undefined): FoodTotals {
 export function withSliceCount(e: FoodLogEntry, newCount: number): FoodLogEntry {
   const oldCount = e.sliceCount ?? 1;
   const { carbs, protein } = entryMacros(e);
-  const scale = oldCount > 0 ? newCount / oldCount : 0;
+  // A 0-portion entry (e.g. 4 g carbs) keeps its grams: there's no per-portion size to scale by.
+  if (!(oldCount > 0)) return { ...e, sliceCount: newCount, carbs, protein, gramAmount: undefined };
+  const scale = newCount / oldCount;
   return { ...e, sliceCount: newCount, carbs: round1(carbs * scale), protein: round1(protein * scale), gramAmount: undefined };
 }
 
@@ -119,4 +123,30 @@ export function copyEntry(e: FoodLogEntry, id: string, timestamp: string): FoodL
   if (e.mode !== 'spar') return { ...e, id, timestamp };
   const { carbs, protein } = entryMacros(e);
   return { ...e, id, timestamp, carbs, protein, gramAmount: undefined };
+}
+
+/** Portion entry saved before entries carried their own carbs/protein. */
+export function isLegacyEntry(e: FoodLogEntry): boolean {
+  return e.mode === 'spar' && e.carbs == null && e.protein == null;
+}
+
+/**
+ * Totals to save after the log changes from `prev.foodLog` to `newLog`.
+ * Portions always come from the log (each entry stores its count). Grams too —
+ * unless an older entry is involved, whose grams can't be known exactly: then the
+ * day's recorded grams are kept and only the change between the two logs is applied.
+ */
+export function nextTotals(
+  prev: { carbsConsumed: number; proteinConsumed: number; foodLog?: FoodLogEntry[] },
+  newLog: FoodLogEntry[],
+): FoodTotals {
+  const oldLog = prev.foodLog ?? [];
+  const next = totalsFromFoodLog(newLog);
+  if (!oldLog.some(isLegacyEntry) && !newLog.some(isLegacyEntry)) return next;
+  const before = totalsFromFoodLog(oldLog);
+  return {
+    ...next,
+    carbsConsumed: Math.max(0, round1((prev.carbsConsumed ?? 0) + next.carbsConsumed - before.carbsConsumed)),
+    proteinConsumed: Math.max(0, round1((prev.proteinConsumed ?? 0) + next.proteinConsumed - before.proteinConsumed)),
+  };
 }

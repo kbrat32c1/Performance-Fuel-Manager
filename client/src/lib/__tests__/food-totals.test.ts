@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyFood, copyEntry, totalsFromFoodLog, withSliceCount, gramsToSlices } from "../food-totals";
+import { classifyFood, copyEntry, nextTotals, totalsFromFoodLog, withSliceCount, gramsToSlices } from "../food-totals";
 import type { FoodLogEntry } from "../stores/types";
 
 const spar = (over: Partial<FoodLogEntry>): FoodLogEntry =>
@@ -47,5 +47,24 @@ describe("food totals come from the entries", () => {
   it("rounds grams to the nearest half portion", () => {
     expect(gramsToSlices(4, 26)).toBe(0);
     expect(gramsToSlices(37, 25)).toBe(1.5);
+  });
+
+  it("keeps a day's recorded grams when it has older entries, and applies only the change", () => {
+    // Older entry: 20 g protein + 4 g carbs, but only gramAmount 4 was saved.
+    const legacy = spar({ id: "old", sliceType: "protein", sliceCount: 1, gramAmount: 4 });
+    const prev = { carbsConsumed: 4, proteinConsumed: 20, foodLog: [legacy] };
+    const rice = spar({ id: "rice", sliceType: "carb", sliceCount: 1, carbs: 26, protein: 2 });
+    const t = nextTotals(prev, [legacy, rice]);
+    expect(t).toMatchObject({ proteinConsumed: 22, carbsConsumed: 30, proteinSlices: 1, carbSlices: 1 });
+  });
+
+  it("rebuilds grams from scratch when every entry carries its own grams", () => {
+    const a = spar({ id: "a", sliceType: "protein", sliceCount: 1, protein: 20, carbs: 4 });
+    expect(nextTotals({ carbsConsumed: 99, proteinConsumed: 99, foodLog: [a] }, [])).toMatchObject({ carbsConsumed: 0, proteinConsumed: 0 });
+  });
+
+  it("editing a 0-portion entry keeps its grams", () => {
+    const e = spar({ sliceType: "carb", sliceCount: 0, carbs: 4, protein: 0 });
+    expect(totalsFromFoodLog([withSliceCount(e, 1)])).toMatchObject({ carbSlices: 1, carbsConsumed: 4 });
   });
 });

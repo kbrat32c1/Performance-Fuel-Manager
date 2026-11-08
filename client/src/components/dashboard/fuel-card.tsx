@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { useStore } from "@/lib/store";
 import { activateOnKey } from "@/lib/a11y";
-import { totalsFromFoodLog } from "@/lib/food-totals";
+import { nextTotals } from "@/lib/food-totals";
 
 interface FuelCardProps {
   macros: {
@@ -61,7 +61,7 @@ export function FuelCard({
     prevModeRef.current = nutritionMode;
     const log = tracking.foodLog || [];
     if (log.length === 0) return;
-    const totals = totalsFromFoodLog(log);
+    const totals = nextTotals(tracking, log);
     const changed = (Object.keys(totals) as (keyof typeof totals)[]).some(k => (tracking[k] ?? 0) !== totals[k]);
     if (changed) updateDailyTracking(dateKey, totals);
   }, [nutritionMode, tracking, dateKey, updateDailyTracking]);
