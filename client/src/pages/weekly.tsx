@@ -20,7 +20,7 @@ export default function Weekly() {
     return null;
   }
 
-  const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn, getWeeklyPlan } = useStore();
+  const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn, getWeeklyPlan, updateProfile } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
 
@@ -217,16 +217,24 @@ export default function Weekly() {
           <CardContent className="p-4 space-y-3">
             <p className="font-bold">No weigh-in coming up</p>
             <p className="text-sm text-muted-foreground">
-              Set your next weigh-in date (on Today, or Settings → Schedule) and this page lays out each day before it: weight, water, carbs and protein.
+              Pick your next weigh-in date and this page lays out each day before it: weight, water, carbs and protein.
               {daysUntil === -1 && " Today is the day after your weigh-in — eat and drink normally to recover."}
             </p>
-            <button
-              type="button"
-              onClick={() => setLocation('/dashboard')}
-              className="w-full min-h-11 rounded-lg bg-primary text-primary-foreground text-sm font-bold"
-            >
-              Go to Today
-            </button>
+            <label htmlFor="weekly-weigh-in-date" className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Next weigh-in date
+            </label>
+            <input
+              id="weekly-weigh-in-date"
+              type="date"
+              min={format(new Date(), 'yyyy-MM-dd')}
+              className="w-full min-w-0 min-h-11 appearance-none rounded-lg border border-input bg-background px-3 text-sm"
+              onChange={(e) => {
+                if (!e.target.value) return;
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                updateProfile({ weighInDate: new Date(year, month - 1, day, 12, 0, 0), weighInCleared: false, nextCyclePromptDismissed: false });
+                e.target.blur();
+              }}
+            />
           </CardContent>
         </Card>
       </MobileLayout>

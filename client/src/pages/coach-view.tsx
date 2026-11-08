@@ -67,7 +67,8 @@ export default function CoachView() {
   const fetchData = async () => {
     if (!token) return;
     try {
-      const res = await fetch(`/api/share/${token}`);
+      // Send the coach's local day so evening views don't jump to tomorrow (server runs in UTC).
+      const res = await fetch(`/api/share/${token}?date=${format(new Date(), 'yyyy-MM-dd')}`);
       if (!res.ok) {
         if (res.status === 404) {
           setError("Athlete not found or sharing has been disabled.");

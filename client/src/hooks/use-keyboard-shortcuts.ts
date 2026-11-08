@@ -91,7 +91,7 @@ export const KEYBOARD_SHORTCUTS = [
   { key: '1 or D', action: 'Go to Today (Dashboard)' },
   { key: '2 or W', action: 'Go to Weekly view' },
   { key: '3 or H', action: 'Go to Reports' },
-  { key: '4 or R', action: 'Go to Recovery' },
+  { key: '4 or R', action: 'Go to Meet Day' },
   { key: 'L', action: 'Open quick weight log' },
   { key: '?', action: 'Show keyboard shortcuts' },
   { key: 'Esc', action: 'Close dialogs' },

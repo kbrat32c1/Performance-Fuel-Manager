@@ -6,6 +6,7 @@ import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildEliteCoachPrompt, formatInsightsForPrompt } from "./coach-knowledge";
 import { autoSparCategory } from "../api/foods/_fatsecret-utils.js";
 import { verifyUser } from "../api/_auth.js";
+import { resolveShareDate } from "../api/_share-date.js";
 
 // ─── API Response Types ───────────────────────────────────────────────────────
 interface USDAFoodNutrient {
@@ -1147,7 +1148,7 @@ Respond ONLY with this JSON structure:
         .order("date", { ascending: false });
 
       // Fetch today's daily tracking
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = resolveShareDate(req.query.date);
       const { data: trackingRows } = await supabase
         .from("daily_tracking")
         .select("date, water_consumed, carbs_consumed, protein_consumed, no_practice")

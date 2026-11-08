@@ -152,7 +152,7 @@ export default function Food() {
   }, [dateKey, updateDailyTracking]);
 
   return (
-    <MobileLayout className="lg:max-w-2xl">
+    <MobileLayout>
       <div className="animate-in fade-in duration-300 space-y-2">
 
         {/* ── Date Nav ── */}

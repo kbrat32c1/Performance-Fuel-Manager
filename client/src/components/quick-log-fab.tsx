@@ -15,6 +15,7 @@ import { isValidWeight, getWeightValidationError, MIN_WEIGHT_LBS, MAX_WEIGHT_LBS
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { QuickLogWaterTab } from './quick-log-water-tab';
 import { activateOnKey } from "@/lib/a11y";
+import { useLocation } from "wouter";
 
 type FabTab = 'weight' | 'food' | 'water';
 
@@ -296,6 +297,9 @@ export function QuickLogFAB() {
 
   // Onboarding tooltip logic - show if no logs ever, or no logs in 7+ days
   const [showTooltip, setShowTooltip] = useState(false);
+  // The tip is about logging this morning's weight, so it belongs on Today only.
+  const [location] = useLocation();
+  const onToday = location === '/dashboard' || location === '/';
 
   useEffect(() => {
     const TOOLTIP_DISMISSED_KEY = STORAGE_KEYS.FAB_TOOLTIP_DISMISSED;
@@ -750,7 +754,7 @@ export function QuickLogFAB() {
   return (
     <>
       {/* Onboarding tooltip — portaled to body so it's not clipped by nav */}
-      {showTooltip && !isOpen && createPortal(
+      {showTooltip && onToday && !isOpen && createPortal(
         <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="relative bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg max-w-[180px]">
             <button
