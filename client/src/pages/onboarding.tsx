@@ -1264,7 +1264,7 @@ export default function Onboarding() {
                     <span className="font-bold">
                       {profile.protocol === '1' && 'Extreme Cut Phase'}
                       {profile.protocol === '2' && 'Rapid Cut Phase'}
-                      {profile.protocol === '3' && 'Optimal Cut Phase'}
+                      {profile.protocol === '3' && 'Maintain · Sugar System'}
                       {profile.protocol === '4' && 'Gain Phase'}
                       {profile.protocol === '6' && 'SPAR Competition'}
                     </span>

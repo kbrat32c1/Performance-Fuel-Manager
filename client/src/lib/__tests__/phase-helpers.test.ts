@@ -14,7 +14,7 @@ describe('PROTOCOL_NAMES', () => {
     expect(Object.keys(PROTOCOL_NAMES)).toHaveLength(6);
     expect(PROTOCOL_NAMES['1']).toBe('Extreme Cut');
     expect(PROTOCOL_NAMES['2']).toBe('Rapid Cut');
-    expect(PROTOCOL_NAMES['3']).toBe('Optimal Cut');
+    expect(PROTOCOL_NAMES['3']).toBe('Maintain · Sugar System');
     expect(PROTOCOL_NAMES['4']).toBe('Gain');
     expect(PROTOCOL_NAMES['5']).toBe('SPAR Nutrition');
     expect(PROTOCOL_NAMES['6']).toBe('SPAR Competition');
@@ -94,7 +94,7 @@ describe('getProtocolPhase', () => {
     });
   });
 
-  describe('Protocol 3 — Optimal Cut', () => {
+  describe('Protocol 3 — Maintain · Sugar System', () => {
     it('days 1-2 → PERFORMANCE', () => {
       expect(getProtocolPhase('3', 1).phase).toBe('PERFORMANCE');
       expect(getProtocolPhase('3', 2).phase).toBe('PERFORMANCE');
@@ -109,8 +109,8 @@ describe('getProtocolPhase', () => {
       expect(getProtocolPhase('3', 5).phase).toBe('FGF21 ACTIVATION');
     });
 
-    it('day 6+ → OPTIMAL CUT', () => {
-      expect(getProtocolPhase('3', 6).phase).toBe('OPTIMAL CUT');
+    it('day 6+ → MAINTAIN · SUGAR SYSTEM', () => {
+      expect(getProtocolPhase('3', 6).phase).toBe('MAINTAIN · SUGAR SYSTEM');
     });
   });
 

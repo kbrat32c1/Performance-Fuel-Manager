@@ -108,7 +108,7 @@ export type Protocol = typeof PROTOCOLS[keyof typeof PROTOCOLS];
 export const PROTOCOL_NAMES: Record<Protocol, string> = {
   [PROTOCOLS.EXTREME_CUT]: 'Extreme Cut Phase',
   [PROTOCOLS.RAPID_CUT]: 'Rapid Cut Phase',
-  [PROTOCOLS.OPTIMAL_CUT]: 'Optimal Cut Phase',
+  [PROTOCOLS.OPTIMAL_CUT]: 'Maintain · Sugar System',
   [PROTOCOLS.GAIN]: 'Gain Phase',
   [PROTOCOLS.SPAR]: 'SPAR Nutrition',
   [PROTOCOLS.SPAR_COMPETITION]: 'SPAR Competition',
@@ -118,7 +118,7 @@ export const PROTOCOL_NAMES: Record<Protocol, string> = {
 export const PROTOCOL_SHORT_NAMES: Record<Protocol, string> = {
   [PROTOCOLS.EXTREME_CUT]: 'Extreme Cut',
   [PROTOCOLS.RAPID_CUT]: 'Rapid Cut',
-  [PROTOCOLS.OPTIMAL_CUT]: 'Optimal Cut',
+  [PROTOCOLS.OPTIMAL_CUT]: 'Maintain · Sugar System',
   [PROTOCOLS.GAIN]: 'Gain',
   [PROTOCOLS.SPAR]: 'SPAR',
   [PROTOCOLS.SPAR_COMPETITION]: 'SPAR Comp',

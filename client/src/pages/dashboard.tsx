@@ -1343,7 +1343,7 @@ export default function Dashboard() {
       switch (profile.protocol) {
         case '1': return { label: 'Extreme Cut', color: 'text-red-500' };
         case '2': return { label: 'Rapid Cut', color: 'text-primary' };
-        case '3': return { label: 'Optimal Cut', color: 'text-primary' };
+        case '3': return { label: 'Maintain · Sugar System', color: 'text-primary' };
         case '4': return { label: 'Gain', color: 'text-green-500' };
         case '6': return { label: 'SPAR Competition', color: 'text-purple-500' };
         default: return { label: 'Training', color: 'text-primary' };

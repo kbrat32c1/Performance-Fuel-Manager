@@ -17,7 +17,7 @@ export const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: strin
       'Fructose is processed by the liver, not muscles — so your muscles stay fueled for practice',
       'Zero-protein windows trigger FGF21, which accelerates fat oxidation',
       'Water loading + sodium manipulation drops 3-5 lbs of water weight safely in the final days',
-      'Run 2-4 weeks max, then transition to Rapid Cut or Optimal Cut',
+      'Run 2-4 weeks max, then transition to Rapid Cut or Maintain · Sugar System',
     ],
   },
   '2': {
@@ -80,7 +80,7 @@ export const PROTOCOL_CONFIG: Record<Protocol, {
 }> = {
   '1': { label: 'Extreme Cut Phase', desc: 'Preseason fat-loss block when body fat is over 12%. Strict oversight required.', pickIf: "It's preseason, your body fat is over 12%, and you're well above walk-around weight. Only with your coach's OK.", icon: Flame, color: 'text-destructive' },
   '2': { label: 'Rapid Cut Phase', desc: '7%+ above class. Short-term glycogen + water manipulation.', pickIf: "You're 7%+ over your class (above walk-around weight) and need to come down.", icon: Zap, color: 'text-primary' },
-  '3': { label: 'Optimal Cut Phase', desc: 'Within 6-7% of class. Glycogen management, performance protected.', pickIf: "You're within 7% of your class (at walk-around weight) and holding there for the season.", icon: Trophy, color: 'text-primary' },
+  '3': { label: 'Maintain · Sugar System', desc: 'Within 6-7% of class. Glycogen management, performance protected.', pickIf: "You're within 7% of your class (at walk-around weight) and holding there for the season.", icon: Trophy, color: 'text-primary' },
   '4': { label: 'Gain Phase', desc: 'Off-season. Performance and strength focus.', pickIf: "You're under your class or it's the off-season, and you want to build strength.", icon: Dumbbell, color: 'text-primary' },
   '5': { label: 'SPAR Nutrition', desc: 'Clean eating — count portions, not calories', pickIf: "You're not making a weight. You want to eat well by counting palms and fists, not calories.", icon: Salad, color: 'text-green-500' },
   '6': { label: 'SPAR Competition', desc: 'Portion tracking + competition water loading & auto-adjusting targets', pickIf: "You're making a weight and want portion counting, with targets and a water plan that adjust as weigh-in gets closer.", icon: Salad, color: 'text-purple-500' },
@@ -133,7 +133,7 @@ export function getProtocolRecommendation(
     return {
       protocol: '1',
       reason: `Preseason at ${bodyFat.toFixed(1)}% body fat and ${percentOver.toFixed(1)}% over your class. Extreme Cut Phase brings body fat down while there's time.`,
-      warning: 'Run 2-4 weeks max, then transition to Rapid Cut or Optimal Cut.',
+      warning: 'Run 2-4 weeks max, then transition to Rapid Cut or Maintain · Sugar System.',
     };
   }
 
@@ -152,7 +152,7 @@ export function getProtocolRecommendation(
   // At or under walk-around weight = maintain
   return {
     protocol: '3',
-    reason: `You're at your walk-around weight. Optimal Cut Phase keeps you competition-ready while training hard.`,
+    reason: `You're at your walk-around weight. Maintain · Sugar System keeps you competition-ready while training hard.`,
   };
 }
 
