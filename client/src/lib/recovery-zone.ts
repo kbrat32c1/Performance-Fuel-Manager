@@ -23,3 +23,17 @@ export function recoverySourceLabel(h: SourceRow): string {
   if (s === "healthkit") return "From Apple Health";
   return "Entered by you";
 }
+
+/** One word for the tile: "Low", "Good", … */
+export function recoveryWord(score: number): string {
+  return recoveryZone(score).label.split(" ")[0];
+}
+
+/** Short source name for a tile: "WHOOP", "Band", "Apple Health", "Manual". */
+export function recoverySourceShort(h: SourceRow): string {
+  const s = h.source as string;
+  if (s === "whoop") return "WHOOP";
+  if (s === "v5-direct") return "Band";
+  if (s === "healthkit") return "Apple Health";
+  return "Manual";
+}

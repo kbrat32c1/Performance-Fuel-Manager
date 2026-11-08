@@ -12,9 +12,9 @@ import { useStore } from "@/lib/store";
 import { buildTodayPlan } from "@/lib/today-plan";
 import { buildWeightTrend } from "@/lib/today-trend";
 import { displayRecoveryScore, withDisplayRecovery } from "@/lib/recovery-display";
-import { recoveryZone, recoverySourceLabel } from "@/lib/recovery-zone";
+import { recoveryZone, recoveryWord, recoverySourceShort } from "@/lib/recovery-zone";
 import type { DbHealthData } from "@/lib/supabase";
-import { TodayPlanView, type RecoveryLine } from "./today-plan-view";
+import { TodayPlanView, type HealthTiles } from "./today-plan-view";
 import { MetricDetailSheet } from "./metric-detail-sheet";
 
 interface TodayPlanCardProps {
@@ -60,11 +60,15 @@ export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, 
   const dayKey = profile.simulatedDate ? endKey : healthDayStr;
   const todayHealth = healthData.find(h => h.date === dayKey && h.source === 'v5-direct') ?? healthData.find(h => h.date === dayKey);
   const recoveryScore = todayHealth ? displayRecoveryScore(todayHealth, healthData) : null;
-  const recovery: RecoveryLine | null = todayHealth && recoveryScore != null
-    ? { score: recoveryScore, ...recoveryZone(recoveryScore), source: recoverySourceLabel(todayHealth) }
+  const health: HealthTiles | null = todayHealth && (recoveryScore != null || todayHealth.sleep_hours != null)
+    ? {
+        recovery: recoveryScore != null ? { score: recoveryScore, word: recoveryWord(recoveryScore), tone: recoveryZone(recoveryScore).tone } : null,
+        sleepHours: todayHealth.sleep_hours,
+        source: recoverySourceShort(todayHealth),
+      }
     : null;
   const hasRecoveryData = !!todayHealth && (todayHealth.sleep_hours != null || todayHealth.hrv != null || todayHealth.resting_heart_rate != null || recoveryScore != null);
-  const [showRecovery, setShowRecovery] = useState(false);
+  const [sheet, setSheet] = useState<'recovery' | 'sleep' | null>(null);
   const scoredHistory = useMemo(() => withDisplayRecovery(healthData), [healthData]);
 
   // Cheap, and the store returns fresh objects each render, so no memo.
@@ -132,17 +136,18 @@ export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, 
         plan={plan}
         onAction={runAction}
         trend={trend}
-        recovery={recovery}
-        onRecoveryTap={() => setShowRecovery(true)}
+        health={health}
+        onHealthTap={setSheet}
+        onConnectHealth={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'health' } }))}
         onOpenFood={() => setLocation('/food')}
         slots={slots}
       />
       {todayHealth && (
         <MetricDetailSheet
-          metric={showRecovery ? 'recovery' : null}
+          metric={sheet}
           healthHistory={scoredHistory}
           latestHealth={todayHealth}
-          onClose={() => setShowRecovery(false)}
+          onClose={() => setSheet(null)}
         />
       )}
     </>

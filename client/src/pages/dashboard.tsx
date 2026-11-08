@@ -655,10 +655,10 @@ function TodayFlow({
 
   // All possible slots
   const allSlots = [
-    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-yellow-500' },
-    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-500' },
-    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-500' },
-    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-purple-500' },
+    { key: 'morning', label: 'AM', icon: <Sun className="w-3 h-3" />, log: todayLogs.morning, type: 'morning', color: 'text-amber-700 dark:text-amber-400' },
+    { key: 'pre', label: 'PRE', icon: <ArrowDownToLine className="w-3 h-3" />, log: todayLogs.prePractice, type: 'pre-practice', color: 'text-blue-700 dark:text-blue-400' },
+    { key: 'post', label: 'POST', icon: <ArrowUpFromLine className="w-3 h-3" />, log: todayLogs.postPractice, type: 'post-practice', color: 'text-green-700 dark:text-green-400' },
+    { key: 'bed', label: 'BED', icon: <Moon className="w-3 h-3" />, log: todayLogs.beforeBed, type: 'before-bed', color: 'text-muted-foreground' },
   ];
 
   // Competition day: show AM wake-up + Official Weigh-In + BED (all optional)
@@ -816,23 +816,21 @@ function TodayFlow({
               <button
                 key={slot.key}
                 onClick={() => onSlotTap(slot.type, slot.log)}
+                aria-label={isLogged ? `${slot.label} ${weight?.toFixed(1)} lbs. Edit` : `Log ${slot.label} weight`}
                 className={cn(
-                  "flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-all active:scale-95",
+                  "flex min-h-[64px] flex-col items-center justify-center gap-0.5 py-2 rounded-lg transition-all active:scale-95",
                   isLogged
-                    ? "hover:bg-muted/50"
-                    : "hover:bg-muted/50 border border-dashed border-muted-foreground/60",
-                  isMostRecent && "ring-1 ring-foreground/40 bg-muted/40"
+                    ? "bg-muted/50 hover:bg-muted"
+                    : "border border-dashed border-muted-foreground hover:bg-muted/50",
+                  isMostRecent && "ring-1 ring-foreground/50"
                 )}
               >
                 {/* Icon + colored label inline */}
                 <div className="flex items-center gap-1">
-                  <span className={cn(isLogged ? "text-foreground" : "text-muted-foreground")}>
+                  <span className={slot.color} aria-hidden="true">
                     {slot.icon}
                   </span>
-                  <span className={cn(
-                    "text-xs font-bold uppercase",
-                    isLogged ? "text-foreground" : "text-muted-foreground"
-                  )}>
+                  <span className={cn("text-xs font-bold uppercase", slot.color)}>
                     {slot.label}
                   </span>
                 </div>
@@ -2934,9 +2932,14 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               : <TrendingDown className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Cut Lab</span>
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-              {cutLabLimited ? 'Limited data · ' : ''}
-              {descentData.confidence.driftSamples} overnight pair{descentData.confidence.driftSamples === 1 ? '' : 's'}
-              {!cutLabLimited && ` · ${descentData.confidence.practiceSamples} practice`}
+              {(() => {
+                // The uncertainty sits next to the number it affects.
+                const n = descentData.confidence.driftSamples;
+                const pairs = `${n} pair${n === 1 ? '' : 's'}${cutLabLimited ? ' (limited)' : ''}`;
+                return descentData.avgOvernightDrift !== null
+                  ? `overnight change ${fmtLoss(descentData.avgOvernightDrift).replace('-', '−')} lbs · ${pairs}`
+                  : `No overnight pairs yet${cutLabLimited ? ' (limited)' : ''}`;
+              })()}
             </span>
             <ChevronDown className={cn("w-4 h-4 shrink-0 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
           </button>
@@ -3020,6 +3023,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                   )}>
                     {descentData.projectedSaturday.toFixed(1)} lbs
                   </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    · {Math.min(descentData.confidence.driftSamples, descentData.confidence.practiceSamples)}{descentData.confidence.reliable ? ' pairs' : ' of 3 pairs (limited)'}
+                  </span>
                 </div>
               )}
 
@@ -3071,6 +3077,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       <span className={cn("font-heading tabular-nums font-bold text-xs", driftVal !== null ? "text-cyan-500" : "")}>
                         {driftVal !== null ? fmtLoss(driftVal) : '—'} lbs
                       </span>
+                      {!isHistorical && (
+                        <span className="block text-xs text-muted-foreground tabular-nums">
+                          {descentData.confidence.driftSamples} pair{descentData.confidence.driftSamples === 1 ? '' : 's'}
+                        </span>
+                      )}
                       {driftRateVal !== null && (
                         <span className="block text-xs font-heading tabular-nums text-cyan-400">
                           {driftRateVal.toFixed(2)}/hr
@@ -3082,6 +3093,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       <span className={cn("font-heading tabular-nums font-bold text-xs", practiceVal !== null ? "text-orange-500" : "")}>
                         {practiceVal !== null ? fmtLoss(practiceVal) : '—'} lbs
                       </span>
+                      {!isHistorical && (
+                        <span className="block text-xs text-muted-foreground tabular-nums">
+                          {descentData.confidence.practiceSamples} pair{descentData.confidence.practiceSamples === 1 ? '' : 's'}
+                        </span>
+                      )}
                       {sweatVal !== null && (
                         <span className="block text-xs font-heading tabular-nums text-orange-400">
                           {sweatVal.toFixed(2)}/hr

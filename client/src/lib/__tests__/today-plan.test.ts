@@ -299,3 +299,13 @@ describe("Today's plan: status line reads once", () => {
     }
   });
 });
+
+describe("Today's plan: countdown", () => {
+  it("gives days to the official weigh-in, 0 on Meet Day, null when none is set", () => {
+    expect(buildTodayPlan(base()).countdown).toEqual({ days: 4, weightClass: 141 });
+    expect(buildTodayPlan(base({ daysUntilWeighIn: 0 })).countdown!.days).toBe(0);
+    expect(buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999 })).countdown!.days).toBeNull();
+    expect(buildTodayPlan(base({ daysUntilWeighIn: -2 })).countdown!.days).toBeNull();
+    expect(buildTodayPlan(base({ protocol: "5", isGeneralNutrition: true })).countdown).toBeNull();
+  });
+});

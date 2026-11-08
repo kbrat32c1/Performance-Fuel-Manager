@@ -75,6 +75,8 @@ export interface TodayPlan {
   demo: boolean;
   /** Class and days to the official weigh-in. */
   facts: PlanFact[];
+  /** Days to the official weigh-in for the big number: 0 on Meet Day, null when none is set. */
+  countdown: { days: number | null; weightClass: number } | null;
   status: PlanStatus;
   headline: string;
   reason: string;
@@ -450,6 +452,10 @@ export function buildTodayPlan(input: TodayPlanInput): TodayPlan {
     current: input.latest ? { weight: input.latest.weight, timing: TIMING_NAMES[input.latest.timing] ?? 'Weight check' } : null,
     ...buildHero(input),
     reference: buildReference(input),
+    countdown: input.isGeneralNutrition ? null : {
+      days: input.weighInCleared || input.daysUntilWeighIn < 0 ? null : input.daysUntilWeighIn,
+      weightClass: input.weightClass,
+    },
     demo: !!input.demo,
     facts: buildFacts(input),
     ...buildStatus(input),
