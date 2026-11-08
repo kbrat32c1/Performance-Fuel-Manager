@@ -133,7 +133,7 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
 
 ## Rule 5: After weigh-in
 
-**Status:** draft. **Kevin to decide** protein timing, sodium amount and between-match guidance.
+**Status:** draft, except that food type doesn't depend on cut type and the protein rule below (both decided). **Kevin to decide** sodium amount and between-match guidance.
 
 **Rule:** Have familiar, easy-to-tolerate food and drinks ready before weigh-in, and start promptly. Prioritize fluid with sodium, and carbohydrate. Avoid large, high-fat or high-fiber meals before wrestling. Size targets to the time available. Weight coming back on the scale doesn't prove recovery.
 
@@ -213,3 +213,17 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
 - **No automatic "do not eat", extra-workout or water-cut commands.** Facts and "talk to your coach" instead. *In the app.*
 - **Water loading is optional and off by default for new athletes.** *In the app.*
 - **Coaching experience counts as evidence** and is labeled as such.
+- **After weigh-in, food type doesn't depend on the cut type** (Kevin, 2026-11-08). One after-weigh-in plan for every protocol. *Not in the app yet:* the coach, Food and protocol text still differ by protocol, and the Rapid Cut line both gives post-weigh-in protein and forbids it until wrestling is over.
+- **Protein between weigh-in and the last match is optional and small** (Kevin, 2026-11-08). Only if the athlete tolerates it, never at the expense of fluid, sodium and carbs. Full protein after wrestling. *Not in the app yet.*
+- **The coach doesn't repeat "sips only" to an athlete who's far behind** (Kevin, 2026-11-08). It gives the gap and time left and sends them to talk with their coach. The water schedule itself is unchanged. "Far behind" isn't defined yet. *Not in the app yet.*
+- **Rapid loss** (Kevin, 2026-11-08): 8% in 3 days isn't a big cut (12.5 lb at 157: about 3% water, the rest gut contents, glycogen or more water). About 10% in 3 days (about 15 lb at 157) is a big cut and needs a talk with the coach. Symptoms still go to the athletic trainer. The source of the old 8% line wasn't traced. *Not in the app yet; the coach still uses 8%.*
+- **Document conflicts settled by Kevin (2026-11-08).** None of these are in the app yet.
+  - **Protein before the last match:** optional and small, as above. Kevin chose this over FINAL_13's 0 g.
+  - **Fluid after weigh-in:** scale to the time. 16–24 oz per lb lost as the floor in a short window, up to 24–32 oz per lb (FINAL_13) only with 2+ hours and if tolerated.
+  - **First 15 minutes:** sip 16–24 oz with electrolytes, carbs from 15 minutes (live coach, over FINAL_13's immediate carbs).
+  - **Between matches:** 12–24 oz and 30–40 g fast carbs in the first 30 minutes, sodium every break, no solids in the last 30 minutes before the next match (FINAL_13).
+  - **Sodium early in a water-loading week:** normal, 1–2 g per liter, until Thursday (FINAL_13). Replaces the 5,000 mg salt-load, which has no source in FINAL_13.
+  - **Peak water volume:** gallons by weight group: 1.5 gal for 125–141 lb, 1.75 for 149–165, 2.0 for 174–197 (FINAL_13). Replaces 1.5 oz/lb.
+  - **Glycogen refill:** 4–6 hours to about 70–80%, 20–24 hours for full (FINAL_13 Fuel Tanks table), labeled as an estimate. Not "fully recoverable in 2 hours."
+  - **3–4% water loss:** FINAL_13's wording, "safe and fully recoverable with rehydration," only with more time. In a short window the coach says it may not all come back before wrestling. Coach uses more than 3 hours to the first match as "more time," from the Fuel Tanks refill time; Kevin hasn't set the cutoff.
+  - **Extra workouts when behind:** the coach shows the gap left after normal practice and overnight loss, says an extra workout is how that gap is usually closed, gives the cost, and leaves the decision to the athlete and coach. No sauna or sweat suits.

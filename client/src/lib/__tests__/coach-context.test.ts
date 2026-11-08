@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildAthleteSnapshot, hoursUntilWeighIn, weightPairs } from "../coach-context";
+import { buildAthleteSnapshot, hoursUntilWeighIn, weightPairs, coachHistory, COACH_REPLY_FAILED } from "../coach-context";
 import { displayRecoveryScore } from "../recovery-display";
 import type { WeightLog, FoodLogEntry } from "../stores/types";
 import type { DbHealthData } from "../supabase";
@@ -46,5 +46,28 @@ describe("coach athlete snapshot", () => {
     const s = buildAthleteSnapshot({ logs: [], now: NOW, health: [row] });
     expect(s.recentHealth[0].recovery).toBe(displayRecoveryScore(row, [row]));
     expect(s.recentHealth[0].recovery).not.toBe(12);
+  });
+});
+
+describe("coachHistory", () => {
+  const u = (content: string) => ({ role: "user", content });
+  const a = (content: string) => ({ role: "assistant", content });
+
+  it("keeps the last six messages", () => {
+    const msgs = Array.from({ length: 10 }, (_, i) => (i % 2 ? a(`a${i}`) : u(`u${i}`)));
+    const h = coachHistory(msgs);
+    expect(h).toHaveLength(6);
+    expect(h[5].content).toBe("a9");
+  });
+  it("leaves out failed replies and error messages", () => {
+    const h = coachHistory([u("q"), a(COACH_REPLY_FAILED), u("again"), { role: "error", content: "x" }]);
+    expect(h.map(m => m.content)).toEqual(["q", "again"]);
+  });
+  it("always starts with the athlete", () => {
+    expect(coachHistory([a("hello"), u("q")])[0].role).toBe("user");
+  });
+  it("includes the advice already on screen", () => {
+    const h = coachHistory([u("why?")], { question: "advice please", answer: "drink water" });
+    expect(h.map(m => m.content)).toEqual(["advice please", "drink water", "why?"]);
   });
 });

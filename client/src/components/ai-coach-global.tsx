@@ -9,7 +9,8 @@ import { useStore } from "@/lib/store";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
-import { buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
+import { CoachText } from "@/components/coach-text";
+import { coachHistory, buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useAuth } from "@/lib/auth";
 
@@ -308,10 +309,7 @@ export function AiCoachGlobal() {
 
     try {
       // Build conversation history for multi-turn context (last 6 messages)
-      const history = messages
-        .filter(m => m.role !== 'error')
-        .slice(-6)
-        .map(m => ({ role: m.role, content: m.content }));
+      const history = coachHistory(messages);
 
       const res = await fetch(apiUrl("/api/ai/coach"), {
         method: "POST",
@@ -440,7 +438,9 @@ export function AiCoachGlobal() {
                     <span className="text-xs uppercase font-bold text-primary tracking-wider">SPAR Coach</span>
                   </div>
                 )}
-                <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                {msg.role === "assistant"
+                  ? <CoachText text={msg.content} />
+                  : <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
               </div>
             ))}
 

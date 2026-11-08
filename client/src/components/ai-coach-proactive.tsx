@@ -7,9 +7,12 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
-import { buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
+import { CoachText } from "@/components/coach-text";
+import { coachHistory, COACH_REPLY_FAILED, buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useAuth } from "@/lib/auth";
+
+const ADVICE_QUESTION = "Based on my current situation, what's the most helpful thing I should know right now? Be specific with numbers and timing. Keep it encouraging and brief — 2-3 sentences max.";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -250,7 +253,7 @@ export function AiCoachProactive() {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
-          question: "Based on my current situation, what's the most helpful thing I should know right now? Be specific with numbers and timing. Keep it encouraging and brief — 2-3 sentences max.",
+          question: ADVICE_QUESTION,
           context,
         }),
       });
@@ -280,7 +283,11 @@ export function AiCoachProactive() {
       const res = await fetch(apiUrl("/api/ai/coach"), {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify({ question: userMessage, context }),
+        body: JSON.stringify({
+          question: userMessage,
+          context,
+          history: coachHistory(messages, aiMessage && !aiMessage.startsWith("Couldn't get AI") ? { question: ADVICE_QUESTION, answer: aiMessage } : null),
+        }),
       });
 
       if (!res.ok) throw new Error("AI unavailable");
@@ -288,11 +295,11 @@ export function AiCoachProactive() {
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'assistant', content: data.recommendation }]);
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I couldn't process that. Try again?" }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: COACH_REPLY_FAILED }]);
     } finally {
       setLoading(false);
     }
-  }, [input, loading, buildContext]);
+  }, [input, loading, buildContext, messages, aiMessage]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -609,13 +616,13 @@ export function AiCoachProactive() {
               {/* AI quick advice response */}
               {aiMessage && messages.length === 0 && (
                 <div className="mb-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
-                  <p className="text-sm text-foreground leading-relaxed">{aiMessage}</p>
+                  <CoachText text={aiMessage} className="text-sm text-foreground" />
                 </div>
               )}
 
               {/* Chat messages */}
               {messages.length > 0 && (
-                <div className="max-h-[200px] overflow-y-auto mb-3 space-y-2">
+                <div className="max-h-[50vh] overflow-y-auto mb-3 space-y-2">
                   {messages.map((msg, i) => (
                     <div key={i} className={cn(
                       "text-sm rounded-lg px-3 py-2",
@@ -623,7 +630,7 @@ export function AiCoachProactive() {
                         ? "bg-primary/10 text-primary ml-8"
                         : "bg-muted/50 mr-8"
                     )}>
-                      {msg.content}
+                      {msg.role === 'assistant' ? <CoachText text={msg.content} /> : msg.content}
                     </div>
                   ))}
                   {loading && (
