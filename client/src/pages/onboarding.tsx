@@ -167,6 +167,9 @@ export default function Onboarding() {
       const finalUpdate: any = {
         simulatedDate: null,
         hasCompletedOnboarding: true,
+        // Water loading is opt-in: a new athlete starts on steady hydration. Re-running the
+        // wizard must not change a choice an existing athlete already made.
+        ...(profile.hasCompletedOnboarding ? {} : { waterLoading: false }),
         // Explicitly set protocol based on user goal
         protocol: userGoal === 'spar' ? '5' : userGoal === 'spar-competition' ? '6' : profile.protocol,
       };

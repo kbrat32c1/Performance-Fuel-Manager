@@ -443,6 +443,7 @@ export const defaultUserFoods: UserFoodsData = {
 };
 
 export const defaultProfile: AthleteProfile = {
+  waterLoading: false, // opt-in
   name: 'Athlete',
   lastName: '',
   currentWeight: 0,

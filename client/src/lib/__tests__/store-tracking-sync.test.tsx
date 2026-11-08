@@ -261,6 +261,7 @@ describe('targets for a past day', () => {
 
   it('gives a past day different targets from today when the plan changed', async () => {
     const { result } = await storeTwoDaysOut();
+    await act(async () => { await result.current.updateProfile({ waterLoading: true }); });
     const today = result.current.getTargetsForDate(key(noonOffset(0)));
     const weekAgo = result.current.getTargetsForDate(key(noonOffset(-7)));
     expect(weekAgo.hydration.targetOz).not.toBe(today.hydration.targetOz);
