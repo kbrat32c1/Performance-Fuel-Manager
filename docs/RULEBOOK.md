@@ -133,7 +133,7 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
 
 ## Rule 5: After weigh-in
 
-**Status:** draft, except that food type doesn't depend on cut type and the protein rule below (both decided). **Kevin to decide** sodium amount and between-match guidance.
+**Status:** draft, except that food type doesn't depend on cut type and the protein rule below (both decided). Sodium: no amounts, drink electrolytes (decided). **Kevin to decide** between-match guidance.
 
 **Rule:** Have familiar, easy-to-tolerate food and drinks ready before weigh-in, and start promptly. Prioritize fluid with sodium, and carbohydrate. Avoid large, high-fat or high-fiber meals before wrestling. Size targets to the time available. Weight coming back on the scale doesn't prove recovery.
 
@@ -222,8 +222,21 @@ Holding Thursday as a loading day would need a higher Friday target or a bigger 
   - **Fluid after weigh-in:** scale to the time. 16–24 oz per lb lost as the floor in a short window, up to 24–32 oz per lb (FINAL_13) only with 2+ hours and if tolerated.
   - **First 15 minutes:** sip 16–24 oz with electrolytes, carbs from 15 minutes (live coach, over FINAL_13's immediate carbs).
   - **Between matches:** 12–24 oz and 30–40 g fast carbs in the first 30 minutes, sodium every break, no solids in the last 30 minutes before the next match (FINAL_13).
-  - **Sodium early in a water-loading week:** normal, 1–2 g per liter, until Thursday (FINAL_13). Replaces the 5,000 mg salt-load, which has no source in FINAL_13.
+  - **Water-loading week** (replaces the app's oz-per-lb schedule; FINAL_13 volumes). By weigh-in class, in gallons:
+
+    | Day | 125–141 | 149–165 | 174–197 and 285 | Sodium (words only) |
+    |---|---|---|---|---|
+    | 5 days out (Mon) | 1.0 | 1.25 | 1.5 | Normal |
+    | 4 days out (Tue) | 1.25 | 1.5 | 1.75 | Normal |
+    | 3 days out (Wed) | 1.5 | 1.75 | 2.0 | Normal to moderate |
+    | 2 days out (Thu) | 1.25 | 1.5 | 1.75 | Low |
+    | 1 day out (Fri) | 0.25–0.5 | 0.25–0.5 | 0.25–0.5 | Very low |
+    | Day after (Sun) | 1.0 | 1.25 | 1.5 | Normal |
+
+    Regular water, not distilled. FINAL_13's distilled-water claim stays unproven until researched. 285 has no numbers in FINAL_13 and uses the 174–197 column by Kevin's choice.
+  - **Sodium:** no amounts anywhere the athlete sees (Kevin, 2026-11-08). The app says to drink electrolytes with water, except the day before weigh-in (FINAL_13). This removes the 3,000/2,500/1,000 mg daily targets, FINAL_13's 1–2 g per liter, the 500–700 mg per lb after weigh-in, and the old 5,000 mg salt-load. The words Normal, Low and Very low stay.
   - **Peak water volume:** gallons by weight group: 1.5 gal for 125–141 lb, 1.75 for 149–165, 2.0 for 174–197 (FINAL_13). Replaces 1.5 oz/lb.
   - **Glycogen refill:** 4–6 hours to about 70–80%, 20–24 hours for full (FINAL_13 Fuel Tanks table), labeled as an estimate. Not "fully recoverable in 2 hours."
-  - **3–4% water loss:** FINAL_13's wording, "safe and fully recoverable with rehydration," only with more time. In a short window the coach says it may not all come back before wrestling. Coach uses more than 3 hours to the first match as "more time," from the Fuel Tanks refill time; Kevin hasn't set the cutoff.
-  - **Extra workouts when behind:** the coach shows the gap left after normal practice and overnight loss, says an extra workout is how that gap is usually closed, gives the cost, and leaves the decision to the athlete and coach. No sauna or sweat suits.
+  - **3–4% water loss:** never described as safe or fully recoverable (2026-11-08, replacing the earlier "only with more time" ruling and the coach's 3-hour cutoff, which was an inference and not evidence of recovery). How much comes back depends on the time available and the athlete, and it may not all be back before wrestling. Barley 2018: 14 male combat athletes, about 3.2% lost in a heat chamber in sweat suits; after 3 hours of eating and drinking, body weight was back but repeated knee extensions were 28% fewer. One lab task, not wrestling.
+  - **Dizziness or cramping during a cut:** stop the cut and get checked by the athletic trainer or medical staff; don't assume more water or electrolytes is the fix. Severe or worsening symptoms, confusion, collapse or seizure mean emergency care (2026-11-08). The coach still leaves out routine warnings when the athlete reports no symptoms.
+  - **Extra workouts when behind:** the coach shows the gap left after normal practice and overnight loss, says an extra workout is how that gap is usually closed, gives the cost, and leaves the decision to the athlete and coach. No sauna or sweat suits. Kevin reconfirmed 2026-11-08 after the independent review: athletes have to work out to make weight, so the extra workout stays in the coach's answers, including when asked for the fastest way to drop water.

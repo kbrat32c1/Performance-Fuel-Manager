@@ -138,9 +138,9 @@ describe('getProtocolPhase', () => {
   });
 
   describe('Protocol 6 — SPAR Competition', () => {
-    it('days 1-2 → WATER CUT', () => {
+    it('day 1 → WATER CUT, day 2 → HIGH WATER', () => {
       expect(getProtocolPhase('6', 1).phase).toBe('WATER CUT');
-      expect(getProtocolPhase('6', 2).phase).toBe('WATER CUT');
+      expect(getProtocolPhase('6', 2).phase).toBe('HIGH WATER');
     });
 
     it('days 3-5 → WATER LOAD', () => {

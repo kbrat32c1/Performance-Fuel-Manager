@@ -563,8 +563,8 @@ export default function Onboarding() {
                             </button>
                             {showProtocolScience === p.id && (
                               <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                                {p.id === '1' && 'Uses fructose-dominant fueling to activate fat-burning hormones while preserving muscle glycogen. Water loading drops 3-5 lbs safely.'}
-                                {p.id === '2' && '3-day water load suppresses ADH hormone, then sharp restriction exploits delayed response. Your body keeps flushing water.'}
+                                {p.id === '1' && 'Uses fructose-dominant fueling to activate fat-burning hormones while preserving muscle glycogen. Optional water loading can lower water weight; the amount varies.'}
+                                {p.id === '2' && '3-day water load suppresses ADH hormone, then water drops sharply the day before weigh-in. Your body keeps flushing for a while.'}
                                 {p.id === '3' && 'Balanced macros (40C/35P/25F) keep energy optimal. No restrictions — eat normal, train hard.'}
                                 {p.id === '4' && 'Higher calories to support muscle growth. Protein at 1.0-1.2 g/lb for maximum synthesis.'}
                               </p>

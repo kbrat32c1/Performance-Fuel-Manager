@@ -311,10 +311,10 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
     return days;
   }, [weighInDate, logs, todayStr, profile.target_weight_class, waterLoading]);
 
-  // Water target for today — uses shared constants (includes MAX_WATER_LOADING_OZ safety cap)
+  // Water target for today — uses shared constants
   const waterTarget = useMemo(() => {
-    return getWaterTargetOz(daysUntilWeighIn, currentWeight, waterLoading);
-  }, [daysUntilWeighIn, currentWeight, waterLoading]);
+    return getWaterTargetOz(daysUntilWeighIn, currentWeight, waterLoading, profile.target_weight_class);
+  }, [daysUntilWeighIn, currentWeight, waterLoading, profile.target_weight_class]);
 
   return (
     <div className="min-h-screen bg-background">

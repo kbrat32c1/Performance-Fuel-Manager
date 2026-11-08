@@ -61,10 +61,10 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const progress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
   const consumedOz = tracking.waterConsumed;
 
-  // Only apply sip-only mode for competition users doing weight cuts
+  // Only apply reduced-water mode for competition users doing weight cuts
   const waterLoadingOn = profile.waterLoading !== false;
-  const isSipOnly = waterLoadingOn && !isSparProtocol && (hydration.type === 'Sip Only' || daysUntilWeighIn === 1);
-  const quickAddAmounts = isSipOnly ? [2, 4, 6, 8] : [8, 16, 24, 32];
+  const isSipOnly = waterLoadingOn && !isSparProtocol && (hydration.type === 'Reduced' || daysUntilWeighIn === 1);
+  const quickAddAmounts = isSipOnly ? [4, 8, 12, 16] : [8, 16, 24, 32];
 
   const handleAddWater = (oz: number) => {
     hapticTap();
@@ -109,7 +109,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                 </span>
                 <span className={cn(
                   "text-xs font-bold px-1.5 py-0.5 rounded uppercase",
-                  hydration.type === 'Sip Only'
+                  hydration.type === 'Reduced'
                     ? "bg-orange-500/20 text-orange-500 border border-orange-500/50 animate-pulse"
                     : "bg-cyan-500/20 text-cyan-500"
                 )}>
@@ -263,23 +263,22 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
           <div className="pt-2 mt-2 border-t border-muted space-y-2">
             {daysUntilWeighIn >= 3 && daysUntilWeighIn <= 5 && (
               <WhyExplanation title="water loading (3-5 days out)">
-                <strong>Water loading triggers natural diuresis.</strong> By drinking 1.5-2 gallons daily, your body
+                <strong>Water loading triggers natural diuresis.</strong> By drinking 1-2 gallons daily, your body
                 increases urine production. When you cut water the day before, your body keeps flushing even without
-                intake, helping you drop water weight safely without severe dehydration.
+                intake, which can lower water weight. How much varies by athlete.
               </WhyExplanation>
             )}
             {daysUntilWeighIn === 2 && (
-              <WhyExplanation title="flush day (2 days out)">
+              <WhyExplanation title="high water, low sodium (2 days out)">
                 <strong>Water weight starts dropping.</strong> After days of high water intake, your body is in
                 full flush mode. Maintain high intake to keep kidneys active while cutting sodium and fiber
                 to accelerate water loss.
               </WhyExplanation>
             )}
             {daysUntilWeighIn === 1 && (
-              <WhyExplanation title="sip only (1 day out)">
-                <strong>Your body is still flushing.</strong> After days of high water intake, your kidneys are in
-                overdrive. Sipping just enough to stay functional lets your body continue eliminating water
-                naturally. Gulping would halt this process and add weight back.
+              <WhyExplanation title="reduced water (1 day out)">
+                <strong>Water drops to 0.25-0.5 gallons today.</strong> After days of high intake, your body
+                keeps eliminating water for a while. Spread it through the day, and keep drinking around practice.
               </WhyExplanation>
             )}
           </div>

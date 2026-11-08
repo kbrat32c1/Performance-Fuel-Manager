@@ -164,7 +164,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                     <span className="font-mono font-bold text-cyan-500 block">{selectedDayData.water.amount}</span>
                     <span className={cn(
                       "text-xs font-bold uppercase",
-                      selectedDayData.water.type === 'Sip Only' ? "text-orange-500" : "text-muted-foreground"
+                      selectedDayData.water.type === 'Reduced' ? "text-orange-500" : "text-muted-foreground"
                     )}>
                       {selectedDayData.water.type}
                     </span>
@@ -212,7 +212,7 @@ export function WeekOverview({ getWeeklyPlan }: WeekOverviewProps) {
                   {selectedDayData.waterLoadingNote || (
                     <>
                       {selectedDayData.phase === 'Load' && "Water loading phase — drink consistently throughout the day to trigger natural diuresis."}
-                      {selectedDayData.phase === 'Cut' && "Water cut — restrict water intake. Follow protocol strictly. Monitor weight drift carefully."}
+                      {selectedDayData.phase === 'Cut' && "Final days before weigh-in — follow your plan. Monitor weight drift carefully."}
                       {selectedDayData.phase === 'Compete' && "Competition day — focus on fast carbs between matches. Rehydrate with electrolytes."}
                       {selectedDayData.phase === 'Recover' && "Recovery day — high protein to repair muscle. Eat freely to refuel."}
                       {selectedDayData.phase === 'Train' && "Training day — maintain consistent nutrition and hydration."}
