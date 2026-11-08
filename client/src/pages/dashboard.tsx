@@ -1348,11 +1348,13 @@ export default function Dashboard() {
     if (daysUntilWeighIn === 0) {
       return { ...protocolLabel, stage: 'Competition Day', stageColor: 'text-yellow-500' };
     }
+    const waterLoadingOn = profile.waterLoading !== false;
     if (daysUntilWeighIn <= 2) {
-      return { ...protocolLabel, stage: 'Water Cut', stageColor: 'text-orange-500' };
+      const stage = !waterLoadingOn ? 'Final Prep' : daysUntilWeighIn === 2 ? 'High Water' : 'Water Cut';
+      return { ...protocolLabel, stage, stageColor: 'text-orange-500' };
     }
     if (daysUntilWeighIn <= 5) {
-      return { ...protocolLabel, stage: 'Water Load', stageColor: 'text-primary' };
+      return { ...protocolLabel, stage: waterLoadingOn ? 'Water Load' : 'Comp Week', stageColor: 'text-primary' };
     }
     // 6+ days out — protocol name only, stage is "Training"
     return { ...protocolLabel, stage: 'Training', stageColor: 'text-muted-foreground' };
