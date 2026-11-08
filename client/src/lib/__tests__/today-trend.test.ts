@@ -13,47 +13,39 @@ describe("7-day weight trend", () => {
     expect(t.days[6]).toMatchObject({ label: "Sat", isToday: true });
   });
 
-  it("keeps only logged weights in the window, with their timing, in time order", () => {
+  it("keeps one comparable weight per day: morning, or the official weigh-in", () => {
     const t = buildWeightTrend({
       end,
       logs: [
-        { date: at(7, 15), weight: 146, type: "pre-practice" },
+        { date: at(7, 15), weight: 146, type: "pre-practice" },   // not comparable
         { date: at(7, 6), weight: 145.4, type: "morning" },
-        { date: at(6, 17), weight: 143.5, type: "post-practice" },
-        { date: at(6, 9), weight: 150, type: "check-in" },     // not a weigh-in timing
-        { date: at(6, 10), weight: 150, type: "extra-before" }, // extra workouts aren't on the trend
-        { date: new Date(2026, 9, 31, 6), weight: 149, type: "morning" }, // Oct 31: outside
+        { date: at(6, 17), weight: 143.5, type: "post-practice" }, // not comparable
+        { date: at(6, 6), weight: 146.1, type: "morning" },
+        { date: at(5, 6), weight: 146.9, type: "morning" },
+        { date: at(5, 7), weight: 146.5, type: "weigh-in" },       // official wins that day
+        { date: new Date(2026, 9, 31, 6), weight: 149, type: "morning" }, // outside the window
       ],
     });
     expect(t.points.map(p => [p.day, p.weight, p.timing])).toEqual([
-      [5, 143.5, "post-practice"],
+      [4, 146.5, "weigh-in"],
+      [5, 146.1, "morning"],
       [6, 145.4, "morning"],
-      [6, 146, "pre-practice"],
     ]);
-    expect(t.timings).toEqual(["morning", "pre-practice", "post-practice"]);
+    expect(t.enoughForChart).toBe(true);
   });
 
-  it("has no target and no line when there is no plan and no weigh-in", () => {
-    const t = buildWeightTrend({ end, logs: [{ date: at(7, 6), weight: 145, type: "morning" }] });
-    expect(t.hasTarget).toBe(false);
-    expect(t.planLine).toEqual([]);
-    expect(t.todayTarget).toBeNull();
-  });
-
-  it("draws the descent plan only on the days it covers", () => {
+  it("needs 3 days of weights for a chart", () => {
     const t = buildWeightTrend({
-      end, logs: [],
-      descentAllowed: { "2026-11-05": 143.1, "2026-11-06": 142.9, "2026-11-07": 142.7 },
+      end,
+      logs: [{ date: at(6, 6), weight: 146.1, type: "morning" }, { date: at(7, 6), weight: 145.4, type: "morning" }],
     });
-    expect(t.planLine).toEqual([{ day: 4, weight: 143.1 }, { day: 5, weight: 142.9 }, { day: 6, weight: 142.7 }]);
-    expect(t.hasTarget).toBe(true);
+    expect(t.points).toHaveLength(2);
+    expect(t.enoughForChart).toBe(false);
   });
 
-  it("shows today's target as a single value, not a line", () => {
-    const t = buildWeightTrend({ end, logs: [], todayTarget: 146.8 });
-    expect(t.todayTarget).toBe(146.8);
-    expect(t.planLine).toEqual([]);
-    expect(t.hasTarget).toBe(true);
+  it("has no target unless an approved one is passed", () => {
+    expect(buildWeightTrend({ end, logs: [] }).approvedTarget).toBeNull();
+    expect(buildWeightTrend({ end, logs: [], approvedTarget: 146 }).approvedTarget).toBe(146);
   });
 
   it("pads the scale to at least 2 lbs around the data", () => {
@@ -61,29 +53,5 @@ describe("7-day weight trend", () => {
     expect(t.max - t.min).toBeGreaterThanOrEqual(2);
     expect(t.min).toBeLessThan(145.4);
     expect(t.max).toBeGreaterThan(145.4);
-  });
-});
-
-describe("7-day weight trend: descent plan far below", () => {
-  it("leaves the line off the chart and states today's lowest allowed instead", () => {
-    const t = buildWeightTrend({
-      end,
-      logs: [{ date: at(7, 6), weight: 161.4, type: "morning" }],
-      descentAllowed: { "2026-11-06": 117.3, "2026-11-07": 117.1 },
-    });
-    expect(t.planLine).toEqual([]);
-    expect(t.planOffChart).toBe(117.1);
-    expect(t.hasTarget).toBe(true);
-    expect(t.min).toBeGreaterThan(150);
-  });
-
-  it("draws it when it's close to the weights", () => {
-    const t = buildWeightTrend({
-      end,
-      logs: [{ date: at(7, 6), weight: 145.4, type: "morning" }],
-      descentAllowed: { "2026-11-07": 142.7 },
-    });
-    expect(t.planLine).toHaveLength(1);
-    expect(t.planOffChart).toBeNull();
   });
 });

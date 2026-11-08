@@ -115,13 +115,13 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
               </span>
             )}
             {!fromWhoop && recovery.personalized && (
-              <span className="text-xs bg-muted/40 text-muted-foreground/70 px-1.5 py-0.5 rounded-full">
+              <span className="text-xs bg-muted/40 text-muted-foreground px-1.5 py-0.5 rounded-full">
                 Personalized
               </span>
             )}
           </div>
           {isStale && latestHealth.date && (
-            <span className="text-xs text-muted-foreground/60">
+            <span className="text-xs text-muted-foreground">
               {format(parseISO(latestHealth.date), 'MMM d')}
             </span>
           )}
@@ -161,7 +161,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
             />
           ))}
           <div className="text-center">
-            <span className="text-xs text-muted-foreground/30">tap any metric for details</span>
+            <span className="text-xs text-muted-foreground">tap any metric for details</span>
           </div>
         </div>
 
@@ -169,7 +169,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
         {last7.length >= 2 && (
           <div className="pt-2 border-t border-muted/30">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-muted-foreground/60 uppercase tracking-wide">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">
                 Last 7 days
               </span>
             </div>
@@ -197,7 +197,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
               {last7.map((day, i) => (
                 <div
                   key={`label-${day.date || i}`}
-                  className="flex-1 text-center text-xs text-muted-foreground/40"
+                  className="flex-1 text-center text-xs text-muted-foreground"
                 >
                   {day.date ? format(parseISO(day.date), 'EEE').charAt(0) : ''}
                 </div>
@@ -286,9 +286,9 @@ function ContributionBar({ contribution, reading, onTap }: { contribution: Recov
 
   const trendColor = metric === 'rhr' || metric === 'respiratory'
     // For RHR and respiratory, "up" is bad, "down" is good
-    ? (trend === 'up' ? 'text-red-400' : trend === 'down' ? 'text-green-400' : 'text-muted-foreground/50')
+    ? (trend === 'up' ? 'text-red-400' : trend === 'down' ? 'text-green-400' : 'text-muted-foreground')
     // For HRV and sleep, "up" is good, "down" is bad
-    : (trend === 'up' ? 'text-green-400' : trend === 'down' ? 'text-red-400' : 'text-muted-foreground/50');
+    : (trend === 'up' ? 'text-green-400' : trend === 'down' ? 'text-red-400' : 'text-muted-foreground');
 
   return (
     <button
@@ -321,7 +321,7 @@ function ContributionBar({ contribution, reading, onTap }: { contribution: Recov
       )}
      </span>
       {reading && (
-        <span className="block pl-16 text-left text-xs text-muted-foreground font-mono">{reading}</span>
+        <span className="block pl-16 text-left text-xs text-muted-foreground font-heading tabular-nums">{reading}</span>
       )}
     </button>
   );

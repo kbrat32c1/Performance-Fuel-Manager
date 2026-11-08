@@ -97,7 +97,7 @@ export function MobileLayout({ children, className, showNav = true }: MobileLayo
             />
             <NavItem
               icon="Activity"
-              label="Meet Day"
+              label="Meet"
               active={location === '/recovery'}
               onClick={() => setLocation('/recovery')}
               highlighted={isRecoveryRelevant}

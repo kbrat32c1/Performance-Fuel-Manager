@@ -20,7 +20,7 @@ import { format, addDays, subDays, isToday, startOfDay } from "date-fns";
 import { getPhaseStyleForDaysUntil, PHASE_STYLES, getPhaseStyle } from "@/lib/phase-colors";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
-import { SettingsDialog, FuelCard, DateNavigator, NextCyclePrompt, InfoDialog } from "@/components/dashboard";
+import { SettingsDialog, DateNavigator, NextCyclePrompt, InfoDialog } from "@/components/dashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useCarouselSwipe } from "@/hooks/use-carousel-swipe";
 import { useOnlineStatus } from "@/hooks/use-online-status";
@@ -118,7 +118,7 @@ function V5SyncingBanner({ deviceName }: { deviceName: string }) {
         <span className="text-green-500 text-xs font-bold flex-1">
           Syncing {deviceName || 'V5 Band'}
         </span>
-        <span className="text-xs text-muted-foreground font-mono">
+        <span className="text-xs text-muted-foreground font-heading tabular-nums">
           {elapsed}s
         </span>
       </div>
@@ -340,11 +340,11 @@ function SparFocusCard({ profile }: { profile: ReturnType<typeof useStore>['prof
           <span className={cn("text-xs font-bold px-1.5 py-0.5 rounded", iconColor, "bg-current/10")}>
             {goalShortName}
           </span>
-          <span className="text-xs text-muted-foreground/50 ml-auto font-mono">{targets.totalCalories} cal</span>
+          <span className="text-xs text-muted-foreground ml-auto font-heading tabular-nums">{targets.totalCalories} cal</span>
         </div>
 
         {/* Daily tip */}
-        <p className="text-xs text-muted-foreground/80 leading-relaxed pl-6">
+        <p className="text-xs text-muted-foreground leading-relaxed pl-6">
           💡 {todayTip}
         </p>
       </CardContent>
@@ -413,7 +413,7 @@ function AdaptiveAdjustmentBanner() {
                 <div className="flex items-center gap-1 mt-2">
                   <span className="text-xs text-muted-foreground">Recent:</span>
                   {adjustment.recentWeights.slice(0, 5).reverse().map((w, i) => (
-                    <span key={i} className="text-xs font-mono text-foreground/70">
+                    <span key={i} className="text-xs font-heading tabular-nums text-foreground/70">
                       {w.weight.toFixed(1)}
                       {i < Math.min(4, adjustment.recentWeights.length - 1) && (
                         <span className="text-muted-foreground mx-0.5">→</span>
@@ -542,7 +542,7 @@ function WeeklyComplianceCard() {
                     isBest && "bg-green-500/10",
                     isWorst && pct < 80 && "bg-red-500/10"
                   )}>
-                    <div className={cn("text-lg font-bold font-mono", color)}>
+                    <div className={cn("text-lg font-bold font-heading tabular-nums", color)}>
                       {pct}%
                     </div>
                     <div className="text-xs text-muted-foreground uppercase font-bold">
@@ -585,6 +585,7 @@ function TodayFlow({
   onToggleRestDay,
   isCompetitionDay,
   isGeneralNutrition,
+  embedded = false,
 }: {
   todayLogs: { morning: any; prePractice: any; postPractice: any; beforeBed: any; weighIn: any };
   onSlotTap: (type: string, log: any) => void;
@@ -592,6 +593,8 @@ function TodayFlow({
   onToggleRestDay: () => void;
   isCompetitionDay: boolean;
   isGeneralNutrition: boolean;
+  /** Drawn inside Today's plan: no card of its own. */
+  embedded?: boolean;
 }) {
   const { logs, profile, deleteLog } = useStore();
   const { toast } = useToast();
@@ -682,14 +685,14 @@ function TodayFlow({
                 : "bg-muted/30 border-2 border-dashed border-muted-foreground/20"
             )}
           >
-            <Sun className={cn("w-4 h-4 mb-1", morningLog ? "text-yellow-500" : "text-muted-foreground/40")} />
-            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", morningLog ? "text-yellow-500" : "text-muted-foreground/60")}>
+            <Sun className={cn("w-4 h-4 mb-1", morningLog ? "text-yellow-500" : "text-muted-foreground")} />
+            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", morningLog ? "text-yellow-500" : "text-muted-foreground")}>
               {morningLog ? "AM ✓" : "AM"}
             </span>
             {morningLog ? (
-              <span className="text-base font-mono font-bold">{morningLog.weight.toFixed(1)}</span>
+              <span className="text-base font-heading tabular-nums font-bold">{morningLog.weight.toFixed(1)}</span>
             ) : (
-              <span className="text-xs text-muted-foreground/40">Optional</span>
+              <span className="text-xs text-muted-foreground">Optional</span>
             )}
           </button>
 
@@ -708,7 +711,7 @@ function TodayFlow({
               {weighInLog ? "Official ✓" : "Weigh-In"}
             </span>
             {weighInLog ? (
-              <span className="text-base font-mono font-bold">{weighInLog.weight.toFixed(1)}</span>
+              <span className="text-base font-heading tabular-nums font-bold">{weighInLog.weight.toFixed(1)}</span>
             ) : (
               <span className="text-xs text-muted-foreground">Tap to log</span>
             )}
@@ -724,14 +727,14 @@ function TodayFlow({
                 : "bg-muted/30 border-2 border-dashed border-muted-foreground/20"
             )}
           >
-            <Moon className={cn("w-4 h-4 mb-1", bedLog ? "text-purple-500" : "text-muted-foreground/40")} />
-            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", bedLog ? "text-purple-500" : "text-muted-foreground/60")}>
+            <Moon className={cn("w-4 h-4 mb-1", bedLog ? "text-purple-500" : "text-muted-foreground")} />
+            <span className={cn("text-xs font-bold uppercase tracking-wide mb-0.5", bedLog ? "text-purple-500" : "text-muted-foreground")}>
               {bedLog ? "BED ✓" : "BED"}
             </span>
             {bedLog ? (
-              <span className="text-base font-mono font-bold">{bedLog.weight.toFixed(1)}</span>
+              <span className="text-base font-heading tabular-nums font-bold">{bedLog.weight.toFixed(1)}</span>
             ) : (
-              <span className="text-xs text-muted-foreground/40">Optional</span>
+              <span className="text-xs text-muted-foreground">Optional</span>
             )}
           </button>
         </div>
@@ -758,8 +761,8 @@ function TodayFlow({
     .sort((a, b) => new Date(b.log.date).getTime() - new Date(a.log.date).getTime())[0] ?? null;
 
   return (
-    <div className="mb-4">
-      <div className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
+    <div className={embedded ? "" : "mb-4"}>
+      <div className={cn("space-y-1.5", !embedded && "bg-card border border-muted rounded-lg p-2")}>
         {/* Header: label + colored dots + count */}
         <div className="flex items-center justify-between px-1 pb-1">
           <span className="flex items-center gap-2">
@@ -767,14 +770,14 @@ function TodayFlow({
             <button
               type="button"
               onClick={() => navigateTo('/weigh-in')}
-              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
+              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-foreground underline underline-offset-2"
             >
               Enter all
             </button>
             <button
               type="button"
               onClick={() => navigateTo('/descent')}
-              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
+              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-foreground underline underline-offset-2"
             >
               Descent plan
             </button>
@@ -786,14 +789,14 @@ function TodayFlow({
                   key={slot.key}
                   className={cn(
                     "w-1.5 h-1.5 rounded-full transition-all",
-                    slot.log ? slot.color.replace('text-', 'bg-') : "bg-muted"
+                    slot.log ? "bg-foreground" : "bg-muted"
                   )}
                 />
               ))}
             </div>
             <span className={cn(
-              "text-xs font-mono",
-              isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
+              "text-xs font-heading tabular-nums",
+              isComplete ? "text-foreground font-bold" : "text-muted-foreground"
             )}>
               {loggedCount}/{slots.length}
             </span>
@@ -817,18 +820,18 @@ function TodayFlow({
                   "flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-all active:scale-95",
                   isLogged
                     ? "hover:bg-muted/50"
-                    : "hover:bg-primary/10 border border-dashed border-primary/30",
-                  isMostRecent && "ring-1 ring-primary/40 bg-primary/5"
+                    : "hover:bg-muted/50 border border-dashed border-muted-foreground/60",
+                  isMostRecent && "ring-1 ring-foreground/40 bg-muted/40"
                 )}
               >
                 {/* Icon + colored label inline */}
                 <div className="flex items-center gap-1">
-                  <span className={cn("opacity-70", isLogged ? slot.color : "text-muted-foreground")}>
+                  <span className={cn(isLogged ? "text-foreground" : "text-muted-foreground")}>
                     {slot.icon}
                   </span>
                   <span className={cn(
                     "text-xs font-bold uppercase",
-                    isLogged ? slot.color : "text-muted-foreground"
+                    isLogged ? "text-foreground" : "text-muted-foreground"
                   )}>
                     {slot.label}
                   </span>
@@ -836,7 +839,7 @@ function TodayFlow({
 
                 {/* Time */}
                 {isLogged && (
-                  <span className="text-xs text-muted-foreground font-mono">
+                  <span className="text-xs text-muted-foreground font-heading tabular-nums">
                     {new Date(slot.log.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 )}
@@ -844,18 +847,18 @@ function TodayFlow({
                 {/* Weight or plus icon */}
                 {isLogged ? (
                   <span className={cn(
-                    "text-[13px] font-mono",
-                    isMostRecent ? "font-bold text-foreground" : "text-foreground"
+                    "font-heading text-lg leading-none tabular-nums",
+                    isMostRecent ? "font-bold text-foreground" : "font-semibold text-foreground"
                   )}>
                     {weight?.toFixed(1)}
                   </span>
                 ) : (
-                  <Plus className="w-4 h-4 mt-0.5 text-primary/60" />
+                  <Plus className="w-4 h-4 mt-0.5 text-muted-foreground" aria-label={`Log ${slot.label}`} />
                 )}
 
                 {/* Practice loss on POST slot */}
                 {showPracticeLoss && (
-                  <span className="text-xs text-primary font-bold">
+                  <span className="text-xs text-muted-foreground font-bold tabular-nums">
                     -{practiceLoss.toFixed(1)}{sweatRate ? ` (${sweatRate.toFixed(1)}/hr)` : ''}
                   </span>
                 )}
@@ -873,7 +876,7 @@ function TodayFlow({
               className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide transition-colors relative after:absolute after:inset-x-0 after:-inset-y-2.5",
                 hasPracticeLog
-                  ? "text-muted-foreground/40 cursor-not-allowed"
+                  ? "text-muted-foreground cursor-not-allowed"
                   : isRestDay
                     ? "text-purple-400 bg-purple-500/15"
                     : "text-muted-foreground bg-muted/50 hover:bg-muted"
@@ -898,34 +901,34 @@ function TodayFlow({
                       detail: { editExtraWorkout: { before: workout.before, after: workout.after } }
                     }));
                   }}
-                  className="w-full flex items-center justify-between bg-orange-500/5 border border-orange-500/20 rounded-lg px-3 py-2 active:scale-[0.98] transition-all"
+                  className="w-full flex items-center justify-between bg-muted/30 border border-border rounded-lg px-3 py-2 active:scale-[0.98] transition-all"
                 >
                   <div className="flex items-center gap-2">
-                    <Dumbbell className="w-3 h-3 text-orange-500" />
-                    <span className="text-xs font-bold text-orange-500">Extra</span>
+                    <Dumbbell className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-xs font-bold text-foreground">Extra</span>
                     <span className="text-xs text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-foreground">
+                    <span className="text-xs font-heading tabular-nums text-foreground">
                       {workout.before.weight} → {workout.after ? workout.after.weight : '…'}
                     </span>
                     {loss !== null && loss > 0 && (
-                      <span className="text-xs font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
+                      <span className="text-xs font-bold tabular-nums text-muted-foreground">-{loss.toFixed(1)}</span>
                     )}
-                    <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
+                    <ChevronRight className="w-3 h-3 text-muted-foreground" />
                   </div>
                 </button>
               );
             })}
             {todayCheckIns.map((ci) => (
-                <div key={ci.id} className="flex items-center justify-between bg-cyan-500/5 border border-cyan-500/20 rounded-lg px-3 py-1.5">
+                <div key={ci.id} className="flex items-center justify-between bg-muted/30 border border-border rounded-lg px-3 py-1.5">
                   <div className="flex items-center gap-2">
-                    <Scale className="w-3 h-3 text-cyan-500" />
-                    <span className="text-xs font-bold text-cyan-500">Weight Check</span>
+                    <Scale className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-xs font-bold text-foreground">Weight check</span>
                     <span className="text-xs text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
+                    <span className="text-xs font-heading tabular-nums font-bold text-foreground">{ci.weight.toFixed(1)}</span>
                     {confirmDeleteCheckIn === ci.id ? (
                       <button
                         onClick={() => {
@@ -1024,15 +1027,15 @@ function WeightProjectionCard({ profile, logs }: {
         {/* Started → Current → Projected */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="text-center">
-            <div className="text-lg font-bold font-mono text-muted-foreground/70">{startWeight ? startWeight.toFixed(1) : '—'}</div>
+            <div className="text-lg font-bold font-heading tabular-nums text-muted-foreground">{startWeight ? startWeight.toFixed(1) : '—'}</div>
             <div className="text-xs text-muted-foreground uppercase">Started</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold font-mono text-foreground">{currentWeight}</div>
+            <div className="text-2xl font-bold font-heading tabular-nums text-foreground">{currentWeight}</div>
             <div className="text-xs text-muted-foreground uppercase">Current</div>
           </div>
           <div className="text-center">
-            <div className={cn("text-lg font-bold font-mono", protocolColor)}>
+            <div className={cn("text-lg font-bold font-heading tabular-nums", protocolColor)}>
               {selectedProjection.weight}
             </div>
             <div className="text-xs text-muted-foreground uppercase">
@@ -1050,7 +1053,7 @@ function WeightProjectionCard({ profile, logs }: {
               </span>
             </span>
             {totalChange !== 0 && (
-              <span className="text-muted-foreground/60">
+              <span className="text-muted-foreground">
                 Projected: <span className={cn("font-bold", protocolColor)}>
                   {totalChange > 0 ? '+' : ''}{totalChange.toFixed(1)} lbs
                 </span>
@@ -1636,7 +1639,7 @@ export default function Dashboard() {
               <div className="text-center">
                 {prevDayWeight ? (
                   <>
-                    <div className="text-3xl font-bold font-mono">{prevDayWeight.toFixed(1)}</div>
+                    <div className="text-3xl font-bold font-heading tabular-nums">{prevDayWeight.toFixed(1)}</div>
                     <div className="text-sm text-muted-foreground">lbs</div>
                   </>
                 ) : (
@@ -1672,7 +1675,7 @@ export default function Dashboard() {
                 <div className="text-center">
                   {nextDayWeight ? (
                     <>
-                      <div className="text-3xl font-bold font-mono">{nextDayWeight.toFixed(1)}</div>
+                      <div className="text-3xl font-bold font-heading tabular-nums">{nextDayWeight.toFixed(1)}</div>
                       <div className="text-sm text-muted-foreground">lbs</div>
                     </>
                   ) : (
@@ -1772,15 +1775,15 @@ export default function Dashboard() {
                 <SparProtocolSelector profile={profile} />
               ) : (
                 <>
-                  <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.color)}>
+                  <span className="text-xs font-bold uppercase whitespace-nowrap text-muted-foreground">
                     {phaseInfo.label}
                   </span>
                   <span className="text-xs text-muted-foreground">·</span>
-                  <span className="text-xs font-bold font-mono text-primary whitespace-nowrap">{profile.targetWeightClass} lbs</span>
+                  <span className="text-xs font-bold tabular-nums text-foreground whitespace-nowrap">{profile.targetWeightClass} lbs</span>
                   {phaseInfo.stage && (
                     <>
                       <span className="text-xs text-muted-foreground">·</span>
-                      <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.stageColor)}>
+                      <span className="text-xs font-bold uppercase whitespace-nowrap text-muted-foreground">
                         {phaseInfo.stage}
                       </span>
                     </>
@@ -1823,6 +1826,23 @@ export default function Dashboard() {
         isRestDay={isRestDay}
         healthData={healthData}
         healthDayStr={healthDayStr}
+        slots={!isViewingHistorical ? (
+          <TodayFlow
+              todayLogs={todayLogs}
+              onSlotTap={(type, log) => {
+                if (log) {
+                  window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { editLog: log } }));
+                } else {
+                  window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
+                }
+              }}
+              isRestDay={isRestDay}
+              onToggleRestDay={toggleRestDay}
+              isCompetitionDay={isCompetitionDay && !isSparGeneral}
+              isGeneralNutrition={isSparGeneral}
+              embedded
+            />
+        ) : undefined}
       />
 
       {/* Protocol Switch Banner — shows when wrestler should switch to Extreme Cut */}
@@ -1840,7 +1860,7 @@ export default function Dashboard() {
       {/* Replaces old DecisionZone and floating chat widget            */}
       {/* ═══════════════════════════════════════════════════════ */}
       {!isViewingHistorical && !isSparGeneral && daysUntilWeighIn >= 0 && !profile.weighInCleared && (
-        <AiCoachProactive />
+        <AiCoachProactive chatOnly />
       )}
 
       {/* Next Cycle Prompt — shows when weigh-in has passed (competition only) */}
@@ -1857,22 +1877,6 @@ export default function Dashboard() {
       {/* TODAY FLOW — Simplified horizontal timeline             */}
       {/* AM → PRE → POST → BED — adapts to rest/competition days */}
       {/* ═══════════════════════════════════════════════════════ */}
-      {!isViewingHistorical && (
-        <TodayFlow
-          todayLogs={todayLogs}
-          onSlotTap={(type, log) => {
-            if (log) {
-              window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { editLog: log } }));
-            } else {
-              window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type } }));
-            }
-          }}
-          isRestDay={isRestDay}
-          onToggleRestDay={toggleRestDay}
-          isCompetitionDay={isCompetitionDay && !isSparGeneral}
-          isGeneralNutrition={isSparGeneral}
-        />
-      )}
 
       {/* First-time user welcome — zero logs ever */}
       {!isViewingHistorical && logs.length === 0 && (
@@ -1966,18 +1970,7 @@ export default function Dashboard() {
         <WeightProjectionCard profile={profile} logs={logs} />
       )}
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* FUEL SECTION - Food & Hydration collapsed into one card */}
-      {/* ═══════════════════════════════════════════════════════ */}
-      <FuelCard
-        macros={macros}
-        todaysFoods={todaysFoods}
-        foodLists={foodLists}
-        hydration={hydration}
-        daysUntilWeighIn={daysUntilWeighIn}
-        protocol={profile.protocol}
-        readOnly={isViewingHistorical}
-      />
+      {/* Fuel summary lives in Today's plan; the food log has the full detail. */}
 
         {/* Bottom Spacing for Nav */}
         <div className="h-20" />
@@ -2122,7 +2115,7 @@ function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
             <div className="bg-muted/30 border border-muted rounded-lg p-2.5 mt-2">
               <p className="text-xs text-muted-foreground">
                 <span className="font-bold text-foreground">Total allowed today:</span> ~{' '}
-                <span className="font-mono font-bold text-chart-3">12-16 oz</span> spread throughout the day.
+                <span className="font-heading tabular-nums font-bold text-chart-3">12-16 oz</span> spread throughout the day.
                 Track every sip in the hydration card below.
               </p>
             </div>
@@ -2456,7 +2449,7 @@ function TodayTimeline({
               ))}
             </div>
             <span className={cn(
-              "text-xs font-mono",
+              "text-xs font-heading tabular-nums",
               isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
             )}>
               {completedCount}/{activeSlots}
@@ -2493,14 +2486,14 @@ function TodayTimeline({
                   </span>
                 </div>
                 {hasWeight && (
-                  <span className="text-xs text-muted-foreground font-mono">
+                  <span className="text-xs text-muted-foreground font-heading tabular-nums">
                     {new Date(slot.log.date).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 )}
                 {hasWeight ? (
                   <>
                     <span className={cn(
-                      "text-[13px] font-mono",
+                      "text-[13px] font-heading tabular-nums",
                       isMostRecent ? "font-bold text-foreground" : "text-foreground"
                     )}>
                       {slot.log.weight.toFixed(1)}
@@ -2586,14 +2579,14 @@ function TodayTimeline({
                     <span className="text-xs text-muted-foreground">{format(workout.time, 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-foreground">
+                    <span className="text-xs font-heading tabular-nums text-foreground">
                       {workout.before.weight} → {workout.after ? workout.after.weight : '…'}
                     </span>
                     {loss !== null && loss > 0 && (
-                      <span className="text-xs font-bold font-mono text-primary">-{loss.toFixed(1)}</span>
+                      <span className="text-xs font-bold font-heading tabular-nums text-primary">-{loss.toFixed(1)}</span>
                     )}
                     {!readOnly && (
-                      <ChevronRight className="w-3 h-3 text-muted-foreground/50" />
+                      <ChevronRight className="w-3 h-3 text-muted-foreground" />
                     )}
                   </div>
                 </button>
@@ -2607,7 +2600,7 @@ function TodayTimeline({
                     <span className="text-xs text-muted-foreground">{format(new Date(ci.date), 'h:mm a')}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-bold text-foreground">{ci.weight.toFixed(1)}</span>
+                    <span className="text-xs font-heading tabular-nums font-bold text-foreground">{ci.weight.toFixed(1)}</span>
                     {!readOnly && (
                       confirmDeleteCheckIn === ci.id ? (
                         <button
@@ -2686,11 +2679,11 @@ function HeroWeight({
     <div className="mb-3">
       {/* Main weight display */}
       <div className="flex items-baseline justify-center gap-2 mb-1">
-        <span className="text-4xl font-mono font-bold tracking-tight">
+        <span className="text-4xl font-heading tabular-nums font-bold tracking-tight">
           {currentWeight ? currentWeight.toFixed(1) : '—'}
         </span>
         <span className="text-2xl text-muted-foreground">→</span>
-        <span className="text-4xl font-mono font-bold text-primary tracking-tight">
+        <span className="text-4xl font-heading tabular-nums font-bold text-primary tracking-tight">
           {targetWeight}
         </span>
       </div>
@@ -2707,7 +2700,7 @@ function HeroWeight({
       <div className="flex items-center justify-center gap-3 text-xs">
         {/* Weight to lose / at weight */}
         {currentWeight && (
-          <span className={cn("font-mono font-bold", statusColor)}>
+          <span className={cn("font-heading tabular-nums font-bold", statusColor)}>
             {isAtWeight ? '✓ AT WEIGHT' : `${weightToLose.toFixed(1)} lbs to go`}
           </span>
         )}
@@ -2715,9 +2708,9 @@ function HeroWeight({
         {/* Daily change */}
         {dailyChange !== null && (
           <>
-            <span className="text-muted-foreground/40">·</span>
+            <span className="text-muted-foreground">·</span>
             <span className={cn(
-              "font-mono font-bold",
+              "font-heading tabular-nums font-bold",
               dailyChange < 0 ? "text-green-500" : dailyChange > 0 ? "text-red-400" : "text-muted-foreground"
             )}>
               {dailyChange > 0 ? '+' : ''}{dailyChange.toFixed(1)} today
@@ -2728,7 +2721,7 @@ function HeroWeight({
         {/* Streak */}
         {streak >= 2 && (
           <>
-            <span className="text-muted-foreground/40">·</span>
+            <span className="text-muted-foreground">·</span>
             <span className={cn(
               "font-bold flex items-center gap-0.5",
               streak >= 14 ? "text-orange-500" : streak >= 7 ? "text-yellow-500" : "text-muted-foreground"
@@ -2909,7 +2902,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   // Until its inputs are trusted, the Cut Score stays small and doesn't color the card.
   const cutScoreTrusted = descentData.confidence.reliable && !cutScore?.limitedData;
   const cutLabLimited = !cutScoreTrusted;
-  const statusZone = cutScore ? (cutScoreTrusted ? cutScore.zone : 'neutral') : compDayZone;
+  // Today's plan holds the one status line; Cut Lab doesn't color itself with a second verdict.
+  void compDayZone;
+  const statusZone = 'neutral' as 'green' | 'yellow' | 'red' | 'neutral';
   const cardBorder = statusZone === 'green' ? 'border-green-500/50'
     : statusZone === 'yellow' ? 'border-yellow-500/50'
     : statusZone === 'red' ? 'border-red-500/50'
@@ -2966,7 +2961,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     Weighed in at {descentData.currentWeight.toFixed(1)} lbs
                   </div>
                   {descentData.totalLost !== null && descentData.totalLost > 0 && (
-                    <div className="text-xs text-muted-foreground/60 mt-1">
+                    <div className="text-xs text-muted-foreground mt-1">
                       Cut {descentData.totalLost.toFixed(1)} lbs this week
                     </div>
                   )}
@@ -2977,20 +2972,20 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               <div className="grid grid-cols-4 gap-2 text-center p-4 pb-0">
                 <div>
                   <span className="text-xs text-muted-foreground block">Start</span>
-                  <span className="font-mono font-bold text-sm">
+                  <span className="font-heading tabular-nums font-bold text-sm">
                     {descentData.startWeight?.toFixed(1) ?? '—'}
                   </span>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground block">Now</span>
-                  <span className={cn("font-mono font-bold text-sm", statusText)}>
+                  <span className={cn("font-heading tabular-nums font-bold text-sm", statusText)}>
                     {descentData.currentWeight?.toFixed(1) ?? '—'}
                   </span>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground block">Lost</span>
                   <span className={cn(
-                    "font-mono font-bold text-sm",
+                    "font-heading tabular-nums font-bold text-sm",
                     descentData.totalLost && descentData.totalLost > 0 ? "text-green-500" : "text-muted-foreground"
                   )}>
                     {descentData.totalLost !== null
@@ -3002,11 +2997,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                   <span className="text-xs text-muted-foreground block">
                     {daysUntilWeighIn > 5 ? 'Walk-around' : 'Goal'}
                   </span>
-                  <span className="font-mono font-bold text-sm text-green-500">
+                  <span className="font-heading tabular-nums font-bold text-sm text-green-500">
                     {daysUntilWeighIn > 5 ? Math.round(descentData.targetWeight * 1.07) : descentData.targetWeight}
                   </span>
                   {daysUntilWeighIn > 5 && (
-                    <span className="text-xs text-muted-foreground/50 block">class: {descentData.targetWeight}</span>
+                    <span className="text-xs text-muted-foreground block">class: {descentData.targetWeight}</span>
                   )}
                 </div>
               </div>
@@ -3016,7 +3011,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 <div className="flex items-center justify-center gap-2 pt-2 mt-2 mx-4 border-t border-muted">
                   <span className="text-xs text-muted-foreground">Projected</span>
                   <span className={cn(
-                    "font-mono font-bold text-xs",
+                    "font-heading tabular-nums font-bold text-xs",
                     descentData.projectedSaturday <= descentData.targetWeight
                       ? "text-green-500"
                       : descentData.projectedSaturday <= descentData.targetWeight * 1.03
@@ -3066,29 +3061,29 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <>
                   {isHistorical && (
-                    <div className="text-xs text-muted-foreground/50 text-center mt-3 mx-4">
+                    <div className="text-xs text-muted-foreground text-center mt-3 mx-4">
                       Season averages — new cycle data will replace these
                     </div>
                   )}
                   <div className={cn("grid gap-1 text-center pt-2 mx-4 border-t border-muted", !isHistorical && "mt-3", hasExtras ? "grid-cols-3" : "grid-cols-2", isHistorical && "opacity-60")}>
                     <div>
                       <span className="text-xs text-muted-foreground block">Sleep</span>
-                      <span className={cn("font-mono font-bold text-xs", driftVal !== null ? "text-cyan-500" : "")}>
+                      <span className={cn("font-heading tabular-nums font-bold text-xs", driftVal !== null ? "text-cyan-500" : "")}>
                         {driftVal !== null ? fmtLoss(driftVal) : '—'} lbs
                       </span>
                       {driftRateVal !== null && (
-                        <span className="block text-xs font-mono text-cyan-400">
+                        <span className="block text-xs font-heading tabular-nums text-cyan-400">
                           {driftRateVal.toFixed(2)}/hr
                         </span>
                       )}
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground block">Practice</span>
-                      <span className={cn("font-mono font-bold text-xs", practiceVal !== null ? "text-orange-500" : "")}>
+                      <span className={cn("font-heading tabular-nums font-bold text-xs", practiceVal !== null ? "text-orange-500" : "")}>
                         {practiceVal !== null ? fmtLoss(practiceVal) : '—'} lbs
                       </span>
                       {sweatVal !== null && (
-                        <span className="block text-xs font-mono text-orange-400">
+                        <span className="block text-xs font-heading tabular-nums text-orange-400">
                           {sweatVal.toFixed(2)}/hr
                         </span>
                       )}
@@ -3096,11 +3091,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {hasExtras && (
                       <div>
                         <span className="text-xs text-muted-foreground block">Extras</span>
-                        <span className="font-mono font-bold text-xs text-orange-400">
+                        <span className="font-heading tabular-nums font-bold text-xs text-orange-400">
                           {extraStats.avgLoss !== null ? `-${extraStats.avgLoss.toFixed(1)}` : '—'} lbs
                         </span>
                         {extraStats.avgSweatRateOzPerHr !== null && (
-                          <span className="block text-xs font-mono text-orange-400/70">
+                          <span className="block text-xs font-heading tabular-nums text-orange-400/70">
                             {extraStats.avgSweatRateOzPerHr.toFixed(2)}/hr
                           </span>
                         )}
@@ -3131,11 +3126,11 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
               {/* ═══ LOGGING STREAK + CORE LOGGED ═══ */}
               <div className="flex items-center justify-center gap-3 mt-3 mx-4 pt-2 border-t border-muted/50">
                 {descentData.loggingStreak > 1 && (
-                  <span className="text-xs font-bold text-muted-foreground/60">
+                  <span className="text-xs font-bold text-muted-foreground">
                     🔥 {descentData.loggingStreak}-day streak
                   </span>
                 )}
-                <span className="text-xs text-muted-foreground/50">
+                <span className="text-xs text-muted-foreground">
                   {descentData.todayCoreLogged}/{descentData.todayCoreTotal} logged today
                   {descentData.todayCoreLogged >= descentData.todayCoreTotal && ' ✓'}
                 </span>
@@ -3160,21 +3155,21 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
                 // Mini bar chart component for recent data
                 const SparkBars = ({ values, color, label, suffix = '' }: { values: number[]; color: string; label?: string; suffix?: string }) => {
-                  if (values.length === 0) return <span className="text-xs text-muted-foreground/40">No data yet</span>;
+                  if (values.length === 0) return <span className="text-xs text-muted-foreground">No data yet</span>;
                   const absValues = values.map(v => Math.abs(v));
                   const maxVal = Math.max(...absValues, 0.1);
                   return (
                     <div>
                       {label && (
                         <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-xs text-muted-foreground/50 uppercase tracking-wide">{label}</span>
-                          <span className="text-xs text-muted-foreground/40">oldest → newest</span>
+                          <span className="text-xs text-muted-foreground uppercase tracking-wide">{label}</span>
+                          <span className="text-xs text-muted-foreground">oldest → newest</span>
                         </div>
                       )}
                       <div className="flex items-end gap-1.5 h-[48px]">
                         {[...absValues].reverse().map((v, i) => (
                           <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                            <span className="text-xs font-mono text-muted-foreground/60 font-bold leading-none">
+                            <span className="text-xs font-heading tabular-nums text-muted-foreground font-bold leading-none">
                               {v.toFixed(1)}{suffix}
                             </span>
                             <div
@@ -3192,7 +3187,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 const TrendArrow = ({ trend }: { trend: 'up' | 'down' | 'stable' }) => {
                   if (trend === 'up') return <span className="text-green-500 text-xs font-bold ml-1">▲</span>;
                   if (trend === 'down') return <span className="text-orange-500 text-xs font-bold ml-1">▼</span>;
-                  return <span className="text-muted-foreground/40 text-xs ml-1">—</span>;
+                  return <span className="text-muted-foreground text-xs ml-1">—</span>;
                 };
 
                 // Tappable stat card — dims when another card is expanded
@@ -3233,25 +3228,25 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <div id="cut-lab-stat-details">
                   <div className="mx-4 mt-1 mb-1">
-                    <span className="text-xs text-muted-foreground/50 uppercase tracking-wide font-bold">Tap for details</span>
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-bold">Tap for details</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-2 mx-4">
                     {/* Sleep */}
                     <StatCard id="sleep">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-muted-foreground/80 uppercase font-bold">
-                          Sleep {isHistSleep && <span className="text-xs text-muted-foreground/40 font-normal">(season)</span>}
+                        <span className="text-xs text-muted-foreground uppercase font-bold">
+                          Sleep {isHistSleep && <span className="text-xs text-muted-foreground font-normal">(season)</span>}
                         </span>
                         {!isHistSleep && <TrendArrow trend={descentData.trends.drift} />}
                       </div>
-                      <span className={cn("font-mono font-bold text-base block", isHistSleep ? "text-foreground/50" : "text-foreground")}>
+                      <span className={cn("font-heading tabular-nums font-bold text-base block", isHistSleep ? "text-foreground/50" : "text-foreground")}>
                         {sleepDrift !== null
                           ? fmtLoss(sleepDrift)
                           : '—'}
                         <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
                       {sleepRate !== null && (
-                        <span className={cn("block text-xs font-mono mt-0.5", isHistSleep ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
+                        <span className={cn("block text-xs font-heading tabular-nums mt-0.5", isHistSleep ? "text-muted-foreground" : "text-muted-foreground")}>
                           {sleepRate.toFixed(2)}/hr
                         </span>
                       )}
@@ -3260,19 +3255,19 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     {/* Practice */}
                     <StatCard id="practice">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-muted-foreground/80 uppercase font-bold">
-                          Practice {isHistPractice && <span className="text-xs text-muted-foreground/40 font-normal">(season)</span>}
+                        <span className="text-xs text-muted-foreground uppercase font-bold">
+                          Practice {isHistPractice && <span className="text-xs text-muted-foreground font-normal">(season)</span>}
                         </span>
                         {!isHistPractice && <TrendArrow trend={descentData.trends.practice} />}
                       </div>
-                      <span className={cn("font-mono font-bold text-base block", isHistPractice ? "text-foreground/50" : "text-foreground")}>
+                      <span className={cn("font-heading tabular-nums font-bold text-base block", isHistPractice ? "text-foreground/50" : "text-foreground")}>
                         {practiceLoss !== null
                           ? fmtLoss(practiceLoss)
                           : '—'}
                         <span className="text-xs text-muted-foreground font-normal ml-1">lbs</span>
                       </span>
                       {practiceRate !== null && (
-                        <span className={cn("block text-xs font-mono mt-0.5", isHistPractice ? "text-muted-foreground/40" : "text-muted-foreground/60")}>
+                        <span className={cn("block text-xs font-heading tabular-nums mt-0.5", isHistPractice ? "text-muted-foreground" : "text-muted-foreground")}>
                           {practiceRate.toFixed(2)} lbs/hr
                         </span>
                       )}
@@ -3282,9 +3277,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                     <StatCard id="awake" dashed>
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-xs text-teal-500/80 uppercase font-bold">Awake</span>
-                        <span className="text-xs text-muted-foreground/40 font-bold">EST</span>
+                        <span className="text-xs text-muted-foreground font-bold">EST</span>
                       </div>
-                      <span className="font-mono text-base text-muted-foreground block">
+                      <span className="font-heading tabular-nums text-base text-muted-foreground block">
                         {descentData.daytimeBmrDrift > 0
                           ? `≈${descentData.daytimeBmrDrift.toFixed(1)}`
                           : '—'}
@@ -3298,9 +3293,9 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                       <StatCard id="extras" dashed>
                         <div className="flex items-center justify-between mb-0.5">
                           <span className="text-xs text-orange-400/80 uppercase font-bold">Extras</span>
-                          <span className="text-xs text-muted-foreground/40 font-bold">INFO</span>
+                          <span className="text-xs text-muted-foreground font-bold">INFO</span>
                         </div>
-                        <span className="font-mono font-bold text-base text-orange-400 block">
+                        <span className="font-heading tabular-nums font-bold text-base text-orange-400 block">
                           {extraStats.avgLoss !== null
                             ? `-${extraStats.avgLoss.toFixed(1)}`
                             : '—'}
@@ -3312,7 +3307,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                         "bg-muted/20 rounded-lg p-2.5 border border-dashed border-muted-foreground/10 flex items-center justify-center transition-all duration-200",
                         flippedCard !== null && "opacity-40"
                       )}>
-                        <span className="text-xs text-muted-foreground/40">No extras logged</span>
+                        <span className="text-xs text-muted-foreground">No extras logged</span>
                       </div>
                     )}
                   </div>
@@ -3340,42 +3335,42 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 )}
                                 <div className="mt-3 grid grid-cols-3 gap-2">
                                   <div className="text-center">
-                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Rate</span>
-                                    <span className="block font-mono text-sm font-bold text-foreground">
+                                    <span className="block text-xs text-muted-foreground uppercase font-bold">Rate</span>
+                                    <span className="block font-heading tabular-nums text-sm font-bold text-foreground">
                                       {descentData.avgDriftRateOzPerHr !== null ? `${descentData.avgDriftRateOzPerHr.toFixed(2)}` : '—'}
                                     </span>
-                                    <span className="block text-xs text-muted-foreground/50">lbs/hr</span>
+                                    <span className="block text-xs text-muted-foreground">lbs/hr</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Avg Sleep</span>
-                                    <span className="block font-mono text-sm font-bold text-foreground">{descentData.emaSleepHours.toFixed(1)}</span>
-                                    <span className="block text-xs text-muted-foreground/50">hrs/night</span>
+                                    <span className="block text-xs text-muted-foreground uppercase font-bold">Avg Sleep</span>
+                                    <span className="block font-heading tabular-nums text-sm font-bold text-foreground">{descentData.emaSleepHours.toFixed(1)}</span>
+                                    <span className="block text-xs text-muted-foreground">hrs/night</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Range</span>
-                                    <span className="block font-mono text-sm font-bold text-foreground">
+                                    <span className="block text-xs text-muted-foreground uppercase font-bold">Range</span>
+                                    <span className="block font-heading tabular-nums text-sm font-bold text-foreground">
                                       {descentData.recentDrifts.length >= 2
                                         ? `${fmtLoss(Math.min(...descentData.recentDrifts))} to ${fmtLoss(Math.max(...descentData.recentDrifts))}`
                                         : descentData.recentDrifts.length === 1 ? fmtLoss(descentData.recentDrifts[0]) : '—'}
                                     </span>
-                                    <span className="block text-xs text-muted-foreground/50">lbs</span>
+                                    <span className="block text-xs text-muted-foreground">lbs</span>
                                   </div>
                                 </div>
                                 {descentData.weekOverWeek && descentData.weekOverWeek.lastWeekAvgDrift !== null && descentData.weekOverWeek.thisWeekAvgDrift !== null && (
                                   <div className="mt-3 pt-3 border-t border-border/30">
-                                    <span className="text-xs text-muted-foreground/50 uppercase font-bold tracking-wide">Week over Week</span>
+                                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-wide">Week over Week</span>
                                     <div className="flex items-baseline gap-2 mt-1">
-                                      <span className="text-xs font-mono text-muted-foreground">
+                                      <span className="text-xs font-heading tabular-nums text-muted-foreground">
                                         This: <span className="font-bold text-foreground">{descentData.weekOverWeek.thisWeekAvgDrift.toFixed(2)}</span>
                                       </span>
-                                      <span className="text-xs font-mono text-muted-foreground">
+                                      <span className="text-xs font-heading tabular-nums text-muted-foreground">
                                         Last: <span className="font-bold text-foreground/70">{descentData.weekOverWeek.lastWeekAvgDrift.toFixed(2)}</span>
                                       </span>
                                       {(() => {
                                         const diff = descentData.weekOverWeek!.thisWeekAvgDrift! - descentData.weekOverWeek!.lastWeekAvgDrift!;
                                         const pct = Math.round((diff / Math.max(Math.abs(descentData.weekOverWeek!.lastWeekAvgDrift!), 0.01)) * 100);
                                         return (
-                                          <span className={cn("text-xs font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground/50")}>
+                                          <span className={cn("text-xs font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground")}>
                                             {diff > 0 ? '+' : ''}{pct}%
                                           </span>
                                         );
@@ -3385,7 +3380,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 )}
                               </>
                             ) : (
-                              <p className="text-xs text-muted-foreground/50 text-center py-2">Log before-bed and morning weights to see drift data</p>
+                              <p className="text-xs text-muted-foreground text-center py-2">Log before-bed and morning weights to see drift data</p>
                             )}
                           </>
                         )}
@@ -3404,42 +3399,42 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 <SparkBars values={descentData.recentPracticeLosses} color="bg-green-400" label="lbs lost" />
                                 <div className="mt-3 grid grid-cols-3 gap-2">
                                   <div className="text-center">
-                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Sweat Rate</span>
-                                    <span className="block font-mono text-sm font-bold text-foreground">
+                                    <span className="block text-xs text-muted-foreground uppercase font-bold">Sweat Rate</span>
+                                    <span className="block font-heading tabular-nums text-sm font-bold text-foreground">
                                       {descentData.avgSweatRateOzPerHr !== null ? `${descentData.avgSweatRateOzPerHr.toFixed(2)}` : '—'}
                                     </span>
-                                    <span className="block text-xs text-muted-foreground/50">lbs/hr</span>
+                                    <span className="block text-xs text-muted-foreground">lbs/hr</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Avg Length</span>
-                                    <span className="block font-mono text-sm font-bold text-foreground">{descentData.emaPracticeHours.toFixed(1)}</span>
-                                    <span className="block text-xs text-muted-foreground/50">hrs/session</span>
+                                    <span className="block text-xs text-muted-foreground uppercase font-bold">Avg Length</span>
+                                    <span className="block font-heading tabular-nums text-sm font-bold text-foreground">{descentData.emaPracticeHours.toFixed(1)}</span>
+                                    <span className="block text-xs text-muted-foreground">hrs/session</span>
                                   </div>
                                   <div className="text-center">
-                                    <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Range</span>
-                                    <span className="block font-mono text-sm font-bold text-foreground">
+                                    <span className="block text-xs text-muted-foreground uppercase font-bold">Range</span>
+                                    <span className="block font-heading tabular-nums text-sm font-bold text-foreground">
                                       {descentData.recentPracticeLosses.length >= 2
                                         ? `${fmtLoss(Math.min(...descentData.recentPracticeLosses))} to ${fmtLoss(Math.max(...descentData.recentPracticeLosses))}`
                                         : descentData.recentPracticeLosses.length === 1 ? fmtLoss(descentData.recentPracticeLosses[0]) : '—'}
                                     </span>
-                                    <span className="block text-xs text-muted-foreground/50">lbs</span>
+                                    <span className="block text-xs text-muted-foreground">lbs</span>
                                   </div>
                                 </div>
                                 {descentData.weekOverWeek && descentData.weekOverWeek.lastWeekAvgPractice !== null && descentData.weekOverWeek.thisWeekAvgPractice !== null && (
                                   <div className="mt-3 pt-3 border-t border-border/30">
-                                    <span className="text-xs text-muted-foreground/50 uppercase font-bold tracking-wide">Week over Week</span>
+                                    <span className="text-xs text-muted-foreground uppercase font-bold tracking-wide">Week over Week</span>
                                     <div className="flex items-baseline gap-2 mt-1">
-                                      <span className="text-xs font-mono text-muted-foreground">
+                                      <span className="text-xs font-heading tabular-nums text-muted-foreground">
                                         This: <span className="font-bold text-foreground">{descentData.weekOverWeek.thisWeekAvgPractice.toFixed(2)}</span>
                                       </span>
-                                      <span className="text-xs font-mono text-muted-foreground">
+                                      <span className="text-xs font-heading tabular-nums text-muted-foreground">
                                         Last: <span className="font-bold text-foreground/70">{descentData.weekOverWeek.lastWeekAvgPractice.toFixed(2)}</span>
                                       </span>
                                       {(() => {
                                         const diff = descentData.weekOverWeek!.thisWeekAvgPractice! - descentData.weekOverWeek!.lastWeekAvgPractice!;
                                         const pct = Math.round((diff / Math.max(Math.abs(descentData.weekOverWeek!.lastWeekAvgPractice!), 0.01)) * 100);
                                         return (
-                                          <span className={cn("text-xs font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground/50")}>
+                                          <span className={cn("text-xs font-bold", diff > 0 ? "text-green-500" : diff < 0 ? "text-orange-500" : "text-muted-foreground")}>
                                             {diff > 0 ? '+' : ''}{pct}%
                                           </span>
                                         );
@@ -3449,7 +3444,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                                 )}
                               </>
                             ) : (
-                              <p className="text-xs text-muted-foreground/50 text-center py-2">Log pre/post practice weights to see sweat data</p>
+                              <p className="text-xs text-muted-foreground text-center py-2">Log pre/post practice weights to see sweat data</p>
                             )}
                           </>
                         )}
@@ -3464,28 +3459,28 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                               </button>
                             </div>
                             <div className="bg-background/50 rounded-lg p-3 mb-3">
-                              <p className="text-xs font-mono text-center text-muted-foreground leading-relaxed">
+                              <p className="text-xs font-heading tabular-nums text-center text-muted-foreground leading-relaxed">
                                 24 hrs − <span className="text-foreground font-bold">{descentData.emaSleepHours.toFixed(1)}</span> sleep − <span className="text-foreground font-bold">{descentData.emaPracticeHours.toFixed(1)}</span> practice
                               </p>
-                              <p className="text-sm font-mono text-center text-teal-500 font-bold mt-1">
+                              <p className="text-sm font-heading tabular-nums text-center text-teal-500 font-bold mt-1">
                                 = {(24 - descentData.emaSleepHours - descentData.emaPracticeHours).toFixed(1)} hrs awake
                               </p>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               <div className="text-center bg-muted/30 rounded-lg py-2">
-                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Drift Rate</span>
-                                <span className="block font-mono text-sm font-bold text-teal-500">
+                                <span className="block text-xs text-muted-foreground uppercase font-bold">Drift Rate</span>
+                                <span className="block font-heading tabular-nums text-sm font-bold text-teal-500">
                                   {descentData.avgDriftRateOzPerHr !== null ? `${descentData.avgDriftRateOzPerHr.toFixed(2)} lbs/hr` : '—'}
                                 </span>
                               </div>
                               <div className="text-center bg-muted/30 rounded-lg py-2">
-                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Est. Loss</span>
-                                <span className="block font-mono text-sm font-bold text-teal-500">
+                                <span className="block text-xs text-muted-foreground uppercase font-bold">Est. Loss</span>
+                                <span className="block font-heading tabular-nums text-sm font-bold text-teal-500">
                                   {descentData.daytimeBmrDrift > 0 ? `-${descentData.daytimeBmrDrift.toFixed(1)} lbs` : '—'}
                                 </span>
                               </div>
                             </div>
-                            <p className="text-xs text-muted-foreground/40 text-center mt-2 leading-relaxed">
+                            <p className="text-xs text-muted-foreground text-center mt-2 leading-relaxed">
                               Uses overnight drift rate as proxy for daytime metabolic rate. Not included in the projection — shown for awareness only.
                             </p>
                           </>
@@ -3502,25 +3497,25 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                             </div>
                             <div className="grid grid-cols-2 gap-2 mb-2">
                               <div className="text-center bg-muted/30 rounded-lg py-2.5">
-                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Total</span>
-                                <span className="block font-mono text-lg font-bold text-orange-400">{extraStats.totalWorkouts}</span>
-                                <span className="block text-xs text-muted-foreground/50">sessions</span>
+                                <span className="block text-xs text-muted-foreground uppercase font-bold">Total</span>
+                                <span className="block font-heading tabular-nums text-lg font-bold text-orange-400">{extraStats.totalWorkouts}</span>
+                                <span className="block text-xs text-muted-foreground">sessions</span>
                               </div>
                               <div className="text-center bg-muted/30 rounded-lg py-2.5">
-                                <span className="block text-xs text-muted-foreground/60 uppercase font-bold">Today</span>
-                                <span className="block font-mono text-lg font-bold text-orange-400">{extraStats.todayWorkouts}</span>
-                                <span className="block text-xs text-muted-foreground/50">
+                                <span className="block text-xs text-muted-foreground uppercase font-bold">Today</span>
+                                <span className="block font-heading tabular-nums text-lg font-bold text-orange-400">{extraStats.todayWorkouts}</span>
+                                <span className="block text-xs text-muted-foreground">
                                   {extraStats.todayLoss > 0 ? `-${extraStats.todayLoss.toFixed(1)} lbs` : 'session' + (extraStats.todayWorkouts !== 1 ? 's' : '')}
                                 </span>
                               </div>
                             </div>
                             {extraStats.avgSweatRateOzPerHr !== null && (
                               <div className="text-center bg-muted/30 rounded-lg py-2">
-                                <span className="text-xs text-muted-foreground/60 uppercase font-bold">Avg Sweat Rate: </span>
-                                <span className="font-mono text-sm font-bold text-orange-400">{extraStats.avgSweatRateOzPerHr.toFixed(2)} lbs/hr</span>
+                                <span className="text-xs text-muted-foreground uppercase font-bold">Avg Sweat Rate: </span>
+                                <span className="font-heading tabular-nums text-sm font-bold text-orange-400">{extraStats.avgSweatRateOzPerHr.toFixed(2)} lbs/hr</span>
                               </div>
                             )}
-                            <p className="text-xs text-muted-foreground/40 text-center mt-2 leading-relaxed">
+                            <p className="text-xs text-muted-foreground text-center mt-2 leading-relaxed">
                               Extra workouts are tracked separately and not included in the projection.
                             </p>
                           </>

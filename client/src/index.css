@@ -30,6 +30,7 @@
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
 
+  --color-primary-fill: hsl(var(--primary-fill));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
@@ -64,6 +65,8 @@
 
   /* SPAR Orange - primary action color */
   --primary: 16 82% 43%; /* darkened from 52% so white text and orange text pass 4.5:1 on light backgrounds */
+  /* Fill behind white text on primary buttons: #C84414, 4.91:1 with white */
+  --primary-fill: 16 82% 43%;
   --primary-foreground: 0 0% 100%;
 
   /* SPAR Blue - secondary/hydration */
@@ -104,6 +107,8 @@
   /* SPAR Orange - primary action color */
   --primary: 16 85% 55%;
   --primary-foreground: 0 0% 100%;
+  /* Buttons keep the darker fill in dark mode too: white on #EE5F2B is only 3.34:1 */
+  --primary-fill: 16 82% 43%;
 
   /* SPAR Blue - secondary/hydration */
   --secondary: 225 100% 60%;

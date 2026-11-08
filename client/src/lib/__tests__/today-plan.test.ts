@@ -30,18 +30,25 @@ const base = (over: Partial<TodayPlanInput> = {}): TodayPlanInput => ({
 const labels = (items: { label: string }[]) => items.map(i => i.label);
 
 describe("Today's plan: status", () => {
-  it("says stick with the plan when the morning weight is at today's target", () => {
-    const p = buildTodayPlan(base());
-    expect(p.status).toBe("on-track");
-    expect(p.headline).toBe("On track");
-    expect(p.reason).toContain("Nothing needs changing");
-    expect(p.reason).toContain("145.4 lbs");
+  it("never says On track against the automatic reference: no daily target set", () => {
+    const p = buildTodayPlan(base({ projection: { reliable: false, driftSamples: 1, practiceSamples: 2 } }));
+    expect(p.status).toBe("no-target");
+    expect(p.headline).toBe("No daily target set");
+    expect(p.reason).toBe("Projection uses 1 of 3 weigh-in pairs.");
+    expect(p.reason).not.toMatch(/on track|nothing needs changing/i);
   });
 
-  it("stays on track a little over target, and says by how much", () => {
-    const p = buildTodayPlan(base({ logs: { morning: 147.2 }, weightLevel: "borderline" }));
-    expect(p.status).toBe("on-track");
-    expect(p.reason).toContain("1.2 lbs above today's target of 146.0 lbs");
+  it("labels the automatic number as a reference, walk-around when 6+ days out", () => {
+    expect(buildTodayPlan(base({ daysUntilWeighIn: 7, todayTarget: 168 })).reference)
+      .toBe("Walk-around reference: 168.0 lbs · automatically calculated");
+    expect(buildTodayPlan(base()).reference).toBe("Morning reference: 146.0 lbs · automatically calculated");
+    expect(buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999 })).reference).toBeNull();
+    expect(buildTodayPlan(base({ daysUntilWeighIn: 0 })).reference).toBeNull();
+  });
+
+  it("says how many pairs a reliable projection uses", () => {
+    expect(buildTodayPlan(base({ projection: { reliable: true, driftSamples: 5, practiceSamples: 4 } })).reason)
+      .toBe("Projection uses 4 weigh-in pairs.");
   });
 
   it("asks for a data check when the morning weight is missing", () => {
@@ -66,7 +73,7 @@ describe("Today's plan: status", () => {
   it("sends the athlete to the coach when the measured weight is far over", () => {
     const p = buildTodayPlan(base({ logs: { morning: 150.5 }, weightLevel: "risk" }));
     expect(p.status).toBe("coach");
-    expect(p.reason).toContain("4.5 lbs above today's target");
+    expect(p.reason).toContain("4.5 lbs above the automatic reference");
   });
 
   it("sends the athlete to the coach when food was cut for weight, and keeps the store's warning word for word", () => {
@@ -81,9 +88,9 @@ describe("Today's plan: status", () => {
     expect(p.food.every(l => l.progress === "None today" || l.key === "fruit" || l.key === "fat")).toBe(true);
   });
 
-  it("never uses the projection: a borderline level with weight on target is still on track", () => {
+  it("never uses the projection: a borderline level isn't a coach flag", () => {
     const p = buildTodayPlan(base({ weightLevel: "borderline" }));
-    expect(p.status).toBe("on-track");
+    expect(p.status).toBe("no-target");
   });
 
   it("general nutrition with a morning weight is on track, with no weigh-in talk", () => {
@@ -184,7 +191,7 @@ describe("Today's plan: targets and confidence", () => {
   it("splits measured, estimated and missing", () => {
     const p = buildTodayPlan(base({ tracking: { ...base().tracking, waterConsumed: 0 } }));
     expect(labels(p.measured)).toEqual(["Morning weight", "Food"]);
-    expect(labels(p.estimated)).toEqual(["Food and fluid targets", "Today's target weight", "Cut Lab projections"]);
+    expect(labels(p.estimated)).toEqual(["Food and fluid targets", "Daily reference", "Cut Lab projections"]);
     expect(labels(p.missing)).toEqual(["Fluids", "Recovery"]);
   });
 
@@ -197,7 +204,7 @@ describe("Today's plan: targets and confidence", () => {
   it("lists the weigh-in date as missing when none is set", () => {
     const p = buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999 }));
     expect(labels(p.missing)).toContain("Official weigh-in date");
-    expect(labels(p.estimated)).not.toContain("Today's target weight");
+    expect(labels(p.estimated)).not.toContain("Daily reference");
   });
 });
 
@@ -211,10 +218,27 @@ describe("Today's plan: facts and Cut Lab reliability", () => {
     expect(buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999 })).facts[1].value).toBe("Not set");
   });
 
-  it("big number is the latest weight today, labelled with its timing", () => {
-    expect(buildTodayPlan(base({ latest: { weight: 143.5, timing: "post-practice" } })).current)
-      .toEqual({ weight: 143.5, timing: "Post-practice" });
-    expect(buildTodayPlan(base({ latest: null })).current).toBeNull();
+  it("hero is the morning weight; the latest weigh-in sits under it", () => {
+    const p = buildTodayPlan(base({ logs: { morning: 161.4, postPractice: 160.6 }, latest: { weight: 160.6, timing: "post-practice" } }));
+    expect(p.hero).toEqual({ weight: 161.4, timing: "Morning" });
+    expect(p.latest).toEqual({ weight: 160.6, timing: "post-practice" });
+  });
+
+  it("no latest line when the morning weight is the latest", () => {
+    const p = buildTodayPlan(base({ logs: { morning: 161.4 }, latest: { weight: 161.4, timing: "morning" } }));
+    expect(p.latest).toBeNull();
+  });
+
+  it("hero is the official weigh-in on Meet Day", () => {
+    const p = buildTodayPlan(base({ daysUntilWeighIn: 0, logs: { morning: 141.8, officialWeighIn: 140.8 }, latest: { weight: 140.8, timing: "weigh-in" } }));
+    expect(p.hero).toEqual({ weight: 140.8, timing: "Official weigh-in" });
+    expect(p.latest).toBeNull();
+  });
+
+  it("no hero without a morning weight, but the latest still shows", () => {
+    const p = buildTodayPlan(base({ logs: { prePractice: 147.1 }, latest: { weight: 147.1, timing: "pre-practice" } }));
+    expect(p.hero).toBeNull();
+    expect(p.latest).toEqual({ weight: 147.1, timing: "pre-practice" });
   });
 
   it("flags demo mode", () => {
@@ -246,7 +270,7 @@ describe("Today's plan: facts and Cut Lab reliability", () => {
 
   it("unreliable projections never change the status", () => {
     const p = buildTodayPlan(base({ projection: { reliable: false, driftSamples: 0, practiceSamples: 0 } }));
-    expect(p.status).toBe("on-track");
+    expect(p.status).toBe("no-target");
   });
 
   it("every status reason stands on its own as one line", () => {

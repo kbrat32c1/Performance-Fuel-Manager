@@ -11,8 +11,6 @@ import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { buildTodayPlan } from "@/lib/today-plan";
 import { buildWeightTrend } from "@/lib/today-trend";
-import { buildDescentPlan } from "@/lib/descent-plan";
-import { useDescentPlan } from "@/hooks/use-descent-plan";
 import { displayRecoveryScore, withDisplayRecovery } from "@/lib/recovery-display";
 import { recoveryZone, recoverySourceLabel } from "@/lib/recovery-zone";
 import type { DbHealthData } from "@/lib/supabase";
@@ -25,11 +23,13 @@ interface TodayPlanCardProps {
   /** Health rows (newest first) and the WHOOP-style day they're keyed by. */
   healthData: DbHealthData[];
   healthDayStr: string;
+  /** The AM/PRE/POST/BED weigh-in slots, drawn inside the card under the next log. */
+  slots?: React.ReactNode;
   /** Override "now" for previews and tests. */
   hour?: number;
 }
 
-export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, hour }: TodayPlanCardProps) {
+export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, slots, hour }: TodayPlanCardProps) {
   const store = useStore();
   const { profile } = store;
   const [, setLocation] = useLocation();
@@ -46,31 +46,15 @@ export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, 
   const descent = store.getWeekDescentData();
   const demo = !!profile.simulatedDate;
   const endDate = profile.simulatedDate ? new Date(profile.simulatedDate) : new Date();
-  const competition = profile.protocol !== '5';
-  const targetSet = competition && !profile.weighInCleared && daysUntilWeighIn >= 0;
 
-  // Latest weigh-in today, any timing, for the big number.
+  // Latest weigh-in today, any timing, shown under the morning weight.
   const latestToday = [todayLogs.weighIn, todayLogs.beforeBed, todayLogs.postPractice, todayLogs.prePractice, todayLogs.morning]
     .filter(Boolean)
     .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] as any;
 
-  // The athlete's certified descent plan, if they have one, drawn as-is.
-  const { plan: descentInput } = useDescentPlan();
+  // Morning weights only. No approved target exists in the app yet, so none is drawn.
+  const trend = buildWeightTrend({ logs: store.logs, end: endDate });
   const endKey = format(endDate, 'yyyy-MM-dd');
-  const descentAllowed = useMemo(() => {
-    if (!descentInput) return undefined;
-    try {
-      const rows = buildDescentPlan(descentInput, endKey).rows;
-      return Object.fromEntries(rows.map(r => [r.date, r.allowed]));
-    } catch { return undefined; }
-  }, [descentInput, endKey]);
-
-  const trend = buildWeightTrend({
-    logs: store.logs,
-    end: endDate,
-    descentAllowed,
-    todayTarget: targetSet && daysUntilWeighIn > 0 ? todayTarget : null,
-  });
 
   // Recovery as context: today's row, band data first, like Cut Lab.
   const dayKey = profile.simulatedDate ? endKey : healthDayStr;
@@ -144,7 +128,15 @@ export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, 
 
   return (
     <>
-      <TodayPlanView plan={plan} onAction={runAction} trend={trend} recovery={recovery} onRecoveryTap={() => setShowRecovery(true)} />
+      <TodayPlanView
+        plan={plan}
+        onAction={runAction}
+        trend={trend}
+        recovery={recovery}
+        onRecoveryTap={() => setShowRecovery(true)}
+        onOpenFood={() => setLocation('/food')}
+        slots={slots}
+      />
       {todayHealth && (
         <MetricDetailSheet
           metric={showRecovery ? 'recovery' : null}

@@ -128,7 +128,7 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
         className={cn(
           "h-8 w-8 shrink-0 relative after:absolute after:-inset-1.5",
           viewingToday
-            ? "text-muted-foreground/30 cursor-not-allowed"
+            ? "text-muted-foreground cursor-not-allowed"
             : "text-muted-foreground hover:text-foreground"
         )}
         onClick={handleNextDay}

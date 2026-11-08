@@ -63,15 +63,15 @@ export function CutScoreGauge({ result, locked, compact = false }: CutScoreGauge
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <Lock className="w-5 h-5 text-muted-foreground/40 mb-0.5" />
-              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
+              <Lock className="w-5 h-5 text-muted-foreground mb-0.5" />
+              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground mt-1">
                 Cut Score
               </span>
             </div>
           </div>
           <div className="flex-1 text-left min-w-0">
             <span className="text-xs text-muted-foreground">
-              Log your <strong className="text-muted-foreground/80">morning weight</strong> to unlock
+              Log your <strong className="text-muted-foreground">morning weight</strong> to unlock
             </span>
           </div>
         </div>
@@ -122,14 +122,14 @@ export function CutScoreGauge({ result, locked, compact = false }: CutScoreGauge
           {/* Center: score number + label */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className={cn(
-              "font-bold font-mono leading-none animate-number-pop",
+              "font-bold font-heading tabular-nums leading-none animate-number-pop",
               compact ? "text-lg" : "text-2xl",
               colors.text
             )}>
               {Math.round(result.score)}
             </span>
             {!compact && (
-              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
+              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground mt-1">
                 Cut Score
               </span>
             )}
@@ -143,7 +143,7 @@ export function CutScoreGauge({ result, locked, compact = false }: CutScoreGauge
               {compact ? `Cut Score: ${result.label}` : result.label}
             </span>
             <ChevronDown className={cn(
-              "w-3.5 h-3.5 text-muted-foreground/40 transition-transform group-hover:text-muted-foreground/70",
+              "w-3.5 h-3.5 text-muted-foreground transition-transform group-hover:text-muted-foreground",
               expanded && "rotate-180"
             )} />
           </div>
@@ -166,19 +166,19 @@ export function CutScoreGauge({ result, locked, compact = false }: CutScoreGauge
                   key={key}
                   className={cn(
                     "flex items-center gap-0.5",
-                    isActive ? "text-muted-foreground" : "text-muted-foreground/25"
+                    isActive ? "text-muted-foreground" : "text-muted-foreground"
                   )}
                   title={isActive ? `${config.label}: ${pillar.raw}/100` : `${config.label}: No data`}
                 >
                   <Icon className="w-3 h-3" />
                   {isActive && (
-                    <span className="text-xs font-mono font-bold">{pillar.raw}</span>
+                    <span className="text-xs font-heading tabular-nums font-bold">{pillar.raw}</span>
                   )}
                 </div>
               );
             })}
             {!expanded && (
-              <span className="text-xs text-muted-foreground/30 ml-1">tap ▾</span>
+              <span className="text-xs text-muted-foreground ml-1">tap ▾</span>
             )}
           </div>
         </div>
@@ -224,7 +224,7 @@ export function CutScoreGauge({ result, locked, compact = false }: CutScoreGauge
                     }}
                   />
                 </div>
-                <span className={cn("text-xs font-mono font-bold w-6 text-right", barColor.text)}>
+                <span className={cn("text-xs font-heading tabular-nums font-bold w-6 text-right", barColor.text)}>
                   {pillar.raw}
                 </span>
               </div>
@@ -239,7 +239,7 @@ export function CutScoreGauge({ result, locked, compact = false }: CutScoreGauge
               const tierLabel = pillar.tier === 'premium' ? 'Premium' :
                                pillar.tier === 'enhanced' ? 'Enhanced' : 'Basic';
               return (
-                <span key={key} className="text-xs text-muted-foreground/50">
+                <span key={key} className="text-xs text-muted-foreground">
                   {PILLAR_CONFIG[key].label}: {tierLabel}
                 </span>
               );

@@ -2,8 +2,10 @@
  * TodayPlanView — draws a built Today's plan. No store access, so it can be
  * previewed with fixed data. The store wiring is in today-plan-card.tsx.
  *
- * Order: weight + class + days → one status line → next log → 7-day trend →
- * fuel bars → recovery line → how sure is this.
+ * Order: morning weight + class + days → one status line (+ reference) → next log →
+ * weigh-in slots → 7-day morning weights → fuel → recovery → how sure is this.
+ * Color: orange only on the primary button; status colors only as dots next to words;
+ * blue only for fluids. Big numbers in Barlow Condensed.
  */
 
 import { useState } from "react";
@@ -12,19 +14,20 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PlanLine, PlanStatus, TodayPlan } from "@/lib/today-plan";
-import { TIMING_LABEL, type TrendTiming, type WeightTrend } from "@/lib/today-trend";
+import type { WeightTrend } from "@/lib/today-trend";
 import type { RecoveryTone } from "@/lib/recovery-zone";
 
 const STATUS_DOT: Record<PlanStatus, string> = {
   'on-track': 'bg-chart-5',
+  'no-target': 'border-2 border-muted-foreground bg-transparent',
   'data-check': 'bg-chart-3',
   'coach': 'bg-chart-4',
 };
 
-const RECOVERY_TEXT: Record<RecoveryTone, string> = {
-  good: 'text-chart-5',
-  watch: 'text-chart-3',
-  low: 'text-chart-4',
+const RECOVERY_DOT: Record<RecoveryTone, string> = {
+  good: 'bg-chart-5',
+  watch: 'bg-chart-3',
+  low: 'bg-chart-4',
 };
 
 export interface RecoveryLine {
@@ -40,36 +43,45 @@ interface TodayPlanViewProps {
   trend?: WeightTrend;
   recovery?: RecoveryLine | null;
   onRecoveryTap?: () => void;
+  /** Opens the full food log; the Fuel rows here are the summary. */
+  onOpenFood?: () => void;
+  /** The weigh-in slots (AM/PRE/POST/BED), drawn under the next log. */
+  slots?: React.ReactNode;
 }
 
-export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap }: TodayPlanViewProps) {
+export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap, onOpenFood, slots }: TodayPlanViewProps) {
   const [showConfidence, setShowConfidence] = useState(false);
   const hasAction = plan.next.kind !== 'none';
 
   return (
     <Card className="mb-3 overflow-hidden" data-testid="today-plan" aria-labelledby="today-plan-title">
       <CardContent className="p-0">
-        {/* 1. Weight, class, days to weigh-in */}
+        {/* 1. Morning weight, class, days to weigh-in */}
         <div className="px-4 pt-3">
           <div className="flex items-center justify-between gap-2">
             <h2 id="today-plan-title" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Today</h2>
             {plan.demo && (
-              <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-primary-foreground" data-testid="today-plan-demo">
+              <span className="rounded-md bg-foreground px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-background" data-testid="today-plan-demo">
                 Demo
               </span>
             )}
           </div>
           <div className="mt-0.5 flex items-baseline gap-2" data-testid="today-plan-weight">
-            {plan.current ? (
+            {plan.hero ? (
               <>
-                <span className="font-heading text-5xl font-bold leading-none tabular-nums">{plan.current.weight.toFixed(1)}</span>
+                <span className="font-heading text-5xl font-bold leading-none tabular-nums">{plan.hero.weight.toFixed(1)}</span>
                 <span className="text-sm font-semibold text-muted-foreground">lbs</span>
-                <span className="text-xs text-muted-foreground">{plan.current.timing}</span>
+                <span className="text-sm text-muted-foreground">{plan.hero.timing}</span>
               </>
             ) : (
-              <span className="font-heading text-3xl font-bold leading-none text-muted-foreground">No weight today</span>
+              <span className="font-heading text-3xl font-bold leading-none">No morning weight yet</span>
             )}
           </div>
+          {plan.latest && (
+            <p className="text-[15px] text-muted-foreground tabular-nums" data-testid="today-plan-latest">
+              Latest {plan.latest.weight.toFixed(1)} · {plan.latest.timing}
+            </p>
+          )}
           {plan.facts.length > 0 && (
             <dl className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5" data-testid="today-plan-facts">
               {plan.facts.map(f => (
@@ -81,14 +93,17 @@ export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap }
             </dl>
           )}
 
-          {/* 2. One status line */}
+          {/* 2. One status line, then the automatic reference (never judged against) */}
           <p className="mt-2 text-sm leading-snug" data-testid="today-plan-status">
             <span className="mr-1.5 inline-flex items-center gap-1.5 font-bold">
-              <span className={cn("h-2 w-2 shrink-0 rounded-full", STATUS_DOT[plan.status])} aria-hidden="true" />
+              <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", STATUS_DOT[plan.status])} aria-hidden="true" />
               {plan.headline}.
             </span>
             <span className="text-muted-foreground">{plan.reason}</span>
           </p>
+          {plan.reference && (
+            <p className="mt-0.5 text-xs text-muted-foreground tabular-nums" data-testid="today-plan-reference">{plan.reference}</p>
+          )}
         </div>
 
         {/* 3. Next log, named */}
@@ -105,12 +120,22 @@ export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap }
           )}
         </div>
 
-        {/* 4. Weight trend */}
-        {trend && <TrendChart trend={trend} />}
+        {/* Weigh-in slots */}
+        {slots && <div className="border-t border-muted px-2 py-2">{slots}</div>}
 
-        {/* 5. Fuel bars */}
+        {/* 4. Morning weights */}
+        {trend && <TrendSection trend={trend} />}
+
+        {/* 5. Fuel summary; full detail is the food log */}
         <div className="border-t border-muted px-4 py-3">
-          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Fuel today</div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Fuel today</span>
+            {onOpenFood && (
+              <button type="button" onClick={onOpenFood} className="-my-3 inline-flex min-h-11 items-center gap-0.5 text-xs font-bold text-foreground underline-offset-2 hover:underline">
+                Food log <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
           {plan.foodWarning && (
             <p role="alert" className="mb-2 rounded-lg border border-chart-4/40 bg-chart-4/10 px-3 py-2 text-xs font-semibold">
               {plan.foodWarning}
@@ -122,7 +147,7 @@ export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap }
           </div>
         </div>
 
-        {/* 6. Recovery as context */}
+        {/* 6. Recovery as context: colored dot, plain text */}
         {recovery && (
           <button
             type="button"
@@ -131,12 +156,12 @@ export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap }
             aria-label={`Recovery ${recovery.score}%, ${recovery.label}, ${recovery.source}. Show factors`}
             data-testid="today-plan-recovery"
           >
-            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Recovery</span>
+            <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", RECOVERY_DOT[recovery.tone])} aria-hidden="true" />
             <span className="text-sm">
-              <span className={cn("font-bold tabular-nums", RECOVERY_TEXT[recovery.tone])}>{recovery.score}%</span>
+              <span className="font-bold tabular-nums">{recovery.score}%</span>
               <span className="text-muted-foreground"> · {recovery.label} · {recovery.source}</span>
             </span>
-            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+            <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
           </button>
         )}
 
@@ -170,93 +195,75 @@ export function TodayPlanView({ plan, onAction, trend, recovery, onRecoveryTap }
   );
 }
 
-// ── Trend chart ──────────────────────────────────────────────────────────────
+// ── Morning weights: chart from 3 days, a short list before that ─────────────
 
-/** Timing marks: morning is the connected line; the rest are dots by shape. */
-const MARK: Record<TrendTiming, { fill: string; stroke: string; shape: 'circle' | 'ring' | 'square' }> = {
-  'morning': { fill: 'hsl(var(--primary))', stroke: 'hsl(var(--primary))', shape: 'circle' },
-  'pre-practice': { fill: 'none', stroke: 'hsl(var(--foreground))', shape: 'ring' },
-  'post-practice': { fill: 'hsl(var(--muted-foreground))', stroke: 'hsl(var(--muted-foreground))', shape: 'circle' },
-  'before-bed': { fill: 'none', stroke: 'hsl(var(--muted-foreground))', shape: 'ring' },
-  'weigh-in': { fill: 'hsl(var(--primary))', stroke: 'hsl(var(--primary))', shape: 'square' },
-};
-
-function Mark({ timing, x, y, size = 4 }: { timing: TrendTiming; x: number; y: number; size?: number }) {
-  const m = MARK[timing];
-  if (m.shape === 'square') return <rect x={x - size} y={y - size} width={size * 2} height={size * 2} fill={m.fill} />;
-  return <circle cx={x} cy={y} r={size} fill={m.fill} stroke={m.stroke} strokeWidth={m.shape === 'ring' ? 1.75 : 0} />;
+function TrendSection({ trend }: { trend: WeightTrend }) {
+  const label = (p: { day: number }) => trend.days[p.day].isToday ? 'Today' : trend.days[p.day].label;
+  return (
+    <div className="border-t border-muted px-4 py-3" data-testid="today-plan-trend">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Morning weights · lbs</span>
+        {trend.approvedTarget == null && trend.enoughForChart && <span className="text-xs text-muted-foreground">No target set</span>}
+      </div>
+      {trend.points.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No morning weights in the last 7 days.</p>
+      ) : !trend.enoughForChart ? (
+        <div data-testid="today-plan-trend-list">
+          <p className="text-sm tabular-nums">
+            {trend.points.map((p, i) => (
+              <span key={p.day}>
+                {i > 0 && <span className="text-muted-foreground"> · </span>}
+                <span className="text-muted-foreground">{label(p)}</span> <span className="font-bold">{p.weight.toFixed(1)}</span>
+                {p.timing === 'weigh-in' && <span className="text-muted-foreground"> (official)</span>}
+              </span>
+            ))}
+          </p>
+          <p className="text-xs text-muted-foreground">The 7-day chart starts after 3 days of morning weights.</p>
+        </div>
+      ) : (
+        <TrendChart trend={trend} />
+      )}
+    </div>
+  );
 }
 
 function TrendChart({ trend }: { trend: WeightTrend }) {
-  const W = 320, H = 120, padX = 14, padTop = 8, padBottom = 8;
-  const colX = (day: number) => padX + (day * (W - padX * 2)) / 6;
+  const W = 320, H = 110, padX = 14, padTop = 8, padBottom = 8;
+  const x = (day: number) => padX + (day * (W - padX * 2)) / 6;
   const y = (w: number) => padTop + ((trend.max - w) / (trend.max - trend.min || 1)) * (H - padTop - padBottom);
-  // Within a day, spread multiple weigh-ins slightly by time so they don't overlap.
-  const x = (p: { day: number; at: number }) => colX(p.day) + ((p.at - 720) / 720) * 12;
-
-  const morning = trend.points.filter(p => p.timing === 'morning');
-  const morningPath = morning.map((p, i) => `${i ? 'L' : 'M'}${x(p).toFixed(1)},${y(p.weight).toFixed(1)}`).join(' ');
-  const planPath = trend.planLine.map((p, i) => `${i ? 'L' : 'M'}${colX(p.day).toFixed(1)},${y(p.weight).toFixed(1)}`).join(' ');
+  const path = trend.points.map((p, i) => `${i ? 'L' : 'M'}${x(p.day).toFixed(1)},${y(p.weight).toFixed(1)}`).join(' ');
+  const hasOfficial = trend.points.some(p => p.timing === 'weigh-in');
 
   return (
-    <div className="border-t border-muted px-4 py-3" data-testid="today-plan-trend">
-      <div className="mb-1 flex items-baseline justify-between">
-        <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Last 7 days</span>
-        {!trend.hasTarget && <span className="text-xs text-muted-foreground">No target set</span>}
-      </div>
-      {trend.points.length === 0 ? (
-        <p className="py-4 text-center text-xs text-muted-foreground">No weigh-ins in the last 7 days.</p>
-      ) : (
-        <div className="flex gap-2">
-          <div className="flex w-9 shrink-0 flex-col justify-between py-1 text-right text-xs tabular-nums text-muted-foreground" aria-hidden="true">
-            <span>{trend.max.toFixed(0)}</span>
-            <span>{trend.min.toFixed(0)}</span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <svg viewBox={`0 0 ${W} ${H}`} className="h-[120px] w-full" role="img"
-              aria-label={`Weights over the last 7 days, ${trend.points.length} weigh-ins${trend.hasTarget ? '' : ', no target set'}`}>
-              {trend.days.map((d, i) => (
-                <line key={d.key} x1={colX(i)} x2={colX(i)} y1={padTop} y2={H - padBottom}
-                  stroke="hsl(var(--border))" strokeWidth={d.isToday ? 1.5 : 1} strokeDasharray={d.isToday ? undefined : '2 4'} />
-              ))}
-              {planPath && <path d={planPath} fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 4" />}
-              {trend.todayTarget != null && (
-                <line x1={colX(6) - 16} x2={colX(6) + 16} y1={y(trend.todayTarget)} y2={y(trend.todayTarget)}
-                  stroke="hsl(var(--foreground))" strokeWidth={2} strokeDasharray="2 3" />
-              )}
-              {morningPath && <path d={morningPath} fill="none" stroke="hsl(var(--primary))" strokeWidth={2} />}
-              {trend.points.map((p, i) => <Mark key={i} timing={p.timing} x={x(p)} y={y(p.weight)} />)}
-            </svg>
-            <div className="flex justify-between px-1 text-xs text-muted-foreground" aria-hidden="true">
-              {trend.days.map(d => <span key={d.key} className={cn(d.isToday && "font-bold text-foreground")}>{d.label}</span>)}
-            </div>
+    <>
+      <div className="flex gap-2">
+        <div className="flex w-9 shrink-0 flex-col justify-between py-1 text-right text-xs tabular-nums text-muted-foreground" aria-hidden="true">
+          <span>{trend.max.toFixed(0)}</span>
+          <span>{trend.min.toFixed(0)}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <svg viewBox={`0 0 ${W} ${H}`} className="h-[110px] w-full" role="img"
+            aria-label={`Morning weights: ${trend.points.map(p => `${trend.days[p.day].label} ${p.weight.toFixed(1)} lbs`).join(', ')}`}>
+            {trend.days.map((d, i) => (
+              <line key={d.key} x1={x(i)} x2={x(i)} y1={padTop} y2={H - padBottom}
+                stroke="hsl(var(--border))" strokeWidth={1} strokeDasharray={d.isToday ? undefined : '2 4'} />
+            ))}
+            {trend.approvedTarget != null && (
+              <line x1={padX} x2={W - padX} y1={y(trend.approvedTarget)} y2={y(trend.approvedTarget)}
+                stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 4" />
+            )}
+            <path d={path} fill="none" stroke="hsl(var(--foreground))" strokeWidth={2} />
+            {trend.points.map(p => p.timing === 'weigh-in'
+              ? <rect key={p.day} x={x(p.day) - 4} y={y(p.weight) - 4} width={8} height={8} fill="hsl(var(--foreground))" />
+              : <circle key={p.day} cx={x(p.day)} cy={y(p.weight)} r={4} fill="hsl(var(--foreground))" />)}
+          </svg>
+          <div className="flex justify-between px-1 text-xs text-muted-foreground" aria-hidden="true">
+            {trend.days.map(d => <span key={d.key} className={cn(d.isToday && "font-bold text-foreground")}>{d.label}</span>)}
           </div>
         </div>
-      )}
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {trend.timings.map(t => (
-          <span key={t} className="inline-flex items-center gap-1">
-            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><Mark timing={t} x={5} y={5} size={3.5} /></svg>
-            {TIMING_LABEL[t]}
-          </span>
-        ))}
-        {trend.planLine.length > 0 && (
-          <span className="inline-flex items-center gap-1">
-            <svg width="14" height="10" aria-hidden="true"><line x1="0" x2="14" y1="5" y2="5" stroke="hsl(var(--muted-foreground))" strokeWidth="1.5" strokeDasharray="4 3" /></svg>
-            Descent plan (lowest allowed)
-          </span>
-        )}
-        {trend.planOffChart != null && (
-          <span>Descent plan: lowest allowed today {trend.planOffChart.toFixed(1)} lbs</span>
-        )}
-        {trend.todayTarget != null && (
-          <span className="inline-flex items-center gap-1">
-            <svg width="14" height="10" aria-hidden="true"><line x1="0" x2="14" y1="5" y2="5" stroke="hsl(var(--foreground))" strokeWidth="2" strokeDasharray="2 3" /></svg>
-            Today's morning target {trend.todayTarget.toFixed(1)} lbs
-          </span>
-        )}
       </div>
-    </div>
+      {hasOfficial && <p className="mt-1 text-xs text-muted-foreground">Square: official weigh-in</p>}
+    </>
   );
 }
 
@@ -275,7 +282,7 @@ function FuelBar({ line, fluid = false }: { line: PlanLine; fluid?: boolean }) {
       </div>
       {!blocked && m && (
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-          <div className={cn("h-full rounded-full", fluid ? "bg-chart-2" : "bg-primary")} style={{ width: `${pct}%` }} />
+          <div className={cn("h-full rounded-full", fluid ? "bg-chart-2" : "bg-foreground")} style={{ width: `${pct}%` }} />
         </div>
       )}
     </div>

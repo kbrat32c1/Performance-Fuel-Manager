@@ -17,7 +17,11 @@ interface Message {
  * Unified AI Coach - Calculated guidance (free) + AI chat (opt-in)
  * Shows weight, local calculations, and optional AI advice
  */
-export function AiCoachProactive() {
+/**
+ * chatOnly: just the "Ask AI Coach" chat. Today's plan already shows the weight and the
+ * one status line, so the coach's own Now/Walk-around/Class header and tips stay off Today.
+ */
+export function AiCoachProactive({ chatOnly = false }: { chatOnly?: boolean } = {}) {
   const [aiMessage, setAiMessage] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -577,6 +581,7 @@ export function AiCoachProactive() {
     <div className="mb-4">
       <div className="rounded-xl overflow-hidden bg-card border border-border">
         {/* Weight Display Header — compact */}
+        {!chatOnly && (
         <div className="px-4 pt-3 pb-2">
           <div className="text-center">
             <div className={cn("grid gap-2 mb-2", insights.trainingStatus ? "grid-cols-3" : "grid-cols-2")}>
@@ -636,8 +641,10 @@ export function AiCoachProactive() {
           </div>
         </div>
 
+        )}
+
         {/* Daily Insight Card — clean sentence with highlighted numbers */}
-        {coachingInsight && !insightDismissed && (
+        {!chatOnly && coachingInsight && !insightDismissed && (
           <div className="mx-3 mb-3 rounded-lg overflow-hidden border border-border/50 bg-muted/30">
             <div className="flex items-start gap-2 px-3 py-2.5">
               <div className="flex-1 min-w-0">
@@ -647,7 +654,7 @@ export function AiCoachProactive() {
               </div>
               <button
                 onClick={() => setInsightDismissed(true)}
-                className="shrink-0 p-1 -mr-1 -mt-0.5 rounded-full text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+                className="shrink-0 p-1 -mr-1 -mt-0.5 rounded-full text-muted-foreground hover:text-muted-foreground hover:bg-muted/50 transition-colors"
                 aria-label="Dismiss insight"
               >
                 <X className="w-3.5 h-3.5" />
@@ -669,11 +676,11 @@ export function AiCoachProactive() {
         )}
 
         {/* Replay insight button — shown when dismissed */}
-        {coachingInsight && insightDismissed && (
+        {!chatOnly && coachingInsight && insightDismissed && (
           <div className="px-3 pb-2">
             <button
               onClick={() => setInsightDismissed(false)}
-              className="flex items-center gap-1.5 mx-auto text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              className="flex items-center gap-1.5 mx-auto text-xs text-muted-foreground hover:text-muted-foreground transition-colors"
             >
               <RotateCcw className="w-3 h-3" />
               Show insight
@@ -685,7 +692,7 @@ export function AiCoachProactive() {
         {!showAiSection ? (
           <button
             onClick={() => setShowAiSection(true)}
-            className="w-full px-4 py-3 border-t border-border flex items-center justify-center gap-2 text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/5 transition-colors"
+            className={cn("w-full px-4 py-3 flex items-center justify-center gap-2 text-sm text-violet-700 dark:text-violet-300 hover:bg-violet-500/5 transition-colors", !chatOnly && "border-t border-border")}
           >
             <Sparkles className="w-4 h-4" />
             <span>Ask AI Coach</span>

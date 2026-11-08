@@ -11,9 +11,16 @@
  * cutting-guidance number. Cut Lab projections are never used to decide status;
  * the only part of getStatus used is its weight level, and only "risk" moves the
  * status, because that level needs a large measured gap to today's target.
+ * "On track" needs an approved target; the app's automatic daily numbers are shown
+ * as references only, so today the only On track is making weight on Meet Day.
  */
 
-export type PlanStatus = 'on-track' | 'data-check' | 'coach';
+/**
+ * 'no-target': the weight is logged but nothing approved to compare it with. The app's
+ * daily numbers (walk-around, water-load targets) are automatic references, not approved
+ * targets, so they never earn "On track".
+ */
+export type PlanStatus = 'on-track' | 'no-target' | 'data-check' | 'coach';
 
 export type NextActionKind =
   | 'set-weigh-in'
@@ -57,6 +64,12 @@ export interface PlanFact {
 }
 
 export interface TodayPlan {
+  /** The comparable weight: this morning's (or the official weigh-in on Meet Day). */
+  hero: { weight: number; timing: string } | null;
+  /** Latest weight today when it isn't the hero, e.g. "160.6 · post-practice". */
+  latest: { weight: number; timing: string } | null;
+  /** The automatic number shown for reference, never judged against, e.g. walk-around. */
+  reference: string | null;
   /** Latest weight today and when it was taken. */
   current: { weight: number; timing: string } | null;
   demo: boolean;
@@ -291,7 +304,7 @@ export function buildConfidence(input: TodayPlanInput): Pick<TodayPlan, 'measure
     if (input.weighInCleared || input.daysUntilWeighIn < 0) {
       missing.push({ label: 'Official weigh-in date', detail: 'Not set' });
     } else if (input.daysUntilWeighIn > 0) {
-      estimated.push({ label: "Today's target weight", detail: `${lbs(input.todayTarget)}, from your descent plan` });
+      estimated.push({ label: 'Daily reference', detail: `${lbs(input.todayTarget)}, automatically calculated (not an approved target)` });
       const pr = input.projection;
       if (pr && !pr.reliable) {
         missing.push({
@@ -367,19 +380,37 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
       status: 'coach',
       headline: 'Talk to your coach',
       reason: gap > 0
-        ? `Morning weight ${lbs(morning)} is ${lbs(gap)} above today's target of ${lbs(input.todayTarget)}.`
-        : 'Your weight is well above where your descent plan expects it today.',
+        ? `Morning weight ${lbs(morning)} is ${lbs(gap)} above the automatic reference of ${lbs(input.todayTarget)}.`
+        : 'Your weight is well above where the automatic reference expects it today.',
     };
   }
 
-  const gap = morning - input.todayTarget;
+  // Nothing approved to compare with: say so, and how much data the projection has.
   return {
-    status: 'on-track',
-    headline: 'On track',
-    reason: gap <= 0
-      ? `Nothing needs changing. Morning weight ${lbs(morning)}, at or under today's target of ${lbs(input.todayTarget)}.`
-      : `Keep to today's food and fluid targets. Morning weight ${lbs(morning)} is ${lbs(gap)} above today's target of ${lbs(input.todayTarget)}.`,
+    status: 'no-target',
+    headline: 'No daily target set',
+    reason: projectionNote(input) ?? `Morning weight ${lbs(morning)} logged.`,
   };
+}
+
+/** How much data Cut Lab's projection has: "Projection uses 1 of 3 weigh-in pairs." */
+export function projectionNote(input: TodayPlanInput): string | null {
+  const pr = input.projection;
+  if (!pr) return null;
+  const have = Math.min(pr.driftSamples, pr.practiceSamples);
+  return pr.reliable
+    ? `Projection uses ${have} weigh-in pairs.`
+    : `Projection uses ${Math.min(have, PAIRS_NEEDED)} of ${PAIRS_NEEDED} weigh-in pairs.`;
+}
+
+/** Same minimum as Cut Lab (MIN_RELIABLE_SAMPLES in week-descent-calculator). */
+const PAIRS_NEEDED = 3;
+
+/** The automatic number for today, labelled as a reference, never as a target. */
+export function buildReference(input: TodayPlanInput): string | null {
+  if (input.isGeneralNutrition || input.weighInCleared || input.daysUntilWeighIn <= 0 || !(input.todayTarget > 0)) return null;
+  const label = input.daysUntilWeighIn > 5 ? 'Walk-around reference' : 'Morning reference';
+  return `${label}: ${lbs(input.todayTarget)} · automatically calculated`;
 }
 
 export function buildFacts(input: TodayPlanInput): PlanFact[] {
@@ -394,6 +425,18 @@ export function buildFacts(input: TodayPlanInput): PlanFact[] {
   ];
 }
 
+export function buildHero(input: TodayPlanInput): Pick<TodayPlan, 'hero' | 'latest'> {
+  const { logs } = input;
+  const hero = logs.officialWeighIn != null
+    ? { weight: logs.officialWeighIn, timing: 'Official weigh-in' }
+    : logs.morning != null ? { weight: logs.morning, timing: 'Morning' } : null;
+  const l = input.latest;
+  const latest = l && !(hero && l.weight === hero.weight && (l.timing === 'morning' || l.timing === 'weigh-in'))
+    ? { weight: l.weight, timing: (TIMING_NAMES[l.timing] ?? 'Weight check').toLowerCase() }
+    : null;
+  return { hero, latest };
+}
+
 const TIMING_NAMES: Record<string, string> = {
   'morning': 'Morning',
   'pre-practice': 'Pre-practice',
@@ -405,6 +448,8 @@ const TIMING_NAMES: Record<string, string> = {
 export function buildTodayPlan(input: TodayPlanInput): TodayPlan {
   return {
     current: input.latest ? { weight: input.latest.weight, timing: TIMING_NAMES[input.latest.timing] ?? 'Weight check' } : null,
+    ...buildHero(input),
+    reference: buildReference(input),
     demo: !!input.demo,
     facts: buildFacts(input),
     ...buildStatus(input),
