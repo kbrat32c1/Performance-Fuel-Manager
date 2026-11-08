@@ -19,13 +19,13 @@ Aggressive protocol with extended zero-protein for maximum FGF21 activation.
 ### 5-2 Days Out (Water Loading + Zero Protein):
 - Carbs: 250-400g FRUCTOSE ONLY
 - Protein: 0g - ABSOLUTELY NO PROTEIN
-- Water: Days 5-3: 1.2-1.5 oz/lb (loading), Day 2: 0.3 oz/lb (restriction)
+- Water: Days 5-2: gallons per the water schedule
 - Key: Max FGF21 activation. Fructose only (agave, honey, fruit juice, mangoes). Zero protein triggers extreme fat burning. Water loading flushes sodium.
 
 ### 1 Day Out (Performance Prep / Final Cut):
 - Carbs: 200-300g fructose + MCT oil
 - Protein: 0.2g/lb evening collagen ONLY
-- Water: 0.08 oz/lb (sips only)
+- Water: 0.25-0.5 gal (reduced)
 - Key: GDF15 peak. Zero fiber - gut must be empty. MCT for energy without gut weight.
 
 ### Competition Day:
@@ -54,25 +54,25 @@ Standard weekly cut with strategic fructose/glucose switching.
 ### 5-4 Days Out (Water Loading + Fructose):
 - Carbs: 325-450g fructose heavy (60:40 ratio)
 - Protein: 0g - NO PROTEIN
-- Water: 1.2-1.5 oz/lb (loading)
+- Water: gallons per the water schedule
 - Key: Fructose fills liver glycogen, triggers fat burning. Water loading begins.
 
 ### 3 Days Out (Fructose + Minimal Protein):
 - Carbs: 325-450g fructose heavy
 - Protein: 25g (collagen + leucine at dinner)
-- Water: 1.5 oz/lb (peak loading)
+- Water: Peak, gallons per the water schedule
 - Key: Small protein dose. Peak water loading.
 
 ### 2 Days Out (Glucose Switch Day):
 - Carbs: 300-400g GLUCOSE/STARCH (switch from fructose!)
 - Protein: 60g (collagen + seafood)
-- Water: 0.3 oz/lb (sharp restriction)
+- Water: Stays high, low sodium, gallons per the water schedule
 - CRITICAL: Switch to white rice, potatoes, honey. Fructose exits liver.
 
 ### 1 Day Out (Zero Fiber Day):
 - Carbs: 300-400g ZERO FIBER (white rice, rice cakes, juice ONLY)
 - Protein: 60g (collagen + seafood)
-- Water: 0.08 oz/lb (sips only)
+- Water: 0.25-0.5 gal (reduced)
 - CRITICAL: Zero fiber. Gut must empty overnight. No vegetables!
 
 ### Competition Day:
@@ -95,7 +95,7 @@ Minimal manipulation for athletes close to weight class.
 ### 6+ Days Out: Maintenance eating (300-450g carbs, 100g protein)
 ### 5 Days Out: Light adjustment (fructose heavy, 25g collagen)
 ### 4-3 Days Out: Mixed carbs, 75g protein
-### 2-1 Days Out: Glucose focus, 100g protein, water restriction
+### 2-1 Days Out: Glucose focus, 100g protein
 ### Competition Day: Competition fueling (0.5g/lb protein post-weigh-in)
 ### Recovery: Full recovery (1.4g/lb protein)
 `;
@@ -111,25 +111,24 @@ Off-season building with maximum protein.
 `;
 
 const WATER_PROTOCOL = `
-If the athlete has water loading OFF (context says "Water loading: off"), skip this schedule: they drink normally, about 0.7 oz/lb every day, with normal sodium — no loading, restriction, sips-only day or salt-loading.
+If the athlete has water loading OFF (context says "Water loading: off"), skip this schedule: they drink normally, about 0.7 oz/lb every day, with normal sodium — no loading, reduced-water day or sodium changes.
 ## WATER LOADING PROTOCOL (Protocols 1-4)
 
-PURPOSE: Prime ADH (antidiuretic hormone) to flush water rapidly when restriction begins.
+Optional. Kevin's coaching schedule, not a tested protocol. Regular water, not distilled.
 
-### Day-by-Day Schedule:
-- 6+ days: 0.5 oz/lb (regular)
-- 5 days: 1.2 oz/lb (loading begins)
-- 4 days: 1.5 oz/lb (peak loading)
-- 3 days: 1.5 oz/lb (peak continues)
-- 2 days: 0.3 oz/lb (SHARP restriction - body keeps flushing)
-- 1 day: 0.08 oz/lb (sips only - final cut)
-- 0: Nothing until weigh-in, then 16-24 oz first hour
+### Gallons per day by weigh-in class (125-141 / 149-165 / 174 and up):
+- 6+ days: 0.7 oz/lb (normal)
+- 5 days: 1.0 / 1.25 / 1.5
+- 4 days: 1.25 / 1.5 / 1.75
+- 3 days: 1.5 / 1.75 / 2.0 (peak)
+- 2 days: 1.25 / 1.5 / 1.75, low sodium
+- 1 day: 0.25-0.5 for every class, very low sodium
+- 0: Until weigh-in, then rehydrate
+- Day after: 1.0 / 1.25 / 1.5
 
 ### Critical Notes:
-- Water loading ONLY works if you actually load. Half-measures fail.
-- Max cap: 320 oz (~2.5 gal) per day for safety
-- During loading (3-5 days out): expect 2-4 lbs over target - NORMAL
-- The water comes off rapidly on days 1-2
+- During loading (2-5 days out): expect 2-4 lbs over target - NORMAL
+- The sharp drop comes the day before weigh-in
 `;
 
 const FOOD_TIMING = `
@@ -212,7 +211,7 @@ ALWAYS think in terms of which tanks are being drained and what the recovery cos
 ### Overnight Drift (lbs):
 - Weight lost bed to morning (insensible water loss + metabolism)
 - Typical: 0.5-1.5 lbs
-- Higher during water loading, lower on restriction days
+- Higher during water loading, lower on the reduced-water day
 
 ### Recovery Timing (CRITICAL for tradeoff advice):
 - Water: 1-3 hours to rehydrate with proper sodium + carbs
