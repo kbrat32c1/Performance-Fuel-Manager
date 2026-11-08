@@ -38,6 +38,7 @@ export const STORAGE_KEYS = {
   COMP_CHECKLIST: 'pwm-comp-checklist',
   MATCH_PREP_CHECKLIST: 'pwm-match-prep-checklist',
   RECOVERY_WEIGHIN: 'pwm-recovery-weighin',
+  RECOVERY_WEIGHIN_ENTERED: 'pwm-recovery-weighin-entered',
   RECOVERY_ALERTS: 'pwm-recovery-alerts',
   RECOVERY_NOTIFICATIONS: 'pwm-recovery-notifications',
 

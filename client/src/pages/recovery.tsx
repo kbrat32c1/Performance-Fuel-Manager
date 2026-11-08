@@ -10,6 +10,8 @@ import {
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
+import { getMeetDayWater } from "@/lib/meet-day-water";
+import { format } from "date-fns";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { Input } from "@/components/ui/input";
 import { activateOnKey } from "@/lib/a11y";
@@ -223,11 +225,15 @@ export default function Recovery() {
     return saved ? parseInt(saved) : 0;
   });
 
-  const [weighInWeight, setWeighInWeight] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.RECOVERY_WEIGHIN);
-    if (saved) return saved;
-    return '';
+  // Only a weight the athlete typed in; otherwise we use their logged weigh-in or their class.
+  // Keyed to the weigh-in date so last meet's number never carries over.
+  const [enteredWeighIn, setEnteredWeighIn] = useState<{ date: string; weight: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.RECOVERY_WEIGHIN_ENTERED);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
   });
+  const [editingWeighIn, setEditingWeighIn] = useState(false);
 
   // Time to first match (minutes) — used to scale recovery phases
   const [timeToMatch, setTimeToMatch] = useState(() => {
@@ -284,25 +290,16 @@ export default function Recovery() {
   // Store
   const { profile, getRehydrationPlan, getFoodLists, logs } = useStore();
 
-  // Auto-populate weigh-in weight from target weight class on first load
-  useEffect(() => {
-    if (!weighInWeight && profile?.targetWeightClass) {
-      const defaultWeight = profile.targetWeightClass.toString();
-      setWeighInWeight(defaultWeight);
-    }
-  }, [profile?.targetWeightClass]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Use most recent morning weight as the "before" weight for rehydration calculation
-  // Falls back to currentWeight if no morning logs exist
-  const walkAroundWeight = useMemo(() => {
-    const morningLogs = logs.filter(l => l.type === 'morning' || l.type === 'weigh-in');
-    if (morningLogs.length > 0) {
-      const sorted = [...morningLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return sorted[0].weight;
-    }
-    return profile.currentWeight;
-  }, [logs, profile.currentWeight]);
-  const lostWeight = weighInWeight ? walkAroundWeight - parseFloat(weighInWeight) : 0;
+  const weighInDateKey = profile?.weighInDate ? format(new Date(profile.weighInDate), 'yyyy-MM-dd') : '';
+  const enteredWeight = enteredWeighIn && enteredWeighIn.date === weighInDateKey ? parseFloat(enteredWeighIn.weight) : null;
+  const water = useMemo(() => getMeetDayWater({
+    logs,
+    weighInDate: profile?.weighInDate ? new Date(profile.weighInDate) : new Date(),
+    weightClass: profile?.targetWeightClass || 0,
+    enteredWeight: enteredWeight && !Number.isNaN(enteredWeight) ? enteredWeight : null,
+  }), [logs, profile?.weighInDate, profile?.targetWeightClass, enteredWeight]);
+  const weighInWeight = water.weighInWeight ? water.weighInWeight.toFixed(1) : '';
+  const lostWeight = water.lbsToRecover;
   const plan = getRehydrationPlan(Math.max(0, lostWeight));
   const tournamentFoods = getFoodLists().tournament;
 
@@ -514,8 +511,14 @@ export default function Recovery() {
   }, [weighInRecoveryUsed]);
 
   useEffect(() => {
+    // The AI coach reads this to know the weigh-in weight.
     localStorage.setItem(STORAGE_KEYS.RECOVERY_WEIGHIN, weighInWeight);
   }, [weighInWeight]);
+
+  useEffect(() => {
+    if (enteredWeighIn) localStorage.setItem(STORAGE_KEYS.RECOVERY_WEIGHIN_ENTERED, JSON.stringify(enteredWeighIn));
+    else localStorage.removeItem(STORAGE_KEYS.RECOVERY_WEIGHIN_ENTERED);
+  }, [enteredWeighIn]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.COMP_CHECKLIST, JSON.stringify(checklist));
@@ -793,20 +796,37 @@ export default function Recovery() {
 
           {/* Actions */}
           <div className="space-y-4 pb-6 pt-6">
-            {/* Weigh-in weight input */}
-            <div className="space-y-1.5">
-              <label htmlFor="recovery-weigh-in-weight" className="text-xs uppercase font-bold text-muted-foreground block text-center tracking-wider">
-                Weigh-in Weight (lbs)
-              </label>
-              <Input id="recovery-weigh-in-weight"
-                type="number"
-                inputMode="decimal"
-                step="0.1"
-                value={weighInWeight}
-                onChange={(e) => setWeighInWeight(e.target.value)}
-                placeholder="Weight"
-                className="font-mono text-center text-lg h-12 rounded-xl"
-              />
+            {/* Weigh-in weight: filled in from the log or the weight class; edit only if you came in under */}
+            <div className="space-y-1.5 text-center">
+              {editingWeighIn ? (
+                <>
+                  <label htmlFor="recovery-weigh-in-weight" className="text-xs uppercase font-bold text-muted-foreground block tracking-wider">
+                    Weigh-in Weight (lbs)
+                  </label>
+                  <Input id="recovery-weigh-in-weight"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    autoFocus
+                    defaultValue={weighInWeight}
+                    onBlur={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setEnteredWeighIn(v > 0 ? { date: weighInDateKey, weight: v.toString() } : null);
+                      setEditingWeighIn(false);
+                    }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                    className="font-mono text-center text-lg h-12 rounded-xl"
+                  />
+                </>
+              ) : (
+                <p className="text-sm">
+                  Weighed in at <span className="font-mono font-bold">{weighInWeight}</span>
+                  <span className="text-muted-foreground"> · {water.weighInSource === 'class' ? 'your class' : water.weighInSource === 'logged' ? 'from your log' : 'entered'}</span>
+                  <button type="button" onClick={() => setEditingWeighIn(true)} className="ml-2 min-h-11 px-2 text-primary font-bold underline-offset-2 hover:underline">
+                    Edit
+                  </button>
+                </p>
+              )}
             </div>
 
             {/* Time pickers */}
@@ -833,9 +853,21 @@ export default function Recovery() {
               </div>
             </div>
             {weighInWeight && lostWeight > 0 && (
-              <p className="text-center text-xs text-cyan-500 font-mono font-medium -mt-1">
-                {lostWeight.toFixed(1)} lbs to recover · {plan.fluidRange} fluids recommended
-              </p>
+              <div className="text-center -mt-1 space-y-1">
+                <p className="text-xs text-chart-2 font-mono font-medium">
+                  {lostWeight.toFixed(1)} lbs water to recover · {plan.fluidRange} fluids
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {water.estimated
+                    ? 'Estimated as 3% of your class — log your morning weight two days out for an exact number.'
+                    : `From ${water.preCutWeight?.toFixed(1)} two days out, before the water cut.`}
+                </p>
+                {water.overSafeCut && (
+                  <p className="text-xs text-chart-3 font-medium">
+                    That water cut was {Math.round((water.cutPct || 0) * 1000) / 10}% — over 3% usually hurts performance. Drink back the full amount.
+                  </p>
+                )}
+              </div>
             )}
 
             <Button
@@ -1017,7 +1049,7 @@ export default function Recovery() {
                 <Droplets className="w-3.5 h-3.5" /> Rehydration
               </span>
               <span className="text-xs font-mono text-muted-foreground">
-                {lostWeight.toFixed(1)} lbs lost
+                {lostWeight.toFixed(1)} lbs water lost
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
