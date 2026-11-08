@@ -77,7 +77,7 @@ export function WaterLoadingSwitch({ className }: { className?: string }) {
       {on ? (
         <>
           <p className="mt-1 text-xs leading-snug text-muted-foreground">
-            On: extra water early in the week, then cut back the last two days before weigh-in.
+            On: extra water through the week, then cut back sharply the day before weigh-in.
           </p>
           <button
             type="button"

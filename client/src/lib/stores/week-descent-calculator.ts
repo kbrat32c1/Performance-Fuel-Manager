@@ -134,6 +134,8 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
 
   const officialWeighInLog = allTodayLogs.find(l => l.type === 'weigh-in');
   const isCompDay = daysRemaining === 0 || !!officialWeighInLog;
+  // With water loading on, water stays high through 2 days out, so that day projects like a loading day.
+  const lastLoadingDay = profile.waterLoading !== false && profile.protocol !== '4' ? 2 : 3;
 
   const mostRecentWeighIn = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
   const todayMorningLog = allTodayLogs.find(l => l.type === 'morning');
@@ -193,7 +195,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
 
         const prevDate = startOfDay(new Date(prev.date));
         const daysOut = differenceInDays(startOfDay(profile.weighInDate), prevDate);
-        if (daysOut >= 3) {
+        if (daysOut >= lastLoadingDay) {
           loadingDrifts.push(drift);
         } else if (daysOut >= 1) {
           cutDrifts.push(drift);
@@ -288,7 +290,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
     const hasDriftData = avgOvernightDrift !== null && avgOvernightDrift > 0;
     const hasNetData = dailyAvgLoss !== null && dailyAvgLoss > 0;
     const hasGrossData = grossDailyLoss !== null && grossDailyLoss > 0;
-    const isLoadingToday = daysRemaining >= 3;
+    const isLoadingToday = daysRemaining >= lastLoadingDay;
     const todayDrift = isLoadingToday ? loadingDrift : cutDrift;
 
     if (hasDriftData || hasNetData) {
@@ -340,7 +342,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
 
       if (projected > 0) {
         for (let d = daysRemaining - 1; d > 0; d--) {
-          if (d >= 3) {
+          if (d >= lastLoadingDay) {
             const loadingLoss = hasNetData ? dailyAvgLoss! : (hasGrossData ? grossDailyLoss! * 0.2 : 0);
             projected -= loadingLoss;
           } else {
@@ -474,7 +476,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
 
     const SIMS = 2000;
     const results: number[] = [];
-    const isLoadingToday = daysRemaining >= 3;
+    const isLoadingToday = daysRemaining >= lastLoadingDay;
 
     const sweatRate = avgSweatRateOzPerHr;
     let extraWorkoutMean = 0;
@@ -512,7 +514,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
       }
 
       for (let d = daysRemaining - 1; d > 0; d--) {
-        if (d >= 3) {
+        if (d >= lastLoadingDay) {
           w -= netDailyMean > 0
             ? simLoss(netDailyMean, loadDriftStd)
             : simLoss(loadDriftMean * 0.2, loadDriftStd * 0.3);
@@ -543,7 +545,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
     const morningW = morningLog?.weight || latestMorningWeight;
     const latestW = allTodayLogs[0].weight;
     const lostSoFar = Math.max(0, morningW - latestW);
-    const isLoadingToday = daysRemaining >= 3;
+    const isLoadingToday = daysRemaining >= lastLoadingDay;
     const expectedTotal = isLoadingToday
       ? (dailyAvgLoss || 0)
       : (Math.max(0, avgOvernightDrift || 0) + Math.max(0, avgPracticeLoss || 0));

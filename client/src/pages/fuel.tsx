@@ -82,7 +82,7 @@ export default function Fuel() {
   const sparFruitDone = !sliceTargets || sliceTargets.fruit === 0 || (tracking.fruitSlices || 0) >= sliceTargets.fruit;
   const sparFatDone = !sliceTargets || sliceTargets.fat === 0 || (tracking.fatSlices || 0) >= sliceTargets.fat;
   const waterDone = hydration.targetOz === 0 || waterProgress >= 100;
-  const isSipOnly = hydration.type === 'Sip Only';
+  const isSipOnly = hydration.type === 'Reduced';
 
   const allDone = showSliceTracker
     ? sparProteinDone && sparCarbDone && sparVegDone && sparFruitDone && sparFatDone && waterDone
@@ -429,7 +429,7 @@ export default function Fuel() {
                   {isSipOnly && (
                     <div className="flex items-center gap-2 text-orange-500 bg-orange-500/10 rounded-lg px-3 py-2">
                       <AlertTriangle className="w-4 h-4 shrink-0" />
-                      <span className="text-xs font-bold">Sip only — small amounts</span>
+                      <span className="text-xs font-bold">Reduced water today: 0.25-0.5 gal total</span>
                     </div>
                   )}
 

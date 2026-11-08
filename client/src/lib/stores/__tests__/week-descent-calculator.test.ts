@@ -102,3 +102,19 @@ describe("Cut Lab calculations", () => {
     expect(r.historicalDriftRate).toBeCloseTo(1.5 / 8, 5); // hours bed→morning, not sleep hours
   });
 });
+
+describe("water loading and the projection", () => {
+  const thursday = new Date(2026, 10, 12, 12, 0);
+  const logs = () => [...nights(12, 4, 1.4), ...practices([9, 10, 11], 2.3)];
+  const project = (waterLoading: boolean) => computeWeekDescentData({
+    profile: { ...profile, simulatedDate: thursday, waterLoading } as unknown as AthleteProfile,
+    logs: logs(), daysUntilWeighIn: 2, calculateTarget: () => 136,
+    getDailyTracking: (date: string) => ({ date, waterConsumed: 0, carbsConsumed: 0, proteinConsumed: 0 } as DailyTracking),
+  });
+
+  it("doesn't count full cut-day losses 2 days out while water stays high", () => {
+    const on = project(true).projectedSaturday!;
+    const off = project(false).projectedSaturday!;
+    expect(on).toBeGreaterThan(off);
+  });
+});

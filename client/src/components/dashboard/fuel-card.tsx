@@ -109,7 +109,7 @@ export function FuelCard({
   // Hydration
   const waterProgress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
   const waterDone = hydration.targetOz === 0 || waterProgress >= 100;
-  const isSipOnly = hydration.type === 'Sip Only';
+  const isSipOnly = hydration.type === 'Reduced';
 
   const allDone = showSliceTracker
     ? sparProteinDone && sparCarbDone && sparVegDone && sparFruitDone && sparFatDone && waterDone

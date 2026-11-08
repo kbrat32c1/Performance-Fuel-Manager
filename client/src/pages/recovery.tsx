@@ -1069,8 +1069,8 @@ export default function Recovery() {
                 <span className="text-sm font-mono font-bold text-cyan-500">{plan.fluidRange}</span>
               </div>
               <div className="bg-muted/20 rounded-lg p-2 text-center">
-                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Sodium</span>
-                <span className="text-sm font-mono font-bold text-foreground">{plan.sodiumRange}</span>
+                <span className="text-xs uppercase text-muted-foreground block mb-0.5">Electrolytes</span>
+                <span className="text-sm font-mono font-bold text-foreground">With fluids</span>
               </div>
               <div className="bg-primary/5 rounded-lg p-2 text-center">
                 <span className="text-xs uppercase text-muted-foreground block mb-0.5">Glycogen</span>
