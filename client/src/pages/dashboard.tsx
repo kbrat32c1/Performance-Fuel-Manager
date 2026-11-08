@@ -1768,21 +1768,21 @@ export default function Dashboard() {
               {isSparGeneral ? (
                 <SparProtocolSelector profile={profile} />
               ) : (
-                <>
-                  <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.color)}>
-                    {phaseInfo.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground">·</span>
-                  <span className="text-xs font-bold font-mono text-primary whitespace-nowrap">{profile.targetWeightClass} lbs</span>
-                  {phaseInfo.stage && (
-                    <>
-                      <span className="text-xs text-muted-foreground">·</span>
+                // Each item draws its own leading dot. The first item on a line pushes its dot
+                // into the clipped negative margin, so a wrapped line never ends or starts with one.
+                <div className="overflow-hidden">
+                  <div className="flex flex-wrap items-center gap-y-0.5 -ml-4.5 [&>span]:relative [&>span]:pl-4.5 [&>span]:before:absolute [&>span]:before:left-2 [&>span]:before:font-normal [&>span]:before:text-muted-foreground [&>span]:before:content-['·']">
+                    <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.color)}>
+                      {phaseInfo.label}
+                    </span>
+                    <span className="text-xs font-bold font-mono text-primary whitespace-nowrap">{profile.targetWeightClass} lbs</span>
+                    {phaseInfo.stage && (
                       <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.stageColor)}>
                         {phaseInfo.stage}
                       </span>
-                    </>
-                  )}
-                </>
+                    )}
+                  </div>
+                </div>
               )}
               {/* Logging streak — shown in Cut Lab card instead to avoid duplication */}
             </div>

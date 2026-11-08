@@ -355,12 +355,12 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                   const groups: { title: string; hint: string; protocols: Protocol[] }[] = [
                     {
                       title: 'Sugar System',
-                      hint: "Sugar-focused eating. With Slices, you'll see carb and protein slices.",
+                      hint: "Sugar-focused eating. Slices targets are carb and protein. Anything logged as veg, fruit or fat is saved but doesn't fill those targets.",
                       protocols: [PROTOCOLS.EXTREME_CUT, PROTOCOLS.RAPID_CUT, PROTOCOLS.OPTIMAL_CUT, PROTOCOLS.GAIN],
                     },
                     {
                       title: 'Balanced Nutrition',
-                      hint: "Balanced eating across food groups. With Slices, you'll see protein, carb, veg, fruit and fat slices.",
+                      hint: "Balanced eating across food groups. Slices targets are protein, carb, veg, fruit and fat.",
                       protocols: [PROTOCOLS.SPAR, PROTOCOLS.SPAR_COMPETITION],
                     },
                   ];
@@ -438,7 +438,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Nutrition Mode Toggle */}
               <div className="space-y-2 pt-2 border-t border-muted">
                 <Label className="text-xs">How do you want to track?</Label>
-                <p className="text-xs text-muted-foreground">Use Slices or Grams with any plan. The Slices categories depend on your plan.</p>
+                <p className="text-xs text-muted-foreground">Use Slices or Grams with any plan. Slices targets depend on your plan.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleChange({ nutritionPreference: 'spar' })}
