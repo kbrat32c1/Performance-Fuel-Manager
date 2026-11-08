@@ -524,6 +524,9 @@ export default function Weekly() {
             // Build dynamic day labels for each protocol phase
             // Day names counted back from the weigh-in date (it may fall next week)
             const dayName = (daysOut: number) => format(addDays(new Date(profile.weighInDate), -daysOut), 'EEE');
+            // Same number as the day-before row in the table above, for every protocol.
+            const dayBefore = getWeeklyPlan().find(d => differenceInCalendarDays(new Date(profile.weighInDate), new Date(d.date)) === 1);
+            const dayBeforeTarget = dayBefore?.weightTarget ?? null;
 
             return (
               <>
@@ -562,8 +565,8 @@ export default function Weekly() {
                   <h4 className="font-bold text-sm text-amber-500 mb-1">{dayName(1)}: Key Checkpoint</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• <strong className="text-amber-500">Before practice: {checkpoints.friTarget}</strong></li>
-                    <li>• Morning target in the table above: {calculateTargetWeight(profile.targetWeightClass, 1, profile.protocol, waterLoadingOn).base} lbs</li>
-                    <li>• Final 3% drops from practice + overnight drift</li>
+                    {dayBeforeTarget != null && <li>• Morning target in the table above: {dayBeforeTarget} lbs</li>}
+                    <li>• Practice and overnight loss usually bring you closer, but how much varies. Check your own numbers in Cut Lab</li>
                     <li>• Above range? Talk to your coach about your options</li>
                     <li>• Below range? You're ahead - can eat more</li>
                   </ul>
