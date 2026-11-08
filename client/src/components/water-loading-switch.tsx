@@ -1,11 +1,47 @@
+import { useState } from "react";
 import { Droplets } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
-/** The athlete's own on/off switch for the water loading plan (on by default; off = drink normally). */
+const STUDY_URL = "https://pubmed.ncbi.nlm.nih.gov/29182412/";
+
+/** What water loading is and costs. Shown before an athlete opts in. */
+function WaterLoadingExplainer() {
+  return (
+    <div className="mt-2 space-y-2 text-xs leading-snug text-muted-foreground">
+      <p>
+        Staying hydrated supports performance. Water should be the last lever for making weight, and most weeks you
+        shouldn&apos;t need to deliberately dehydrate.
+      </p>
+      <p>
+        <strong className="text-foreground">What it is:</strong> Drinking more fluid than usual for several days,
+        followed by a reduction before weigh-in. A small{" "}
+        <a href={STUDY_URL} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+          study
+        </a>{" "}
+        found that water loading increased short-term weight loss compared with restriction alone, but results vary and
+        the exact approach used in this app hasn&apos;t been established by that study.
+      </p>
+      <p>
+        <strong className="text-foreground">The tradeoff:</strong> Reducing body water can hurt performance, especially
+        when there&apos;s little time between weigh-in and the first match. Drinking too much water can also be
+        dangerous because it can dilute the sodium in your blood. Keep your electrolytes up while you&apos;re drinking
+        more, and don&apos;t drink past what the plan calls for.
+      </p>
+      <p>
+        <strong className="text-foreground">If you&apos;re considering it:</strong> Discuss the situation with your
+        coach and athletic trainer or sports dietitian. Don&apos;t use it to compensate for being far above your weight
+        class.
+      </p>
+    </div>
+  );
+}
+
+/** The athlete's own opt-in switch for the water loading plan (off by default; off = drink normally). */
 export function WaterLoadingSwitch({ className }: { className?: string }) {
   const { profile, updateProfile } = useStore();
   const on = profile.waterLoading !== false;
+  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <div className={cn("rounded-xl border border-muted bg-card p-3", className)}>
@@ -19,7 +55,7 @@ export function WaterLoadingSwitch({ className }: { className?: string }) {
       >
         <span className="flex items-center gap-2">
           <Droplets className="h-4 w-4 shrink-0 text-secondary" />
-          <span className="text-sm font-bold">Water loading</span>
+          <span className="text-sm font-bold">Water loading (optional)</span>
         </span>
         <span
           aria-hidden
@@ -36,11 +72,27 @@ export function WaterLoadingSwitch({ className }: { className?: string }) {
           />
         </span>
       </button>
-      <p className="mt-1 text-xs leading-snug text-muted-foreground">
-        {on
-          ? "On: extra water early in the week, then cut back the last two days before weigh-in."
-          : "Off: drink normally every day — no loading or cutting back."}
-      </p>
+      {on ? (
+        <>
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">
+            On: extra water early in the week, then cut back the last two days before weigh-in.
+          </p>
+          <button
+            type="button"
+            aria-expanded={showDetails}
+            onClick={() => setShowDetails(v => !v)}
+            className="min-h-11 text-xs font-semibold text-primary"
+          >
+            {showDetails ? "Hide details" : "What this means"}
+          </button>
+          {showDetails && <WaterLoadingExplainer />}
+        </>
+      ) : (
+        <>
+          <p className="mt-1 text-xs leading-snug text-muted-foreground">Off: drink normally every day.</p>
+          <WaterLoadingExplainer />
+        </>
+      )}
     </div>
   );
 }
