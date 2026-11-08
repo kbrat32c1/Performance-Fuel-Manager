@@ -16,6 +16,7 @@ import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { QuickLogWaterTab } from './quick-log-water-tab';
 import { activateOnKey } from "@/lib/a11y";
 import { useLocation } from "wouter";
+import { sleepSourceName } from "@/lib/sleep-source";
 
 type FabTab = 'weight' | 'food' | 'water';
 
@@ -270,23 +271,24 @@ export function QuickLogFAB() {
   const { user } = useAuth();
   const { healthData } = useHealthKitSync(user?.id ?? null);
   const [sleepAutoFilled, setSleepAutoFilled] = useState(false);
+  const [sleepSourceLabel, setSleepSourceLabel] = useState<string | null>(null);
 
-  // Auto-fill sleep hours from V5 band (preferred) or HealthKit when morning weigh-in selected
+  // Auto-fill sleep hours from the wearable when morning weigh-in selected.
+  // Today's data from any source beats an older night; among today's rows the V5 band wins.
   const needsSleepForType = selectedType === 'morning';
   useEffect(() => {
     if (!needsSleepForType || sleepHours || !healthData.length) return;
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    // Prefer V5 band direct data, then fall back to any source
-    const v5Today = healthData.find(h => h.date === todayStr && h.source === 'v5-direct');
-    const v5Latest = healthData.find(h => h.source === 'v5-direct');
-    const anyToday = healthData.find(h => h.date === todayStr);
-    const bestData = v5Today || v5Latest || anyToday || healthData[0];
+    const hasSleep = (h: (typeof healthData)[number]) => h.sleep_hours != null && h.sleep_hours > 0;
+    const todayRows = healthData.filter(h => h.date === todayStr && hasSleep(h));
+    const bestData = todayRows.find(h => h.source === 'v5-direct') || todayRows[0] || healthData.find(hasSleep);
     if (bestData?.sleep_hours != null && bestData.sleep_hours > 0) {
       // Use exact value from band — no rounding. Stored as decimal string
       // (e.g. "5.7") for parseFloat downstream, displayed as "5h 42m" in UI.
       setSleepHours(bestData.sleep_hours.toString());
       setCustomSleep(false);
       setSleepAutoFilled(true);
+      setSleepSourceLabel(sleepSourceName(bestData.source, bestData.date, todayStr));
     }
   }, [needsSleepForType, healthData, sleepHours]);
 
@@ -1210,7 +1212,7 @@ export function QuickLogFAB() {
                             return m > 0 ? `${h}h ${m}m` : `${h}h`;
                           })()}
                         </span>
-                        <span className="text-xs text-muted-foreground/50">from V5 band</span>
+                        {sleepSourceLabel && <span className="text-xs text-muted-foreground">{sleepSourceLabel}</span>}
                       </div>
                       <button
                         onClick={() => setCustomSleep(true)}
