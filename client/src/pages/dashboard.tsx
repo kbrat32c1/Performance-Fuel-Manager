@@ -27,7 +27,7 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { HelpTip } from "@/components/ui/help-tip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { planExplanation, planTiming } from "@/lib/plan-line";
+import { planExplanation, planStage } from "@/lib/plan-line";
 import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
 import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
@@ -1371,7 +1371,7 @@ export default function Dashboard() {
 
   const phaseInfo = getPhaseInfo();
   const planText = planExplanation(profile.protocol);
-  const timingText = planTiming(daysUntilWeighIn, phaseInfo.stage);
+  const stageText = planStage(phaseInfo.stage);
 
   // Phase color mapping for UI elements
   const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading !== false);
@@ -1769,8 +1769,8 @@ export default function Dashboard() {
                       )}
                     </span>
                     <span className="text-xs font-bold text-primary whitespace-nowrap">{profile.targetWeightClass} class</span>
-                    {timingText && (
-                      <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">{timingText}</span>
+                    {stageText && (
+                      <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">{stageText}</span>
                     )}
                   </div>
                 </div>

@@ -11,11 +11,8 @@ export function planExplanation(protocol: string): string | null {
   return PLAN_EXPLANATIONS[protocol] ?? null;
 }
 
-/** "6 days out", "3 days out · water load", or the stage alone on and after competition day. */
-export function planTiming(daysUntil: number, stage?: string): string | null {
-  if (stage === 'Competition Day') return 'Competition day';
-  if (stage === 'Recovery') return 'Recovery';
-  if (daysUntil < 0) return null;
-  const out = daysUntil === 1 ? '1 day out' : `${daysUntil} days out`;
-  return stage && stage !== 'Training' ? `${out} · ${stage.toLowerCase()}` : out;
+/** The stage of the week. The countdown on the card already says how many days are left. */
+export function planStage(stage?: string): string | null {
+  if (!stage || stage === 'Training') return null;
+  return stage.charAt(0) + stage.slice(1).toLowerCase();
 }

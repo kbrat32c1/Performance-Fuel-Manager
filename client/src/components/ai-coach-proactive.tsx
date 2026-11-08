@@ -344,7 +344,7 @@ export function AiCoachProactive() {
 
   // Use store's precise countdown (matches Week tab)
   const timeUntilWeighIn = daysUntil >= 0 ? getTimeUntilWeighIn() : null;
-  const showCountdown = !!timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME' && !isAtWeight;
+  const showCountdown = !!timeUntilWeighIn && timeUntilWeighIn !== 'WEIGH-IN TIME';
 
   // ─── Coaching insight ───
   // Uses PROJECTED GAP (not raw deficit) — sleep drift and practice losses are accounted for.
