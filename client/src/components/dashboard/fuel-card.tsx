@@ -287,7 +287,7 @@ export function FuelCard({
                 ) : (
                   <>
                     <span className="text-lg font-black leading-none text-foreground">{displayProgress}</span>
-                    <span className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest">%</span>
+                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">%</span>
                   </>
                 )}
               </div>
@@ -361,7 +361,7 @@ export function FuelCard({
                       <span className={cn("text-xs font-mono font-black leading-tight block",
                         pill.done ? "text-green-500" : "text-foreground"
                       )}>
-                        {pill.consumed}<span className="text-muted-foreground/40 font-normal">/{pill.target}</span>
+                        {pill.consumed}<span className="text-muted-foreground font-normal">/{pill.target}</span>
                       </span>
                     </div>
                   </div>

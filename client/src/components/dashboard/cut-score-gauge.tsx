@@ -49,8 +49,8 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
   if (locked || !result) {
     return (
       <div className="px-4 pt-3 pb-1">
-        <div className="w-full flex items-center gap-4 opacity-40">
-          <div className="relative w-[96px] h-[96px] flex-shrink-0">
+        <div className="w-full flex items-center gap-4">
+          <div className="relative w-[96px] h-[96px] flex-shrink-0" aria-hidden="true">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 96 96">
               <circle cx="48" cy="48" r={radius} fill="none" strokeWidth="6" className="stroke-muted/30" />
               {/* Dashed ring hint — shows there's something to unlock */}
@@ -61,15 +61,15 @@ export function CutScoreGauge({ result, locked }: CutScoreGaugeProps) {
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <Lock className="w-5 h-5 text-muted-foreground/40 mb-0.5" />
-              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground/70 mt-1">
+              <Lock className="w-5 h-5 text-muted-foreground/60 mb-0.5" />
+              <span className="max-w-[3.5rem] text-center text-xs font-bold uppercase leading-tight text-muted-foreground mt-1">
                 Cut Score
               </span>
             </div>
           </div>
           <div className="flex-1 text-left min-w-0">
             <span className="text-xs text-muted-foreground">
-              Log your <strong className="text-muted-foreground/80">morning weight</strong> to unlock
+              Log your <strong className="text-foreground">morning weight</strong> to unlock your Cut Score
             </span>
           </div>
         </div>
