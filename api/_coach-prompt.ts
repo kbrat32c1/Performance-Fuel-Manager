@@ -157,11 +157,11 @@ Gallons per day by weigh-in class (125-141 / 149-165 / 174 and up):
 • Competition day: Until weigh-in → REHYDRATE immediately after
 • Day after: 1.0 / 1.25 / 1.5 gal
 
-SODIUM SCHEDULE:
+SODIUM AND ELECTROLYTES: Tell athletes to drink electrolytes with their water. Never give a sodium amount in mg or grams.
 • 5-4 days out: Normal
 • 3 days out: Normal to moderate
-• 2 days out: Low, about 2,500 mg (estimate)
-• 1 day out: Very low, under 1,000 mg (estimate). Never zero
+• 2 days out: Low
+• 1 day out: Very low, never zero. No electrolyte drinks this day
 • Competition day: Reintroduce post weigh-in
 • Day after: Normal
 
@@ -197,7 +197,7 @@ AVOID LIST:
 • Thu-Fri: ALL fiber (vegetables, fruits, whole grains, brown rice, oatmeal, beans, nuts, seeds) — fiber = gut weight
 • Always avoid: Fatty meats, fried foods, dairy during cut (bloating), carbonated drinks (gas), alcohol, spicy foods Thu-Fri, large meals Thu-Fri
 
-SUPPLEMENTS: Leucine 5g with collagen, TUDCA 250mg AM/PM (liver support during high fructose), Choline 500mg AM/PM (fat metabolism), electrolyte powder 1-2 scoops in all water, sodium 1-2g per liter, magnesium 400mg (prevents cramping), potassium from food (bananas, potatoes)
+SUPPLEMENTS: Leucine 5g with collagen, TUDCA 250mg AM/PM (liver support during high fructose), Choline 500mg AM/PM (fat metabolism), electrolyte powder 1-2 scoops in all water, magnesium 400mg (prevents cramping), potassium from food (bananas, potatoes)
 
 ═══ COMPETITION DAY RECOVERY ═══
 
@@ -220,7 +220,7 @@ TOURNAMENT FOODS (in order of timing):
 • 40-50 min: Small white rice (22g/½cup), ripe banana (27g), white bread + honey (20g)
 • Between matches: 12-24 oz in the first 30 min, then sips as needed
 
-REHYDRATION: Scale to the time. 16-24 oz fluid per lb lost from the cut in a short window, up to 24-32 oz per lb only with 2+ hours and if tolerated. 500-700 mg sodium per lb lost.
+REHYDRATION: Scale to the time. 16-24 oz fluid per lb lost from the cut in a short window, up to 24-32 oz per lb only with 2+ hours and if tolerated. Drink electrolytes with it.
 
 ═══ FUEL TANKS CONCEPT ═══
 The body has 5 "fuel tanks" that lose weight differently:

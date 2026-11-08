@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format, getDay, addDays, startOfWeek, isSameDay, differenceInCalendarDays } from "date-fns";
 import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Dumbbell } from "lucide-react";
-import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWaterTargetGallons, getSodiumTarget } from "@/lib/constants";
+import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWaterTargetGallons, getSodiumPlan } from "@/lib/constants";
 import { WaterLoadingSwitch } from "@/components/water-loading-switch";
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 import { WeekOverview } from "@/components/dashboard";
@@ -72,12 +72,6 @@ export default function Weekly() {
   const getWaterForDay = (dayKey: string) => {
     const daysOut = dayToDaysUntil[dayKey] ?? 5;
     return getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn, profile.targetWeightClass);
-  };
-
-  // Compute sodium target for each day
-  const getSodiumForDay = (dayKey: string) => {
-    const daysOut = dayToDaysUntil[dayKey] ?? 5;
-    return getSodiumTarget(daysOut, waterLoadingOn);
   };
 
   // Water loading bonus from centralized helper
@@ -394,8 +388,7 @@ export default function Weekly() {
                 <tr className="bg-muted/50">
                   <th className="p-2 text-left font-bold whitespace-nowrap">Day</th>
                   <th className="p-2 text-center font-bold whitespace-nowrap">Water</th>
-                  <th className="p-2 text-center font-bold whitespace-nowrap">Na+</th>
-                  <th className="p-2 text-left font-bold whitespace-nowrap">Sodium Plan</th>
+                  <th className="p-2 text-left font-bold whitespace-nowrap">Sodium</th>
                 </tr>
               </thead>
               <tbody>
@@ -403,7 +396,7 @@ export default function Weekly() {
                   const dayDate = new Date(planDay.date);
                   const daysOut = differenceInCalendarDays(new Date(profile.weighInDate), dayDate);
                   const waterAmount = getWaterTargetGallons(daysOut, athleteWeightLbs, waterLoadingOn, profile.targetWeightClass);
-                  const sodiumInfo = getSodiumTarget(daysOut, waterLoadingOn);
+                  const sodiumInfo = getSodiumPlan(daysOut, waterLoadingOn);
                   const dateLabel = format(dayDate, 'M/d');
 
                   return (
@@ -429,14 +422,6 @@ export default function Weekly() {
                           {waterAmount}
                         </span>
                       </td>
-                      <td className="p-2 text-center">
-                        <span className={cn(
-                          "text-xs font-mono font-bold",
-                          sodiumInfo.color
-                        )}>
-                          {sodiumInfo.target > 0 ? `${(sodiumInfo.target / 1000).toFixed(1)}g` : '—'}
-                        </span>
-                      </td>
                       <td className="p-2 text-left">
                         <span className={cn(
                           "text-xs whitespace-nowrap",
@@ -453,7 +438,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          {waterLoadingOn ? 'Coaching schedule by weight class. Optional, and not a tested protocol' : `Water loading off — the same normal amount every day • Scaled to ${athleteWeightLbs} lbs`}
+          {waterLoadingOn ? `Drink electrolytes with your water, except ${format(addDays(new Date(profile.weighInDate), -1), 'EEE')}. Coaching schedule by weight class. Optional, and not a tested protocol` : `Water loading off — the same normal amount every day • Scaled to ${athleteWeightLbs} lbs`}
         </p>
       </section>
 
@@ -545,7 +530,7 @@ export default function Weekly() {
                   <h4 className="font-bold text-sm text-violet-400 mb-1">{dayName(2)}: High Water, Low Sodium</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
                     <li>• Water stays high: a step down from peak, not a cut</li>
-                    <li>• Sodium low, about 2,500mg</li>
+                    <li>• Sodium low. Keep drinking electrolytes</li>
                     <li>• ZERO fiber — check every bite</li>
                     <li>• Water weight is still on: the sharp drop comes the next day</li>
                   </ul>

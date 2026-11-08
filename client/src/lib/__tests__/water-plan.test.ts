@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  getWaterTargetOz, getWaterTargetGallons, getSodiumTarget,
+  getWaterTargetOz, getWaterTargetGallons, getSodiumPlan,
   calculateTargetWeight, getPhaseForDaysUntil, isWaterLoadingDay,
 } from '../constants';
 
@@ -31,7 +31,7 @@ describe('water loading on (Kevin\'s FINAL_13 week)', () => {
   });
 
   it('has no salt-load, and never zero the day before', () => {
-    expect([5, 4, 3, 2, 1].map(d => getSodiumTarget(d).target)).toEqual([3000, 3000, 3000, 2500, 1000]);
+    expect([5, 4, 3, 2, 1].map(d => getSodiumPlan(d).label)).toEqual(['Normal', 'Normal', 'Normal to moderate', 'Low', 'Very low']);
   });
 
   it('carries the water-weight allowance through 2 days out, not the day before', () => {
@@ -54,7 +54,7 @@ describe('water loading off (drink normally)', () => {
   });
 
   it('keeps sodium normal', () => {
-    for (const d of [5, 4, 3, 2, 1]) expect(getSodiumTarget(d, false).target).toBe(3000);
+    for (const d of [5, 4, 3, 2, 1]) expect(getSodiumPlan(d, false).label).toBe('Normal');
   });
 
   it('drops the loading allowance and Load days', () => {

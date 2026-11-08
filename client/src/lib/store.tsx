@@ -1450,15 +1450,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getRehydrationPlan = (lostWeight: number) => {
-    // Research-based: 16-24 oz fluid per lb lost, 500-700 mg sodium per lb lost
+    // Research-based: 16-24 oz fluid per lb lost
     const fluidMin = Math.round(lostWeight * 16);
     const fluidMax = Math.round(lostWeight * 24);
-    const sodiumMin = Math.round(lostWeight * 500);
-    const sodiumMax = Math.round(lostWeight * 700);
 
     return {
       fluidRange: `${fluidMin}-${fluidMax} oz`,
-      sodiumRange: `${sodiumMin}-${sodiumMax}mg`,
       glycogen: "40-50g Dextrose/Rice Cakes"
     };
   };

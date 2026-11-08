@@ -316,19 +316,19 @@ export const REDUCED_WATER_DAY = { minGal: 0.25, maxGal: 0.5 } as const;
 export const NORMAL_WATER_OZ_PER_LB = 0.7;
 
 /**
- * Sodium targets (mg/day) by daysUntilWeighIn, water loading on.
- * 2,500 and 1,000 mg are the app's estimates for FINAL_13's "Low" and "Very Low".
+ * Sodium guidance in words by daysUntilWeighIn, water loading on (FINAL_13's wording).
+ * No amounts: Kevin ruled the app just says to drink electrolytes (2026-11-08).
  * SAFETY: Never eliminate sodium completely.
  */
-export const SODIUM_MG_BY_DAY = {
-  6: { target: 3000, label: 'Normal', color: 'text-primary' },
-  5: { target: 3000, label: 'Normal', color: 'text-primary' },
-  4: { target: 3000, label: 'Normal', color: 'text-primary' },
-  3: { target: 3000, label: 'Normal to moderate', color: 'text-primary' },
-  2: { target: 2500, label: 'Low', color: 'text-amber-500' },
-  1: { target: 1000, label: 'Very low — under 1,000mg', color: 'text-amber-500' },
-  0: { target: 0, label: 'Reintroduce post weigh-in', color: 'text-cyan-500' },
-  [-1]: { target: 3000, label: 'Normal — replenish', color: 'text-green-500' },
+export const SODIUM_PLAN_BY_DAY = {
+  6: { label: 'Normal', color: 'text-primary' },
+  5: { label: 'Normal', color: 'text-primary' },
+  4: { label: 'Normal', color: 'text-primary' },
+  3: { label: 'Normal to moderate', color: 'text-primary' },
+  2: { label: 'Low', color: 'text-amber-500' },
+  1: { label: 'Very low', color: 'text-amber-500' },
+  0: { label: 'Reintroduce post weigh-in', color: 'text-cyan-500' },
+  [-1]: { label: 'Normal — replenish', color: 'text-green-500' },
 } as const;
 
 function waterGroup(weightClass: number): keyof typeof WATER_LOADING_GALLONS {
@@ -365,15 +365,13 @@ export function getWaterTargetGallons(daysUntil: number, weightLbs: number, wate
   return `${rounded.toFixed(rounded % 1 === 0 ? 1 : 2)} gal`;
 }
 
-/**
- * Get sodium info for a given day.
- */
-export function getSodiumTarget(daysUntil: number, waterLoading = true) {
+/** Sodium guidance in words for a given day. */
+export function getSodiumPlan(daysUntil: number, waterLoading = true) {
   if (!waterLoading) {
-    return daysUntil === 0 ? SODIUM_MG_BY_DAY[0] : { target: 3000, label: 'Normal', color: 'text-primary' };
+    return daysUntil === 0 ? SODIUM_PLAN_BY_DAY[0] : { label: 'Normal', color: 'text-primary' };
   }
   const key = daysUntil < 0 ? -1 : Math.min(daysUntil, 6);
-  return SODIUM_MG_BY_DAY[key as keyof typeof SODIUM_MG_BY_DAY] ?? SODIUM_MG_BY_DAY[-1];
+  return SODIUM_PLAN_BY_DAY[key as keyof typeof SODIUM_PLAN_BY_DAY] ?? SODIUM_PLAN_BY_DAY[-1];
 }
 
 // Phase definitions
@@ -437,10 +435,6 @@ export const REHYDRATION = {
   // Fluid oz per lb lost (range)
   FLUID_OZ_PER_LB_MIN: 16,
   FLUID_OZ_PER_LB_MAX: 24,
-
-  // Sodium mg per lb lost (range)
-  SODIUM_MG_PER_LB_MIN: 500,
-  SODIUM_MG_PER_LB_MAX: 700,
 } as const;
 
 // UI Constants
