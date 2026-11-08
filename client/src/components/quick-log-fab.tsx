@@ -755,19 +755,19 @@ export function QuickLogFAB() {
     <>
       {/* Onboarding tooltip — portaled to body so it's not clipped by nav */}
       {showTooltip && onToday && !isOpen && createPortal(
-        <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="relative bg-primary text-primary-foreground px-3 py-2 rounded-lg shadow-lg max-w-[180px]">
+        <div className="fixed bottom-[6.5rem] left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="relative flex items-center gap-1 bg-primary text-primary-foreground pl-3 pr-1 py-1 rounded-lg shadow-lg whitespace-nowrap">
+            <p className="text-xs font-semibold">
+              {logs.length === 0 ? "Log your first weight here" : "Log today's weight here"}
+            </p>
             <button
               onClick={dismissTooltip}
-              className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-background text-foreground flex items-center justify-center text-xs shadow-md after:absolute after:-inset-3"
-              aria-label="Dismiss tooltip"
+              className="w-8 h-8 shrink-0 rounded-md flex items-center justify-center hover:bg-black/10"
+              aria-label="Dismiss tip"
             >
-              <X className="w-3 h-3" aria-hidden="true" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
-            <p className="text-xs font-medium leading-tight text-center">
-              {logs.length === 0 ? "Tap here to log your first weight!" : "Welcome back! Tap here to log your weight"}
-            </p>
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-primary" />
+            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-primary" />
           </div>
         </div>,
         document.body
