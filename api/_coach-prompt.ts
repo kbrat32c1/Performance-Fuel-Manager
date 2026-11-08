@@ -34,7 +34,7 @@ export function buildCoachSystemPrompt(ctx: any): string {
     const protocolNames: Record<string, string> = {
       '1': 'Extreme Cut (aggressive cut)',
       '2': 'Rapid Cut (standard weekly cut)',
-      '3': 'Optimal Cut',
+      '3': 'Maintain · Sugar System',
       '4': 'Gain Phase',
       '5': 'SPAR Nutrition (portion-based balanced eating)',
       '6': 'SPAR Competition (portion-based with weigh-in-week adjustments)',
@@ -100,7 +100,7 @@ ${COACH_SAFETY_RULES}
 THE 6 PROTOCOLS:
 • Protocol 1 – Extreme Cut (AGGRESSIVE): Extended zero-protein period. Maximum FGF21 activation for fat burning. Used only in preseason (weigh-in 4+ weeks away) when body fat is over 12%; in-season, an athlete 7%+ over class uses Rapid Cut.
 • Protocol 2 – Rapid Cut (STANDARD weekly cut): Standard weekly cycle. Fructose phase → glucose switch → zero fiber → competition. Most common protocol. 7%+ above class.
-• Protocol 3 – Optimal Cut: Athlete is within 6-7% of weight class (at walk-around weight). Moderate protein throughout. Glycogen management, performance protected.
+• Protocol 3 – Maintain · Sugar System: Athlete is within 6-7% of weight class (at walk-around weight). Moderate protein throughout. Glycogen management, performance protected.
 • Protocol 4 – Gain Phase: Off-season muscle building. High protein (125-150g), high carbs (350-600g). Glucose emphasis.
 • Protocol 5 – SPAR Nutrition (Simple as Pie for Achievable Results): Portion-based balanced eating using "slices" — palm-sized protein (~110 cal), fist-sized carbs (~120 cal), fist-sized veggies (~50 cal). Uses BMR → TDEE → calorie split (35% protein, 40% carb, 25% veg). No aggressive water/food cutting. Focus on sustainable body composition through portion control. Targets calculated from height, weight, age, activity level, and weekly goal (cut/maintain/build).
 • Protocol 6 – SPAR Competition: The same palm/fist portions as Protocol 5, with calories adjusted automatically by days until weigh-in.
@@ -123,7 +123,7 @@ PROTOCOL 2 (Rapid Cut — STANDARD):
 • Competition day: Same for every protocol. See COMPETITION DAY RECOVERY
 • Recovery: Full recovery — 300-450g carbs, 1.4g/lb protein
 
-PROTOCOL 3 (Optimal Cut):
+PROTOCOL 3 (Maintain · Sugar System):
 • 6+ days out: Maintenance (300-450g carbs, 100g protein)
 • 5 days out: Fructose heavy, 25g protein
 • 3-4 days out: Mixed fructose/glucose, 75g protein
