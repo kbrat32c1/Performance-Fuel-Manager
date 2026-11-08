@@ -1,0 +1,32 @@
+import { describe, it, expect } from "vitest";
+import { displayRecoveryScore, withDisplayRecovery } from "../recovery-display";
+import { computeBaselines } from "../recovery-baselines";
+import { computeRecoveryScoreDetailed } from "../healthkit-service";
+import type { DbHealthData } from "../supabase";
+
+const day = (date: string, extra: Partial<DbHealthData>): DbHealthData =>
+  ({ date, hrv: 70, resting_heart_rate: 52, sleep_hours: 7.5, sleep_score: 80, respiratory_rate: 14,
+     recovery_score: 12, source: "v5-direct", ...extra } as DbHealthData);
+
+const history = [
+  day("2026-11-07", { hrv: 60 }),
+  ...Array.from({ length: 10 }, (_, i) => day(`2026-10-${String(28 - i).padStart(2, "0")}`, { hrv: 70 + (i % 3) })),
+];
+
+describe("one recovery score per day", () => {
+  it("matches the card's own calculation for non-WHOOP days, ignoring the stale stored number", () => {
+    const b = computeBaselines(history, "2026-11-07");
+    const card = computeRecoveryScoreDetailed({
+      hrv: 60, restingHeartRate: 52, sleepHours: 7.5, sleepScore: 80, respiratoryRate: 14,
+      baselines: { hrv: b.hrv, restingHeartRate: b.restingHeartRate, sleepScore: b.sleepScore, sleepHours: b.sleepHours, respiratoryRate: b.respiratoryRate },
+    }).score;
+    expect(displayRecoveryScore(history[0], history)).toBe(card);
+    expect(withDisplayRecovery(history)[0].recovery_score).toBe(card);
+    expect(card).not.toBe(12);
+  });
+
+  it("keeps WHOOP's own score on WHOOP days", () => {
+    const whoop = day("2026-11-07", { source: "whoop" as DbHealthData["source"], recovery_score: 67 });
+    expect(displayRecoveryScore(whoop, [whoop, ...history.slice(1)])).toBe(67);
+  });
+});

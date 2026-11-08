@@ -3,6 +3,7 @@ import { addDays, differenceInDays, getDay, parseISO, format, startOfDay } from 
 import { supabase, type UserFoodsJson } from './supabase';
 import { useAuth } from './auth';
 import { toast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import {
   getWeightMultiplier,
   isWaterLoadingDay as checkWaterLoadingDay,
@@ -309,6 +310,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // A row leaves that store only after Supabase confirms the exact version we sent,
   // so a failed save survives reloads and is retried instead of being overwritten.
   const userIdRef = useRef<string | null>(user?.id ?? null);
+  // Profile saves: sequence number to ignore stale failures, and the latest updateProfile for Retry.
+  const profileSaveSeqRef = useRef(0);
+  const updateProfileRef = useRef<((u: Partial<AthleteProfile>, o?: { silent?: boolean }) => Promise<void>) | null>(null);
   userIdRef.current = user?.id ?? null;
   const trackingRef = useRef<DailyTracking[]>(dailyTracking);
   useEffect(() => { trackingRef.current = dailyTracking; }, [dailyTracking]);
@@ -795,6 +799,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Save profile to Supabase
   const updateProfile = async (updates: Partial<AthleteProfile>, options?: { silent?: boolean }) => {
+    const saveSeq = ++profileSaveSeqRef.current;
     // Check if this is ONLY a simulatedDate change (date navigation, not a real settings change)
     const isOnlySimulatedDateChange = Object.keys(updates).length === 1 && 'simulatedDate' in updates;
 
@@ -807,8 +812,39 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       normalizedUpdates.simulatedDate = new Date(normalizedUpdates.simulatedDate);
     }
 
+    const previousProfile = profile;
     const newProfile = { ...profile, ...normalizedUpdates };
     setProfile(newProfile);
+
+    // A failed save must not leave the screen showing a plan that isn't stored:
+    // put the old settings back and offer to try again.
+    const revertAfterFailedSave = (detail?: string) => {
+      // A newer save has already gone through; rolling back would undo it.
+      if (saveSeq !== profileSaveSeqRef.current) return;
+      // Undo only the fields this save changed, against whatever is current now.
+      setProfile(current => {
+        const reverted = { ...current } as Record<string, unknown>;
+        for (const key of Object.keys(normalizedUpdates)) {
+          reverted[key] = (previousProfile as unknown as Record<string, unknown>)[key];
+        }
+        return reverted as unknown as AthleteProfile;
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.WEIGH_IN_CLEARED, JSON.stringify(previousProfile.weighInCleared || false));
+        localStorage.setItem(STORAGE_KEYS.NEXT_CYCLE_DISMISSED, JSON.stringify(previousProfile.nextCyclePromptDismissed || false));
+      } catch {}
+      toast({
+        title: 'Not saved',
+        description: `Your change didn't save, so your previous settings are back.${detail ? ` (${detail})` : ''}`,
+        variant: 'destructive',
+        duration: 10000,
+        action: (
+          <ToastAction altText="Try saving again" onClick={() => { updateProfileRef.current?.(updates, options); }}>
+            Retry
+          </ToastAction>
+        ),
+      });
+    };
 
     if (user) {
       try {
@@ -890,7 +926,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // (that would overwrite user's v2 settings!)
         if (upsertError) {
           console.error('Profile save failed:', upsertError.message, upsertError.code, upsertError.details);
-          toast({ title: 'Save failed', description: `Error: ${upsertError.message}`, variant: 'destructive' });
+          revertAfterFailedSave(upsertError.message);
           // DON'T fall back - just report the error
           return;
         }
@@ -899,10 +935,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // This code block is intentionally disabled and kept for reference only
       } catch (error) {
         console.error('Error saving profile:', error);
-        toast({ title: 'Save failed', description: 'Your changes may not be saved. Please try again.', variant: 'destructive' });
+        revertAfterFailedSave();
       }
     }
   };
+
+  updateProfileRef.current = updateProfile;
 
   // Save user foods (custom foods, meals, favorites) to Supabase
   const updateUserFoods = async (updates: Partial<UserFoodsData>) => {

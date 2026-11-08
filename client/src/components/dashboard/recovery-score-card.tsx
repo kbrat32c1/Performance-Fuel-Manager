@@ -15,9 +15,10 @@ import { cn } from "@/lib/utils";
 import { Activity, Heart, Moon, Wind, TrendingUp, TrendingDown, Minus, HelpCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
-import { computeRecoveryScoreDetailed } from "@/lib/healthkit-service";
+import { computeRecoveryScoreDetailed, getRecoveryRecommendation } from "@/lib/healthkit-service";
 import type { RecoveryResult, RecoveryContribution } from "@/lib/healthkit-service";
 import { computeBaselines } from "@/lib/recovery-baselines";
+import { withDisplayRecovery, isWhoopDay } from "@/lib/recovery-display";
 import { MetricDetailSheet } from "./metric-detail-sheet";
 import type { MetricKey } from "./metric-detail-sheet";
 
@@ -74,12 +75,15 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
     });
   }, [latestHealth, healthHistory]);
 
-  const score = recovery.score;
+  // Same score source for the ring, the 7-day bars and the detail sheet.
+  const scoredHistory = useMemo(() => withDisplayRecovery(healthHistory), [healthHistory]);
+  const fromWhoop = isWhoopDay(latestHealth) && latestHealth.recovery_score != null;
+  const score = fromWhoop ? Math.round(latestHealth.recovery_score as number) : recovery.score;
   const scoreColor = getScoreColor(score);
   const scoreBg = getScoreBg(score);
 
   // 7-day mini chart data (newest first in healthHistory, we want oldest-to-newest)
-  const last7 = healthHistory
+  const last7 = scoredHistory
     .filter(h => h.recovery_score != null)
     .slice(0, 7)
     .reverse();
@@ -95,7 +99,12 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               Recovery
             </span>
-            {recovery.personalized && (
+            {fromWhoop && (
+              <span className="text-xs bg-muted/40 text-muted-foreground px-1.5 py-0.5 rounded-full">
+                WHOOP
+              </span>
+            )}
+            {!fromWhoop && recovery.personalized && (
               <span className="text-xs bg-muted/40 text-muted-foreground/70 px-1.5 py-0.5 rounded-full">
                 Personalized
               </span>
@@ -125,7 +134,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
               {getScoreLabel(score)}
             </div>
             <div className="text-xs text-muted-foreground leading-relaxed">
-              {recovery.recommendation}
+              {fromWhoop ? getRecoveryRecommendation(score) : recovery.recommendation}
             </div>
           </div>
         </div>
@@ -190,7 +199,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
     {/* Metric Detail Sheet — slides up when a metric is tapped */}
     <MetricDetailSheet
       metric={selectedMetric}
-      healthHistory={healthHistory}
+      healthHistory={scoredHistory}
       latestHealth={latestHealth}
       onClose={() => setSelectedMetric(null)}
     />
