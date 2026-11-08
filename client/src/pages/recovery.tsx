@@ -859,8 +859,10 @@ export default function Recovery() {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {water.estimated
-                    ? 'Estimated as 3% of your class — log your morning weight two days out for an exact number.'
-                    : `From ${water.preCutWeight?.toFixed(1)} two days out, before the water cut.`}
+                    ? `Estimate: no morning weight logged before your water cut, so we assume you were 3% over your class (${water.weighInWeight.toFixed(1)} + ${lostWeight.toFixed(1)}). Log your morning weight two days out for an exact number.`
+                    : water.preCutDaysOut === 2
+                      ? `Your ${water.preCutDate ? format(water.preCutDate, 'EEE') : ''} morning weight (${water.preCutWeight?.toFixed(1)}, two days out, before the water cut) minus your weigh-in (${water.weighInWeight.toFixed(1)}).`
+                      : `Your ${water.preCutDate ? format(water.preCutDate, 'EEE') : ''} morning weight (${water.preCutWeight?.toFixed(1)}, the day before weigh-in) minus your weigh-in (${water.weighInWeight.toFixed(1)}). No weight was logged two days out, so water you cut that day isn't counted — this may be low.`}
                 </p>
                 {water.overSafeCut && (
                   <p className="text-xs text-chart-3 font-medium">

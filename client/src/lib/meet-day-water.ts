@@ -15,6 +15,10 @@ export interface MeetDayWater {
   weighInSource: "entered" | "logged" | "class";
   /** Morning weight before the water cut, if logged */
   preCutWeight: number | null;
+  /** Which morning preCutWeight came from: 2 = two days out (preferred), 1 = the day before */
+  preCutDaysOut: 1 | 2 | null;
+  /** Date of that morning */
+  preCutDate: Date | null;
   /** Water to drink back, lbs */
   lbsToRecover: number;
   /** True when lbsToRecover is the 3% estimate (no pre-cut weight logged) */
@@ -55,15 +59,19 @@ export function getMeetDayWater(opts: {
   }
 
   // Morning two days out is before any water restriction; fall back to the day before.
-  const preCut = morningOn(logs, addDays(day, -2)) ?? morningOn(logs, addDays(day, -1));
+  const twoOut = morningOn(logs, addDays(day, -2));
+  const oneOut = twoOut ? undefined : morningOn(logs, addDays(day, -1));
+  const preCut = twoOut ?? oneOut;
   const preCutWeight = preCut ? preCut.weight : null;
+  const preCutDaysOut: MeetDayWater["preCutDaysOut"] = twoOut ? 2 : oneOut ? 1 : null;
+  const preCutDate = preCut ? new Date(preCut.date) : null;
 
   if (preCutWeight !== null) {
     // A known baseline wins even when it shows no drop: no water cut means nothing to drink back.
     const lbs = Math.max(0, preCutWeight - weighInWeight);
     const pct = lbs / preCutWeight;
     return {
-      weighInWeight, weighInSource, preCutWeight,
+      weighInWeight, weighInSource, preCutWeight, preCutDaysOut, preCutDate,
       lbsToRecover: Math.round(lbs * 10) / 10,
       estimated: false,
       cutPct: pct,
@@ -72,7 +80,7 @@ export function getMeetDayWater(opts: {
   }
 
   return {
-    weighInWeight, weighInSource, preCutWeight,
+    weighInWeight, weighInSource, preCutWeight, preCutDaysOut, preCutDate,
     lbsToRecover: Math.round(weightClass * WATER_CUT_SAFE_PCT * 10) / 10,
     estimated: true,
     cutPct: null,

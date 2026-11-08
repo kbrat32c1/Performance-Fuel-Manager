@@ -12,6 +12,7 @@ describe("Meet Day water to recover", () => {
     const logs = [log(7, 141), log(2, 137), log(1, 135), log(0, 133.2)];
     const r = getMeetDayWater({ logs, weighInDate: weighIn, weightClass: 133 });
     expect(r.preCutWeight).toBe(137);
+    expect(r.preCutDaysOut).toBe(2);
     expect(r.lbsToRecover).toBe(4);
     expect(r.estimated).toBe(false);
     expect(r.overSafeCut).toBe(false);
@@ -35,6 +36,12 @@ describe("Meet Day water to recover", () => {
     const r = getMeetDayWater({ logs: [log(2, 133)], weighInDate: weighIn, weightClass: 133 });
     expect(r.estimated).toBe(false);
     expect(r.lbsToRecover).toBe(0);
+  });
+
+  it("falls back to the morning before weigh-in and says so", () => {
+    const r = getMeetDayWater({ logs: [log(1, 135)], weighInDate: weighIn, weightClass: 133 });
+    expect(r.preCutDaysOut).toBe(1);
+    expect(r.lbsToRecover).toBe(2);
   });
 
   it("flags a water cut over 3%", () => {
