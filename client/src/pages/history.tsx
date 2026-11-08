@@ -1,3 +1,4 @@
+import { BackToToday } from "@/components/back-to-today";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { Card, CardContent } from "@/components/ui/card";
@@ -521,6 +522,7 @@ export default function History() {
 
   return (
     <MobileLayout showNav={true}>
+      <BackToToday />
       {/* Header */}
       <header className="mb-4">
         <div className="flex items-start justify-between">

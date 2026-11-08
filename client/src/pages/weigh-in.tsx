@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, format } from "date-fns";
 import { Check, ChevronLeft, ChevronRight, CloudOff, Loader2, RefreshCw } from "lucide-react";
+import { BackToToday } from "@/components/back-to-today";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -121,6 +122,7 @@ export default function WeighIn() {
   return (
     <MobileLayout className="lg:max-w-xl">
       <div className="space-y-3 pb-6">
+        <BackToToday />
         <header className="flex items-center justify-between px-1 pt-1">
           <button
             type="button"

@@ -4,6 +4,7 @@
  */
 import { useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
+import { BackToToday } from "@/components/back-to-today";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useTeam, useTeamRoster, type Team } from "@/hooks/use-team";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export default function TeamPage() {
   return (
     <MobileLayout className="lg:max-w-xl">
       <div className="space-y-4 pb-8">
+        <BackToToday />
         <header className="px-1 pt-1">
           <h1 className="text-lg font-bold">Team schedule</h1>
           <p className="text-xs text-muted-foreground">
