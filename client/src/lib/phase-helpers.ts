@@ -55,7 +55,8 @@ export function getProtocolPhase(protocol: string, daysUntilWeighIn: number, _ra
   if (protocol === '6') {
     if (daysUntilWeighIn <= 2 && !waterLoading) return { phase: 'FINAL PREP', emoji: '🎯', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Light portions, normal hydration' };
     if (daysUntilWeighIn <= 5 && !waterLoading) return { phase: 'COMP WEEK', emoji: '🎯', color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30', foodTip: 'Balanced portions, normal hydration' };
-    if (daysUntilWeighIn <= 2) return { phase: 'WATER CUT', emoji: '💧', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Light portions, restrict water' };
+    if (daysUntilWeighIn === 2) return { phase: 'HIGH WATER', emoji: '💧', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Light portions, follow your water plan' };
+    if (daysUntilWeighIn === 1) return { phase: 'WATER CUT', emoji: '💧', color: 'text-blue-500', bgColor: 'bg-blue-500/10 border-blue-500/30', foodTip: 'Light portions, follow your water plan' };
     if (daysUntilWeighIn <= 5) return { phase: 'WATER LOAD', emoji: '🌊', color: 'text-cyan-500', bgColor: 'bg-cyan-500/10 border-cyan-500/30', foodTip: 'Balanced portions, peak hydration' };
     return { phase: 'TRAINING', emoji: '💪', color: 'text-purple-500', bgColor: 'bg-purple-500/10 border-purple-500/30', foodTip: 'SPAR portions, auto-adjusting for walk-around' };
   }

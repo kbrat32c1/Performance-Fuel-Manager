@@ -283,7 +283,7 @@ export interface StoreContextType {
     isWaterLoadingDay: boolean;
     currentDayContext: string;
   };
-  getRehydrationPlan: (lostWeight: number) => { fluidRange: string; sodiumRange: string; glycogen: string };
+  getRehydrationPlan: (lostWeight: number) => { fluidRange: string; glycogen: string };
   getWeeklyPlan: () => DayPlan[];
   getTomorrowPlan: () => DayPlan | null;
   getNextTarget: () => { label: string; weight: number; description: string } | null;

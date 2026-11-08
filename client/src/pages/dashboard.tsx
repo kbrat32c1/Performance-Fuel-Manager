@@ -1176,7 +1176,6 @@ export default function Dashboard() {
     updateProfile({ weighInDate: new Date(y, m - 1, d, 12, 0, 0), weighInCleared: false }, { silent: true });
   }, [isViewingHistorical, team.membership, scheduledNext?.date, profile.weighInDate, profile.weighInCleared, profile.nextCyclePromptDismissed, daysUntilWeighIn]);
   const [compDayDismissed, setCompDayDismissed] = useState(() => sessionStorage.getItem('compDayBannerDismissed') === 'true');
-  const [sipOnlyDismissed, setSipOnlyDismissed] = useState(() => sessionStorage.getItem('sipOnlyBannerDismissed') === 'true');
   const today = startOfDay(new Date());
   const { celebration, dismiss: dismissCelebration } = useCelebrations();
   const isOnline = useOnlineStatus();
@@ -1195,18 +1194,6 @@ export default function Dashboard() {
     },
     disabled: isViewingHistorical,
   });
-
-  // Reset sip-only banner each day (check date stored vs. today)
-  useEffect(() => {
-    const storedDate = sessionStorage.getItem('sipOnlyBannerDate');
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    if (storedDate !== todayStr) {
-      // New day — reset the dismissal and store today's date
-      sessionStorage.removeItem('sipOnlyBannerDismissed');
-      sessionStorage.setItem('sipOnlyBannerDate', todayStr);
-      setSipOnlyDismissed(false);
-    }
-  }, []);
 
   // ── Recovery Ready modal (WHOOP-style wake-up overlay) ──
   const [recoveryReadyScore, setRecoveryReadyScore] = useState<number | null>(null);
@@ -1361,11 +1348,13 @@ export default function Dashboard() {
     if (daysUntilWeighIn === 0) {
       return { ...protocolLabel, stage: 'Competition Day', stageColor: 'text-yellow-500' };
     }
+    const waterLoadingOn = profile.waterLoading !== false;
     if (daysUntilWeighIn <= 2) {
-      return { ...protocolLabel, stage: 'Water Cut', stageColor: 'text-orange-500' };
+      const stage = !waterLoadingOn ? 'Final Prep' : daysUntilWeighIn === 2 ? 'High Water' : 'Water Cut';
+      return { ...protocolLabel, stage, stageColor: 'text-orange-500' };
     }
     if (daysUntilWeighIn <= 5) {
-      return { ...protocolLabel, stage: 'Water Load', stageColor: 'text-primary' };
+      return { ...protocolLabel, stage: waterLoadingOn ? 'Water Load' : 'Comp Week', stageColor: 'text-primary' };
     }
     // 6+ days out — protocol name only, stage is "Training"
     return { ...protocolLabel, stage: 'Training', stageColor: 'text-muted-foreground' };
@@ -1727,24 +1716,6 @@ export default function Dashboard() {
           </button>
         )}
 
-        {/* ═══════════════════════════════════════════════════════ */}
-        {/* SIP-ONLY WARNING BANNER — Only when projection says fluids must be 0 */}
-        {/* Uses store's projection to check if athlete has any fluid buffer     */}
-        {/* ═══════════════════════════════════════════════════════ */}
-        {!isViewingHistorical && profile.waterLoading !== false && profile.protocol !== '4' && daysUntilWeighIn === 1 && !isSparGeneral && !sipOnlyDismissed && profile.currentWeight > profile.targetWeightClass && (() => {
-          // Check projection-based fluid buffer — only show if truly no room for fluids
-          try {
-            const descentData = getWeekDescentData();
-            const projected = descentData.projectedSaturday;
-            if (projected !== null && projected <= profile.targetWeightClass) return false; // has margin, don't show
-          } catch {}
-          return true;
-        })() && (
-          <SipOnlyBanner onDismiss={() => {
-            setSipOnlyDismissed(true);
-            sessionStorage.setItem('sipOnlyBannerDismissed', 'true');
-          }} />
-        )}
 
         {/* Header */}
         <header className="flex justify-between items-start mb-3">
@@ -2001,122 +1972,6 @@ function OfflineBanner() {
         <RefreshCw className="w-4 h-4" />
         Retry
       </button>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SIP-ONLY WARNING BANNER — Prominent alert when in water restriction phase
-// ═══════════════════════════════════════════════════════════════════════════════
-function SipOnlyBanner({ onDismiss }: { onDismiss: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="mb-3 rounded-xl border-2 border-chart-3/50 bg-chart-3/10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
-      {/* Header — always visible */}
-      <div className="px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
-            {/* Animated droplet icon */}
-            <div className="relative shrink-0 mt-0.5">
-              <Droplets className="w-6 h-6 text-chart-3" />
-              <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-chart-3 rounded-full animate-pulse" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base text-chart-3 uppercase tracking-wide flex items-center gap-2">
-                Sip Only Mode
-                <span className="text-xs font-bold bg-chart-3/30 text-chart-3 px-1.5 py-0.5 rounded animate-pulse">
-                  ACTIVE
-                </span>
-              </h3>
-              <p className="text-sm text-foreground/80 mt-0.5 leading-snug">
-                No gulping — small sips only to wet your mouth.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onDismiss}
-            className="p-2 -mr-1 -mt-1 rounded-lg hover:bg-chart-3/20 text-chart-3/60 hover:text-chart-3 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Dismiss"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Quick rules — always visible */}
-        <div className="flex flex-wrap gap-2 mt-3">
-          <span className="inline-flex items-center gap-1.5 bg-chart-3/20 text-chart-3 text-xs font-bold px-2.5 py-1 rounded-full">
-            <AlertTriangle className="w-3 h-3" /> Max 8oz at a time
-          </span>
-          <span className="inline-flex items-center gap-1.5 bg-rose-500/20 text-rose-400 text-xs font-bold px-2.5 py-1 rounded-full">
-            <X className="w-3 h-3" /> No full glasses
-          </span>
-          <span className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-500 text-xs font-bold px-2.5 py-1 rounded-full">
-            ✓ Ice chips OK
-          </span>
-        </div>
-
-        {/* Expand toggle */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 mt-3 text-xs text-muted-foreground hover:text-foreground uppercase tracking-wide font-bold transition-colors"
-        >
-          {expanded ? 'Hide details' : 'Why sip only?'}
-          <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", expanded && "rotate-180")} />
-        </button>
-      </div>
-
-      {/* Expanded explanation */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-2 border-t border-chart-3/20 bg-chart-3/5 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="space-y-3">
-            <div className="flex items-start gap-2">
-              <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-xs">💧</span>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-foreground/90">Your kidneys are still flushing</p>
-                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                  After 3 days of loading, your body is in full diuresis mode. Drinking normally would add weight back.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <div className="w-5 h-5 rounded-full bg-chart-3/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-xs">⚡</span>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-foreground/90">Small sips won't stop the process</p>
-                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                  Tiny amounts keep you functional while your body continues eliminating water naturally.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2">
-              <div className="w-5 h-5 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-xs">⚠️</span>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-foreground/90">Gulping triggers water retention</p>
-                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-                  Large drinks signal your body to slow down urine production — the opposite of what you need.
-                </p>
-              </div>
-            </div>
-
-            {/* Total allowed */}
-            <div className="bg-muted/30 border border-muted rounded-lg p-2.5 mt-2">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-bold text-foreground">Total allowed today:</span> ~{' '}
-                <span className="font-mono font-bold text-chart-3">12-16 oz</span> spread throughout the day.
-                Track every sip in the hydration card below.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

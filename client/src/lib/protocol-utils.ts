@@ -16,16 +16,16 @@ export const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: strin
     points: [
       'Fructose is processed by the liver, not muscles — so your muscles stay fueled for practice',
       'Zero-protein windows trigger FGF21, which accelerates fat oxidation',
-      'Water loading + sodium manipulation drops 3-5 lbs of water weight safely in the final days',
+      'Optional water loading can lower water weight in the final days. The amount varies by athlete',
       'Run 2-4 weeks max, then transition to Rapid Cut or Optimal Cut',
     ],
   },
   '2': {
-    summary: 'Weekly cut protocol using water loading science to drop weight predictably each week.',
+    summary: 'Weekly cut protocol with structured fueling and optional water loading.',
     points: [
       '3-day water load (5-3 days out) suppresses ADH hormone, increasing urine output',
-      'Sharp water restriction (2-1 days out) exploits the delayed ADH response — your body keeps flushing water',
-      'Sodium loading + restriction amplifies the water drop',
+      'Water stays high 2 days out, then drops sharply the day before weigh-in, and your body keeps flushing for a while',
+      'Drink electrolytes with your water, except the day before weigh-in',
       'Structured macro phasing keeps energy high for practice while cutting weight',
     ],
   },
@@ -34,7 +34,7 @@ export const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: strin
     points: [
       'Balanced macros (40C/35P/25F) keep energy and recovery optimal',
       'No food restrictions — eat normal, train hard',
-      'Water and sodium targets keep you competition-ready without active cutting',
+      'Water targets keep you competition-ready without active cutting',
       'Switch to Rapid Cut when you need to cut for a specific meet',
     ],
   },
@@ -61,7 +61,7 @@ export const PROTOCOL_SCIENCE: Record<Protocol, { summary: string; points: strin
     points: [
       'Same portion-based tracking as SPAR — palms, fists, and thumbs instead of counting grams',
       'Calorie targets auto-adjust based on how far you are from walk-around weight and days until weigh-in',
-      'Full water loading + sodium manipulation protocol (same as Extreme/Rapid/Optimal Cut)',
+      'Optional water loading, the same schedule as Extreme, Rapid and Optimal Cut',
       'Training phase gradually reduces portions as competition approaches, then refuels on competition day',
     ],
   },

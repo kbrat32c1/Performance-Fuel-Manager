@@ -97,8 +97,8 @@ describe("safety response and wording rules", () => {
     expect(COACH_SAFETY_RULES).toMatch(/tell the athlete they're against NCAA wrestling rules/);
     expect(COACH_SAFETY_RULES).not.toMatch(/Treat these/);
   });
-  it("doesn't repeat sips-only to an athlete who's behind", () => {
-    expect(COACH_SAFETY_RULES).toMatch(/don't repeat the sips-only/);
+  it("doesn't hold an athlete who's behind to the reduced-water day", () => {
+    expect(COACH_SAFETY_RULES).toMatch(/don't tell them to hold to the reduced-water day/);
   });
   it("keeps the routine trainer line out of ordinary answers", () => {
     expect(COACH_DATA_RULES).toMatch(/Don't add a routine line/);
