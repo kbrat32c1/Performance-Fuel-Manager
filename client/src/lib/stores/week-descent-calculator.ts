@@ -29,10 +29,10 @@ export function computeEMA(values: number[]): number | null {
 }
 
 /** Plausibility limits for one weigh-in pair (lbs). Outside these it's almost certainly a typo or wrong log type. */
-const DRIFT_LOSS_LIMIT = 6;
-const DRIFT_GAIN_LIMIT = 4;
-const PRACTICE_LOSS_LIMIT = 10;
-const PRACTICE_GAIN_LIMIT = 4;
+export const DRIFT_LOSS_LIMIT = 6;
+export const DRIFT_GAIN_LIMIT = 4;
+export const PRACTICE_LOSS_LIMIT = 10;
+export const PRACTICE_GAIN_LIMIT = 4;
 /** Pairs of each kind needed before projections drive recommendations. */
 export const MIN_RELIABLE_SAMPLES = 3;
 

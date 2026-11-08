@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { applyCors } from "../_cors.js";
 import { requireUserWithinLimit } from "../_auth.js";
-import { COACH_SAFETY_RULES, formatCoachInsights } from "../_coach-insights.js";
+import { COACH_DATA_RULES, COACH_SAFETY_RULES, formatAthleteSnapshot, formatCoachInsights } from "../_coach-insights.js";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
 
@@ -107,6 +107,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (ctx.lostWeight) contextLines.push(`Weight to recover: ${ctx.lostWeight} lbs`);
     }
 
+    contextLines.push(...formatAthleteSnapshot(ctx.athleteSnapshot, sanitizeForPrompt));
+
     if (ctx.currentPage) contextLines.push(`Viewing: ${ctx.currentPage} page`);
 
     const systemPrompt = `You are the SPAR Nutrition AI Coach for competitive wrestlers. You follow ONE specific protocol — the SPAR system described below. All your advice MUST come from this protocol. Do NOT give generic nutrition advice. If unsure, say so rather than guessing.
@@ -116,6 +118,8 @@ ${contextLines.length > 0 ? contextLines.join('\n') : 'No context provided'}
 
 ═══ APP CALCULATIONS FOR THIS ATHLETE ═══
 ${formatCoachInsights(ctx.calculatedInsights, sanitizeForPrompt)}
+
+${COACH_DATA_RULES}
 
 ${COACH_SAFETY_RULES}
 
