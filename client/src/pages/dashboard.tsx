@@ -1817,13 +1817,13 @@ export default function Dashboard() {
         )}
 
       {/* TODAY'S PLAN — next action, targets, status, confidence. Cards below are the detail. */}
-      {!isViewingHistorical && (
-        <TodayPlanCard
-          todayLogs={todayLogs}
-          isRestDay={isRestDay}
-          hasRecoveryData={healthData.some(h => h.date === healthDayStr && (h.sleep_hours != null || h.hrv != null || h.resting_heart_rate != null))}
-        />
-      )}
+      {/* Shown in Demo Mode too (a simulated date), with a DEMO badge. */}
+      <TodayPlanCard
+        todayLogs={todayLogs}
+        isRestDay={isRestDay}
+        healthData={healthData}
+        healthDayStr={healthDayStr}
+      />
 
       {/* Protocol Switch Banner — shows when wrestler should switch to Extreme Cut */}
       {!isViewingHistorical && !isSparGeneral && (
@@ -2842,7 +2842,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const { getExtraWorkoutStats, logs, profile, isWaterLoadingDay, getCutScore, hasTodayMorningWeight } = useStore();
   const { user } = useAuth();
   const v5band = useV5BandContext();
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [flippedCard, setFlippedCard] = useState<'sleep' | 'practice' | 'awake' | 'extras' | null>(null);
   const [showStatDetails, setShowStatDetails] = useState(false);
 
@@ -2908,6 +2908,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
     : 'neutral';
   // Until its inputs are trusted, the Cut Score stays small and doesn't color the card.
   const cutScoreTrusted = descentData.confidence.reliable && !cutScore?.limitedData;
+  const cutLabLimited = !cutScoreTrusted;
   const statusZone = cutScore ? (cutScoreTrusted ? cutScore.zone : 'neutral') : compDayZone;
   const cardBorder = statusZone === 'green' ? 'border-green-500/50'
     : statusZone === 'yellow' ? 'border-yellow-500/50'
@@ -2927,40 +2928,22 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
       <Card data-tour="countdown" className={cn("overflow-hidden", cardBorder, cardBg)}>
         <CardContent className="p-0">
 
-          {/* ═══ HEADER ═══ */}
+          {/* ═══ HEADER — one row, collapsed by default. Weigh-in timing now lives in Today's plan. ═══ */}
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors"
+            aria-expanded={isExpanded}
+            className="w-full min-h-11 px-4 py-3 flex items-center gap-2 text-left hover:bg-muted/20 transition-colors"
           >
-            <div className="flex items-center gap-2">
-              {statusZone === 'red'
-                ? <AlertTriangle className="w-4 h-4 text-red-500" />
-                : statusZone === 'yellow'
-                  ? <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                  : <TrendingDown className={cn("w-4 h-4", statusText)} />}
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Cut Lab</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {profile.weighInCleared ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'schedule' } }));
-                  }}
-                  className="text-xs font-bold px-2 py-1 rounded bg-muted/30 text-muted-foreground hover:bg-muted/50 transition-colors"
-                >
-                  No weigh-in scheduled
-                </button>
-              ) : timeUntilWeighIn && !hasWeighInLogForDay ? (
-                <span className={cn(
-                  "text-xs font-bold px-2 py-1 rounded",
-                  phaseStyle.text, phaseStyle.bgLight
-                )}>
-                  {timeUntilWeighIn} to weigh-in
-                </span>
-              ) : null}
-              <ChevronDown className={cn("w-3.5 h-3.5 text-muted-foreground/50 transition-transform", isExpanded && "rotate-180")} />
-            </div>
+            {cutLabLimited
+              ? <AlertTriangle className="w-4 h-4 shrink-0 text-chart-3" aria-label="Limited data" />
+              : <TrendingDown className="w-4 h-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Cut Lab</span>
+            <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              {cutLabLimited ? 'Limited data · ' : ''}
+              {descentData.confidence.driftSamples} overnight pair{descentData.confidence.driftSamples === 1 ? '' : 's'}
+              {!cutLabLimited && ` · ${descentData.confidence.practiceSamples} practice`}
+            </span>
+            <ChevronDown className={cn("w-4 h-4 shrink-0 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
           </button>
 
           {/* ═══ EXPANDED CONTENT ═══ */}

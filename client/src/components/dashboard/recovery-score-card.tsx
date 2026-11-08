@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Activity, Heart, Moon, Wind, TrendingUp, TrendingDown, Minus, HelpCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
-import { computeRecoveryScoreDetailed, getRecoveryRecommendation } from "@/lib/healthkit-service";
+import { computeRecoveryScoreDetailed } from "@/lib/healthkit-service";
 import type { RecoveryResult, RecoveryContribution } from "@/lib/healthkit-service";
 import { computeBaselines } from "@/lib/recovery-baselines";
 import { withDisplayRecovery, isWhoopDay } from "@/lib/recovery-display";
@@ -143,8 +143,9 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
             <div className="text-sm font-medium leading-snug mb-1">
               {getScoreLabel(score)}
             </div>
+            {/* Context only: no automatic training advice. The athlete and coach decide intensity. */}
             <div className="text-xs text-muted-foreground leading-relaxed">
-              {fromWhoop ? getRecoveryRecommendation(score) : recovery.recommendation}
+              {fromWhoop ? 'From WHOOP' : 'From your sleep and heart data'} · tap a factor for details
             </div>
           </div>
         </div>

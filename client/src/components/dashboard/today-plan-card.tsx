@@ -5,21 +5,31 @@
  * All logic lives in lib/today-plan.ts; this file only reads the store and draws.
  */
 
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { buildTodayPlan } from "@/lib/today-plan";
-import { TodayPlanView } from "./today-plan-view";
+import { buildWeightTrend } from "@/lib/today-trend";
+import { buildDescentPlan } from "@/lib/descent-plan";
+import { useDescentPlan } from "@/hooks/use-descent-plan";
+import { displayRecoveryScore, withDisplayRecovery } from "@/lib/recovery-display";
+import { recoveryZone, recoverySourceLabel } from "@/lib/recovery-zone";
+import type { DbHealthData } from "@/lib/supabase";
+import { TodayPlanView, type RecoveryLine } from "./today-plan-view";
+import { MetricDetailSheet } from "./metric-detail-sheet";
 
 interface TodayPlanCardProps {
   todayLogs: { morning?: any; prePractice?: any; postPractice?: any; beforeBed?: any; weighIn?: any };
   isRestDay: boolean;
-  hasRecoveryData: boolean;
+  /** Health rows (newest first) and the WHOOP-style day they're keyed by. */
+  healthData: DbHealthData[];
+  healthDayStr: string;
   /** Override "now" for previews and tests. */
   hour?: number;
 }
 
-export function TodayPlanCard({ todayLogs, isRestDay, hasRecoveryData, hour }: TodayPlanCardProps) {
+export function TodayPlanCard({ todayLogs, isRestDay, healthData, healthDayStr, hour }: TodayPlanCardProps) {
   const store = useStore();
   const { profile } = store;
   const [, setLocation] = useLocation();
@@ -34,6 +44,44 @@ export function TodayPlanCard({ todayLogs, isRestDay, hasRecoveryData, hour }: T
   const todayTarget = store.calculateTarget();
   const daysUntilWeighIn = store.getDaysUntilWeighIn();
   const descent = store.getWeekDescentData();
+  const demo = !!profile.simulatedDate;
+  const endDate = profile.simulatedDate ? new Date(profile.simulatedDate) : new Date();
+  const competition = profile.protocol !== '5';
+  const targetSet = competition && !profile.weighInCleared && daysUntilWeighIn >= 0;
+
+  // Latest weigh-in today, any timing, for the big number.
+  const latestToday = [todayLogs.weighIn, todayLogs.beforeBed, todayLogs.postPractice, todayLogs.prePractice, todayLogs.morning]
+    .filter(Boolean)
+    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] as any;
+
+  // The athlete's certified descent plan, if they have one, drawn as-is.
+  const { plan: descentInput } = useDescentPlan();
+  const endKey = format(endDate, 'yyyy-MM-dd');
+  const descentAllowed = useMemo(() => {
+    if (!descentInput) return undefined;
+    try {
+      const rows = buildDescentPlan(descentInput, endKey).rows;
+      return Object.fromEntries(rows.map(r => [r.date, r.allowed]));
+    } catch { return undefined; }
+  }, [descentInput, endKey]);
+
+  const trend = buildWeightTrend({
+    logs: store.logs,
+    end: endDate,
+    descentAllowed,
+    todayTarget: targetSet && daysUntilWeighIn > 0 ? todayTarget : null,
+  });
+
+  // Recovery as context: today's row, band data first, like Cut Lab.
+  const dayKey = profile.simulatedDate ? endKey : healthDayStr;
+  const todayHealth = healthData.find(h => h.date === dayKey && h.source === 'v5-direct') ?? healthData.find(h => h.date === dayKey);
+  const recoveryScore = todayHealth ? displayRecoveryScore(todayHealth, healthData) : null;
+  const recovery: RecoveryLine | null = todayHealth && recoveryScore != null
+    ? { score: recoveryScore, ...recoveryZone(recoveryScore), source: recoverySourceLabel(todayHealth) }
+    : null;
+  const hasRecoveryData = !!todayHealth && (todayHealth.sleep_hours != null || todayHealth.hrv != null || todayHealth.resting_heart_rate != null || recoveryScore != null);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const scoredHistory = useMemo(() => withDisplayRecovery(healthData), [healthData]);
 
   // Cheap, and the store returns fresh objects each render, so no memo.
   const plan = buildTodayPlan({
@@ -72,6 +120,8 @@ export function TodayPlanCard({ todayLogs, isRestDay, hasRecoveryData, hour }: T
       foodLogCount: tracking.foodLog?.length ?? 0,
     },
     hasRecoveryData,
+    latest: latestToday ? { weight: latestToday.weight, timing: latestToday.type } : null,
+    demo,
     projection: {
       reliable: descent.confidence.reliable,
       driftSamples: descent.confidence.driftSamples,
@@ -92,5 +142,17 @@ export function TodayPlanCard({ todayLogs, isRestDay, hasRecoveryData, hour }: T
     }
   };
 
-  return <TodayPlanView plan={plan} onAction={runAction} />;
+  return (
+    <>
+      <TodayPlanView plan={plan} onAction={runAction} trend={trend} recovery={recovery} onRecoveryTap={() => setShowRecovery(true)} />
+      {todayHealth && (
+        <MetricDetailSheet
+          metric={showRecovery ? 'recovery' : null}
+          healthHistory={scoredHistory}
+          latestHealth={todayHealth}
+          onClose={() => setShowRecovery(false)}
+        />
+      )}
+    </>
+  );
 }

@@ -57,7 +57,10 @@ export interface PlanFact {
 }
 
 export interface TodayPlan {
-  /** Weight, class and days to the official weigh-in, at a glance. */
+  /** Latest weight today and when it was taken. */
+  current: { weight: number; timing: string } | null;
+  demo: boolean;
+  /** Class and days to the official weigh-in. */
   facts: PlanFact[];
   status: PlanStatus;
   headline: string;
@@ -120,6 +123,10 @@ export interface TodayPlanInput {
   hasRecoveryData: boolean;
   /** getWeekDescentData().confidence: whether Cut Lab has enough pairs to project from. */
   projection?: { reliable: boolean; driftSamples: number; practiceSamples: number };
+  /** Latest weigh-in today, any timing, for the big number. */
+  latest?: { weight: number; timing: string } | null;
+  /** Settings' Demo Mode (a simulated date) is on. */
+  demo?: boolean;
 }
 
 const lbs = (n: number) => `${n.toFixed(1)} lbs`;
@@ -198,10 +205,10 @@ export function buildNextAction(input: TodayPlanInput): NextAction {
   const competition = !input.isGeneralNutrition;
 
   if (competition && input.weighInCleared) {
-    return { kind: 'set-weigh-in', title: 'Set your next official weigh-in', when: 'When you know the date' };
+    return { kind: 'set-weigh-in', title: 'Set official weigh-in', when: 'When you know the date' };
   }
   if (competition && daysUntilWeighIn < 0) {
-    return { kind: 'set-weigh-in', title: 'Set your next official weigh-in', when: 'Your last one has passed' };
+    return { kind: 'set-weigh-in', title: 'Set official weigh-in', when: 'Your last one has passed' };
   }
 
   if (competition && daysUntilWeighIn === 0) {
@@ -209,16 +216,16 @@ export function buildNextAction(input: TodayPlanInput): NextAction {
       const t = weighInTimeLabel(input.weighInTime);
       return {
         kind: 'log-official',
-        title: 'Log your official weigh-in',
+        title: 'Log official weigh-in',
         when: t ? `Right after you step off the scale (weigh-in at ${t})` : 'Right after you step off the scale',
         logType: 'weigh-in',
       };
     }
-    return { kind: 'recovery', title: 'Start your recovery plan', when: 'Now, before your first match' };
+    return { kind: 'recovery', title: 'Open recovery plan', when: 'Now, before your first match' };
   }
 
   if (logs.morning == null) {
-    return { kind: 'log-morning', title: 'Log your morning weight', when: 'Now, before you eat or drink', logType: 'morning' };
+    return { kind: 'log-morning', title: 'Log morning weight', when: 'Now, before you eat or drink', logType: 'morning' };
   }
 
   const practiceSlots = !input.isGeneralNutrition || input.trackPracticeWeighIns;
@@ -227,21 +234,21 @@ export function buildNextAction(input: TodayPlanInput): NextAction {
 
   if (practiceToday && !evening) {
     if (logs.prePractice == null) {
-      return { kind: 'log-pre-practice', title: 'Log your pre-practice weight', when: 'Before practice starts', logType: 'pre-practice' };
+      return { kind: 'log-pre-practice', title: 'Log pre-practice weight', when: 'Before practice starts', logType: 'pre-practice' };
     }
     if (logs.postPractice == null) {
-      return { kind: 'log-post-practice', title: 'Log your post-practice weight', when: 'Right after practice, before you drink', logType: 'post-practice' };
+      return { kind: 'log-post-practice', title: 'Log post-practice weight', when: 'Right after practice, before you drink', logType: 'post-practice' };
     }
   }
 
   // Food comes before the bedtime weigh-in during the day, unless nothing is allowed.
   const foodAllowed = !(input.macros.carbs.max === 0 && input.macros.protein.max === 0);
   if (!evening && foodAllowed && input.tracking.foodLogCount === 0) {
-    return { kind: 'log-food', title: 'Log what you eat', when: 'After each meal' };
+    return { kind: 'log-food', title: 'Log food', when: 'After each meal' };
   }
 
   if (logs.beforeBed == null) {
-    return { kind: 'log-before-bed', title: 'Log your before-bed weight', when: 'Right before you go to sleep', logType: 'before-bed' };
+    return { kind: 'log-before-bed', title: 'Log before-bed weight', when: 'Right before you go to sleep', logType: 'before-bed' };
   }
 
   return { kind: 'none', title: 'All weigh-ins are in for today', when: 'Next: morning weight when you wake up' };
@@ -311,11 +318,11 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   // Meet Day: the official weigh-in decides it.
   if (competition && !input.weighInCleared && input.daysUntilWeighIn === 0 && logs.officialWeighIn != null) {
     if (logs.officialWeighIn <= input.weightClass) {
-      return { status: 'on-track', headline: 'Made weight', reason: `Made weight: official weigh-in ${lbs(logs.officialWeighIn)} for ${input.weightClass}. Stick with your recovery plan.` };
+      return { status: 'on-track', headline: 'Made weight', reason: `Official weigh-in ${lbs(logs.officialWeighIn)} for ${input.weightClass}. Stick with your recovery plan.` };
     }
     return {
       status: 'coach',
-      headline: 'Over at the official weigh-in',
+      headline: 'Talk to your coach',
       reason: `Official weigh-in ${lbs(logs.officialWeighIn)} is ${lbs(logs.officialWeighIn - input.weightClass)} over ${input.weightClass}.`,
     };
   }
@@ -323,10 +330,10 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   if (competition && (input.weighInCleared || input.daysUntilWeighIn < 0)) {
     return {
       status: 'data-check',
-      headline: input.weighInCleared ? 'No official weigh-in set' : 'Official weigh-in has passed',
+      headline: input.weighInCleared ? 'No target set' : 'Official weigh-in has passed',
       reason: input.weighInCleared
-        ? 'No official weigh-in set, so there is no descent plan to check today against.'
-        : 'Your last official weigh-in has passed. Set the next one to get a new descent plan.',
+        ? 'Set your next official weigh-in to get a target to compare with.'
+        : 'Set the next one to get a new descent plan.',
     };
   }
 
@@ -334,7 +341,7 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   if (competition && input.macros.weightWarning) {
     return {
       status: 'coach',
-      headline: 'Food cut for your weight',
+      headline: 'Talk to your coach',
       reason: "Today's food was cut for your weight. Go over this plan with your coach before you cut further.",
     };
   }
@@ -343,10 +350,10 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   if (morning == null) {
     return {
       status: 'data-check',
-      headline: input.daysUntilWeighIn === 0 && competition ? 'Waiting on your official weigh-in' : 'No morning weight yet',
+      headline: input.daysUntilWeighIn === 0 && competition ? 'Waiting on your official weigh-in' : 'Log a morning weight to compare',
       reason: input.daysUntilWeighIn === 0 && competition
-        ? 'Waiting on your official weigh-in. Status updates when you log it.'
-        : "No morning weight yet, so today can't be checked against your plan.",
+        ? 'Status updates when you log it.'
+        : "Today's target is a morning weight, so a later weigh-in can't be compared with it.",
     };
   }
 
@@ -358,7 +365,7 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
     const gap = morning - input.todayTarget;
     return {
       status: 'coach',
-      headline: "Well over today's target",
+      headline: 'Talk to your coach',
       reason: gap > 0
         ? `Morning weight ${lbs(morning)} is ${lbs(gap)} above today's target of ${lbs(input.todayTarget)}.`
         : 'Your weight is well above where your descent plan expects it today.',
@@ -368,7 +375,7 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
   const gap = morning - input.todayTarget;
   return {
     status: 'on-track',
-    headline: 'Stick with your plan',
+    headline: 'On track',
     reason: gap <= 0
       ? `Nothing needs changing. Morning weight ${lbs(morning)}, at or under today's target of ${lbs(input.todayTarget)}.`
       : `Keep to today's food and fluid targets. Morning weight ${lbs(morning)} is ${lbs(gap)} above today's target of ${lbs(input.todayTarget)}.`,
@@ -376,25 +383,29 @@ export function buildStatus(input: TodayPlanInput): Pick<TodayPlan, 'status' | '
 }
 
 export function buildFacts(input: TodayPlanInput): PlanFact[] {
-  const { logs } = input;
-  const facts: PlanFact[] = [];
-  const weight = logs.officialWeighIn ?? logs.morning ?? null;
-  facts.push({
-    label: logs.officialWeighIn != null ? 'Official' : 'Morning',
-    value: weight != null ? lbs(weight) : 'Not logged',
-  });
-  if (input.isGeneralNutrition) return facts;
-  facts.push({ label: 'Class', value: `${input.weightClass} lbs` });
+  if (input.isGeneralNutrition) return [];
   const d = input.daysUntilWeighIn;
-  facts.push({
-    label: 'Official weigh-in',
-    value: input.weighInCleared || d < 0 ? 'Not set' : d === 0 ? 'Today' : `${d} ${plural(d, 'day', 'days')}`,
-  });
-  return facts;
+  return [
+    { label: 'Class', value: `${input.weightClass} lbs` },
+    {
+      label: 'Official weigh-in',
+      value: input.weighInCleared || d < 0 ? 'Not set' : d === 0 ? 'Today' : `in ${d} ${plural(d, 'day', 'days')}`,
+    },
+  ];
 }
+
+const TIMING_NAMES: Record<string, string> = {
+  'morning': 'Morning',
+  'pre-practice': 'Pre-practice',
+  'post-practice': 'Post-practice',
+  'before-bed': 'Before bed',
+  'weigh-in': 'Official weigh-in',
+};
 
 export function buildTodayPlan(input: TodayPlanInput): TodayPlan {
   return {
+    current: input.latest ? { weight: input.latest.weight, timing: TIMING_NAMES[input.latest.timing] ?? 'Weight check' } : null,
+    demo: !!input.demo,
     facts: buildFacts(input),
     ...buildStatus(input),
     next: buildNextAction(input),

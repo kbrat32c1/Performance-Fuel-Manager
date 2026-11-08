@@ -182,7 +182,7 @@ export function FuelCard({
       if (macros.carbs.max > 0) segs.push({ pct: carbProgress, stroke: 'stroke-amber-500', label: 'Carb', done: sugarCarbsDone });
       if (macros.protein.max > 0) segs.push({ pct: proteinProgress, stroke: 'stroke-orange-500', label: 'Pro', done: sugarProteinDone });
     }
-    segs.push({ pct: waterProgress, stroke: 'stroke-cyan-500', label: '💧', done: waterDone });
+    segs.push({ pct: waterProgress, stroke: 'stroke-chart-2', label: 'Water', done: waterDone });
     return segs;
   }, [doNotEat, showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked, isV2,
     sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct, sparProteinDone, sparCarbDone,
@@ -225,7 +225,7 @@ export function FuelCard({
     emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', fill: 'bg-emerald-500', ring: 'ring-emerald-500/20' },
     pink: { bg: 'bg-pink-500/10', text: 'text-pink-500', fill: 'bg-pink-500', ring: 'ring-pink-500/20' },
     yellow: { bg: 'bg-yellow-500/10', text: 'text-yellow-600', fill: 'bg-yellow-500', ring: 'ring-yellow-500/20' },
-    cyan: { bg: 'bg-cyan-500/10', text: 'text-cyan-500', fill: 'bg-cyan-500', ring: 'ring-cyan-500/20' },
+    cyan: { bg: 'bg-chart-2/10', text: 'text-chart-2', fill: 'bg-chart-2', ring: 'ring-chart-2/20' },
   };
 
   return (

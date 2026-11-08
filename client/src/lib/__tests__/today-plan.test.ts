@@ -33,7 +33,7 @@ describe("Today's plan: status", () => {
   it("says stick with the plan when the morning weight is at today's target", () => {
     const p = buildTodayPlan(base());
     expect(p.status).toBe("on-track");
-    expect(p.headline).toBe("Stick with your plan");
+    expect(p.headline).toBe("On track");
     expect(p.reason).toContain("Nothing needs changing");
     expect(p.reason).toContain("145.4 lbs");
   });
@@ -47,13 +47,13 @@ describe("Today's plan: status", () => {
   it("asks for a data check when the morning weight is missing", () => {
     const p = buildTodayPlan(base({ logs: {} }));
     expect(p.status).toBe("data-check");
-    expect(p.headline).toBe("No morning weight yet");
+    expect(p.headline).toBe("Log a morning weight to compare");
   });
 
   it("asks for a data check when no official weigh-in is set", () => {
     const p = buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999 }));
     expect(p.status).toBe("data-check");
-    expect(p.headline).toBe("No official weigh-in set");
+    expect(p.headline).toBe("No target set");
     expect(p.next.kind).toBe("set-weigh-in");
   });
 
@@ -202,24 +202,34 @@ describe("Today's plan: targets and confidence", () => {
 });
 
 describe("Today's plan: facts and Cut Lab reliability", () => {
-  it("shows morning weight, class and days to the official weigh-in", () => {
+  it("shows class and days to the official weigh-in", () => {
     expect(buildTodayPlan(base()).facts).toEqual([
-      { label: "Morning", value: "145.4 lbs" },
       { label: "Class", value: "141 lbs" },
-      { label: "Official weigh-in", value: "4 days" },
+      { label: "Official weigh-in", value: "in 4 days" },
     ]);
+    expect(buildTodayPlan(base({ daysUntilWeighIn: 0 })).facts[1].value).toBe("Today");
+    expect(buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999 })).facts[1].value).toBe("Not set");
   });
 
-  it("shows the official weight and 'Today' on Meet Day, and 'Not set' without a date", () => {
-    const meet = buildTodayPlan(base({ daysUntilWeighIn: 0, logs: { officialWeighIn: 140.8 } })).facts;
-    expect(meet[0]).toEqual({ label: "Official", value: "140.8 lbs" });
-    expect(meet[2].value).toBe("Today");
-    expect(buildTodayPlan(base({ weighInCleared: true, daysUntilWeighIn: 999, logs: {} })).facts.map(f => f.value))
-      .toEqual(["Not logged", "141 lbs", "Not set"]);
+  it("big number is the latest weight today, labelled with its timing", () => {
+    expect(buildTodayPlan(base({ latest: { weight: 143.5, timing: "post-practice" } })).current)
+      .toEqual({ weight: 143.5, timing: "Post-practice" });
+    expect(buildTodayPlan(base({ latest: null })).current).toBeNull();
   });
 
-  it("general nutrition shows weight only", () => {
-    expect(buildTodayPlan(base({ protocol: "5", isGeneralNutrition: true })).facts).toHaveLength(1);
+  it("flags demo mode", () => {
+    expect(buildTodayPlan(base({ demo: true })).demo).toBe(true);
+    expect(buildTodayPlan(base()).demo).toBe(false);
+  });
+
+  it("general nutrition has no class or weigh-in facts", () => {
+    expect(buildTodayPlan(base({ protocol: "5", isGeneralNutrition: true })).facts).toEqual([]);
+  });
+
+  it("says On track only against a morning weight; a later weigh-in alone asks for the morning one", () => {
+    const p = buildTodayPlan(base({ logs: { prePractice: 146 }, latest: { weight: 146, timing: "pre-practice" } }));
+    expect(p.status).toBe("data-check");
+    expect(p.headline).toBe("Log a morning weight to compare");
   });
 
   it("lists Cut Lab projections as missing when there are too few pairs", () => {
@@ -248,6 +258,20 @@ describe("Today's plan: facts and Cut Lab reliability", () => {
       const r = buildTodayPlan(c).reason;
       expect(r.length).toBeGreaterThan(20);
       expect(r).not.toContain("\n");
+    }
+  });
+});
+
+describe("Today's plan: status line reads once", () => {
+  it("never repeats the headline inside the reason", () => {
+    const cases = [
+      base(), base({ logs: {} }), base({ weighInCleared: true, daysUntilWeighIn: 999 }), base({ daysUntilWeighIn: -1 }),
+      base({ daysUntilWeighIn: 0, logs: {} }), base({ daysUntilWeighIn: 0, logs: { officialWeighIn: 140 } }),
+      base({ daysUntilWeighIn: 0, logs: { officialWeighIn: 142 } }), base({ logs: { morning: 151 }, weightLevel: "risk" }),
+    ];
+    for (const c of cases) {
+      const p = buildTodayPlan(c);
+      expect(p.reason.toLowerCase()).not.toContain(p.headline.toLowerCase());
     }
   });
 });
