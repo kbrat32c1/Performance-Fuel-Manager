@@ -133,3 +133,34 @@ describe('saving a weigh-in over a stale copy', () => {
     expect(db.weightLogs).toHaveLength(1);
   });
 });
+
+describe('undoing a deleted weigh-in', () => {
+  it('restores it through the copy of addLog taken before the delete', async () => {
+    db.weightLogs = [existingRow()];
+    const { result } = await loadedStore();
+    await waitFor(() => expect(result.current.logs).toHaveLength(1));
+    const addLogFromBeforeDelete = result.current.addLog;
+    const id = result.current.logs[0].id;
+
+    await act(async () => { await result.current.deleteLog(id); });
+    expect(db.weightLogs).toHaveLength(0);
+
+    let saved: string | null = null;
+    await act(async () => { saved = await addLogFromBeforeDelete({ weight: 137.4, date: morning, type: 'morning' }); });
+
+    expect(saved).not.toBeNull();
+    expect(db.weightLogs).toHaveLength(1);
+    expect(db.weightLogs[0].weight).toBe(137.4);
+    expect(toastMock).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Already logged' }));
+  });
+
+  it('still refuses a real duplicate', async () => {
+    db.weightLogs = [existingRow()];
+    const { result } = await loadedStore();
+    await waitFor(() => expect(result.current.logs).toHaveLength(1));
+    let saved: string | null = 'x';
+    await act(async () => { saved = await result.current.addLog({ weight: 137, date: new Date(result.current.logs[0].date), type: 'morning' }); });
+    expect(saved).toBeNull();
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Already logged' }));
+  });
+});

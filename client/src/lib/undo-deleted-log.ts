@@ -6,22 +6,29 @@ export interface DeletedLog<T extends string = string> {
   sleepHours?: number;
 }
 
-type AddLog<T extends string> = (log: { weight: number; date: Date; type: T; duration?: number; sleepHours?: number }) => unknown;
+type AddLog<T extends string> = (log: { weight: number; date: Date; type: T; duration?: number; sleepHours?: number }) => Promise<string | null>;
 
 /**
- * An Undo for one deletion. It holds its own copy of what was deleted, so two Undos
- * waiting in line can't restore each other's weigh-in, and it only works once.
+ * An Undo for one deletion. It holds its own copy of what was deleted, so two Undos waiting
+ * in line can't restore each other's weigh-in. It reports whether the save really worked,
+ * and if it didn't, can be tried again without restoring anything twice.
  */
-export function makeUndoDelete<T extends string>(deleted: { log: DeletedLog<T>; afterLog?: DeletedLog<T> } | null, addLog: AddLog<T>): () => boolean {
-  let pending = deleted;
-  return () => {
-    if (!pending) return false;
-    const { log, afterLog } = pending;
-    pending = null;
-    addLog({ weight: log.weight, date: new Date(log.date), type: log.type, duration: log.duration, sleepHours: log.sleepHours });
-    if (afterLog) {
-      addLog({ weight: afterLog.weight, date: new Date(afterLog.date), type: afterLog.type, duration: afterLog.duration });
+export function makeUndoDelete<T extends string>(deleted: { log: DeletedLog<T>; afterLog?: DeletedLog<T> } | null, addLog: AddLog<T>): () => Promise<boolean> {
+  let pending = deleted ? [deleted.log, ...(deleted.afterLog ? [deleted.afterLog] : [])] : [];
+  let running = false;
+  return async () => {
+    if (running || pending.length === 0) return false;
+    running = true;
+    try {
+      while (pending.length > 0) {
+        const log = pending[0];
+        const saved = await addLog({ weight: log.weight, date: new Date(log.date), type: log.type, duration: log.duration, sleepHours: log.sleepHours });
+        if (saved === null) return false;
+        pending = pending.slice(1);
+      }
+      return true;
+    } finally {
+      running = false;
     }
-    return true;
   };
 }

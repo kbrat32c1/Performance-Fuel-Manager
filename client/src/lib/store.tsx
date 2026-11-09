@@ -984,7 +984,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Add log to Supabase
   /** Resolves to the saved log's id, or null when it was rejected or did not save. */
+  // Undo keeps a copy of addLog from before the delete, so it reads the current list from here.
+  const logsRef = useRef(logs);
+  logsRef.current = logs;
+
   const addLog = async (log: Omit<WeightLog, 'id'>): Promise<string | null> => {
+    const currentLogs = logsRef.current;
     // Weight validation: ensure weight is within reasonable bounds
     const weightError = getWeightValidationError(log.weight);
     if (weightError) {
@@ -1000,7 +1005,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const UNIQUE_PER_DAY_TYPES = [...CORE_WEIGH_IN_TYPES, LOG_TYPES.CHECK_IN];
     if (UNIQUE_PER_DAY_TYPES.includes(log.type as any)) {
       const logDay = format(startOfDay(new Date(log.date)), 'yyyy-MM-dd');
-      const duplicate = logs.find(l =>
+      const duplicate = currentLogs.find(l =>
         l.type === log.type &&
         format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === logDay
       );
@@ -1018,14 +1023,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const newLog = { ...log, id: tempId };
 
     // Capture previous state for rollback
-    const previousLogs = logs;
+    const previousLogs = currentLogs;
     const previousProfile = profile;
 
     // Optimistic update
     setLogs(prev => [newLog, ...prev]);
 
     // Only update currentWeight if this log is the most recent by date
-    const mostRecentLog = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const mostRecentLog = [...currentLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const isNewest = !mostRecentLog || new Date(log.date).getTime() >= new Date(mostRecentLog.date).getTime();
     if (isNewest) {
       const target = calculateTarget();
