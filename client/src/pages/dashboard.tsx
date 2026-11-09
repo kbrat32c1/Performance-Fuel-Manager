@@ -1822,9 +1822,6 @@ export default function Dashboard() {
                       </span>
                     )}
                   </div>
-                  {showStageIntro && stageMeaning && (
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{stageMeaning}</p>
-                  )}
                 </div>
               )}
               {/* Logging streak — shown in Cut Lab card instead to avoid duplication */}
@@ -1835,6 +1832,13 @@ export default function Dashboard() {
             <InfoDialog />
           </div>
         </header>
+
+        {/* A stage explains itself on its first day, in the same style as the coaching message */}
+        {showStageIntro && stageMeaning && (
+          <div className="mb-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
+            <p className="text-[13px] leading-relaxed text-foreground/70">{stageMeaning}</p>
+          </div>
+        )}
 
         {/* Historical View Notice */}
         {isViewingHistorical && (

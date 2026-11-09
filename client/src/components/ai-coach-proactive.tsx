@@ -493,8 +493,8 @@ export function AiCoachProactive() {
       <div className="rounded-xl overflow-hidden bg-card border border-border">
         {/* Weight, today's target and class on one scale */}
         <div className="px-4 pt-4 pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
               <div className="flex items-baseline gap-1">
                 <span className={cn("font-heading text-[64px] font-bold leading-[0.9] tabular-nums", weightIsFromToday ? "text-foreground" : "text-foreground/60")}>
                   {currentWeight.toFixed(1)}
