@@ -55,7 +55,7 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 export interface DailyWeight {
   weight: number;
-  /** Set when it isn't a morning or official weight, e.g. "before bed" */
+  /** Set when it came from the day before, e.g. "before bed Sun" */
   notMorning?: string;
 }
 
@@ -66,21 +66,34 @@ const LATER_WEIGH_INS: Record<string, string> = {
 };
 
 /**
- * One weight per day: the morning weight, then an official weigh-in, then that day's latest
- * other weigh-in (Kevin, 2026-11-09). Weight checks and extra workouts don't count.
+ * One weight per day: the morning weight, then an official weigh-in. With neither, the
+ * closest earlier reading: the latest weigh-in from the day before (Kevin, 2026-11-09).
+ * It doesn't reach back further, so one old reading can't fill a run of missed days.
+ * Weight checks and extra workouts don't count.
  */
 export function dailyWeights(logs: { date: Date | string; type: string; weight: number }[]): Map<string, DailyWeight> {
-  const best = new Map<string, { rank: number; time: number; entry: DailyWeight }>();
-  for (const log of logs) {
-    const rank = log.type === 'morning' ? 2 : log.type === 'weigh-in' ? 1 : log.type in LATER_WEIGH_INS ? 0 : -1;
-    if (rank < 0) continue;
+  const result = new Map<string, DailyWeight>();
+  const latestLater = new Map<string, { time: number; date: Date; type: string; weight: number }>();
+
+  for (const log of [...logs].sort((x, y) => (x.type === 'morning' ? 1 : 0) - (y.type === 'morning' ? 1 : 0))) {
     const date = new Date(log.date);
     const key = format(date, 'yyyy-MM-dd');
-    const current = best.get(key);
-    if (current && (current.rank > rank || (current.rank === rank && current.time >= date.getTime()))) continue;
-    best.set(key, { rank, time: date.getTime(), entry: { weight: log.weight, ...(rank === 0 ? { notMorning: LATER_WEIGH_INS[log.type] } : {}) } });
+    if (log.type === 'morning' || log.type === 'weigh-in') {
+      result.set(key, { weight: log.weight });
+    } else if (log.type in LATER_WEIGH_INS) {
+      const current = latestLater.get(key);
+      if (!current || date.getTime() > current.time) latestLater.set(key, { time: date.getTime(), date, type: log.type, weight: log.weight });
+    }
   }
-  return new Map(Array.from(best, ([key, value]) => [key, value.entry]));
+
+  latestLater.forEach(({ date, type, weight }) => {
+    const nextDay = format(addDays(date, 1), 'yyyy-MM-dd');
+    if (!result.has(nextDay)) {
+      result.set(nextDay, { weight, notMorning: `${LATER_WEIGH_INS[type]} ${format(date, 'EEE')}` });
+    }
+  });
+
+  return result;
 }
 
 /** Earlier weigh-ins the app knows about: official weigh-in logs and team events the athlete didn't skip. */

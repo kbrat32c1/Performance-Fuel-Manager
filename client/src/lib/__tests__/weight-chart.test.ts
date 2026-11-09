@@ -13,9 +13,10 @@ describe("buildWeightChart", () => {
     expect(buildWeightChart({ ...fiveOut, logs: logs.slice(0, 2) })).toBeNull();
   });
 
-  it("uses a later weigh-in for a day with no morning, and leaves a gap for an empty day", () => {
+  it("uses the night before for a day with no morning, and leaves a gap for an empty day", () => {
     const chart = buildWeightChart({ ...fiveOut, logs: [...logs, { date: addDays(today, -5), type: "before-bed", weight: 175 }] })!;
-    expect(chart.days[1]).toMatchObject({ weight: 175, notMorning: "before bed" });
+    expect(chart.days[1].weight).toBeNull();
+    expect(chart.days[2].weight).toBe(171);
     expect(chart.days[3].weight).toBeNull();
     expect(chart.days[6].weight).toBe(170);
   });
@@ -144,30 +145,36 @@ describe("knownWeighIns", () => {
 });
 
 describe("dailyWeights", () => {
-  const at = (h: number) => new Date(2026, 10, 7, h);
-  const log = (type: string, h: number, weight: number) => ({ date: at(h), type, weight });
+  const at = (d: number, h: number) => new Date(2026, 10, d, h);
+  const log = (type: string, d: number, h: number, weight: number) => ({ date: at(d, h), type, weight });
   const get = (...logs: ReturnType<typeof log>[]) => dailyWeights(logs).get("2026-11-07");
 
   it("prefers the morning weight whatever order they're stored in", () => {
-    const am = log("morning", 8, 158);
-    const official = log("weigh-in", 12, 157);
+    const am = log("morning", 7, 8, 158);
+    const official = log("weigh-in", 7, 12, 157);
     expect(get(am, official)).toEqual({ weight: 158 });
     expect(get(official, am)).toEqual({ weight: 158 });
   });
   it("uses an official weigh-in when there's no morning", () => {
-    expect(get(log("weigh-in", 12, 157), log("before-bed", 22, 160))).toEqual({ weight: 157 });
+    expect(get(log("weigh-in", 7, 12, 157), log("before-bed", 6, 22, 160))).toEqual({ weight: 157 });
   });
-  it("otherwise uses the day's latest weigh-in, and says which", () => {
-    expect(get(log("pre-practice", 15, 170), log("before-bed", 22, 171))).toEqual({ weight: 171, notMorning: "before bed" });
-    expect(get(log("before-bed", 22, 171), log("pre-practice", 15, 170))).toEqual({ weight: 171, notMorning: "before bed" });
+  it("otherwise uses the closest earlier reading, from the night before", () => {
+    expect(get(log("post-practice", 6, 17, 170), log("before-bed", 6, 22, 171))).toEqual({ weight: 171, notMorning: "before bed Fri" });
+    expect(get(log("before-bed", 6, 22, 171), log("post-practice", 6, 17, 170))).toEqual({ weight: 171, notMorning: "before bed Fri" });
+  });
+  it("doesn't use a later reading from the same day", () => {
+    expect(get(log("before-bed", 7, 22, 171))).toBeUndefined();
+  });
+  it("doesn't reach back more than a day", () => {
+    expect(get(log("before-bed", 5, 22, 171))).toBeUndefined();
   });
   it("ignores weight checks and extra workouts", () => {
-    expect(get(log("check-in", 12, 170), log("extra-after", 13, 169))).toBeUndefined();
+    expect(get(log("check-in", 6, 12, 170), log("extra-after", 6, 13, 169))).toBeUndefined();
   });
   it("feeds the chart and its readout", () => {
-    const logsWithBed = [morning(6, 170.6), morning(4, 171), { date: addDays(today, -2), type: "before-bed", weight: 172.5 }, morning(0, 170)];
+    const logsWithBed = [morning(6, 170.6), morning(4, 171), { date: addDays(today, -3), type: "before-bed", weight: 172.5 }, morning(0, 170)];
     const chart = buildWeightChart({ ...fiveOut, logs: logsWithBed })!;
-    expect(chart.days[4]).toMatchObject({ weight: 172.5, notMorning: "before bed" });
-    expect(chartDayReadout(chart.days[4])).toBe("Sat: 172.5 before bed · target 168");
+    expect(chart.days[4]).toMatchObject({ weight: 172.5, notMorning: "before bed Fri" });
+    expect(chartDayReadout(chart.days[4])).toBe("Sat: 172.5 before bed Fri · target 168");
   });
 });
