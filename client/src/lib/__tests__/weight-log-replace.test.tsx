@@ -7,6 +7,7 @@ const db = vi.hoisted(() => ({
   weightLogs: [] as Record<string, any>[],
   failWrites: false,
   deleteGate: null as Promise<void> | null,
+  failDeleteIds: [] as string[],
 }));
 
 vi.mock('../supabase', () => {
@@ -21,6 +22,7 @@ vi.mock('../supabase', () => {
       }
       const rows = db.weightLogs.filter(r => filters.every(f => f(r)));
       if (op === 'delete') {
+        if (rows.some(r => db.failDeleteIds.includes(r.id))) return { data: null, error: { message: 'network down' } };
         db.weightLogs = db.weightLogs.filter(r => !rows.includes(r));
         return { data: null, error: null };
       }
@@ -91,6 +93,7 @@ beforeEach(() => {
   toastMock.mockClear();
   db.failWrites = false;
   db.deleteGate = null;
+  db.failDeleteIds = [];
   db.weightLogs = [];
 });
 
@@ -167,7 +170,7 @@ describe('undoing a deleted weigh-in', () => {
 
     let deletion: Promise<boolean> = Promise.resolve(false);
     act(() => { deletion = result.current.deleteLog(original.id); });
-    const undo = makeUndoDelete({ log: original }, result.current.addLog, deletion);
+    const undo = makeUndoDelete([{ log: original, deletion }], result.current.addLog);
 
     let restored: Promise<boolean> = Promise.resolve(false);
     act(() => { restored = undo(); });
@@ -175,6 +178,43 @@ describe('undoing a deleted weigh-in', () => {
 
     expect(db.weightLogs).toHaveLength(1);
     expect(db.weightLogs[0].weight).toBe(137.4);
+  });
+
+  describe.each([
+    ['the first delete fails', 'db-before'],
+    ['the second delete fails', 'db-after'],
+  ])('a before-and-after pair when %s', (_label, failingId) => {
+    it('restores only the half that was removed, with Undo tapped mid-delete, and survives a reload', async () => {
+      const row = (id: string, type: string, weight: number) => ({ id, user_id: 'athlete-1', weight, type, date: '2026-11-07T11:30:00.000Z' });
+      db.weightLogs = [row('db-before', 'extra-before', 170), row('db-after', 'extra-after', 168)];
+      const { result, unmount } = await loadedStore();
+      await waitFor(() => expect(result.current.logs).toHaveLength(2));
+      const before = result.current.logs.find(l => l.id === 'db-before')!;
+      const after = result.current.logs.find(l => l.id === 'db-after')!;
+      db.failDeleteIds = [failingId];
+      let release: () => void = () => {};
+      db.deleteGate = new Promise<void>(r => { release = r; });
+
+      let beforeDeletion: Promise<boolean> = Promise.resolve(false);
+      let afterDeletion: Promise<boolean> = Promise.resolve(false);
+      act(() => {
+        beforeDeletion = result.current.deleteLog('db-before');
+        afterDeletion = result.current.deleteLog('db-after');
+      });
+      const undo = makeUndoDelete([{ log: before, deletion: beforeDeletion }, { log: after, deletion: afterDeletion }], result.current.addLog);
+
+      let restored: Promise<boolean> = Promise.resolve(false);
+      act(() => { restored = undo(); });
+      await act(async () => { release(); expect(await restored).toBe(true); });
+
+      expect(db.weightLogs.map(r => r.weight).sort()).toEqual([168, 170]);
+      expect(result.current.logs.map(l => l.weight).sort()).toEqual([168, 170]);
+
+      unmount();
+      const reloaded = await loadedStore();
+      await waitFor(() => expect(reloaded.result.current.logs).toHaveLength(2));
+      expect(reloaded.result.current.logs.map(l => l.weight).sort()).toEqual([168, 170]);
+    });
   });
 
   it('still refuses a real duplicate', async () => {

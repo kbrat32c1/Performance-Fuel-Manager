@@ -1235,8 +1235,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   /** Resolves true once the weigh-in is really gone, false if the delete failed and it was put back. */
   const deleteLog = async (id: string): Promise<boolean> => {
-    // Capture previous state for rollback
-    const previousLogs = logsRef.current;
+    const removed = logsRef.current.find(log => log.id === id);
+    // Put back only this reading: another delete may have finished while this one was running.
+    const restore = () => {
+      if (removed) setLogs(prev => prev.some(log => log.id === id) ? prev : [removed, ...prev]);
+    };
 
     setLogs(prev => prev.filter(log => log.id !== id));
 
@@ -1245,15 +1248,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.from('weight_logs').delete().eq('id', id);
 
         if (error) {
-          // Rollback on error
-          setLogs(previousLogs);
+          restore();
           console.error('Error deleting log:', error);
           toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
           return false;
         }
       } catch (error) {
-        // Rollback on exception
-        setLogs(previousLogs);
+        restore();
         console.error('Error deleting log:', error);
         toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
         return false;

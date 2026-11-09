@@ -8,25 +8,32 @@ export interface DeletedLog<T extends string = string> {
 
 type AddLog<T extends string> = (log: { weight: number; date: Date; type: T; duration?: number; sleepHours?: number }) => Promise<string | null>;
 
+export interface DeletedReading<T extends string = string> {
+  log: DeletedLog<T>;
+  /** Resolves true once this reading is really gone, false if its delete failed. */
+  deletion: Promise<boolean>;
+}
+
 /**
- * An Undo for one deletion. It holds its own copy of what was deleted, so two Undos waiting
- * in line can't restore each other's weigh-in. It reports whether the save really worked,
- * and if it didn't, can be tried again without restoring anything twice.
+ * An Undo for one delete action, which can cover a before-and-after pair. It holds its own
+ * copy of what was deleted, so two Undos waiting in line can't restore each other's weigh-in.
  *
- * It waits for the delete to finish first. Otherwise, on a slow connection, the restored row
- * could be removed by the delete that's still on its way. If the delete failed, the weigh-in
- * was never removed, so there's nothing to restore.
+ * It waits for every delete to finish, then restores only the readings actually removed:
+ * on a slow connection a restored row could otherwise be taken out by a delete still on its
+ * way, and a reading whose delete failed is still there. It reports whether the saves really
+ * worked, and if they didn't, can be tried again without restoring anything twice.
  */
-export function makeUndoDelete<T extends string>(deleted: { log: DeletedLog<T>; afterLog?: DeletedLog<T> } | null, addLog: AddLog<T>, deletion: Promise<boolean> = Promise.resolve(true)): () => Promise<boolean> {
-  let pending = deleted ? [deleted.log, ...(deleted.afterLog ? [deleted.afterLog] : [])] : [];
+export function makeUndoDelete<T extends string>(readings: DeletedReading<T>[], addLog: AddLog<T>): () => Promise<boolean> {
+  let pending: DeletedLog<T>[] | null = null;
+  let finished = readings.length === 0;
   let running = false;
   return async () => {
-    if (running || pending.length === 0) return false;
+    if (running || finished) return false;
     running = true;
     try {
-      if (!(await deletion)) {
-        pending = [];
-        return true;
+      if (pending === null) {
+        const removed = await Promise.all(readings.map(r => r.deletion));
+        pending = readings.filter((_, i) => removed[i]).map(r => r.log);
       }
       while (pending.length > 0) {
         const log = pending[0];
@@ -34,6 +41,7 @@ export function makeUndoDelete<T extends string>(deleted: { log: DeletedLog<T>; 
         if (saved === null) return false;
         pending = pending.slice(1);
       }
+      finished = true;
       return true;
     } finally {
       running = false;
