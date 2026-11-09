@@ -35,7 +35,6 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
     <div className="mt-3">
       <div className="relative">
         <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`Morning weights and daily targets. ${readout}`}>
-          <line x1={x(index)} x2={x(index)} y1={PAD_TOP - 6} y2={H - 6} className="stroke-border" strokeWidth={1} />
           {showClass && <line x1={PAD_X} x2={W - PAD_X} y1={y(weightClass)} y2={y(weightClass)} className="stroke-primary" strokeWidth={1.5} />}
           <path d={linePath(days.map(d => d.target), x, y)} fill="none" className="stroke-muted-foreground" strokeWidth={2} strokeDasharray="4 4" />
           <path d={linePath(days.map(d => d.weight), x, y)} fill="none" className="stroke-foreground" strokeWidth={2.5} strokeLinejoin="round" />
@@ -43,6 +42,9 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
             <circle key={i} cx={x(i)} cy={y(d.weight)} r={i === index ? 4 : 2.5} className="fill-foreground" />
           ))}
           {today.target !== null && <circle cx={x(todayIndex)} cy={y(today.target)} r={3} className="fill-muted-foreground" />}
+          {index !== todayIndex && days[index].weight === null && days[index].target !== null && (
+            <circle cx={x(index)} cy={y(days[index].target as number)} r={4} className="fill-muted-foreground" />
+          )}
           {today.weight !== null && <circle cx={x(todayIndex)} cy={y(today.weight)} r={6} className="fill-primary stroke-card" strokeWidth={2} />}
           {labels.map(label => {
             const day = days[label.index];
