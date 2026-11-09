@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { format } from "date-fns";
 import type { ReactNode } from "react";
 import Reports from "../reports";
@@ -51,6 +51,19 @@ describe("Reports in the Calories diary", () => {
     render(<Reports />);
     expect(screen.queryByText("No Data This Week")).not.toBeInTheDocument();
     expect(screen.getByText(/Incomplete/)).toBeInTheDocument();
+  });
+
+  it("shows incomplete when a counted food has no fat value, like the diary", () => {
+    store.day = { foodLog: [entry({ calories: 500 })] };
+    render(<Reports />);
+    expect(screen.getByText(/Incomplete/)).toBeInTheDocument();
+  });
+
+  it("Hydration's empty state depends on water, not food", () => {
+    store.day = { foodLog: [entry({ sliceType: "carb", sliceCount: 3, nutrientSource: "portion" })] };
+    render(<Reports />);
+    fireEvent.click(screen.getByRole("button", { name: "Hydration" }));
+    expect(screen.getByText("No Data This Week")).toBeInTheDocument();
   });
 
   it("never shows a calorie goal, even on a SPAR plan", () => {

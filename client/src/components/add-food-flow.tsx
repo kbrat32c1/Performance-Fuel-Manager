@@ -22,7 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { barcodeMultiplier, buildFoodEntry, calorieText, classifyFood, isListed, type FoodToLog, type SliceType, nextTotals } from "@/lib/food-totals";
+import { barcodeMultiplier, barcodeServingLabel, barcodeUnit, buildFoodEntry, calorieText, classifyFood, isListed, type FoodToLog, type SliceType, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -206,9 +206,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const carbs = Math.round(selectedOFF.carbs * multiplier);
     const protein = Math.round(selectedOFF.protein * multiplier);
     const brandLabel = selectedOFF.brand ? ` (${selectedOFF.brand})` : '';
-    const servingLabel = perServing
-      ? `${selectedOFF.servingSizeLabel || 'serving'}${multiplier !== 1 ? ` ×${multiplier}` : ''}`
-      : selectedOFF.servingSizeLabel || `${Math.round(multiplier * 100)}g`;
+    const servingLabel = barcodeServingLabel(selectedOFF, offServingGrams);
     const foodName = `${selectedOFF.name}${brandLabel} — ${servingLabel}`;
 
     const fat = Math.round((selectedOFF.fat || 0) * multiplier);
@@ -503,13 +501,13 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
             {/* Serving size input */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground/60 shrink-0">Serving:</span>
-              <input aria-label={selectedOFF.nutrientBasis === 'serving' ? "Number of servings" : "Serving size in grams"}
+              <input aria-label={selectedOFF.nutrientBasis === 'serving' ? "Number of servings" : `Serving size in ${barcodeUnit(selectedOFF.nutrientBasis)}`}
                 type="number"
                 value={offServingGrams}
                 onChange={(e) => setOffServingGrams(e.target.value)}
                 className="w-16 h-7 text-[12px] font-mono font-bold text-center bg-background border border-muted/30 rounded px-1"
               />
-              <span className="text-xs text-muted-foreground/60">{selectedOFF.nutrientBasis === 'serving' ? 'serving' : 'g'}</span>
+              <span className="text-xs text-muted-foreground/60">{barcodeUnit(selectedOFF.nutrientBasis)}</span>
               {selectedOFF.servingSizeLabel && (
                 <span className="text-xs text-muted-foreground/40 truncate">
                   ({selectedOFF.servingSizeLabel})

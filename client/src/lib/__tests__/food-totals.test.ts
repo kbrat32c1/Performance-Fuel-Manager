@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildFoodEntry, calorieText, classifyFood, barcodeMultiplier, copyEntry, entryCalorieLabel, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
+  buildFoodEntry, calorieText, classifyFood, barcodeMultiplier, barcodeServingLabel, barcodeUnit, copyEntry, entryCalorieLabel, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
   nutritionFromLog, totalsFromFoodLog, withGramAmount, withServings, withSliceCount,
 } from "../food-totals";
 import type { FoodLogEntry } from "../stores/types";
@@ -212,6 +212,23 @@ describe("calorie diary", () => {
     expect(barcodeMultiplier("serving", "")).toBe(1);
     expect(barcodeMultiplier("100g", "30")).toBeCloseTo(0.3);
     expect(barcodeMultiplier(undefined, "")).toBe(1);
+  });
+
+  it("shows a liquid barcode in mL and scales it the same way as grams", () => {
+    expect(barcodeUnit("100ml")).toBe("mL");
+    expect(barcodeUnit("100g")).toBe("g");
+    expect(barcodeUnit(undefined)).toBe("g");
+    expect(barcodeUnit("serving")).toBe("serving");
+    expect(barcodeMultiplier("100ml", "178")).toBeCloseTo(1.78);
+  });
+
+  it("names a changed barcode amount by what was entered, in the right unit", () => {
+    const can = { nutrientBasis: "100ml" as const, servingSize: 354.9, servingSizeLabel: "1 can (354.9 mL)" };
+    expect(barcodeServingLabel(can, "355")).toBe("1 can (354.9 mL)");
+    expect(barcodeServingLabel(can, "200")).toBe("200mL");
+    expect(barcodeServingLabel({ nutrientBasis: "100g", servingSize: 39, servingSizeLabel: "39g" }, "60")).toBe("60g");
+    expect(barcodeServingLabel({ nutrientBasis: "serving", servingSize: null, servingSizeLabel: "1 bar" }, "2")).toBe("1 bar ×2");
+    expect(barcodeServingLabel({ nutrientBasis: "100g", servingSize: null, servingSizeLabel: "" }, "")).toBe("100g");
   });
 
   it("spots a very old day that has totals but no food entries", () => {

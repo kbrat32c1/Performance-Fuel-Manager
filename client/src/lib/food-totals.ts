@@ -302,11 +302,30 @@ export function calorieText(calories: number, reported: boolean | undefined): st
   return isListed(calories, reported) ? `${Math.round(calories).toLocaleString()} cal` : 'Calories not listed';
 }
 
+export type NutrientBasis = '100g' | '100ml' | 'serving';
+
 /** How much of a scanned product's listed nutrients the entered amount represents. */
-export function barcodeMultiplier(basis: '100g' | 'serving' | undefined, input: string): number {
+export function barcodeMultiplier(basis: NutrientBasis | undefined, input: string): number {
   const amount = parseFloat(input);
   if (basis === 'serving') return amount > 0 ? amount : 1;
   return (amount > 0 ? amount : 100) / 100;
+}
+
+/** The unit the barcode card's amount is entered in. */
+export function barcodeUnit(basis: NutrientBasis | undefined): 'g' | 'mL' | 'serving' {
+  return basis === 'serving' ? 'serving' : basis === '100ml' ? 'mL' : 'g';
+}
+
+/** How a scanned food's amount reads in the diary. A changed amount shows what was entered, not the package serving. */
+export function barcodeServingLabel(
+  food: { nutrientBasis?: NutrientBasis; servingSize: number | null; servingSizeLabel: string },
+  input: string,
+): string {
+  const multiplier = barcodeMultiplier(food.nutrientBasis, input);
+  if (food.nutrientBasis === 'serving') return `${food.servingSizeLabel || 'serving'}${multiplier !== 1 ? ` ×${multiplier}` : ''}`;
+  const amount = Math.round(multiplier * 100);
+  if (food.servingSizeLabel && food.servingSize && Math.round(food.servingSize) === amount) return food.servingSizeLabel;
+  return `${amount}${barcodeUnit(food.nutrientBasis)}`;
 }
 
 /** Very old days can have totals with no food entries behind them. */

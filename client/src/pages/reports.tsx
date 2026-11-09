@@ -114,8 +114,8 @@ export default function Reports() {
         proteinSlices, carbSlices, vegSlices, fruitSlices, fatSlices,
         totalSlices: proteinSlices + carbSlices + vegSlices + fruitSlices + fatSlices,
         estimatedCalories,
-        // Older entries, portions or bare day totals exist, but have no calories to count.
-        caloriesIncomplete: tracksCalories && (logged.portions > 0 || logged.notTracked > 0 || hasTotalsWithoutEntries(tracking)),
+        // Same rule as the diary: portions, older entries, missing fat or bare day totals.
+        caloriesIncomplete: tracksCalories && (logged.incomplete || hasTotalsWithoutEntries(tracking)),
       };
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -336,7 +336,7 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode, tracksCalories }: {
             {calorieGoal != null && <span className="text-xs text-muted-foreground ml-auto">Goal: {calorieGoal.toLocaleString()}</span>}
           </div>
           {hasIncompleteDays && (
-            <p className="text-xs text-muted-foreground -mt-2 mb-3">Incomplete: some portions or entries have no calories.</p>
+            <p className="text-xs text-muted-foreground -mt-2 mb-3">Incomplete: some portions or entries are missing calories or fat.</p>
           )}
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
@@ -635,8 +635,7 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
     hitTarget: d.waterOz >= targetOz,
   }));
 
-  const hasIncompleteDays = weekData.some((d: any) => !d.isFuture && d.caloriesIncomplete);
-  if (daysWithData.length === 0 && !hasIncompleteDays) return <EmptyState />;
+  if (daysWithData.length === 0) return <EmptyState />;
 
   return (
     <>

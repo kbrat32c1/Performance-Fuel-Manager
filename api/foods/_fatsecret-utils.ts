@@ -330,14 +330,22 @@ export function reportedNutrients(serving: { calories?: unknown; fat?: unknown }
   return { calories: listed(serving.calories), fat: listed(serving.fat) };
 }
 
+/** What a barcode food's nutrients are measured against. */
+export type NutrientBasis = "100g" | "100ml" | "serving";
+
 /**
  * FatSecret gives a barcode food's nutrients per serving, but the barcode card scales
- * them as per-100 g values. This is the serving weight and the multiplier to convert.
- * Without a gram or ml weight, values stay per serving and no weight is offered.
+ * them as per-100 g or per-100 mL values. This is the serving amount, the multiplier to
+ * convert, and the unit. Without a gram or mL amount, values stay per serving.
  */
-export function barcodeServingBasis(serving: { metric_serving_amount?: string; metric_serving_unit?: string }): { servingSize: number | null; scale: number } {
+export function barcodeServingBasis(serving: { metric_serving_amount?: string; metric_serving_unit?: string }): { servingSize: number | null; scale: number; nutrientBasis: NutrientBasis } {
   const amount = parseFloat(serving.metric_serving_amount ?? "");
   const unit = (serving.metric_serving_unit || "g").toLowerCase();
-  if (!(amount > 0) || (unit !== "g" && unit !== "ml")) return { servingSize: null, scale: 1 };
-  return { servingSize: amount, scale: 100 / amount };
+  if (!(amount > 0) || (unit !== "g" && unit !== "ml")) return { servingSize: null, scale: 1, nutrientBasis: "serving" };
+  return { servingSize: amount, scale: 100 / amount, nutrientBasis: unit === "ml" ? "100ml" : "100g" };
+}
+
+/** Open Food Facts lists liquids per 100 mL; its serving text is what shows a product is liquid. */
+export function offNutrientBasis(servingSize: string | undefined | null): "100g" | "100ml" {
+  return /\d\s*(ml|cl|dl|l|fl\.?\s*oz)\b/i.test(servingSize ?? "") ? "100ml" : "100g";
 }

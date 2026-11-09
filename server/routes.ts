@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildCoachSystemPrompt } from "../api/_coach-prompt";
-import { autoSparCategory, barcodeServingBasis, reportedNutrients } from "../api/foods/_fatsecret-utils.js";
+import { autoSparCategory, barcodeServingBasis, offNutrientBasis, reportedNutrients } from "../api/foods/_fatsecret-utils.js";
 import { verifyUser } from "../api/_auth.js";
 import { resolveShareDate } from "../api/_share-date.js";
 
@@ -254,7 +254,7 @@ export async function registerRoutes(
                   const servings = Array.isArray(srvs) ? srvs : srvs ? [srvs] : [];
                   const def = servings.find((s: any) => s.is_default === "1") || servings[0];
                   if (def) {
-                    const { servingSize, scale } = barcodeServingBasis(def);
+                    const { servingSize, scale, nutrientBasis } = barcodeServingBasis(def);
                     const cal = rnd((parseFloat(def.calories)||0)*scale), pro = rnd((parseFloat(def.protein)||0)*scale);
                     const carb = rnd((parseFloat(def.carbohydrate)||0)*scale), fat = rnd((parseFloat(def.fat)||0)*scale);
                     const fib = rnd((parseFloat(def.fiber)||0)*scale), sug = rnd((parseFloat(def.sugar)||0)*scale);
@@ -268,7 +268,7 @@ export async function registerRoutes(
                         servingSizeLabel: def.serving_description||"",
                         imageUrl: null,
                         reported: reportedNutrients(def),
-                        nutrientBasis: servingSize ? "100g" as const : "serving" as const,
+                        nutrientBasis,
                         dataQuality: (cal > 0 && (pro > 0 || carb > 0)) ? "complete" as const : "partial" as const,
                       },
                     });
@@ -326,7 +326,7 @@ export async function registerRoutes(
           servingSizeLabel: p.serving_size || "",
           imageUrl: p.image_small_url || null,
           reported: { calories: n["energy-kcal_100g"] != null, fat: n.fat_100g != null },
-          nutrientBasis: "100g" as const,
+          nutrientBasis: offNutrientBasis(p.serving_size),
           dataQuality,
         },
       });

@@ -7,6 +7,7 @@ import {
   scoreMatchConfidence,
   autoSparCategory,
   barcodeServingBasis,
+  offNutrientBasis,
   reportedNutrients,
   round,
   type FatSecretServing,
@@ -265,8 +266,23 @@ describe("barcodeServingBasis", () => {
   });
 
   it("leaves values per serving when there is no gram or ml weight", () => {
-    expect(barcodeServingBasis({})).toEqual({ servingSize: null, scale: 1 });
-    expect(barcodeServingBasis({ metric_serving_amount: "1", metric_serving_unit: "oz" })).toEqual({ servingSize: null, scale: 1 });
+    expect(barcodeServingBasis({})).toEqual({ servingSize: null, scale: 1, nutrientBasis: "serving" });
+    expect(barcodeServingBasis({ metric_serving_amount: "1", metric_serving_unit: "oz" })).toEqual({ servingSize: null, scale: 1, nutrientBasis: "serving" });
+  });
+});
+
+describe("liquid barcode servings", () => {
+  it("keeps a FatSecret mL serving as mL, not grams", () => {
+    const { servingSize, scale, nutrientBasis } = barcodeServingBasis({ metric_serving_amount: "355.000", metric_serving_unit: "ml" });
+    expect(nutrientBasis).toBe("100ml");
+    expect(servingSize).toBe(355);
+    expect(Math.round(140 * scale * 355 / 100)).toBe(140);
+    expect(barcodeServingBasis({ metric_serving_amount: "30", metric_serving_unit: "g" }).nutrientBasis).toBe("100g");
+  });
+
+  it("spots liquids from Open Food Facts serving text", () => {
+    for (const text of ["1 can (355 ml)", "250ml", "33 cl", "1 L", "12 fl oz", "12 fl. oz"]) expect(offNutrientBasis(text)).toBe("100ml");
+    for (const text of ["39g", "1 bar (40 g)", "1 cup", "", undefined, null]) expect(offNutrientBasis(text)).toBe("100g");
   });
 });
 

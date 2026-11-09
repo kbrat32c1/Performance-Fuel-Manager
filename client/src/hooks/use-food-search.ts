@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { apiUrl } from "@/lib/api";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+import type { NutrientBasis } from "@/lib/food-totals";
 
 // ─── Shared types ───
 
@@ -61,8 +62,8 @@ export interface OFFFood {
   imageUrl: string | null;
   /** Whether the product actually lists these, since a missing value arrives as 0 */
   reported?: { calories: boolean; fat: boolean };
-  /** What the nutrients are measured against: per 100 g, or one serving with no known weight */
-  nutrientBasis?: '100g' | 'serving';
+  /** What the nutrients are measured against: per 100 g, per 100 mL, or one serving with no known amount */
+  nutrientBasis?: NutrientBasis;
   dataQuality: 'complete' | 'partial' | 'poor';
 }
 
