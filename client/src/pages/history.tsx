@@ -22,7 +22,7 @@ import { waterLoadingActive } from "@/lib/constants";
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets, getTargetsForDate } = useStore();
+  const { logs, profile, isLoading, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets, getTargetsForDate } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
@@ -160,112 +160,6 @@ export default function History() {
       // Fallback to clipboard
       await copyToClipboard();
     }
-    setShowExportMenu(false);
-  };
-
-  // Export full backup as JSON
-  const exportBackup = () => {
-    const backup = {
-      version: 1,
-      exportDate: new Date().toISOString(),
-      profile: {
-        targetWeightClass: profile.targetWeightClass,
-        currentWeight: profile.currentWeight,
-        protocol: profile.protocol,
-      },
-      weightLogs: logs.map(log => ({
-        date: new Date(log.date).toISOString(),
-        weight: log.weight,
-        type: log.type,
-      })),
-      dailyTracking: dailyTracking,
-    };
-
-    const jsonStr = JSON.stringify(backup, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pwm-backup-${format(new Date(), 'yyyy-MM-dd')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setShowExportMenu(false);
-    toast({ title: "Backup Created!", description: "Full data backup exported" });
-  };
-
-  // Import backup from JSON file
-  const importBackup = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const backup = JSON.parse(text);
-
-        if (backup.version !== 1) {
-          toast({ title: "Error", description: "Unsupported backup version", variant: "destructive" });
-          return;
-        }
-
-        // Restore profile settings if present
-        if (backup.profile) {
-          const profileUpdates: Record<string, any> = {};
-          if (backup.profile.targetWeightClass) profileUpdates.targetWeightClass = backup.profile.targetWeightClass;
-          if (backup.profile.currentWeight) profileUpdates.currentWeight = backup.profile.currentWeight;
-          if (backup.profile.protocol) profileUpdates.protocol = String(backup.profile.protocol);
-          if (Object.keys(profileUpdates).length > 0) {
-            updateProfile(profileUpdates);
-          }
-        }
-
-        // Import weight logs with deduplication
-        let imported = 0;
-        let skipped = 0;
-        if (backup.weightLogs && Array.isArray(backup.weightLogs)) {
-          for (const log of backup.weightLogs) {
-            const logDate = new Date(log.date);
-            const logDateStr = format(startOfDay(logDate), 'yyyy-MM-dd');
-            // Skip if a log with the same date and type already exists
-            const exists = logs.some(existing =>
-              format(startOfDay(existing.date), 'yyyy-MM-dd') === logDateStr && existing.type === log.type
-            );
-            if (exists) {
-              skipped++;
-            } else {
-              addLog({ date: logDate, weight: log.weight, type: log.type });
-              imported++;
-            }
-          }
-        }
-
-        // Restore daily tracking if present
-        let trackingRestored = 0;
-        if (backup.dailyTracking && typeof backup.dailyTracking === 'object') {
-          for (const [dateKey, data] of Object.entries(backup.dailyTracking)) {
-            if (data && typeof data === 'object') {
-              updateDailyTracking(dateKey, data as Record<string, any>);
-              trackingRestored++;
-            }
-          }
-        }
-
-        const parts: string[] = [];
-        if (imported > 0 || skipped > 0) {
-          const skipMsg = skipped > 0 ? ` (${skipped} dupes skipped)` : '';
-          parts.push(`${imported} logs${skipMsg}`);
-        }
-        if (backup.profile) parts.push('profile settings');
-        if (trackingRestored > 0) parts.push(`${trackingRestored} days tracking`);
-        toast({ title: "Import Complete!", description: parts.length > 0 ? `Restored: ${parts.join(', ')}` : 'No data found in backup' });
-      } catch {
-        toast({ title: "Error", description: "Could not read backup file", variant: "destructive" });
-      }
-    };
-    input.click();
     setShowExportMenu(false);
   };
 
@@ -550,21 +444,6 @@ export default function History() {
                   >
                     <Download className="w-4 h-4 text-muted-foreground" />
                     Export CSV
-                  </button>
-                  <div className="border-t border-muted my-1" />
-                  <button
-                    onClick={exportBackup}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4 text-green-500" />
-                    Full Backup (JSON)
-                  </button>
-                  <button
-                    onClick={importBackup}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4 text-cyan-500" />
-                    Import Backup
                   </button>
                 </div>
               </>
