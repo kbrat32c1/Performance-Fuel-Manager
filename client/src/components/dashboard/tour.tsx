@@ -55,7 +55,9 @@ export function DashboardTour({ weighInCount }: { weighInCount: number }) {
   // Only the steps whose part of the screen exists for this athlete's plan.
   const [steps, setSteps] = useState<TourStep[]>(TOUR_STEPS);
   const start = useCallback(() => {
-    setSteps(TOUR_STEPS.filter(s => document.querySelector(`[data-tour="${s.target}"]`)));
+    const available = TOUR_STEPS.filter(s => document.querySelector(`[data-tour="${s.target}"]`));
+    if (available.length === 0) return;
+    setSteps(available);
     setStep(0);
     setVisible(true);
   }, []);
@@ -183,7 +185,7 @@ export function DashboardTour({ weighInCount }: { weighInCount: number }) {
       localStorage.setItem(TOUR_KEY, "true");
       setVisible(false);
     }
-  }, [step]);
+  }, [step, steps]);
 
   const handleBack = useCallback(() => {
     if (step > 0) setStep(s => s - 1);
