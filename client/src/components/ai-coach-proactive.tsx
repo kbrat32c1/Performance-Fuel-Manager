@@ -352,7 +352,8 @@ export function AiCoachProactive() {
       .filter(e => !team.membership?.skipped.includes(e.id))
       .map(e => addDays(parseISO(e.eventDate), e.days - 1)),
   ];
-  const weightChart = todayScale && !profile.weighInCleared
+  // Unlike the scale, the chart doesn't depend on still being above class.
+  const weightChart = canShowTodayScale({ daysUntil, weighInTimePassed, hasLoggedWeight: weightLoggedAt !== null }) && !profile.weighInCleared
     ? buildWeightChart({
         today: new Date(),
         logs,

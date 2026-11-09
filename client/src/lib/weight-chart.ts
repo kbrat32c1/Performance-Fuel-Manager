@@ -127,6 +127,15 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
   return { days, labels, todayIndex, min, max, showClass };
 }
 
+/**
+ * Whether a label goes above its point. A weight and target at the same value split,
+ * with the weight on top, so they never print over each other.
+ */
+export function labelAbove(label: Pick<ChartLabel, 'series' | 'value'>, otherValue: number | null, weightClass: number): boolean {
+  if (otherValue === null) return label.value !== weightClass;
+  return label.series === 'weight' ? label.value >= otherValue : label.value > otherValue;
+}
+
 /** Pairs of neighboring weigh-ins with missed mornings between them. No day in between gets a value. */
 export function gapBridges(values: (number | null)[]): [number, number][] {
   const present = values.map((v, i) => (v !== null ? i : -1)).filter(i => i >= 0);

@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { buildWeightChart, chartDayReadout, gapBridges } from "../weight-chart";
+import { buildWeightChart, chartDayReadout, gapBridges, labelAbove } from "../weight-chart";
 
 const today = new Date(2026, 10, 9, 8, 0);
 const morning = (daysAgo: number, weight: number) => ({ date: addDays(today, -daysAgo), type: "morning", weight });
@@ -91,5 +91,31 @@ describe("gapBridges", () => {
   it("adds nothing when every morning is logged or at the ends", () => {
     expect(gapBridges([170, 169, 168])).toEqual([]);
     expect(gapBridges([null, 170, 169, null])).toEqual([]);
+  });
+});
+
+describe("labelAbove", () => {
+  it("splits a weight and target at the same value", () => {
+    expect(labelAbove({ series: "weight", value: 168 }, 168, 157)).toBe(true);
+    expect(labelAbove({ series: "target", value: 168 }, 168, 157)).toBe(false);
+  });
+  it("puts the higher number on top", () => {
+    expect(labelAbove({ series: "weight", value: 170 }, 168, 157)).toBe(true);
+    expect(labelAbove({ series: "target", value: 168 }, 170, 157)).toBe(false);
+    expect(labelAbove({ series: "target", value: 168 }, 160, 157)).toBe(true);
+  });
+  it("keeps the class under its own line", () => {
+    expect(labelAbove({ series: "target", value: 157 }, null, 157)).toBe(false);
+    expect(labelAbove({ series: "target", value: 165 }, null, 157)).toBe(true);
+  });
+});
+
+describe("at or below class", () => {
+  const under = [morning(3, 156), morning(2, 156.5), morning(1, 155.8), morning(0, 155.5)];
+  it("still draws the chart", () => {
+    expect(buildWeightChart({ ...fiveOut, logs: under })).not.toBeNull();
+  });
+  it("still draws it for a Gain athlete below their goal", () => {
+    expect(buildWeightChart({ ...base, logs: under, protocol: "4", weighInDate: addDays(today, 12) })).not.toBeNull();
   });
 });

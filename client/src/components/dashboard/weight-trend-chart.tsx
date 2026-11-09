@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { chartDayReadout, gapBridges, type WeightChart } from "@/lib/weight-chart";
+import { chartDayReadout, gapBridges, labelAbove, type WeightChart } from "@/lib/weight-chart";
 
 const W = 320;
 const H = 116;
@@ -58,8 +58,7 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
           {labels.map(label => {
             const day = days[label.index];
             const other = label.series === 'weight' ? day.target : day.weight;
-            // Above the line, clear of the falling targets. The class sits under its line.
-            const above = other === null ? label.value !== weightClass : label.value >= other;
+            const above = labelAbove(label, other, weightClass);
             const labelY = Math.min(H - 2, Math.max(12, y(label.value) + (above ? -9 : 17)));
             const anchor = label.index === 0 ? 'start' : label.index === days.length - 1 ? 'end' : 'middle';
             const labelX = x(label.index) + (day.isFuture && above ? 8 : 0);
