@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, ChevronRight, ChevronLeft, Scale, Zap, Calendar, Apple, Sparkles } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, Scale, Zap, Apple, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { shouldAutoStartTour } from "@/lib/tour";
 
 interface TourStep {
   title: string;
@@ -12,32 +13,26 @@ interface TourStep {
 
 const TOUR_STEPS: TourStep[] = [
   {
-    title: "Today's Weigh-Ins",
-    description: "Tap any slot to log your weight. Track morning, pre-practice, post-practice, and bedtime — the 4 key checkpoints.",
+    title: "Your Weight",
+    description: "Your latest morning weight, today's target and your weight class. After 3 morning weights, this becomes a chart of your week.",
     icon: <Scale className="w-5 h-5" />,
+    target: "today-weight",
+  },
+  {
+    title: "Your Next Weigh-In",
+    description: "The orange button and slot show what to log next. Tap any slot to log it, or use + for weight, food and water.",
+    icon: <Zap className="w-5 h-5" />,
     target: "weigh-ins",
   },
   {
-    title: "Your Daily Coach",
-    description: "This card adapts to your situation — showing your status, what to focus on today, and what your numbers show.",
-    icon: <Zap className="w-5 h-5" />,
-    target: "daily-coach",
-  },
-  {
-    title: "The Countdown",
-    description: "Your week at a glance with weight targets for each day. Tap any day for details. Drift, practice loss, and projected weigh-in update as you log.",
-    icon: <Calendar className="w-5 h-5" />,
-    target: "countdown",
-  },
-  {
-    title: "Fuel Tracking",
-    description: "Track food and hydration. In SPAR mode, count portions (slices). In Sugar System mode, track grams for competition week. The app switches automatically.",
+    title: "Food and Water",
+    description: "Log what you eat and drink here. Choose Slices or Detailed tracking in Settings.",
     icon: <Apple className="w-5 h-5" />,
     target: "fuel",
   },
   {
-    title: "AI Coach",
-    description: "Tap this button for personalized advice. It knows your protocol, weight, and how many days you have left.",
+    title: "Ask AI Coach",
+    description: "Ask about your plan, your numbers or what to do next. Cut Lab, further down, shows your own patterns as you log.",
     icon: <Sparkles className="w-5 h-5" />,
     target: "ai-coach",
   },
@@ -55,8 +50,15 @@ interface VRect {
   right: number;
 }
 
-export function DashboardTour() {
+export function DashboardTour({ weighInCount }: { weighInCount: number }) {
   const [step, setStep] = useState(0);
+  // Only the steps whose part of the screen exists for this athlete's plan.
+  const [steps, setSteps] = useState<TourStep[]>(TOUR_STEPS);
+  const start = useCallback(() => {
+    setSteps(TOUR_STEPS.filter(s => document.querySelector(`[data-tour="${s.target}"]`)));
+    setStep(0);
+    setVisible(true);
+  }, []);
   const [visible, setVisible] = useState(false);
   const [rect, setRect] = useState<VRect | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -66,27 +68,28 @@ export function DashboardTour() {
   const rafRef = useRef<number>(0);
 
   useEffect(() => {
-    const seen = localStorage.getItem(TOUR_KEY);
-    if (!seen) {
-      const timer = setTimeout(() => setVisible(true), 800);
+    const seen = !!localStorage.getItem(TOUR_KEY);
+    if (shouldAutoStartTour(seen, weighInCount)) {
+      const timer = setTimeout(start, 800);
       return () => clearTimeout(timer);
     }
+    // An existing athlete on a new browser: don't offer it again here.
+    if (!seen) localStorage.setItem(TOUR_KEY, "true");
+    // Only decide once, when Today first opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Listen for restart-tour event (from Settings replay button)
   useEffect(() => {
-    const handler = () => {
-      setStep(0);
-      setTimeout(() => setVisible(true), 400);
-    };
+    const handler = () => { setTimeout(start, 400); };
     window.addEventListener("restart-dashboard-tour", handler);
     return () => window.removeEventListener("restart-dashboard-tour", handler);
-  }, []);
+  }, [start]);
 
   // Measure + scroll target into view
   const measure = useCallback(() => {
     if (!visible) return;
-    const current = TOUR_STEPS[step];
+    const current = steps[step];
     const el = document.querySelector(`[data-tour="${current.target}"]`);
     if (!el) {
       setRect(null);
@@ -99,7 +102,7 @@ export function DashboardTour() {
   // On step change: scroll into view, then measure
   useEffect(() => {
     if (!visible) return;
-    const current = TOUR_STEPS[step];
+    const current = steps[step];
     const el = document.querySelector(`[data-tour="${current.target}"]`);
     if (!el) { setRect(null); return; }
 
@@ -115,7 +118,8 @@ export function DashboardTour() {
       const viewH = window.innerHeight;
       // Need room for target + tooltip (~240px)
       if (r.top < 60 || r.bottom > viewH - 260) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        // A tall card goes to the top so the bubble fits under it instead of covering it.
+        el.scrollIntoView({ behavior: "smooth", block: el.getBoundingClientRect().height > 200 ? "start" : "center" });
         // Wait for scroll to finish then measure
         setTimeout(measure, 400);
       } else {
@@ -166,13 +170,14 @@ export function DashboardTour() {
       setArrowDir("up");
     } else {
       // Above
-      setTooltipStyle({ top: rect.top - gap - tooltipH, left });
+      // Never off the top of the screen, even when the highlighted card is tall.
+      setTooltipStyle({ top: Math.max(pad, rect.top - gap - tooltipH), left });
       setArrowDir("down");
     }
   }, [rect, step]);
 
   const handleNext = useCallback(() => {
-    if (step < TOUR_STEPS.length - 1) {
+    if (step < steps.length - 1) {
       setStep(s => s + 1);
     } else {
       localStorage.setItem(TOUR_KEY, "true");
@@ -191,9 +196,9 @@ export function DashboardTour() {
 
   if (!visible) return null;
 
-  const current = TOUR_STEPS[step];
-  const isLast = step === TOUR_STEPS.length - 1;
-  const progress = ((step + 1) / TOUR_STEPS.length) * 100;
+  const current = steps[step];
+  const isLast = step === steps.length - 1;
+  const progress = ((step + 1) / steps.length) * 100;
   const spotPad = 6;
 
   // Calculate clamped spotlight position (prevent clipping at screen edges)
@@ -303,7 +308,7 @@ export function DashboardTour() {
             <div className="flex items-center gap-2">
               <span className="text-primary">{current.icon}</span>
               <span className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
-                {step + 1} of {TOUR_STEPS.length}
+                {step + 1} of {steps.length}
               </span>
             </div>
             <button
@@ -359,7 +364,7 @@ export function DashboardTour() {
 
           {/* Dot indicators */}
           <div className="flex justify-center gap-1.5 mt-4">
-            {TOUR_STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <div
                 key={i}
                 className={cn(
