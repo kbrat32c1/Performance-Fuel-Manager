@@ -26,6 +26,20 @@ describe("toasts", () => {
   it("only keeps the newest plain message waiting", () => {
     expect(ids(add(add([error("a")], plain("b")), plain("c")))).toEqual(["a", "c"]);
   });
+  it("never drops an error or Undo, however many are waiting", () => {
+    let toasts: any[] = [];
+    for (const id of ["1", "2", "3", "4", "5", "6"]) toasts = add(toasts, undo(id));
+    toasts = add(toasts, { ...error("7"), title: "different" });
+    expect(ids(toasts)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
+  });
+  it("skips an error that's already showing or waiting", () => {
+    const failed = (id: string) => ({ ...error(id), title: "Sync failed", description: "Try again" });
+    expect(ids(add([failed("a")], failed("b")))).toEqual(["a"]);
+  });
+  it("keeps two Undos even when they read the same", () => {
+    const removed = (id: string) => ({ ...undo(id), title: "Deleted", description: "Morning removed" });
+    expect(ids(add([removed("a")], removed("b")))).toEqual(["a", "b"]);
+  });
   it("shows the next one once the first is dismissed", () => {
     const toasts = reducer({ toasts: add([error("a")], plain("b")) }, { type: "DISMISS_TOAST", toastId: "a" }).toasts;
     expect(ids(toasts.filter(t => t.open !== false))).toEqual(["b"]);
