@@ -18,7 +18,7 @@ import type { DbHealthData } from "@/lib/supabase";
 import { computeRecoveryScoreDetailed } from "@/lib/healthkit-service";
 import type { RecoveryResult, RecoveryContribution } from "@/lib/healthkit-service";
 import { computeBaselines } from "@/lib/recovery-baselines";
-import { withDisplayRecovery, isWhoopDay } from "@/lib/recovery-display";
+import { withDisplayRecovery, recoverySourceOf } from "@/lib/recovery-display";
 import { recoveryDotClass, recoveryLabel, recoveryTextClass, recoveryTintClass, whoopRecoveryAdvice, type RecoverySource } from "@/lib/recovery-bands";
 import { MetricDetailSheet } from "./metric-detail-sheet";
 import type { MetricKey } from "./metric-detail-sheet";
@@ -88,9 +88,9 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
 
   // Same score source for the ring, the 7-day bars and the detail sheet.
   const scoredHistory = useMemo(() => withDisplayRecovery(healthHistory), [healthHistory]);
-  const fromWhoop = isWhoopDay(latestHealth) && latestHealth.recovery_score != null;
+  const source = recoverySourceOf(latestHealth);
+  const fromWhoop = source === 'whoop';
   const score = fromWhoop ? Math.round(latestHealth.recovery_score as number) : recovery.score;
-  const source: RecoverySource = fromWhoop ? 'whoop' : 'spar';
   const scoreColor = recoveryTextClass(score, source);
   const scoreBg = recoveryTintClass(score, source);
 
@@ -187,7 +187,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
                     <div
                       className={cn(
                         "w-full rounded-sm transition-all",
-                        recoveryDotClass(s, isWhoopDay(day) ? 'whoop' : 'spar')
+                        recoveryDotClass(s, day.scoreSource)
                       )}
                       style={{ height: `${height}px` }}
                     />

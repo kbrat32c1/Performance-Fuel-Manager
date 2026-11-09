@@ -1,6 +1,7 @@
 import type { DbHealthData } from "./supabase";
 import { computeBaselines } from "./recovery-baselines";
 import { computeRecoveryScoreDetailed } from "./healthkit-service";
+import type { RecoverySource } from "./recovery-bands";
 
 /**
  * The one recovery score every screen shows for a day.
@@ -35,9 +36,16 @@ export function displayRecoveryScore(h: DbHealthData, history: DbHealthData[]): 
   }).score;
 }
 
-/** History with recovery_score replaced by the displayed score. */
-export function withDisplayRecovery(history: DbHealthData[]): DbHealthData[] {
-  return history.map(h => ({ ...h, recovery_score: displayRecoveryScore(h, history) }));
+/** Who calculated a day's score. A WHOOP day with no WHOOP score yet falls back to SPAR's. */
+export function recoverySourceOf(h: Pick<DbHealthData, "source" | "recovery_score">): RecoverySource {
+  return isWhoopDay(h) && h.recovery_score != null ? "whoop" : "spar";
+}
+
+export type ScoredHealthData = DbHealthData & { scoreSource: RecoverySource };
+
+/** History with recovery_score replaced by the displayed score, remembering who calculated it. */
+export function withDisplayRecovery(history: DbHealthData[]): ScoredHealthData[] {
+  return history.map(h => ({ ...h, recovery_score: displayRecoveryScore(h, history), scoreSource: recoverySourceOf(h) }));
 }
 
 /**
