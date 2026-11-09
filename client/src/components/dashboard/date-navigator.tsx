@@ -62,11 +62,11 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 relative after:absolute after:-inset-1.5"
+        className="h-11 w-11 text-muted-foreground hover:text-foreground shrink-0 [&_svg]:size-6"
         onClick={handlePreviousDay}
         aria-label="Previous day"
       >
-        <ChevronLeft className="w-5 h-5" aria-hidden="true" />
+        <ChevronLeft className="w-6 h-6" aria-hidden="true" />
       </Button>
 
       {/* Date Display with Calendar Picker */}
@@ -74,14 +74,14 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
         <PopoverTrigger asChild>
           <button
             className={cn(
-              "flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-colors min-w-0",
+              "flex items-center gap-2 min-h-11 px-2.5 py-1.5 rounded-lg transition-colors min-w-0",
               "hover:bg-muted/50 active:bg-muted",
               !viewingToday && "bg-yellow-500/20 border border-yellow-500/30"
             )}
             aria-label={`Open calendar picker. Currently viewing ${format(currentDate, 'EEEE, MMMM d')}`}
           >
             <Calendar className={cn(
-              "w-4 h-4 shrink-0",
+              "w-6 h-6 shrink-0",
               viewingToday ? "text-muted-foreground" : "text-yellow-500"
             )} />
             <div className="text-left min-w-0">
@@ -126,7 +126,7 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
         variant="ghost"
         size="icon"
         className={cn(
-          "h-8 w-8 shrink-0 relative after:absolute after:-inset-1.5",
+          "h-11 w-11 shrink-0 [&_svg]:size-6",
           viewingToday
             ? "text-muted-foreground/30 cursor-not-allowed"
             : "text-muted-foreground hover:text-foreground"
@@ -135,7 +135,7 @@ export function DateNavigator({ currentDate, onDateChange, className, isLiveView
         disabled={viewingToday}
         aria-label="Next day"
       >
-        <ChevronRight className="w-5 h-5" aria-hidden="true" />
+        <ChevronRight className="w-6 h-6" aria-hidden="true" />
       </Button>
     </div>
   );

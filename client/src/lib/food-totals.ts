@@ -148,6 +148,21 @@ export function withServings(e: FoodLogEntry, newServings: number): FoodLogEntry
   };
 }
 
+/** Servings as shown in the edit box. Never rounds a small amount down to 0. */
+export function servingsEditText(servings: number): string {
+  const rounded = Math.round(servings * 100) / 100;
+  return String(rounded > 0 ? rounded : Number(servings.toPrecision(2)));
+}
+
+/**
+ * The amount an edit saves, or null if the athlete left it alone. The box shows a rounded
+ * number, so saving it unchanged must not replace the exact one. A blank keeps the original.
+ */
+export function editedAmount(input: string, shownAtStart: string, original: number): number | null {
+  if (input.trim() === shownAtStart) return null;
+  return parseFloat(input) || original;
+}
+
 /** A copy of an entry for another day: same numbers, new id and time. */
 export function copyEntry(e: FoodLogEntry, id: string, timestamp: string): FoodLogEntry {
   if (e.mode !== 'spar') return { ...e, id, timestamp };

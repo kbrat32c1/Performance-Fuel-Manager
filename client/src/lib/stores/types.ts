@@ -239,7 +239,6 @@ export interface StoreContextType {
   migrateLocalStorageToSupabase: () => Promise<void>;
   hasLocalStorageData: () => boolean;
   calculateTarget: () => number;
-  getWaterLoadBonus: () => number;
   isWaterLoadingDay: () => boolean;
   getDaysUntilWeighIn: () => number;
   getDaysUntilForDay: (dayNum: number) => number;
