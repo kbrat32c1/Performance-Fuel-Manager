@@ -6,8 +6,7 @@ import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format } from "date-fns";
-import { calculateTargetWeight } from "@/lib/constants";
-import { getTodayScale, targetLabelLeftPct } from "@/lib/today-scale";
+import { canShowTodayScale, getTodayScale, targetLabelLeftPct } from "@/lib/today-scale";
 import { Input } from "@/components/ui/input";
 import { CoachText } from "@/components/coach-text";
 import { coachHistory, COACH_REPLY_FAILED, buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
@@ -318,10 +317,10 @@ export function AiCoachProactive() {
     return null;
   }
 
-  // Same morning target the Week page shows for today.
-  const todayTargetCalc = calculateTargetWeight(targetWeight, daysUntil, profile.protocol, profile.waterLoading !== false);
-  const todayTarget = todayTargetCalc.range ? todayTargetCalc.range.max : todayTargetCalc.base;
-  const todayScale = daysUntil >= 0
+  // The same target the rest of the app and the coach use for today.
+  const todayTarget = calculateTarget();
+  const weighInTimePassed = daysUntil === 0 && getTimeUntilWeighIn() === 'WEIGH-IN TIME';
+  const todayScale = canShowTodayScale({ daysUntil, weighInTimePassed, hasLoggedWeight: weightLoggedAt !== null })
     ? getTodayScale({
         weight: currentWeight,
         weightClass: targetWeight,
@@ -339,7 +338,7 @@ export function AiCoachProactive() {
         : targetDelta > 0
           ? { label: `${targetDelta.toFixed(1)} over target`, className: 'bg-chart-3/15 text-chart-3' }
           : { label: `${Math.abs(targetDelta).toFixed(1)} under target`, className: 'bg-muted text-foreground' };
-  const showLbsToClass = !isAtWeight && daysUntil >= 0;
+  const showLbsToClass = !isAtWeight && daysUntil >= 0 && !weighInTimePassed;
   const showDetailedGuidance = !isAtWeight && daysUntil >= 0 && daysUntil <= 7;
 
   // Use store's precise countdown (matches Week tab)
