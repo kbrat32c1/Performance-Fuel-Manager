@@ -47,16 +47,17 @@ export default function History() {
       afterLogToDelete = logs.find(l => l.id === log.afterId);
     }
 
+    // Perform deletion
+    const deletion = Promise.all([
+      deleteLog(log.id),
+      ...(log.type === 'extra-workout' && log.afterId ? [deleteLog(log.afterId)] : []),
+    ]).then(results => results.every(Boolean));
+
     const undoDelete = makeUndoDelete(
       logToDelete ? { log: logToDelete, afterLog: afterLogToDelete || undefined } : null,
       addLog,
+      deletion,
     );
-
-    // Perform deletion
-    deleteLog(log.id);
-    if (log.type === 'extra-workout' && log.afterId) {
-      deleteLog(log.afterId);
-    }
 
     // Show undo toast. "Restored" only appears once the save really worked.
     const logLabel = log.type === 'extra-workout' ? 'Extra workout' : getLogTypeLabel(log.type);

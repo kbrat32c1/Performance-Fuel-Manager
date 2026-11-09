@@ -6,6 +6,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 const db = vi.hoisted(() => ({
   weightLogs: [] as Record<string, any>[],
   failWrites: false,
+  deleteGate: null as Promise<void> | null,
 }));
 
 vi.mock('../supabase', () => {
@@ -36,7 +37,7 @@ vi.mock('../supabase', () => {
       lte: (c: string, v: string) => { filters.push(r => r[c] <= v); return chain; },
       order: () => chain, limit: () => chain, select: () => chain,
       single: () => { single = true; return Promise.resolve(run()); },
-      then: (res: any, rej?: any) => Promise.resolve(run()).then(res, rej),
+      then: (res: any, rej?: any) => ((op === 'delete' && db.deleteGate) || Promise.resolve()).then(run).then(res, rej),
     };
     return chain;
   };
@@ -73,6 +74,7 @@ const toastMock = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/use-toast', () => ({ toast: toastMock, useToast: () => ({ toast: toastMock }) }));
 
 import { StoreProvider, useStore } from '../store';
+import { makeUndoDelete } from '../undo-deleted-log';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => <StoreProvider>{children}</StoreProvider>;
 const morning = new Date('2026-11-07T11:30:00.000Z');
@@ -88,6 +90,7 @@ beforeEach(() => {
   localStorage.clear();
   toastMock.mockClear();
   db.failWrites = false;
+  db.deleteGate = null;
   db.weightLogs = [];
 });
 
@@ -152,6 +155,26 @@ describe('undoing a deleted weigh-in', () => {
     expect(db.weightLogs).toHaveLength(1);
     expect(db.weightLogs[0].weight).toBe(137.4);
     expect(toastMock).not.toHaveBeenCalledWith(expect.objectContaining({ title: 'Already logged' }));
+  });
+
+  it('survives Undo tapped while the delete is still on its way', async () => {
+    db.weightLogs = [existingRow()];
+    const { result } = await loadedStore();
+    await waitFor(() => expect(result.current.logs).toHaveLength(1));
+    const original = result.current.logs[0];
+    let release: () => void = () => {};
+    db.deleteGate = new Promise<void>(r => { release = r; });
+
+    let deletion: Promise<boolean> = Promise.resolve(false);
+    act(() => { deletion = result.current.deleteLog(original.id); });
+    const undo = makeUndoDelete({ log: original }, result.current.addLog, deletion);
+
+    let restored: Promise<boolean> = Promise.resolve(false);
+    act(() => { restored = undo(); });
+    await act(async () => { release(); expect(await restored).toBe(true); });
+
+    expect(db.weightLogs).toHaveLength(1);
+    expect(db.weightLogs[0].weight).toBe(137.4);
   });
 
   it('still refuses a real duplicate', async () => {

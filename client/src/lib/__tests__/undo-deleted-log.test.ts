@@ -47,6 +47,23 @@ describe("undoing a deleted weigh-in", () => {
     expect(addLog).toHaveBeenCalledTimes(3);
     expect((addLog.mock.calls[2] as any)[0]).toMatchObject({ weight: 168 });
   });
+  it("waits for the delete to finish before restoring", async () => {
+    const addLog = saves();
+    let finishDelete: (ok: boolean) => void = () => {};
+    const deletion = new Promise<boolean>(r => { finishDelete = r; });
+    const undo = makeUndoDelete({ log: log(170) }, addLog, deletion);
+    const result = undo();
+    await Promise.resolve();
+    expect(addLog).not.toHaveBeenCalled();
+    finishDelete(true);
+    expect(await result).toBe(true);
+    expect(addLog).toHaveBeenCalledTimes(1);
+  });
+  it("doesn't add a second copy when the delete failed", async () => {
+    const addLog = saves();
+    expect(await makeUndoDelete({ log: log(170) }, addLog, Promise.resolve(false))()).toBe(true);
+    expect(addLog).not.toHaveBeenCalled();
+  });
   it("ignores a double tap while saving", async () => {
     const addLog = saves();
     const undo = makeUndoDelete({ log: log(170) }, addLog);

@@ -1233,9 +1233,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const deleteLog = async (id: string) => {
+  /** Resolves true once the weigh-in is really gone, false if the delete failed and it was put back. */
+  const deleteLog = async (id: string): Promise<boolean> => {
     // Capture previous state for rollback
-    const previousLogs = logs;
+    const previousLogs = logsRef.current;
 
     setLogs(prev => prev.filter(log => log.id !== id));
 
@@ -1248,14 +1249,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setLogs(previousLogs);
           console.error('Error deleting log:', error);
           toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
+          return false;
         }
       } catch (error) {
         // Rollback on exception
         setLogs(previousLogs);
         console.error('Error deleting log:', error);
         toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
+        return false;
       }
     }
+    return true;
   };
 
   const getDailyTracking = (date: string): DailyTracking => {

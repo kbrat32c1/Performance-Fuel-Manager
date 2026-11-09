@@ -227,7 +227,7 @@ export interface StoreContextType {
   addLog: (log: Omit<WeightLog, 'id'>) => Promise<string | null>;
   /** Resolves to true once the change is saved */
   updateLog: (id: string, updates: Partial<WeightLog>) => Promise<boolean>;
-  deleteLog: (id: string) => void;
+  deleteLog: (id: string) => Promise<boolean>;
   updateDailyTracking: (date: string, updates: Partial<Omit<DailyTracking, 'date'>>) => void;
   getDailyTracking: (date: string) => DailyTracking;
   /** Whether daily-tracking edits (food, water, slices) have reached the cloud */
