@@ -17,7 +17,7 @@ import { QuickLogWaterTab } from './quick-log-water-tab';
 import { activateOnKey } from "@/lib/a11y";
 import { useLocation } from "wouter";
 import { sleepSourceName } from "@/lib/sleep-source";
-import { useSwipeToClose } from "@/hooks/use-swipe-to-close";
+import { useSwipeSheetToClose, useSwipeToClose } from "@/hooks/use-swipe-to-close";
 
 type FabTab = 'weight' | 'food' | 'water';
 
@@ -159,6 +159,7 @@ function TimeScrollColumn({ items, selected, onSelect }: { items: string[]; sele
       <div
         ref={containerRef}
         onScroll={handleScroll}
+        data-no-swipe
         className="h-full overflow-y-auto scrollbar-hide snap-y snap-mandatory"
         style={{ scrollSnapType: 'y mandatory', paddingTop: itemH, paddingBottom: itemH }}
       >
@@ -273,6 +274,7 @@ export function QuickLogFAB() {
   const { healthData } = useHealthKitSync(user?.id ?? null);
   const [sleepAutoFilled, setSleepAutoFilled] = useState(false);
   const swipeToClose = useSwipeToClose(() => { setIsOpen(false); resetForm(); });
+  const swipeSheet = useSwipeSheetToClose(() => { setIsOpen(false); resetForm(); });
   const [sleepSourceLabel, setSleepSourceLabel] = useState<string | null>(null);
 
   // Auto-fill sleep hours from the wearable when morning weigh-in selected.
@@ -814,7 +816,7 @@ export function QuickLogFAB() {
           />
 
           {/* Panel — fixed to bottom, doesn't shift with keyboard */}
-          <div data-swipe-sheet className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[80vh] flex flex-col" role="document">
+          <div data-swipe-sheet {...swipeSheet} className="relative mt-auto w-full max-w-md mx-auto bg-background border-t border-border rounded-t-2xl animate-in slide-in-from-bottom duration-300 max-h-[80vh] flex flex-col" role="document">
             {/* Drag handle — tappable to close */}
             <div
               role="button" tabIndex={0} aria-label="Close" onKeyDown={activateOnKey}

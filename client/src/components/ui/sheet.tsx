@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { useSwipeToClose } from "@/hooks/use-swipe-to-close"
+import { useSwipeSheetToClose, useSwipeToClose } from "@/hooks/use-swipe-to-close"
 
 const Sheet = SheetPrimitive.Root
 
@@ -60,12 +60,14 @@ const SheetContent = React.forwardRef<
 >(({ side = "right", className, children, ...props }, ref) => {
   const closeRef = React.useRef<HTMLButtonElement>(null);
   const swipe = useSwipeToClose(() => closeRef.current?.click());
+  const swipeSheet = useSwipeSheetToClose(() => closeRef.current?.click());
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
         ref={ref}
         className={cn(sheetVariants({ side }), className)}
+        {...(side === "bottom" ? swipeSheet : {})}
         {...props}
       >
         <SheetPrimitive.Close

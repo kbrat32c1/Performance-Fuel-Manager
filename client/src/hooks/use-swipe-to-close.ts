@@ -6,6 +6,68 @@ export function shouldDismissSwipe(dragPx: number, elapsedMs: number): boolean {
   return dragPx >= 30 && elapsedMs > 0 && dragPx / elapsedMs >= 0.6;
 }
 
+/** Whether a finger's movement so far is a pull-down, something else, or too small to tell. */
+export function swipeIntent(dx: number, dy: number): 'wait' | 'drag' | 'cancel' {
+  if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return 'wait';
+  return dy > 0 && dy > Math.abs(dx) ? 'drag' : 'cancel';
+}
+
+const NO_SHEET_SWIPE = 'input, select, textarea, [role="slider"], [data-no-swipe], [data-swipe-handle]';
+
+/** A drag can only move the sheet if the content under the finger is scrolled to the top. */
+function canStartSheetSwipe(target: HTMLElement, sheet: HTMLElement): boolean {
+  if (target.closest(NO_SHEET_SWIPE)) return false;
+  for (let el: HTMLElement | null = target; el; el = el.parentElement) {
+    if (el.scrollTop > 0) return false;
+    if (el === sheet) break;
+  }
+  return true;
+}
+
+/**
+ * Swipe down anywhere on a bottom sheet to close it, once its content is scrolled to the top.
+ * Spread on the sheet itself. Scrolling, sideways drags, and form fields are left alone.
+ */
+export function useSwipeSheetToClose(onClose: () => void) {
+  const drag = useRef<{ startX: number; startY: number; startT: number; sheet: HTMLElement; dy: number; active: boolean } | null>(null);
+
+  const onTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    const sheet = e.currentTarget;
+    drag.current = e.touches.length === 1 && canStartSheetSwipe(e.target as HTMLElement, sheet)
+      ? { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startT: Date.now(), sheet, dy: 0, active: false }
+      : null;
+  }, []);
+
+  const onTouchMove = useCallback((e: React.TouchEvent<HTMLElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const dy = e.touches[0].clientY - d.startY;
+    if (!d.active) {
+      const intent = swipeIntent(e.touches[0].clientX - d.startX, dy);
+      if (intent === 'wait') return;
+      if (intent === 'cancel') { drag.current = null; return; }
+      d.active = true;
+      d.sheet.style.transition = "none";
+    }
+    d.dy = Math.max(0, dy);
+    d.sheet.style.transform = `translateY(${d.dy}px)`;
+  }, []);
+
+  const onTouchEnd = useCallback(() => {
+    const d = drag.current;
+    drag.current = null;
+    if (!d?.active) return;
+    if (shouldDismissSwipe(d.dy, Date.now() - d.startT)) {
+      onClose();
+      return;
+    }
+    d.sheet.style.transition = "transform 0.2s ease-out";
+    d.sheet.style.transform = "";
+  }, [onClose]);
+
+  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd };
+}
+
 /**
  * Swipe down on a bottom sheet's handle to close it. Spread the returned props on the handle
  * only, so scrolling the sheet's content still scrolls. The sheet follows the finger.
@@ -40,5 +102,5 @@ export function useSwipeToClose(onClose: () => void) {
     }
   }, [onClose]);
 
-  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd, style: { touchAction: "none" as const } };
+  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd, style: { touchAction: "none" as const }, "data-swipe-handle": true };
 }
