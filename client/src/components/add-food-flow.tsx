@@ -22,7 +22,8 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { barcodeMultiplier, barcodeServingLabel, barcodeUnit, buildFoodEntry, calorieText, classifyFood, isListed, type FoodToLog, type SliceType, nextTotals } from "@/lib/food-totals";
+import { amountBaseServing, amountUnits, foodPrep, foodSourceLabel, prepTag, searchFoodName, searchFoodPortion, servingsFromAmount, sliceCountText, sliceNotCountedText, sortCookedFirst, typedAmountLabel, type AmountUnit } from "@/lib/food-search-display";
+import { barcodeMultiplier, barcodeServingLabel, barcodeUnit, buildFoodEntry, calorieText, classifyFood, isListed, type FoodToLog, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -155,15 +156,10 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
 
   // ─── FatSecret food add ───
-  const handleFSAdd = useCallback((food: FatSecretFood, serving: FatSecretServing, qty: number = 1) => {
-    const carbs = Math.round(serving.carbs * qty);
-    const protein = Math.round(serving.protein * qty);
-    const brandLabel = food.brand ? ` (${food.brand})` : '';
+  const handleFSAdd = useCallback((food: FatSecretFood, serving: FatSecretServing, qty: number = 1, amountLabel?: string) => {
+    const { carbs, protein, fat, sliceType, sliceCount } = searchFoodPortion(serving, food.sparCategory, qty, amountLabel != null);
     const qtyLabel = qty !== 1 ? ` ×${qty % 1 === 0 ? qty : qty.toFixed(1)}` : '';
-    const foodName = `${formatUSDAName(food.name)}${brandLabel} — ${serving.description}${qtyLabel}`;
-
-    const fat = Math.round((serving.fat || 0) * qty);
-    const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, (food.sparCategory as SliceType) || null, qty);
+    const foodName = searchFoodName(formatUSDAName(food.name), food.brand, amountLabel ?? `${serving.description}${qtyLabel}`);
 
     logFoodEntry({
       name: foodName,
@@ -352,6 +348,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
 
   // Active search state
   const isSearching = query.trim().length >= 3;
+  const orderedResults = useMemo(() => sortCookedFirst(fsResults, query), [fsResults, query]);
   const hasResults = fsResults.length > 0;
   const isLoading = fsLoading;
 
@@ -528,10 +525,10 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
         {isSearching && !isLoading && (
           <>
             {/* Database results */}
-            {fsResults.length > 0 && (
+            {orderedResults.length > 0 && (
               <div className="divide-y divide-muted/15">
                 <p className="text-xs font-bold text-muted-foreground/60 uppercase tracking-wide pb-1">Database Results</p>
-                {fsResults.slice(0, 15).map(food => (
+                {orderedResults.slice(0, 20).map(food => (
                   <FSFoodRow
                     key={food.id}
                     food={food}
@@ -549,8 +546,12 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                         setSelectedFSServing(def || null);
                       }
                     }}
+                    showSlices={isSparMode}
                     onServingChange={setSelectedFSServing}
-                    onAdd={(qty: number) => selectedFSServing && handleFSAdd(food, selectedFSServing, qty)}
+                    onAdd={(qty, amount) => {
+                      const serving = amount?.base ?? selectedFSServing;
+                      if (serving) handleFSAdd(food, serving, qty, amount?.label);
+                    }}
                     onToggleFav={() => toggleFavorite(food.name)}
                   />
                 ))}
@@ -824,7 +825,9 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
 }
 
 // ─── FatSecret Food Row ───
-function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle, onServingChange, onAdd, onToggleFav }: {
+const ENTER_AMOUNT = "__enter_amount";
+
+function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, showSlices, onToggle, onServingChange, onAdd, onToggleFav }: {
   food: FatSecretFood;
   isExpanded: boolean;
   selectedServing: FatSecretServing | null;
@@ -832,19 +835,45 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
   flashed: boolean | undefined;
   onToggle: () => void;
   onServingChange: (s: FatSecretServing) => void;
-  onAdd: (qty: number) => void;
+  showSlices: boolean;
+  onAdd: (qty: number, amount?: { base: FatSecretServing; label: string }) => void;
   onToggleFav: () => void;
 }) {
   const [qty, setQty] = useState(1);
   const activeServing = isExpanded && selectedServing ? selectedServing : (food.servings.find(s => s.isDefault) || food.servings[0]);
 
-  // Reset qty when collapsing or changing food
-  useEffect(() => { if (!isExpanded) setQty(1); }, [isExpanded]);
+  const [amountMode, setAmountMode] = useState(false);
+  const [amountText, setAmountText] = useState('');
+  const [amountUnit, setAmountUnit] = useState<AmountUnit>('g');
 
-  const totalCal = activeServing ? Math.round(activeServing.calories * qty) : 0;
-  const totalCarbs = activeServing ? Math.round(activeServing.carbs * qty) : 0;
-  const totalProtein = activeServing ? Math.round(activeServing.protein * qty) : 0;
-  const totalFat = activeServing ? Math.round(activeServing.fat * qty) : 0;
+  // Reset the amount when collapsing or changing food
+  useEffect(() => { if (!isExpanded) { setQty(1); setAmountMode(false); setAmountText(''); } }, [isExpanded]);
+
+  const amountBase = selectedServing ? amountBaseServing(selectedServing, food.servings) : null;
+  const units = amountBase ? amountUnits(amountBase) : [];
+  const typedServings = amountMode && amountBase ? servingsFromAmount(amountText, amountUnit, amountBase) : null;
+  // A typed amount is measured against its own serving, which can differ from the one picked.
+  const portionServing = amountMode && amountBase ? amountBase : activeServing;
+  const portionQty = amountMode ? (typedServings ?? 0) : qty;
+
+  const startAmount = () => {
+    if (!amountBase) return;
+    setAmountMode(true);
+    setAmountUnit(units[0]);
+    setAmountText(String(amountBase.metricAmount));
+  };
+
+  const totalCal = portionServing ? Math.round(portionServing.calories * portionQty) : 0;
+  const totalCarbs = portionServing ? Math.round(portionServing.carbs * portionQty) : 0;
+  const totalProtein = portionServing ? Math.round(portionServing.protein * portionQty) : 0;
+  const totalFat = portionServing ? Math.round(portionServing.fat * portionQty) : 0;
+  const portion = portionServing && portionQty > 0 ? searchFoodPortion(portionServing, food.sparCategory, portionQty, amountMode) : null;
+  const prep = portionServing ? prepTag(foodPrep(food.name, portionServing.description), food.name, portionServing.description) : null;
+  const source = foodSourceLabel(food.type);
+  const amountReady = !amountMode || typedServings != null;
+  const typedLabel = amountMode && amountBase && typedServings != null
+    ? typedAmountLabel(amountText, amountUnit, food.name, amountBase.description)
+    : null;
 
   return (
     <div className={cn(
@@ -857,14 +886,26 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold truncate">{formatUSDAName(food.name)}</p>
           <p className="text-xs text-muted-foreground/60 truncate">
+            {prep && !amountMode && <span className="font-semibold text-muted-foreground">{prep} · </span>}
             {food.brand && <span>{food.brand} · </span>}
-            {activeServing ? (
+            {amountMode ? (
+              typedLabel && portionServing ? (
+                <>
+                  <span className="text-muted-foreground/80">{typedLabel}</span>
+                  {' · '}
+                  {calorieText(totalCal, portionServing.reported?.calories)}
+                  {` · ${totalCarbs}C ${totalProtein}P`}
+                  {isListed(portionServing.fat, portionServing.reported?.fat) && ` ${totalFat}F`}
+                </>
+              ) : 'Enter an amount'
+            ) : activeServing ? (
               <>
                 <span className="text-muted-foreground/80">{activeServing.description}</span>
                 {' · '}
                 {calorieText(activeServing.calories, activeServing.reported?.calories)}
                 {activeServing.carbs > 0 && ` · ${Math.round(activeServing.carbs)}C`}
                 {activeServing.protein > 0 && ` ${Math.round(activeServing.protein)}P`}
+                {isListed(activeServing.fat, activeServing.reported?.fat) && ` ${Math.round(activeServing.fat)}F`}
               </>
             ) : calorieText(food.calories, undefined)}
           </p>
@@ -883,58 +924,103 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
       {isExpanded && selectedServing && (
         <div className="px-3 pb-3 space-y-2 border-t border-muted/20 pt-2">
           {/* Serving selector + quantity row */}
-          <div className="flex items-center gap-2">
-            {food.servings.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {food.servings.length > 1 || amountBase ? (
               <select aria-label="Serving size"
-                value={selectedServing.id}
+                value={amountMode ? ENTER_AMOUNT : selectedServing.id}
                 onChange={(e) => {
+                  if (e.target.value === ENTER_AMOUNT) { startAmount(); return; }
+                  setAmountMode(false);
                   const s = food.servings.find(sv => sv.id === e.target.value);
                   if (s) onServingChange(s);
                 }}
-                className="flex-1 py-2 px-3 rounded-lg bg-muted/20 border border-muted/30 text-[12px] font-medium min-w-0"
+                className={cn("flex-1 py-2 px-3 rounded-lg bg-muted/20 border border-muted/30 text-[12px] font-medium min-w-0", amountMode && "basis-full")}
               >
                 {food.servings.map(s => (
                   <option key={s.id} value={s.id}>{s.description}</option>
                 ))}
+                {amountBase && <option value={ENTER_AMOUNT}>Enter amount</option>}
               </select>
             ) : (
               <span className="flex-1 text-[12px] font-medium text-muted-foreground truncate">{selectedServing.description}</span>
             )}
 
-            {/* Quantity stepper */}
-            <div className="flex items-center gap-0 shrink-0 border border-muted/30 rounded-lg overflow-hidden">
-              <button
-                aria-label="Decrease servings"
-                onClick={(e) => { e.stopPropagation(); setQty(q => Math.max(0.5, q - (q <= 1 ? 0.5 : 1))); hapticTap(); }}
-                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
-              >
-                −
-              </button>
-              <span className="w-8 text-center text-[13px] font-bold tabular-nums">{qty % 1 === 0 ? qty : qty.toFixed(1)}</span>
-              <button
-                aria-label="Increase servings"
-                onClick={(e) => { e.stopPropagation(); setQty(q => q + (q < 1 ? 0.5 : 1)); hapticTap(); }}
-                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
-              >
-                +
-              </button>
-            </div>
+            {/* Typed amount, or quantity stepper */}
+            {amountMode && amountBase ? (
+              <div className="flex w-full items-center gap-2">
+                <label htmlFor={`amount-${food.id}`} className="text-xs text-muted-foreground">Amount</label>
+                <input id={`amount-${food.id}`}
+                  type="number" inputMode="decimal" min="0"
+                  value={amountText}
+                  onChange={(e) => setAmountText(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-20 h-11 rounded-lg border border-muted/30 bg-transparent text-center text-[13px] font-bold tabular-nums focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                {units.length > 1 ? (
+                  <>
+                    <label htmlFor={`unit-${food.id}`} className="text-xs text-muted-foreground">Unit</label>
+                    <select id={`unit-${food.id}`}
+                      value={amountUnit}
+                      onChange={(e) => setAmountUnit(e.target.value as AmountUnit)}
+                      className="h-11 rounded-lg border border-muted/30 bg-muted/20 px-2 text-[12px] font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {units.map(u => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </>
+                ) : <span className="text-[12px] font-medium text-muted-foreground">{units[0]}</span>}
+              </div>
+            ) : (
+              <div className="flex items-center gap-0 shrink-0 border border-muted/30 rounded-lg overflow-hidden">
+                <button
+                  aria-label="Decrease servings"
+                  onClick={(e) => { e.stopPropagation(); setQty(q => Math.max(0.5, q - (q <= 1 ? 0.5 : 1))); hapticTap(); }}
+                  className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
+                >
+                  −
+                </button>
+                <span className="w-8 text-center text-[13px] font-bold tabular-nums">{qty % 1 === 0 ? qty : qty.toFixed(1)}</span>
+                <button
+                  aria-label="Increase servings"
+                  onClick={(e) => { e.stopPropagation(); setQty(q => q + (q < 1 ? 0.5 : 1)); hapticTap(); }}
+                  className="w-8 h-8 flex items-center justify-center text-sm font-bold text-muted-foreground hover:bg-muted/20 active:bg-muted/30"
+                >
+                  +
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Macro breakdown (multiplied by qty) */}
           <div className="flex items-center gap-3 text-xs font-mono">
-            <span className="text-muted-foreground">{activeServing ? calorieText(totalCal, activeServing.reported?.calories) : ''}</span>
+            <span className="text-muted-foreground">{portionServing ? calorieText(totalCal, portionServing.reported?.calories) : ''}</span>
             <span className="text-amber-500">{totalCarbs}g C</span>
             <span className="text-orange-500">{totalProtein}g P</span>
-            <span className="text-muted-foreground/60">{activeServing && isListed(activeServing.fat, activeServing.reported?.fat) ? `${totalFat}g F` : 'Fat not listed'}</span>
+            <span className="text-muted-foreground/60">{portionServing && isListed(portionServing.fat, portionServing.reported?.fat) ? `${totalFat}g F` : 'Fat not listed'}</span>
           </div>
+
+          {amountMode && !typedLabel && <p role="alert" className="text-xs text-muted-foreground">Enter an amount above 0.</p>}
+          {amountMode && amountBase && amountBase !== selectedServing && (
+            <p className="text-xs text-muted-foreground">Measured as: {amountBase.description}</p>
+          )}
+          {showSlices && portion && (
+            <p className="text-xs font-semibold">{portion.sliceCountKnown ? sliceCountText(portion.sliceType, portion.sliceCount) : sliceNotCountedText(portion.sliceType)}</p>
+          )}
+          {source && <p className="text-xs text-muted-foreground/60">Source: {source}</p>}
 
           {/* Add button */}
           <button
-            onClick={(e) => { e.stopPropagation(); onAdd(qty); }}
-            className="w-full py-2.5 rounded-xl bg-primary text-white text-[12px] font-bold active:scale-[0.98] transition-all"
+            disabled={!amountReady}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (amountMode && amountBase && typedServings != null && typedLabel) {
+                onAdd(typedServings, { base: amountBase, label: typedLabel });
+              } else {
+                onAdd(qty);
+              }
+            }}
+            className="w-full py-2.5 rounded-xl bg-primary text-white text-[12px] font-bold active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            Add{qty !== 1 ? ` ${qty % 1 === 0 ? qty : qty.toFixed(1)} ×` : ''} {formatUSDAName(food.name)}
+            Add{typedLabel ? ` ${typedLabel}` : !amountMode && qty !== 1 ? ` ${qty % 1 === 0 ? qty : qty.toFixed(1)} ×` : ''} {formatUSDAName(food.name)}
           </button>
         </div>
       )}
