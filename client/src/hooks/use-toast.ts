@@ -5,7 +5,6 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 5
 const TOAST_REMOVE_DELAY = 5000
 
 type ToasterToast = ToastProps & {
@@ -71,12 +70,35 @@ const addToRemoveQueue = (toastId: string) => {
   toastTimeouts.set(toastId, timeout)
 }
 
+/** Errors and toasts with a button (Undo, Retry) have to be seen. */
+const isImportant = (t: ToasterToast) => t.variant === "destructive" || !!t.action
+
+/**
+ * One at a time; the Toaster shows the first open one.
+ *
+ * Errors and Undo are never dropped: they wait in line for as long as it takes. A plain
+ * message is the only thing ever discarded, and an error identical to one already up or
+ * waiting is skipped so a failing sync can't fill the line.
+ */
+function addToast(toasts: ToasterToast[], toast: ToasterToast): ToasterToast[] {
+  const open = toasts.filter((t) => t.open !== false)
+  const closed = toasts.filter((t) => t.open === false)
+  const [showing, ...waiting] = open
+  if (!showing) return [toast, ...closed]
+  const repeated = isImportant(toast) && !toast.action &&
+    open.some((t) => isImportant(t) && t.title === toast.title && t.description === toast.description)
+  if (repeated) return toasts
+  const keep = waiting.filter(isImportant)
+  if (!isImportant(showing)) return [toast, ...keep, ...closed]
+  return [showing, ...keep, toast, ...closed]
+}
+
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST":
       return {
         ...state,
-        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+        toasts: addToast(state.toasts, action.toast),
       }
 
     case "UPDATE_TOAST":

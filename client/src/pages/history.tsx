@@ -9,9 +9,10 @@ import { SwipeableRow } from "@/components/ui/swipeable-row";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, subMonths, addMonths, startOfWeek, endOfWeek, subDays, differenceInDays, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, Sun, Dumbbell, Moon, Scale, Calendar, TrendingDown, Pencil, Trash2, Plus, Check, X, Droplets, Utensils, Share2, Download, Copy, Apple } from "lucide-react";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
+import { makeUndoDelete } from "@/lib/undo-deleted-log";
 import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
 import { getPhaseForDaysUntil } from "@/lib/constants";
 import { TrendChart } from "@/components/dashboard";
@@ -37,9 +38,6 @@ export default function History() {
   const descentData = getWeekDescentData();
   const hydrationTarget = getHydrationTarget();
 
-  // Undo support: store recently deleted logs for restoration
-  const deletedLogRef = useRef<{ log: any; afterLog?: any } | null>(null);
-
   // Handle delete with undo support
   const handleDeleteWithUndo = (log: any) => {
     // Store the log data for potential undo (get from current logs)
@@ -49,9 +47,10 @@ export default function History() {
       afterLogToDelete = logs.find(l => l.id === log.afterId);
     }
 
-    if (logToDelete) {
-      deletedLogRef.current = { log: logToDelete, afterLog: afterLogToDelete || undefined };
-    }
+    const undoDelete = makeUndoDelete(
+      logToDelete ? { log: logToDelete, afterLog: afterLogToDelete || undefined } : null,
+      addLog,
+    );
 
     // Perform deletion
     deleteLog(log.id);
@@ -66,26 +65,7 @@ export default function History() {
       description: `${logLabel} removed`,
       action: (
         <ToastAction altText="Undo deletion" onClick={() => {
-          if (deletedLogRef.current) {
-            const { log: restoredLog, afterLog } = deletedLogRef.current;
-            addLog({
-              weight: restoredLog.weight,
-              date: new Date(restoredLog.date),
-              type: restoredLog.type,
-              duration: restoredLog.duration,
-              sleepHours: restoredLog.sleepHours,
-            });
-            if (afterLog) {
-              addLog({
-                weight: afterLog.weight,
-                date: new Date(afterLog.date),
-                type: afterLog.type,
-                duration: afterLog.duration,
-              });
-            }
-            deletedLogRef.current = null;
-            toast({ title: "Restored", description: `${logLabel} has been restored` });
-          }
+          if (undoDelete()) toast({ title: "Restored", description: `${logLabel} has been restored` });
         }}>
           Undo
         </ToastAction>
