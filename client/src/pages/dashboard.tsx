@@ -27,7 +27,8 @@ import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { HelpTip } from "@/components/ui/help-tip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { planExplanation, planStage } from "@/lib/plan-line";
+import { planExplanation, planStage, stageExplanation, stageIntroFor, type StageIntro } from "@/lib/plan-line";
+import { nextWeighIn } from "@/lib/next-weigh-in";
 import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
 import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
@@ -753,6 +754,10 @@ function TodayFlow({
   const loggedCount = slots.filter(s => s.log).length;
   const isComplete = loggedCount === slots.length;
 
+  // The next weigh-in is the only slot that stands out, and matches the button above.
+  const loggedTypes = new Set(slots.filter(s => s.log).map(s => s.type as string));
+  const nextType = nextWeighIn(loggedTypes, isGeneralNutrition || isRestDay);
+
   // Find most recent logged slot for highlight
   const mostRecentSlot = [...slots]
     .filter(s => s.log)
@@ -809,6 +814,7 @@ function TodayFlow({
             const isMostRecent = mostRecentSlot && slot.log && mostRecentSlot.log.id === slot.log.id;
             // Show practice loss on POST slot
             const showPracticeLoss = slot.key === 'post' && practiceLoss !== null && practiceLoss > 0;
+            const isNext = !isLogged && slot.type === nextType;
 
             return (
               <button
@@ -818,18 +824,20 @@ function TodayFlow({
                   "flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-all active:scale-95",
                   isLogged
                     ? "hover:bg-muted/50"
-                    : "hover:bg-primary/10 border border-dashed border-primary/30",
+                    : isNext
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-primary/10 border border-border",
                   isMostRecent && "ring-1 ring-primary/40 bg-primary/5"
                 )}
               >
                 {/* Icon + colored label inline */}
                 <div className="flex items-center gap-1">
-                  <span className={cn("opacity-70", isLogged ? slot.color : "text-muted-foreground")}>
+                  <span className={cn(isNext ? "text-primary-foreground" : "opacity-70", !isNext && (isLogged ? slot.color : "text-muted-foreground"))}>
                     {slot.icon}
                   </span>
                   <span className={cn(
                     "text-xs font-bold uppercase",
-                    isLogged ? slot.color : "text-muted-foreground"
+                    isNext ? "text-primary-foreground" : isLogged ? slot.color : "text-muted-foreground"
                   )}>
                     {slot.label}
                   </span>
@@ -851,7 +859,7 @@ function TodayFlow({
                     {weight?.toFixed(1)}
                   </span>
                 ) : (
-                  <Plus className="w-4 h-4 mt-0.5 text-primary/60" />
+                  <Plus className={cn("w-4 h-4 mt-0.5", isNext ? "text-primary-foreground" : "text-muted-foreground/60")} />
                 )}
 
                 {/* Practice loss on POST slot */}
@@ -1372,6 +1380,27 @@ export default function Dashboard() {
   const phaseInfo = getPhaseInfo();
   const planText = planExplanation(profile.protocol);
   const stageText = planStage(phaseInfo.stage);
+  const stageMeaning = stageExplanation(stageText, {
+    protocol: profile.protocol,
+    weightClass: profile.targetWeightClass,
+    currentWeight: profile.currentWeight,
+    waterAmount: hydration.amount,
+  });
+
+  // A stage explains itself on its first day; after that, tap the label.
+  const [showStageIntro, setShowStageIntro] = useState(false);
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  useEffect(() => {
+    if (isViewingHistorical || !stageText || !stageMeaning) { setShowStageIntro(false); return; }
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.STAGE_INTRO);
+      const result = stageIntroFor(raw ? JSON.parse(raw) as StageIntro : null, stageText, todayKey);
+      localStorage.setItem(STORAGE_KEYS.STAGE_INTRO, JSON.stringify(result.stored));
+      setShowStageIntro(result.show);
+    } catch {
+      setShowStageIntro(false);
+    }
+  }, [isViewingHistorical, stageText, stageMeaning, todayKey]);
 
   // Phase color mapping for UI elements
   const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading !== false);
@@ -1770,9 +1799,32 @@ export default function Dashboard() {
                     </span>
                     <span className="text-xs font-bold text-primary whitespace-nowrap">{profile.targetWeightClass} class</span>
                     {stageText && (
-                      <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">{stageText}</span>
+                      <span className="whitespace-nowrap">
+                        {stageMeaning ? (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label={`What ${stageText} means`}
+                                className="min-h-6 text-xs font-bold text-muted-foreground underline decoration-dotted underline-offset-2"
+                              >
+                                {stageText}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent side="bottom" align="start" className="w-64 p-3">
+                              <p className="text-xs font-bold mb-1">{stageText}</p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{stageMeaning}</p>
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
+                          <span className="text-xs font-bold text-muted-foreground">{stageText}</span>
+                        )}
+                      </span>
                     )}
                   </div>
+                  {showStageIntro && stageMeaning && (
+                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{stageMeaning}</p>
+                  )}
                 </div>
               )}
               {/* Logging streak — shown in Cut Lab card instead to avoid duplication */}

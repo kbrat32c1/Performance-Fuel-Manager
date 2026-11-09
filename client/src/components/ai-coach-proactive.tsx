@@ -5,7 +5,8 @@ import { Sparkles, Send, X, RotateCcw, Mic, Square } from "lucide-react";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import { format } from "date-fns";
+import { format, isYesterday } from "date-fns";
+import { nextStepLabel, nextWeighIn } from "@/lib/next-weigh-in";
 import { canShowTodayScale, getTodayScale, targetLabelLeftPct } from "@/lib/today-scale";
 import { Input } from "@/components/ui/input";
 import { CoachText } from "@/components/coach-text";
@@ -96,11 +97,18 @@ export function AiCoachProactive() {
       weightLoggedAt: recentMorning ? new Date(recentMorning.date) : null,
     };
   })();
+  const weightIsFromToday = !!weightLoggedAt && weightLoggedAt.toDateString() === new Date().toDateString();
   const weightLoggedLabel = !weightLoggedAt
     ? 'From profile'
-    : weightLoggedAt.toDateString() === new Date().toDateString()
+    : weightIsFromToday
       ? `Logged ${format(weightLoggedAt, 'h:mm a')}`
-      : format(weightLoggedAt, 'EEE h:mm a');
+      : `${isYesterday(weightLoggedAt) ? 'Yesterday' : format(weightLoggedAt, 'EEE')} ${format(weightLoggedAt, 'h:mm a')}`;
+
+  // What to do next. Weigh-in day has its own official weigh-in flow.
+  const loggedToday = new Set(logs.filter(l => new Date(l.date).toDateString() === new Date().toDateString()).map(l => l.type as string));
+  const skipPractice = !!getDailyTracking(format(new Date(), 'yyyy-MM-dd'))?.noPractice;
+  const nextStep = daysUntil > 0 ? nextWeighIn(loggedToday, skipPractice) : null;
+  const weightNotLoggedLabel = weightIsFromToday ? null : loggedToday.size > 0 ? "Today's morning weight not logged" : "Today's weight not logged";
   const targetWeight = profile.targetWeightClass;
   const weightToLose = Math.max(0, currentWeight - targetWeight);
   const isAtWeight = weightToLose <= 0;
@@ -351,7 +359,7 @@ export function AiCoachProactive() {
   // No arbitrary directives — only specific, data-driven advice.
   type CoachingStatus = 'on-track' | 'behind' | 'at-weight';
 
-  const getCoachingInsight = (): { status: CoachingStatus; node: React.ReactNode } | null => {
+  const getCoachingInsight = (): { status: CoachingStatus; node: React.ReactNode; isLogPrompt?: boolean } | null => {
     if (isAtWeight) return {
       status: 'at-weight',
       node: <>You're at weight. Ready for competition.</>,
@@ -396,6 +404,7 @@ export function AiCoachProactive() {
     if (daysUntil >= 1 && daysUntil <= 5 && !insights.projectionReliable) {
       return {
         status: 'on-track',
+        isLogPrompt: true,
         node: <>{checkPrefix}{hl(weightToLose.toFixed(1) + ' lbs')} to go, {hl(daysUntil + (daysUntil === 1 ? ' day' : ' days'))} out. Log before bed, and before and after practice, so we can project from your own numbers.</>,
       };
     }
@@ -473,7 +482,9 @@ export function AiCoachProactive() {
     return null;
   };
 
-  const coachingInsight = showDetailedGuidance ? getCoachingInsight() : null;
+  const fullInsight = showDetailedGuidance ? getCoachingInsight() : null;
+  // The button says what to log. Don't repeat it, or judge a weight that isn't today's.
+  const coachingInsight = fullInsight && nextStep && (!weightIsFromToday || fullInsight.isLogPrompt) ? null : fullInsight;
 
 
 
@@ -485,12 +496,15 @@ export function AiCoachProactive() {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex items-baseline gap-1">
-                <span className="font-heading text-[64px] font-bold leading-[0.9] tabular-nums text-foreground">
+                <span className={cn("font-heading text-[64px] font-bold leading-[0.9] tabular-nums", weightIsFromToday ? "text-foreground" : "text-foreground/60")}>
                   {currentWeight.toFixed(1)}
                 </span>
                 <span className="font-heading text-xl font-semibold text-muted-foreground">lbs</span>
               </div>
-              <span className="mt-1.5 block text-xs text-muted-foreground">{weightLoggedLabel}</span>
+              <span className="mt-1.5 block text-xs text-muted-foreground">
+                {weightLoggedLabel}
+                {weightNotLoggedLabel && <> · <span className="font-semibold text-primary">{weightNotLoggedLabel}</span></>}
+              </span>
             </div>
             {statusPill && (
               <span className={cn("mt-1 shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-medium", statusPill.className)}>
@@ -552,6 +566,19 @@ export function AiCoachProactive() {
             </div>
           )}
         </div>
+
+        {/* The one thing to do next */}
+        {nextStep && (
+          <div className="px-3 pb-3">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: nextStep } }))}
+              className="w-full min-h-12 rounded-xl bg-primary px-4 py-3 text-[15px] font-bold text-primary-foreground transition-transform active:scale-[0.98]"
+            >
+              {nextStepLabel(nextStep)}
+            </button>
+          </div>
+        )}
 
         {/* Daily Insight Card — clean sentence with highlighted numbers */}
         {coachingInsight && !insightDismissed && (
