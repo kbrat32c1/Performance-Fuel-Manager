@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { buildWeightChart, chartDayReadout, gapBridges, labelAbove } from "../weight-chart";
+import { buildWeightChart, chartDayReadout, dayTarget, gapBridges, knownWeighIns, labelAbove } from "../weight-chart";
 
 const today = new Date(2026, 10, 9, 8, 0);
 const morning = (daysAgo: number, weight: number) => ({ date: addDays(today, -daysAgo), type: "morning", weight });
@@ -118,4 +118,26 @@ describe("at or below class", () => {
   it("still draws it for a Gain athlete below their goal", () => {
     expect(buildWeightChart({ ...base, logs: under, protocol: "4", weighInDate: addDays(today, 12) })).not.toBeNull();
   });
+});
+
+describe("dayTarget", () => {
+  it("matches the chart's targets", () => {
+    const chart = buildWeightChart(fiveOut)!;
+    for (const d of chart.days) expect(dayTarget(d.date, fiveOut)).toBe(d.target);
+  });
+  it("is blank on and before an earlier weigh-in", () => {
+    const input = { ...fiveOut, knownWeighIns: [addDays(today, -2)] };
+    expect(dayTarget(addDays(today, -2), input)).toBeNull();
+    expect(dayTarget(addDays(today, -1), input)).toBe(168);
+  });
+});
+
+describe("knownWeighIns", () => {
+  it("uses official weigh-ins and the last day of team events, skipping events the athlete skipped", () => {
+    const team = { skipped: ["b"], events: [{ id: "a", eventDate: "2026-11-01", days: 2 }, { id: "b", eventDate: "2026-11-05", days: 1 }] };
+    const dates = knownWeighIns([{ date: "2026-10-20T12:00:00Z", type: "weigh-in" }, { date: "2026-10-21T12:00:00Z", type: "morning" }], team);
+    expect(dates).toHaveLength(2);
+    expect(dates[1].getDate()).toBe(2);
+  });
+  it("works with no team", () => expect(knownWeighIns([], null)).toEqual([]));
 });

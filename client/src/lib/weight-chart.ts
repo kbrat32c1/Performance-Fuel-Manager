@@ -2,7 +2,7 @@
  * The Today chart: what an athlete weighed each morning, what they should have weighed,
  * and the weight class. Pure, so the odd weeks can be tested.
  */
-import { addDays, differenceInCalendarDays, format, startOfDay } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { calculateTargetWeight, PROTOCOLS } from "@/lib/constants";
 
 export interface ChartDay {
@@ -51,7 +51,34 @@ const MAX_CLASS_GAP_LBS = 8;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-function targetFor(day: Date, input: WeightChartInput): number {
+/** Earlier weigh-ins the app knows about: official weigh-in logs and team events the athlete didn't skip. */
+export function knownWeighIns(
+  logs: { date: Date | string; type: string }[],
+  team: { events: { id: string; eventDate: string; days: number }[]; skipped: string[] } | null | undefined,
+): Date[] {
+  return [
+    ...logs.filter(l => l.type === 'weigh-in').map(l => new Date(l.date)),
+    ...(team?.events ?? [])
+      .filter(e => !team?.skipped.includes(e.id))
+      .map(e => addDays(parseISO(e.eventDate), e.days - 1)),
+  ];
+}
+
+/** The target for one past or future day, or null if it belonged to an earlier weigh-in. */
+export function dayTarget(
+  day: Date,
+  input: Pick<WeightChartInput, 'today' | 'weighInDate' | 'weightClass' | 'protocol' | 'waterLoading' | 'knownWeighIns'>,
+): number | null {
+  const today = startOfDay(input.today);
+  const lastEarlier = (input.knownWeighIns ?? [])
+    .map(d => startOfDay(d))
+    .filter(d => d < today)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  if (lastEarlier && startOfDay(day) <= lastEarlier) return null;
+  return targetFor(day, input);
+}
+
+function targetFor(day: Date, input: Pick<WeightChartInput, 'weighInDate' | 'weightClass' | 'protocol' | 'waterLoading'>): number {
   if (input.protocol === PROTOCOLS.GAIN) return input.weightClass;
   const daysOut = differenceInCalendarDays(input.weighInDate, day);
   return calculateTargetWeight(input.weightClass, daysOut, input.protocol, input.waterLoading).base;
