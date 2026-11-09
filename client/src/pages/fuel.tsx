@@ -14,6 +14,7 @@ import { alignGuideWithProtein, getTodaysFuelGuide } from "@/lib/food-data";
 import { getProtocolPhase, CARB_LABELS, PROTEIN_LABELS } from "@/lib/phase-helpers";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { FoodHistoryPanel } from "@/components/food-history-panel";
+import { waterLoadingActive } from "@/lib/constants";
 
 export default function Fuel() {
   const [, setLocation] = useLocation();
@@ -37,7 +38,7 @@ export default function Fuel() {
   const sliceTargets = showSliceTracker ? getSliceTargets() : null;
   // todaysFoods/foodLists removed — embedded trackers replaced with AddFoodFlow
 
-  const phaseInfo = getProtocolPhase(protocol, daysUntilWeighIn, macros.ratio, profile.waterLoading !== false);
+  const phaseInfo = getProtocolPhase(protocol, daysUntilWeighIn, macros.ratio, waterLoadingActive(profile));
 
   // Guide data — only shown in grams mode (sugar system food recommendations)
   const guide = useMemo(() => {

@@ -18,6 +18,7 @@ import { activateOnKey } from "@/lib/a11y";
 import { useLocation } from "wouter";
 import { sleepSourceName } from "@/lib/sleep-source";
 import { useSwipeSheetToClose, useSwipeToClose } from "@/hooks/use-swipe-to-close";
+import { CORE_TYPES, effectiveLoggedTypes, getDefaultType, getTimeBasedType, type CoreWeighIn, type LogTypeOption } from "@/lib/next-weigh-in";
 
 type FabTab = 'weight' | 'food' | 'water';
 
@@ -35,10 +36,6 @@ function formatTimeDisplay(time24: string): string {
   return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
 }
 
-type LogTypeOption = 'morning' | 'pre-practice' | 'post-practice' | 'before-bed' | 'extra-workout' | 'check-in' | 'weigh-in';
-
-const CORE_TYPES: LogTypeOption[] = ['morning', 'pre-practice', 'post-practice', 'before-bed'];
-
 const LOG_TYPE_OPTIONS: { value: LogTypeOption; label: string; hint: string; icon: React.ReactNode; color: string; selectedBg: string }[] = [
   { value: 'morning', label: 'Morning', hint: 'First thing after waking', icon: <Sun className="w-5 h-5" />, color: 'text-yellow-500', selectedBg: 'border-yellow-500 bg-yellow-500/15 ring-1 ring-yellow-500/30' },
   { value: 'pre-practice', label: 'Pre-Practice', hint: 'Before workout', icon: <ArrowDownToLine className="w-5 h-5" />, color: 'text-blue-500', selectedBg: 'border-blue-500 bg-blue-500/15 ring-1 ring-blue-500/30' },
@@ -53,60 +50,6 @@ const EXTRA_TYPES: LogTypeOption[] = ['extra-workout', 'check-in'];
 
 const LAST_WEIGHT_TYPE_KEY = STORAGE_KEYS.LAST_WEIGHT_TYPE;
 const LAST_WEIGHT_TYPE_DATE_KEY = STORAGE_KEYS.LAST_WEIGHT_TYPE_DATE;
-
-function getTimeBasedType(): LogTypeOption {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 14) return 'morning';     // 5am–2pm: morning weigh-in
-  if (hour >= 14 && hour < 16) return 'pre-practice'; // 2pm–4pm: heading to practice
-  if (hour >= 16 && hour < 19) return 'post-practice'; // 4pm–7pm: practice wrapping up
-  return 'before-bed';                                  // 7pm+: wind down
-}
-
-function getDefaultType(loggedTypes?: Set<string>): LogTypeOption {
-  // First check if user has a stored preference from today
-  try {
-    const storedType = localStorage.getItem(LAST_WEIGHT_TYPE_KEY) as LogTypeOption | null;
-    const storedDate = localStorage.getItem(LAST_WEIGHT_TYPE_DATE_KEY);
-    const today = new Date().toDateString();
-
-    // If user overrode the suggestion today, use their preference
-    if (storedType && storedDate === today && CORE_TYPES.includes(storedType)) {
-      // But only if they haven't already logged this type today
-      if (!loggedTypes?.has(storedType)) {
-        return storedType;
-      }
-    }
-  } catch {
-    // localStorage not available, fall through to time-based
-  }
-
-  // Check for next unlogged type in order
-  if (loggedTypes) {
-    const timeBased = getTimeBasedType();
-    const hasExtraWorkout = loggedTypes.has('extra-workout');
-
-    // Start at the slot for the current time of day, so a 4:30 PM log isn't
-    // offered as "Morning" just because the morning weigh-in was skipped.
-    const fromNow = CORE_TYPES.indexOf(timeBased);
-    const ordered = fromNow > 0 ? [...CORE_TYPES.slice(fromNow), ...CORE_TYPES.slice(0, fromNow)] : CORE_TYPES;
-    for (const t of ordered) {
-      if (loggedTypes.has(t)) continue;
-
-      // If user logged an extra workout but skipped regular practice,
-      // don't suggest pre/post-practice if it's already past that time window.
-      // They clearly chose an extra workout instead of regular practice today.
-      if (hasExtraWorkout && !loggedTypes.has('pre-practice') && !loggedTypes.has('post-practice')) {
-        if (t === 'pre-practice' && (timeBased === 'post-practice' || timeBased === 'before-bed')) continue;
-        if (t === 'post-practice' && timeBased === 'before-bed') continue;
-      }
-
-      return t;
-    }
-  }
-
-  // Fall back to time-based default
-  return getTimeBasedType();
-}
 
 function saveTypePreference(type: LogTypeOption) {
   try {
@@ -269,7 +212,7 @@ export function QuickLogFAB() {
   const inputRef = useRef<HTMLInputElement>(null);
   const beforeRef = useRef<HTMLInputElement>(null);
 
-  const { profile, logs, addLog, updateLog, deleteLog, calculateTarget, getDaysUntilWeighIn } = useStore();
+  const { profile, logs, addLog, updateLog, deleteLog, calculateTarget, getDaysUntilWeighIn, getDailyTracking } = useStore();
   const { user } = useAuth();
   const { healthData } = useHealthKitSync(user?.id ?? null);
   const [sleepAutoFilled, setSleepAutoFilled] = useState(false);
@@ -396,14 +339,15 @@ export function QuickLogFAB() {
 
   const handleOpenFull = useCallback(() => {
     resetForm();
-    setSelectedType(getDefaultType(loggedTypes));
+    const skipPractice = profile.protocol === '5' || !!getDailyTracking(format(new Date(), 'yyyy-MM-dd'))?.noPractice;
+    setSelectedType(getDefaultType(effectiveLoggedTypes(loggedTypes, skipPractice)));
     // Start empty (last weight shows as the hint) so Save can't log yesterday's number by accident.
     setWeight('');
     setBeforeWeight(suggestedWeight);
     setDirectMode(false);
     setShowTypeGrid(true);
     setIsOpen(true);
-  }, [loggedTypes, suggestedWeight, resetForm]);
+  }, [loggedTypes, suggestedWeight, resetForm, profile.protocol, getDailyTracking]);
 
   const handleOpenDirect = useCallback((type: LogTypeOption) => {
     resetForm();
@@ -497,7 +441,7 @@ export function QuickLogFAB() {
   const handleTypeSelect = useCallback((type: LogTypeOption) => {
     setSelectedType(type);
     // Save preference if user selects a different type than time-based suggestion
-    if (type !== getTimeBasedType() && CORE_TYPES.includes(type)) {
+    if (type !== getTimeBasedType() && CORE_TYPES.includes(type as CoreWeighIn)) {
       saveTypePreference(type);
     }
   }, []);
@@ -905,7 +849,7 @@ export function QuickLogFAB() {
                 <div className="mb-4">
                   {/* Core types - 2x2 grid with hints */}
                   <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Select weigh-in type">
-                    {LOG_TYPE_OPTIONS.filter(opt => CORE_TYPES.includes(opt.value)).map((opt) => {
+                    {LOG_TYPE_OPTIONS.filter(opt => CORE_TYPES.includes(opt.value as CoreWeighIn)).map((opt) => {
                       const isSelected = selectedType === opt.value;
                       const isLogged = loggedTypes.has(opt.value);
                       return (

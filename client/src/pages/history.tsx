@@ -16,6 +16,7 @@ import { getPhaseStyleForDaysUntil, getPhaseStyle } from "@/lib/phase-colors";
 import { getPhaseForDaysUntil } from "@/lib/constants";
 import { TrendChart } from "@/components/dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { waterLoadingActive } from "@/lib/constants";
 
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
@@ -94,7 +95,7 @@ export default function History() {
 
   // Current phase for color theming
   const daysUntil = getDaysUntilWeighIn();
-  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil, profile.waterLoading !== false);
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil, waterLoadingActive(profile));
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Export data to CSV
@@ -686,7 +687,7 @@ export default function History() {
               const dayDaysUntil = differenceInDays(weighInDate, startOfDay(day));
               // Normalize: if past this weigh-in, wrap to 7-day cycle
               const normalizedDaysUntil = dayDaysUntil < 0 ? ((dayDaysUntil % 7) + 7) % 7 : dayDaysUntil > 6 ? dayDaysUntil % 7 : dayDaysUntil;
-              const dayPhase = getPhaseForDaysUntil(normalizedDaysUntil, profile.waterLoading !== false);
+              const dayPhase = getPhaseForDaysUntil(normalizedDaysUntil, waterLoadingActive(profile));
               const dayPhaseStyle = getPhaseStyle(dayPhase);
 
               return (

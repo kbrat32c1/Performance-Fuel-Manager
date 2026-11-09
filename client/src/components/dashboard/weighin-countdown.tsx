@@ -2,6 +2,7 @@ import { Clock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 import { useStore } from "@/lib/store";
+import { waterLoadingActive } from "@/lib/constants";
 
 interface WeighInCountdownProps {
   daysUntilWeighIn: number;
@@ -10,7 +11,7 @@ interface WeighInCountdownProps {
 
 export function WeighInCountdown({ daysUntilWeighIn, dayBeforeTarget }: WeighInCountdownProps) {
   const { getTimeUntilWeighIn, profile } = useStore();
-  const waterLoadingOn = profile.waterLoading !== false;
+  const waterLoadingOn = waterLoadingActive(profile);
   const timeLeft = getTimeUntilWeighIn();
 
   // Day-specific messaging based on days until weigh-in

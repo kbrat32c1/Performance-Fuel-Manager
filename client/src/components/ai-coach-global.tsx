@@ -13,6 +13,7 @@ import { CoachText } from "@/components/coach-text";
 import { coachHistory, buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useAuth } from "@/lib/auth";
+import { waterLoadingActive } from "@/lib/constants";
 
 interface Message {
   role: "user" | "assistant" | "error";
@@ -136,7 +137,7 @@ export function AiCoachGlobal() {
       daysUntilWeighIn: daysUntil,
       weightToLose: Math.max(0, profile.currentWeight - profile.targetWeightClass).toFixed(1),
       protocol: profile.protocol,
-      waterLoading: profile.waterLoading !== false,
+      waterLoading: waterLoadingActive(profile),
       phase: getPhase(),
       status: getStatus().status,
     };
