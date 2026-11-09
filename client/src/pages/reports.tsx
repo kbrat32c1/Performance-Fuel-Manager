@@ -8,6 +8,7 @@
 import { useState, useMemo } from "react";
 import { MobileLayout } from "@/components/mobile-layout";
 import { useStore, type MealSection, inferMealSection } from "@/lib/store";
+import { hasTotalsWithoutEntries, nutritionFromLog } from "@/lib/food-totals";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,7 +43,8 @@ const MEAL_COLORS: Record<MealSection, string> = {
 type ReportTab = "calories" | "slices" | "macros" | "hydration";
 
 /* ── helpers ── */
-function estimateEntryCal(entry: { mode: string; sliceType?: string; sliceCount?: number; amount?: number }) {
+function estimateEntryCal(entry: { mode: string; sliceType?: string; sliceCount?: number; amount?: number; calories?: number }, tracksCalories: boolean) {
+  if (tracksCalories) return entry.calories ?? 0; // Detailed diary: saved numbers only
   if (entry.mode === "spar") {
     return (SLICE_CAL[entry.sliceType || "protein"] || 100) * (entry.sliceCount ?? 1);
   }
@@ -63,6 +65,7 @@ export default function Reports() {
   const isSparMode = nutritionMode === "spar";
   const macroTargets = getMacroTargets();
   const sliceTargets = isSparMode ? getSliceTargets() : null;
+  const tracksCalories = !isSparMode; // Detailed diary
   const hydrationTarget = getHydrationTarget();
 
   const today = profile?.simulatedDate || new Date();
@@ -90,7 +93,8 @@ export default function Reports() {
       const fruitSlices = tracking.fruitSlices || 0;
       const fatSlices = tracking.fatSlices || 0;
 
-      const estimatedCalories = isSparMode
+      const logged = nutritionFromLog(foodLog);
+      const estimatedCalories = tracksCalories ? logged.calories : isSparMode
         ? proteinSlices * SLICE_CAL.protein + carbSlices * SLICE_CAL.carb +
           vegSlices * SLICE_CAL.veg + fruitSlices * SLICE_CAL.fruit + fatSlices * SLICE_CAL.fat
         : (tracking.carbsConsumed || 0) * 4 + (tracking.proteinConsumed || 0) * 4;
@@ -110,10 +114,12 @@ export default function Reports() {
         proteinSlices, carbSlices, vegSlices, fruitSlices, fatSlices,
         totalSlices: proteinSlices + carbSlices + vegSlices + fruitSlices + fatSlices,
         estimatedCalories,
+        // Same rule as the diary: portions, older entries, missing fat or bare day totals.
+        caloriesIncomplete: tracksCalories && (logged.incomplete || hasTotalsWithoutEntries(tracking)),
       };
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [weekStart.toISOString(), today.toString(), isSparMode],
+    [weekStart.toISOString(), today.toString(), isSparMode, tracksCalories],
   );
 
   /* ── tab config ── */
@@ -148,8 +154,10 @@ export default function Reports() {
   }
 
   /* ── calorie goal ── */
-  const calorieGoal = sliceTargets?.totalCalories ||
-    (macroTargets.carbs.max * 4 + macroTargets.protein.max * 4);
+  // No goal in the Detailed diary yet: the calculator's figures rest on unchecked portion calories.
+  const calorieGoal = tracksCalories
+    ? null
+    : sliceTargets?.totalCalories || (macroTargets.carbs.max * 4 + macroTargets.protein.max * 4);
 
   return (
     <MobileLayout showNav>
@@ -210,7 +218,7 @@ export default function Reports() {
       {/* ── Tab Content ── */}
       <div className="space-y-4 animate-in fade-in duration-300">
         {activeTab === "calories" && (
-          <CaloriesTab weekData={weekData} calorieGoal={calorieGoal} isSparMode={isSparMode} />
+          <CaloriesTab weekData={weekData} calorieGoal={calorieGoal} isSparMode={isSparMode} tracksCalories={tracksCalories} />
         )}
         {activeTab === "slices" && sliceTargets && (
           <SlicesTab weekData={weekData} sliceTargets={sliceTargets} />
@@ -264,8 +272,8 @@ const TOOLTIP_STYLE = {
 /*  CALORIES TAB                                                          */
 /* ════════════════════════════════════════════════════════════════════════ */
 
-function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
-  weekData: any[]; calorieGoal: number; isSparMode: boolean;
+function CaloriesTab({ weekData, calorieGoal, isSparMode, tracksCalories }: {
+  weekData: any[]; calorieGoal: number | null; isSparMode: boolean; tracksCalories: boolean;
 }) {
   const daysWithData = weekData.filter((d) => !d.isFuture && d.estimatedCalories > 0);
   const totalCalories = daysWithData.reduce((s: number, d: any) => s + d.estimatedCalories, 0);
@@ -285,7 +293,7 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
       if (day.isFuture) continue;
       for (const entry of day.foodLog) {
         const section: MealSection = entry.mealSection || inferMealSection(entry.timestamp);
-        const cal = estimateEntryCal(entry);
+        const cal = estimateEntryCal(entry, tracksCalories);
         totals[section] += cal;
         grandTotal += cal;
       }
@@ -295,14 +303,15 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
 
   /* Foods eaten aggregation */
   const foodsEaten = useMemo(() => {
-    const map = new Map<string, { name: string; count: number; totalCal: number }>();
+    const map = new Map<string, { name: string; count: number; totalCal: number; hasCalories: boolean }>();
     for (const day of weekData) {
       if (day.isFuture) continue;
       for (const entry of day.foodLog) {
         const key = entry.name?.toLowerCase() || "unknown";
-        const existing = map.get(key) || { name: entry.name || "Unknown", count: 0, totalCal: 0 };
+        const existing = map.get(key) || { name: entry.name || "Unknown", count: 0, totalCal: 0, hasCalories: false };
         existing.count += 1;
-        existing.totalCal += estimateEntryCal(entry);
+        existing.totalCal += estimateEntryCal(entry, tracksCalories);
+        if (entry.calories != null) existing.hasCalories = true;
         map.set(key, existing);
       }
     }
@@ -312,7 +321,8 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
   const [showAllFoods, setShowAllFoods] = useState(false);
   const displayedFoods = showAllFoods ? foodsEaten : foodsEaten.slice(0, 8);
 
-  if (daysWithData.length === 0) return <EmptyState />;
+  const hasIncompleteDays = weekData.some((d: any) => !d.isFuture && d.caloriesIncomplete);
+  if (daysWithData.length === 0 && !hasIncompleteDays) return <EmptyState />;
 
   return (
     <>
@@ -323,15 +333,18 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
           <div className="flex items-baseline gap-3 mb-3">
             <span className="text-2xl font-mono font-bold">{totalCalories.toLocaleString()}</span>
             <span className="text-xs text-muted-foreground">Daily Average: {dailyAvg}</span>
-            <span className="text-xs text-muted-foreground ml-auto">Goal: {calorieGoal.toLocaleString()}</span>
+            {calorieGoal != null && <span className="text-xs text-muted-foreground ml-auto">Goal: {calorieGoal.toLocaleString()}</span>}
           </div>
+          {hasIncompleteDays && (
+            <p className="text-xs text-muted-foreground -mt-2 mb-3">Incomplete: some portions or entries are missing calories or fat.</p>
+          )}
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" opacity={0.3} />
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
               <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v.toLocaleString()} kcal`, "Calories"]} />
-              <ReferenceLine y={calorieGoal} stroke="hsl(var(--muted-foreground))" strokeDasharray="6 4" strokeWidth={1.5} />
+              {calorieGoal != null && <ReferenceLine y={calorieGoal} stroke="hsl(var(--muted-foreground))" strokeDasharray="6 4" strokeWidth={1.5} />}
               <Bar dataKey="calories" radius={[4, 4, 0, 0]} maxBarSize={28}>
                 {chartData.map((entry, i) => (
                   <Cell key={i} fill={entry.isToday ? "hsl(var(--primary))" : "hsl(var(--primary) / 0.55)"} />
@@ -381,7 +394,7 @@ function CaloriesTab({ weekData, calorieGoal, isSparMode }: {
               <div key={i} className="flex items-center py-1.5 border-b border-border/50 last:border-0">
                 <span className="flex-1 text-sm truncate pr-2">{f.name}</span>
                 <span className="w-14 text-center text-xs text-muted-foreground">{f.count}</span>
-                <span className="w-16 text-right text-xs font-mono">{Math.round(f.totalCal).toLocaleString()}</span>
+                <span className="w-16 text-right text-xs font-mono">{tracksCalories && !f.hasCalories ? "Not tracked" : Math.round(f.totalCal).toLocaleString()}</span>
               </div>
             ))}
             <div className="flex items-center pt-2 font-bold border-t border-border mt-1">

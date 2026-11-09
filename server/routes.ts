@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 import { log, aiCoachLimiter, foodSearchLimiter } from "./index";
 import { buildCoachSystemPrompt } from "../api/_coach-prompt";
-import { autoSparCategory } from "../api/foods/_fatsecret-utils.js";
+import { autoSparCategory, barcodeServingBasis, offNutrientBasis, reportedNutrients } from "../api/foods/_fatsecret-utils.js";
 import { verifyUser } from "../api/_auth.js";
 import { resolveShareDate } from "../api/_share-date.js";
 
@@ -254,18 +254,21 @@ export async function registerRoutes(
                   const servings = Array.isArray(srvs) ? srvs : srvs ? [srvs] : [];
                   const def = servings.find((s: any) => s.is_default === "1") || servings[0];
                   if (def) {
-                    const cal = rnd(parseFloat(def.calories)||0), pro = rnd(parseFloat(def.protein)||0);
-                    const carb = rnd(parseFloat(def.carbohydrate)||0), fat = rnd(parseFloat(def.fat)||0);
-                    const fib = rnd(parseFloat(def.fiber)||0), sug = rnd(parseFloat(def.sugar)||0);
-                    const sod = rnd(parseFloat(def.sodium)||0);
+                    const { servingSize, scale, nutrientBasis } = barcodeServingBasis(def);
+                    const cal = rnd((parseFloat(def.calories)||0)*scale), pro = rnd((parseFloat(def.protein)||0)*scale);
+                    const carb = rnd((parseFloat(def.carbohydrate)||0)*scale), fat = rnd((parseFloat(def.fat)||0)*scale);
+                    const fib = rnd((parseFloat(def.fiber)||0)*scale), sug = rnd((parseFloat(def.sugar)||0)*scale);
+                    const sod = rnd((parseFloat(def.sodium)||0)*scale);
                     return res.json({
                       found: true,
                       food: {
                         barcode, name: food.food_name||"", brand: food.brand_name||"",
                         calories: cal, protein: pro, carbs: carb, fat, fiber: fib, sugar: sug, sodium: sod,
-                        servingSize: parseFloat(def.metric_serving_amount)||null,
+                        servingSize,
                         servingSizeLabel: def.serving_description||"",
                         imageUrl: null,
+                        reported: reportedNutrients(def),
+                        nutrientBasis,
                         dataQuality: (cal > 0 && (pro > 0 || carb > 0)) ? "complete" as const : "partial" as const,
                       },
                     });
@@ -322,6 +325,8 @@ export async function registerRoutes(
           servingSize: p.serving_quantity || null,
           servingSizeLabel: p.serving_size || "",
           imageUrl: p.image_small_url || null,
+          reported: { calories: n["energy-kcal_100g"] != null, fat: n.fat_100g != null },
+          nutrientBasis: offNutrientBasis(p.serving_size),
           dataQuality,
         },
       });
@@ -420,7 +425,7 @@ export async function registerRoutes(
             carbs: rnd(parseFloat(s.carbohydrate)||0), fat: rnd(parseFloat(s.fat)||0),
             fiber: rnd(parseFloat(s.fiber)||0), sugar: rnd(parseFloat(s.sugar)||0),
             metricAmount: parseFloat(s.metric_serving_amount)||null, metricUnit: s.metric_serving_unit||"g",
-            isDefault: s.is_default === "1",
+            isDefault: s.is_default === "1", reported: reportedNutrients(s),
           })),
         };
       }).filter(Boolean);
@@ -545,7 +550,7 @@ export async function registerRoutes(
                     carbs: rnd(parseFloat(s.carbohydrate)||0), fat: rnd(parseFloat(s.fat)||0),
                     fiber: rnd(parseFloat(s.fiber)||0), sugar: rnd(parseFloat(s.sugar)||0),
                     metricAmount: parseFloat(s.metric_serving_amount)||null, metricUnit: s.metric_serving_unit||"g",
-                    isDefault: s.is_default === "1",
+                    isDefault: s.is_default === "1", reported: reportedNutrients(s),
                   })),
                 };
               }).filter(Boolean);

@@ -58,7 +58,7 @@ export interface AthleteProfile {
   age?: number;
   gender?: 'male' | 'female';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
-  nutritionPreference: 'spar' | 'sugar'; // slices or grams
+  nutritionPreference: 'spar' | 'sugar'; // 'spar' = Slices; 'sugar' = Detailed (grams, calories and fat)
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
   waterLoading?: boolean; // Opt-in water loading plan (off = steady hydration all week)
 
@@ -130,7 +130,21 @@ export interface FoodLogEntry {
   // Portion entries: grams for the whole entry, so totals can always be rebuilt from the log
   carbs?: number;
   protein?: number;
+  // Full nutrition for this entry. Blank means not tracked, never zero: older entries
+  // and quick portions have no calories, and nothing back-fills them.
+  calories?: number;
+  fat?: number;
+  fiber?: number;
+  nutrientSource?: NutrientSource;
+  servings?: number;           // servings logged, so an edit can scale every number
 }
+
+/**
+ * Where an entry's calories came from.
+ * database: food database row. estimate: photo, voice or barcode, shown as "about".
+ * entered: typed by the athlete. portion: quick portion, deliberately has no calories.
+ */
+export type NutrientSource = 'database' | 'estimate' | 'entered' | 'portion';
 
 export interface DailyTracking {
   date: string; // YYYY-MM-DD format

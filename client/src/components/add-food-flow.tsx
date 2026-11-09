@@ -22,7 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { CARB_G_PER_SLICE, PROTEIN_G_PER_SLICE, classifyFood, type SliceType, nextTotals } from "@/lib/food-totals";
+import { barcodeMultiplier, barcodeServingLabel, barcodeUnit, buildFoodEntry, calorieText, classifyFood, isListed, type FoodToLog, type SliceType, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
 
@@ -60,6 +60,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   const isSparMode = nutritionMode === 'spar';
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? dayTargets.slices : null;
+  const showsDetailed = !isSparMode;
 
   const [activeMeal, setActiveMeal] = useState<MealSection>(initialMeal);
   const [activeTab, setActiveTab] = useState<FlowTab>('recent');
@@ -75,6 +76,9 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   const [customName, setCustomName] = useState('');
   const [customCarbs, setCustomCarbs] = useState('');
   const [customProtein, setCustomProtein] = useState('');
+  const [customCalories, setCustomCalories] = useState('');
+  const [customFat, setCustomFat] = useState('');
+  const [customFiber, setCustomFiber] = useState('');
   const [customSliceType, setCustomSliceType] = useState<'protein' | 'carb' | 'veg' | 'fruit' | 'fat'>('carb');
 
   const { isFavorite, toggleFavorite, getFavoriteNames } = useFavorites(mode === 'spar' ? 'spar' : 'macro');
@@ -131,50 +135,13 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   }, [dateKey]);
 
   // ─── Core: log a food entry to the store ───
-  // Each entry carries its own grams and portions; the day's totals are rebuilt from the log.
-  const logFoodEntry = useCallback((
-    name: string,
-    carbs: number,
-    protein: number,
-    opts?: { liquidOz?: number; category?: string; sliceType?: SliceType; sliceCount?: number; fat?: number }
-  ) => {
-    const existingLog = tracking.foodLog || [];
-    const entries: StoreFoodLogEntry[] = [];
-    const now = Date.now();
-
-    if (showSliceTracker) {
-      const portion = opts?.sliceType
-        ? { sliceType: opts.sliceType, sliceCount: opts.sliceCount ?? 1 }
-        : classifyFood({ carbs, protein, fat: opts?.fat });
-      entries.push({
-        id: `${now}-${Math.random().toString(36).substr(2, 9)}`,
-        name,
-        timestamp: new Date(now).toISOString(),
-        mode: 'spar',
-        mealSection: activeMeal,
-        sliceType: portion.sliceType,
-        sliceCount: portion.sliceCount,
-        // A quick portion with no grams counts as a standard portion in the Grams view.
-        carbs: carbs === 0 && protein === 0 && portion.sliceType === 'carb' ? CARB_G_PER_SLICE * portion.sliceCount : carbs,
-        protein: carbs === 0 && protein === 0 && portion.sliceType === 'protein' ? PROTEIN_G_PER_SLICE * portion.sliceCount : protein,
-        ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}),
-      });
-    } else {
-      // Gram mode: one entry per macro (a zero-macro food like black coffee still gets one).
-      const base = { name, mode: 'sugar' as const, mealSection: activeMeal, category: opts?.category || 'custom' };
-      if (carbs > 0 || protein === 0) {
-        entries.push({ ...base, id: `${now}-c-${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date(now).toISOString(), macroType: 'carbs', amount: carbs, ...(opts?.liquidOz ? { liquidOz: opts.liquidOz } : {}) });
-      }
-      if (protein > 0) {
-        entries.push({ ...base, id: `${now}-p-${Math.random().toString(36).substr(2, 9)}`, timestamp: new Date(now + 1).toISOString(), macroType: 'protein', amount: protein });
-      }
-    }
-
-    const foodLog = [...existingLog, ...entries];
+  // Each entry carries its own grams, portions and calories; the day's totals are rebuilt from the log.
+  const logFoodEntry = useCallback((food: FoodToLog) => {
+    const foodLog = [...(tracking.foodLog || []), buildFoodEntry(food, { mealSection: activeMeal, nowMs: Date.now() })];
     const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
     if (showSliceTracker) updates.nutritionMode = 'spar';
-    if (opts?.liquidOz && opts.liquidOz > 0) {
-      updates.waterConsumed = tracking.waterConsumed + opts.liquidOz;
+    if (food.liquidOz && food.liquidOz > 0) {
+      updates.waterConsumed = tracking.waterConsumed + food.liquidOz;
     }
 
     updateDailyTracking(dateKey, updates);
@@ -182,7 +149,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     hapticSuccess();
 
     // Flash feedback
-    setFlashedFood(name);
+    setFlashedFood(food.name);
     if (flashRef.current) clearTimeout(flashRef.current);
     flashRef.current = setTimeout(() => setFlashedFood(null), 1200);
   }, [showSliceTracker, tracking, dateKey, activeMeal, updateDailyTracking, syncLocalStorage]);
@@ -198,11 +165,18 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const fat = Math.round((serving.fat || 0) * qty);
     const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, (food.sparCategory as SliceType) || null, qty);
 
-    logFoodEntry(foodName, carbs, protein, {
-      category: 'fatsecret',
+    logFoodEntry({
+      name: foodName,
+      carbs,
+      protein,
       sliceType,
       sliceCount,
-      fat,
+      // A value the database doesn't list stays blank; known values are kept either way.
+      ...(isListed(serving.calories, serving.reported?.calories) ? { calories: Math.round((serving.calories || 0) * qty) } : {}),
+      ...(isListed(serving.fat, serving.reported?.fat) ? { fat } : {}),
+      fiber: Math.round((serving.fiber || 0) * qty * 10) / 10,
+      nutrientSource: 'database',
+      servings: qty,
     });
     addToRecents(food, serving);
     setSelectedFS(null);
@@ -227,21 +201,32 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   // ─── Add scanned barcode food ───
   const handleOFFAdd = useCallback(() => {
     if (!selectedOFF) return;
-    const grams = parseFloat(offServingGrams) || 100;
-    const carbs = Math.round(selectedOFF.carbs * grams / 100);
-    const protein = Math.round(selectedOFF.protein * grams / 100);
+    const perServing = selectedOFF.nutrientBasis === 'serving';
+    const multiplier = barcodeMultiplier(selectedOFF.nutrientBasis, offServingGrams);
+    const carbs = Math.round(selectedOFF.carbs * multiplier);
+    const protein = Math.round(selectedOFF.protein * multiplier);
     const brandLabel = selectedOFF.brand ? ` (${selectedOFF.brand})` : '';
-    const servingLabel = selectedOFF.servingSizeLabel || `${grams}g`;
+    const servingLabel = barcodeServingLabel(selectedOFF, offServingGrams);
     const foodName = `${selectedOFF.name}${brandLabel} — ${servingLabel}`;
 
-    const fat = Math.round((selectedOFF.fat || 0) * grams / 100);
+    const fat = Math.round((selectedOFF.fat || 0) * multiplier);
     const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat });
 
-    logFoodEntry(foodName, carbs, protein, {
-      category: 'off',
+    // Barcode data is crowd-sourced and the serving is a guess, so it is never treated as exact.
+    // A value the product doesn't list stays blank rather than becoming zero.
+    const caloriesListed = isListed(selectedOFF.calories, selectedOFF.reported?.calories);
+    const fatListed = isListed(selectedOFF.fat, selectedOFF.reported?.fat);
+    logFoodEntry({
+      name: foodName,
+      carbs,
+      protein,
       sliceType,
       sliceCount,
-      fat,
+      ...(caloriesListed ? { calories: Math.round(selectedOFF.calories * multiplier) } : {}),
+      ...(fatListed ? { fat } : {}),
+      fiber: Math.round((selectedOFF.fiber || 0) * multiplier * 10) / 10,
+      nutrientSource: 'estimate',
+      ...(perServing ? { servings: multiplier } : {}),
     });
     setSelectedOFF(null);
   }, [selectedOFF, offServingGrams, logFoodEntry, setSelectedOFF]);
@@ -260,35 +245,28 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     const newEntries: StoreFoodLogEntry[] = [];
     const now = Date.now();
 
-    for (const food of validFoods) {
+    validFoods.forEach((food, index) => {
       const carbs = Math.round(food.carbs || 0);
       const protein = Math.round(food.protein || 0);
       const fat = Math.round(food.fat || 0);
-      const n = newEntries.length;
-
-      if (showSliceTracker) {
-        // Same portion rule as search and barcode: grams decide protein/carb portions.
-        const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, food.sparCategory || null, food.sliceCount ?? 1);
-        newEntries.push({
-          id: `${now}-${n}-${Math.random().toString(36).substr(2, 9)}`,
-          name: food.name,
-          timestamp: new Date(now + n).toISOString(),
-          mode: 'spar',
-          mealSection: activeMeal,
-          sliceType,
-          sliceCount,
-          carbs,
-          protein,
-        });
-      } else {
-        if (carbs > 0) {
-          newEntries.push({ id: `${now}-${n}-c-${Math.random().toString(36).substr(2, 9)}`, name: food.name, timestamp: new Date(now + n).toISOString(), mode: 'sugar', mealSection: activeMeal, macroType: 'carbs', amount: carbs, category: source });
-        }
-        if (protein > 0) {
-          newEntries.push({ id: `${now}-${n}-p-${Math.random().toString(36).substr(2, 9)}`, name: food.name, timestamp: new Date(now + n + 1).toISOString(), mode: 'sugar', mealSection: activeMeal, macroType: 'protein', amount: protein, category: source });
-        }
-      }
-    }
+      // Same portion rule as search and barcode: grams decide protein/carb portions.
+      const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, food.sparCategory || null, food.sliceCount ?? 1);
+      // Photo and voice amounts are estimates. An unrecognized food has no numbers at all.
+      const hasNumbers = food.calories > 0 || carbs > 0 || protein > 0 || fat > 0;
+      newEntries.push(buildFoodEntry({
+        name: food.name,
+        carbs,
+        protein,
+        sliceType,
+        sliceCount,
+        ...(food.calories > 0 ? { calories: Math.round(food.calories) } : {}),
+        ...(hasNumbers ? {
+          ...(food.fatUnknown ? {} : { fat }),
+          fiber: Math.round((food.fiber || 0) * 10) / 10,
+          nutrientSource: 'estimate' as const,
+        } : {}),
+      }, { mealSection: activeMeal, nowMs: now, index }));
+    });
 
     const foodLog = [...existingLog, ...newEntries];
     const updates: Record<string, any> = { ...nextTotals(tracking, foodLog), foodLog };
@@ -331,21 +309,43 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
     }
     const carbs = parseFloat(customCarbs) || 0;
     const protein = parseFloat(customProtein) || 0;
-    if (carbs === 0 && protein === 0 && !showSliceTracker) {
-      toast({ title: "Enter carbs or protein amount", variant: "destructive" });
-      return;
+    if (showsDetailed) {
+      const calories = parseFloat(customCalories);
+      const hasCalories = customCalories.trim() !== '' && calories >= 0;
+      if (!hasCalories && carbs === 0 && protein === 0) {
+        toast({ title: "Enter calories, carbs or protein", variant: "destructive" });
+        return;
+      }
+      logFoodEntry({
+        name,
+        carbs,
+        protein,
+        ...(hasCalories ? { calories: Math.round(calories) } : {}),
+        ...(customFat.trim() !== '' ? { fat: parseFloat(customFat) || 0 } : {}),
+        ...(customFiber.trim() !== '' ? { fiber: parseFloat(customFiber) || 0 } : {}),
+        nutrientSource: 'entered',
+        servings: 1,
+      });
+    } else {
+      logFoodEntry({
+        name,
+        carbs,
+        protein,
+        sliceType: customSliceType,
+        sliceCount: 1,
+        // A quick portion has no checked calorie value, so it stays out of calorie totals.
+        nutrientSource: 'portion',
+      });
     }
-    logFoodEntry(name, carbs, protein, {
-      category: 'custom',
-      sliceType: showSliceTracker ? customSliceType : undefined,
-      sliceCount: 1,
-    });
     // Reset form
     setCustomName('');
     setCustomCarbs('');
     setCustomProtein('');
+    setCustomCalories('');
+    setCustomFat('');
+    setCustomFiber('');
     setShowCustomEntry(false);
-  }, [customName, customCarbs, customProtein, customSliceType, showSliceTracker, logFoodEntry, toast]);
+  }, [customName, customCarbs, customProtein, customCalories, customFat, customFiber, customSliceType, showsDetailed, logFoodEntry, toast]);
 
   // ─── Favorites list ───
   const favoriteNames = useMemo(() => getFavoriteNames(), [getFavoriteNames]);
@@ -483,17 +483,17 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
 
             {/* Nutrition per serving */}
             {(() => {
-              const g = parseFloat(offServingGrams) || 100;
-              const cal = Math.round(selectedOFF.calories * g / 100);
-              const c = Math.round(selectedOFF.carbs * g / 100);
-              const p = Math.round(selectedOFF.protein * g / 100);
-              const f = Math.round(selectedOFF.fat * g / 100);
+              const m = barcodeMultiplier(selectedOFF.nutrientBasis, offServingGrams);
+              const cal = Math.round(selectedOFF.calories * m);
+              const c = Math.round(selectedOFF.carbs * m);
+              const p = Math.round(selectedOFF.protein * m);
+              const f = Math.round(selectedOFF.fat * m);
               return (
                 <div className="flex items-center gap-3 text-xs font-mono font-bold">
-                  <span className="text-muted-foreground">{cal} cal</span>
+                  <span className="text-muted-foreground">{calorieText(cal, selectedOFF.reported?.calories)}</span>
                   <span className="text-amber-500">{c}g C</span>
                   <span className="text-orange-500">{p}g P</span>
-                  <span className="text-yellow-600">{f}g F</span>
+                  <span className="text-yellow-600">{isListed(selectedOFF.fat, selectedOFF.reported?.fat) ? `${f}g F` : 'Fat not listed'}</span>
                 </div>
               );
             })()}
@@ -501,13 +501,13 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
             {/* Serving size input */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground/60 shrink-0">Serving:</span>
-              <input aria-label="Serving size in grams"
+              <input aria-label={selectedOFF.nutrientBasis === 'serving' ? "Number of servings" : `Serving size in ${barcodeUnit(selectedOFF.nutrientBasis)}`}
                 type="number"
                 value={offServingGrams}
                 onChange={(e) => setOffServingGrams(e.target.value)}
                 className="w-16 h-7 text-[12px] font-mono font-bold text-center bg-background border border-muted/30 rounded px-1"
               />
-              <span className="text-xs text-muted-foreground/60">g</span>
+              <span className="text-xs text-muted-foreground/60">{barcodeUnit(selectedOFF.nutrientBasis)}</span>
               {selectedOFF.servingSizeLabel && (
                 <span className="text-xs text-muted-foreground/40 truncate">
                   ({selectedOFF.servingSizeLabel})
@@ -681,6 +681,28 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
               ))}
             </div>
           ) : (
+            <>
+            {showsDetailed && (
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { id: 'custom-food-calories', label: 'Calories', value: customCalories, set: setCustomCalories },
+                  { id: 'custom-food-fat', label: 'Fat (g)', value: customFat, set: setCustomFat },
+                  { id: 'custom-food-fiber', label: 'Fiber (g)', value: customFiber, set: setCustomFiber },
+                ]).map(field => (
+                  <div key={field.id}>
+                    <label htmlFor={field.id} className="text-xs font-bold text-muted-foreground uppercase mb-0.5 block">{field.label}</label>
+                    <input id={field.id}
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      value={field.value}
+                      onChange={(e) => field.set(e.target.value)}
+                      className="w-full min-h-11 px-3 py-2 rounded-lg bg-background border border-muted/30 text-[12px] font-mono text-center focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
               <div className="flex-1">
                 <label htmlFor="custom-food-carbs" className="text-xs font-bold text-muted-foreground/60 uppercase mb-0.5 block">Carbs (g)</label>
@@ -703,6 +725,7 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
                 />
               </div>
             </div>
+            </>
           )}
           <button
             onClick={handleCustomAdd}
@@ -839,11 +862,11 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
               <>
                 <span className="text-muted-foreground/80">{activeServing.description}</span>
                 {' · '}
-                {Math.round(activeServing.calories)} cal
+                {calorieText(activeServing.calories, activeServing.reported?.calories)}
                 {activeServing.carbs > 0 && ` · ${Math.round(activeServing.carbs)}C`}
                 {activeServing.protein > 0 && ` ${Math.round(activeServing.protein)}P`}
               </>
-            ) : `${food.calories} cal`}
+            ) : calorieText(food.calories, undefined)}
           </p>
         </div>
         <button
@@ -900,10 +923,10 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, onToggle
 
           {/* Macro breakdown (multiplied by qty) */}
           <div className="flex items-center gap-3 text-xs font-mono">
-            <span className="text-muted-foreground">{totalCal} cal</span>
+            <span className="text-muted-foreground">{activeServing ? calorieText(totalCal, activeServing.reported?.calories) : ''}</span>
             <span className="text-amber-500">{totalCarbs}g C</span>
             <span className="text-orange-500">{totalProtein}g P</span>
-            <span className="text-muted-foreground/60">{totalFat}g F</span>
+            <span className="text-muted-foreground/60">{activeServing && isListed(activeServing.fat, activeServing.reported?.fat) ? `${totalFat}g F` : 'Fat not listed'}</span>
           </div>
 
           {/* Add button */}

@@ -328,7 +328,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                 })()}
 
                 <p className="text-xs text-muted-foreground leading-snug">
-                  Your plan determines your guidance; your tracking method determines how you log food. Slices or Grams work with any plan.
+                  Your plan determines your guidance; your tracking method determines how you log food. Slices or Detailed work with any plan.
                 </p>
 
                 {/* Help Me Choose — opens ProtocolWizard dialog */}
@@ -438,7 +438,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
               {/* Nutrition Mode Toggle */}
               <div className="space-y-2 pt-2 border-t border-muted">
                 <Label className="text-xs">How do you want to track?</Label>
-                <p className="text-xs text-muted-foreground">Use Slices or Grams with any plan. Slices targets depend on your plan.</p>
+                <p className="text-xs text-muted-foreground">Use Slices or Detailed with any plan. Detailed shows grams, calories and fat together. Slices targets depend on your plan.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleChange({ nutritionPreference: 'spar' })}
@@ -462,7 +462,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                     )}
                   >
                     <span className="text-base">⚖️</span>
-                    <span className="text-xs font-bold">Grams</span>
+                    <span className="text-xs font-bold">Detailed</span>
                   </button>
                 </div>
               </div>

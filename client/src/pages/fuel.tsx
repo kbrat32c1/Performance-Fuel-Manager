@@ -265,7 +265,7 @@ export default function Fuel() {
                   </>
                 </>
               )}
-              <MacroBar label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
+              <MacroBar allowOver label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
             </div>
           </div>
 
@@ -424,7 +424,7 @@ export default function Fuel() {
               {/* ── Water Tab ── */}
               {fuelTab === 'water' && (
                 <div className="space-y-3">
-                  <MacroBar label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
+                  <MacroBar allowOver label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
 
                   {isSipOnly && (
                     <div className="flex items-center gap-2 text-orange-500 bg-orange-500/10 rounded-lg px-3 py-2">
@@ -496,7 +496,7 @@ export default function Fuel() {
         ) : (
           /* P5 / SPAR: Just water progress + log button (no food guide) */
           <Card className="p-4 border-muted/30 space-y-3">
-            <MacroBar label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
+            <MacroBar allowOver label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
             {!waterDone && (
               <button
                 onClick={() => openWaterFAB()}

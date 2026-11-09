@@ -21,7 +21,8 @@ import {
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
 import { MacroBar } from "@/components/ui/macro-bar";
-import { copyEntry, nextTotals } from "@/lib/food-totals";
+import { copyEntry, hasTotalsWithoutEntries, nextTotals, nutritionFromLog } from "@/lib/food-totals";
+import { CalorieSummary } from "@/components/calorie-summary";
 
 export default function Food() {
   const {
@@ -47,6 +48,8 @@ export default function Food() {
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? dayTargets.slices : null;
   const daysUntilWeighIn = dayTargets.daysUntilWeighIn;
+  const tracksCalories = !isSparMode;
+  const dayNutrition = useMemo(() => nutritionFromLog(tracking.foodLog), [tracking.foodLog]);
 
   // Blocked categories for protocol restrictions
   const blockedCategories = useMemo(() => {
@@ -148,6 +151,9 @@ export default function Food() {
           {macros.weightWarning && (
             <p className="text-xs font-medium text-chart-3 text-center">{macros.weightWarning}</p>
           )}
+          {tracksCalories && (
+            <CalorieSummary nutrition={dayNutrition} hasTotalsWithoutEntries={hasTotalsWithoutEntries(tracking)} />
+          )}
           {showSliceTracker && sliceTargets ? (
             <>
               {sliceTargets.protein > 0 && (
@@ -200,7 +206,7 @@ export default function Food() {
               onClick={() => { setEditingWater(true); setWaterInput(String(tracking.waterConsumed)); hapticTap(); }}
               className="w-full text-left"
             >
-              <MacroBar label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" />
+              <MacroBar allowOver label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" />
             </button>
           )}
         </div>

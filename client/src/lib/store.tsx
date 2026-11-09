@@ -495,7 +495,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           age: profileData.age || undefined,
           gender: profileData.gender as 'male' | 'female' | undefined,
           activityLevel: profileData.activity_level as AthleteProfile['activityLevel'],
-          nutritionPreference: (profileData.nutrition_preference === 'sugar' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
+          // Grams and Calories were folded into Detailed; both saved values load as it.
+          nutritionPreference: (profileData.nutrition_preference === 'sugar' || profileData.nutrition_preference === 'calories' ? 'sugar' : 'spar') as AthleteProfile['nutritionPreference'],
           trackPracticeWeighIns: profileData.track_practice_weigh_ins || false,
           waterLoading: profileData.water_loading !== false,
           targetWeight: profileData.target_weight || undefined,
