@@ -8,7 +8,7 @@ import { Activity, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { waterLoadingActive } from "@/lib/constants";
 import { useTeam } from "@/hooks/use-team";
-import { dayTarget, knownWeighIns, dailyWeights } from "@/lib/weight-chart";
+import { dayTarget, knownWeighIns, dailyWeights, weeklyAverage } from "@/lib/weight-chart";
 
 type ViewMode = 'week' | 'month' | '4week';
 
@@ -72,20 +72,12 @@ export function TrendChart() {
       const weekEnd = endOfWeek(subWeeks(today, i), { weekStartsOn: 1 });
       const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-      const weights = dailyWeights(logs);
-      const weekLogs = weekDays.flatMap(day => {
-        const logged = weights.get(format(day, 'yyyy-MM-dd'));
-        return logged ? [logged] : [];
-      });
-
-      const avgWeight = weekLogs.length > 0
-        ? weekLogs.reduce((sum, l) => sum + l.weight, 0) / weekLogs.length
-        : null;
+      const avgWeight = weeklyAverage(dailyWeights(logs), weekDays, today);
 
       weeks.push({
         date: `Wk ${format(weekStart, 'M/d')}`,
         fullDate: format(weekStart, 'yyyy-MM-dd'),
-        weight: avgWeight ? parseFloat(avgWeight.toFixed(1)) : null,
+        weight: avgWeight,
         target: profile.targetWeightClass,
         projected: undefined as number | undefined, // A weekly average has no single target
         isToday: i === 0

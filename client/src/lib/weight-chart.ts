@@ -96,6 +96,19 @@ export function dailyWeights(logs: { date: Date | string; type: string; weight: 
   return result;
 }
 
+/** The average for one week of days, counting only days up to and including today. Null with no readings. */
+export function weeklyAverage(weights: Map<string, DailyWeight>, weekDays: Date[], today: Date): number | null {
+  const lastDay = startOfDay(today);
+  const readings = weekDays
+    .filter(day => startOfDay(day) <= lastDay)
+    .flatMap(day => {
+      const logged = weights.get(format(day, 'yyyy-MM-dd'));
+      return logged ? [logged.weight] : [];
+    });
+  if (readings.length === 0) return null;
+  return Math.round((readings.reduce((sum, w) => sum + w, 0) / readings.length) * 10) / 10;
+}
+
 /** Earlier weigh-ins the app knows about: official weigh-in logs and team events the athlete didn't skip. */
 export function knownWeighIns(
   logs: { date: Date | string; type: string }[],

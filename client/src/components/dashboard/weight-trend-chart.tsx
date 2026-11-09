@@ -61,7 +61,7 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
           {index !== todayIndex && days[index].weight === null && days[index].target !== null && (
             <circle cx={x(index)} cy={y(days[index].target as number)} r={4} className="fill-muted-foreground" />
           )}
-          {today.weight !== null && <circle cx={x(todayIndex)} cy={y(today.weight)} r={6} className="fill-primary stroke-card" strokeWidth={2} />}
+          {today.weight !== null && <circle cx={x(todayIndex)} cy={y(today.weight)} r={6} className={today.notMorning ? "fill-card stroke-primary" : "fill-primary stroke-card"} strokeWidth={2} />}
           {labels.map(label => {
             const day = days[label.index];
             const other = label.series === 'weight' ? day.target : day.weight;

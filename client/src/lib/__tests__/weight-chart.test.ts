@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { buildWeightChart, chartDayReadout, dayTarget, gapBridges, knownWeighIns, labelAbove, dailyWeights } from "../weight-chart";
+import { buildWeightChart, chartDayReadout, dayTarget, gapBridges, knownWeighIns, labelAbove, dailyWeights, weeklyAverage } from "../weight-chart";
 
 const today = new Date(2026, 10, 9, 8, 0);
 const morning = (daysAgo: number, weight: number) => ({ date: addDays(today, -daysAgo), type: "morning", weight });
@@ -176,5 +176,25 @@ describe("dailyWeights", () => {
     const chart = buildWeightChart({ ...fiveOut, logs: logsWithBed })!;
     expect(chart.days[4]).toMatchObject({ weight: 172.5, notMorning: "before bed Fri" });
     expect(chartDayReadout(chart.days[4])).toBe("Sat: 172.5 before bed Fri · target 168");
+  });
+});
+
+describe("weeklyAverage", () => {
+  const monday = new Date(2026, 10, 9, 21);
+  const tuesday = new Date(2026, 10, 10);
+  const week = [new Date(2026, 10, 8), new Date(2026, 10, 9), tuesday];
+  const logs = [
+    { date: new Date(2026, 10, 9, 8), type: "morning", weight: 160 },
+    { date: new Date(2026, 10, 9, 22), type: "before-bed", weight: 164 },
+  ];
+
+  it("doesn't count tomorrow's fallback before tomorrow", () => {
+    expect(weeklyAverage(dailyWeights(logs), week, monday)).toBe(160);
+  });
+  it("counts it once tomorrow arrives", () => {
+    expect(weeklyAverage(dailyWeights(logs), week, tuesday)).toBe(162);
+  });
+  it("stops at a past date being replayed", () => {
+    expect(weeklyAverage(dailyWeights(logs), week, new Date(2026, 10, 8, 12))).toBeNull();
   });
 });
