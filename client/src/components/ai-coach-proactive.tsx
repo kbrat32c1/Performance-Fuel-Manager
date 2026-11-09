@@ -5,7 +5,10 @@ import { Sparkles, Send, X, RotateCcw, Mic, Square } from "lucide-react";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import { format, isYesterday } from "date-fns";
+import { addDays, format, isYesterday, parseISO } from "date-fns";
+import { useTeam } from "@/hooks/use-team";
+import { buildWeightChart } from "@/lib/weight-chart";
+import { WeightTrendChart } from "@/components/dashboard/weight-trend-chart";
 import { nextStepLabel, nextWeighIn } from "@/lib/next-weigh-in";
 import { WATER_LOADING_WEIGHT_NOTE } from "@/lib/constants";
 import { canShowTodayScale, getTodayScale, targetLabelLeftPct } from "@/lib/today-scale";
@@ -40,6 +43,7 @@ export function AiCoachProactive() {
 
   const store = useStore();
   const { user } = useAuth();
+  const team = useTeam();
   const { healthData } = useHealthKitSync(user?.id ?? null);
   const {
     profile,
@@ -340,6 +344,26 @@ export function AiCoachProactive() {
       })
     : null;
   const targetDelta = todayScale?.targetDelta ?? null;
+
+  // Once there are a few morning weights, the chart takes the scale's place.
+  const knownWeighIns = [
+    ...logs.filter(l => l.type === 'weigh-in').map(l => new Date(l.date)),
+    ...(team.membership?.events ?? [])
+      .filter(e => !team.membership?.skipped.includes(e.id))
+      .map(e => addDays(parseISO(e.eventDate), e.days - 1)),
+  ];
+  // Unlike the scale, the chart doesn't depend on still being above class.
+  const weightChart = canShowTodayScale({ daysUntil, weighInTimePassed, hasLoggedWeight: weightLoggedAt !== null }) && !profile.weighInCleared
+    ? buildWeightChart({
+        today: new Date(),
+        logs,
+        weighInDate: new Date(profile.weighInDate),
+        weightClass: targetWeight,
+        protocol: profile.protocol,
+        waterLoading: waterLoadingActive(profile),
+        knownWeighIns,
+      })
+    : null;
   const statusPill = isAtWeight
     ? { label: 'At weight', className: 'bg-chart-5/10 text-chart-5' }
     : targetDelta === null
@@ -519,7 +543,22 @@ export function AiCoachProactive() {
             )}
           </div>
 
-          {todayScale && (
+          {/* The one thing to do next */}
+          {nextStep && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: nextStep } }))}
+                className="w-full min-h-12 rounded-xl bg-primary px-4 py-3 text-[15px] font-bold text-primary-foreground transition-transform active:scale-[0.98]"
+              >
+                {nextStepLabel(nextStep)}
+              </button>
+            </div>
+          )}
+
+          {weightChart ? (
+            <WeightTrendChart chart={weightChart} weightClass={targetWeight} />
+          ) : todayScale && (
             <div
               role="img"
               aria-label={`${currentWeight.toFixed(1)} pounds. ${todayScale.targetPct !== null ? `Today's target ${todayTarget} pounds. ` : ''}Class ${targetWeight} pounds.`}
@@ -572,19 +611,6 @@ export function AiCoachProactive() {
             </div>
           )}
         </div>
-
-        {/* The one thing to do next */}
-        {nextStep && (
-          <div className="px-3 pb-3">
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('open-quick-log', { detail: { type: nextStep } }))}
-              className="w-full min-h-12 rounded-xl bg-primary px-4 py-3 text-[15px] font-bold text-primary-foreground transition-transform active:scale-[0.98]"
-            >
-              {nextStepLabel(nextStep)}
-            </button>
-          </div>
-        )}
 
         {/* Daily Insight Card — clean sentence with highlighted numbers */}
         {coachingInsight && !insightDismissed && (
