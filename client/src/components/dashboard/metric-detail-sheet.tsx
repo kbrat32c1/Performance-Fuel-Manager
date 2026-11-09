@@ -23,6 +23,8 @@ import {
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
 import { useSwipeSheetToClose, useSwipeToClose } from "@/hooks/use-swipe-to-close";
+import { WHOOP_RECOVERY_RANGES, recoveryDotClass, recoveryTextClass, type RecoverySource } from "@/lib/recovery-bands";
+import { isWhoopDay, recoverySourceOf, type ScoredHealthData } from "@/lib/recovery-display";
 
 // ═══ TYPES ═══
 
@@ -275,14 +277,17 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
   if (!metric) return null;
 
   const config = METRIC_CONFIGS[metric];
+  const whoopRecovery = metric === 'recovery' && !!latestHealth && isWhoopDay(latestHealth) && latestHealth.recovery_score != null;
+  const ranges = whoopRecovery ? WHOOP_RECOVERY_RANGES : config.ranges;
 
   // Extract data points for this metric from health history
   const dataPoints = healthHistory
     .map((h) => ({
       date: h.date,
       value: config.extract(h),
+      scoreSource: (h as Partial<ScoredHealthData>).scoreSource ?? recoverySourceOf(h),
     }))
-    .filter((d): d is { date: string; value: number } => d.value != null)
+    .filter((d): d is { date: string; value: number; scoreSource: RecoverySource } => d.value != null)
     .slice(0, 14)
     .reverse(); // oldest → newest for chart
 
@@ -366,7 +371,7 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
           <div className="px-6 pt-4 pb-4">
             {currentValue != null ? (
               <div className="flex items-baseline gap-2">
-                <span className={cn("text-5xl font-bold font-mono tracking-tight", config.color)}>
+                <span className={cn("text-5xl font-bold font-mono tracking-tight", metric === 'recovery' && currentValue != null ? recoveryTextClass(currentValue, dataPoints[dataPoints.length - 1].scoreSource) : config.color)}>
                   {config.formatValue(currentValue)}
                 </span>
                 <span className="text-lg text-muted-foreground font-medium">{config.unit}</span>
@@ -401,6 +406,7 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
                 <TrendChart
                   dataPoints={dataPoints}
                   barColor={config.barColor}
+                  barClassFor={metric === 'recovery' ? (d) => recoveryDotClass(d.value, d.scoreSource) : undefined}
                   formatValue={config.formatValue}
                   average={average}
                 />
@@ -460,9 +466,9 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
 
           {/* ── Reference Ranges ── */}
           <div className="px-6 pb-4">
-            <h3 className="text-sm font-semibold mb-3">Reference Ranges</h3>
+            <h3 className="text-sm font-semibold mb-3">{metric === 'recovery' ? (whoopRecovery ? 'WHOOP ranges' : 'SPAR score ranges') : 'Reference Ranges'}</h3>
             <div className="space-y-2.5">
-              {config.ranges.map((r, i) => (
+              {ranges.map((r, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className={cn("w-3 h-3 rounded-full flex-shrink-0", r.color)} />
                   <div className="flex-1">
@@ -479,11 +485,11 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
             <div className="bg-muted/20 rounded-2xl p-4 border border-muted/30">
               <h3 className="text-sm font-semibold mb-2">What This Means</h3>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                {config.description}
+                {whoopRecovery ? "This is WHOOP's recovery score, shown exactly as WHOOP calculates it." : config.description}
               </p>
               <h4 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1.5">For Athletes</h4>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {config.athleteContext}
+                {whoopRecovery ? 'Use it alongside your plan and how you feel.' : config.athleteContext}
               </p>
             </div>
           </div>
@@ -500,13 +506,15 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
 // ═══ SUB-COMPONENTS ═══
 
 function TrendChart({
+  barClassFor,
   dataPoints,
   barColor,
   formatValue,
   average,
 }: {
-  dataPoints: { date: string; value: number }[];
+  dataPoints: { date: string; value: number; scoreSource: RecoverySource }[];
   barColor: string;
+  barClassFor?: (d: { value: number; scoreSource: RecoverySource }) => string;
   formatValue: (v: number) => string;
   average: number | null;
 }) {
@@ -555,7 +563,7 @@ function TrendChart({
               <div
                 className={cn(
                   "w-full rounded-md transition-all",
-                  barColor,
+                  barClassFor ? barClassFor(d) : barColor,
                   isLast ? "opacity-100" : "opacity-50"
                 )}
                 style={{ height: `${height}%` }}

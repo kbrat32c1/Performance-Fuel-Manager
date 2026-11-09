@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { displayRecoveryScore, healthDateToShow, withDisplayRecovery } from "../recovery-display";
+import { displayRecoveryScore, healthDateToShow, withDisplayRecovery, recoverySourceOf } from "../recovery-display";
 import { computeBaselines } from "../recovery-baselines";
 import { computeRecoveryScoreDetailed } from "../healthkit-service";
 import type { DbHealthData } from "../supabase";
@@ -41,5 +41,21 @@ describe("healthDateToShow", () => {
   });
   it("a past day being viewed always wins", () => {
     expect(healthDateToShow([{ date: "2026-11-08" }], { viewedDate: "2026-11-05", ...dates })).toBe("2026-11-05");
+  });
+});
+
+describe("who calculated a day's score", () => {
+  const base = { date: "2026-11-09", hrv: 50, resting_heart_rate: 55, sleep_hours: 8, sleep_score: 80 } as any;
+
+  it("is WHOOP when WHOOP scored the day", () => {
+    expect(recoverySourceOf({ source: "whoop", recovery_score: 70 } as any)).toBe("whoop");
+  });
+  it("is SPAR for a WHOOP day still waiting on its score", () => {
+    const [day] = withDisplayRecovery([{ ...base, source: "whoop", recovery_score: null }]);
+    expect(day.recovery_score).not.toBeNull();
+    expect(day.scoreSource).toBe("spar");
+  });
+  it("is SPAR for other sources", () => {
+    expect(recoverySourceOf({ source: "v5-direct", recovery_score: 70 } as any)).toBe("spar");
   });
 });
