@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
+import { waterLoadingActive } from "@/lib/constants";
 
 interface HydrationTrackerProps {
   hydration: {
@@ -62,7 +63,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
   const consumedOz = tracking.waterConsumed;
 
   // Only apply reduced-water mode for competition users doing weight cuts
-  const waterLoadingOn = profile.waterLoading !== false;
+  const waterLoadingOn = waterLoadingActive(profile);
   const isSipOnly = waterLoadingOn && !isSparProtocol && (hydration.type === 'Reduced' || daysUntilWeighIn === 1);
   const quickAddAmounts = isSipOnly ? [4, 8, 12, 16] : [8, 16, 24, 32];
 

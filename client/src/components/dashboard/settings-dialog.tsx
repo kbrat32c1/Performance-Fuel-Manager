@@ -193,8 +193,8 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
 
   return (
     <>
-      <Button variant="ghost" size="icon" className="h-10 w-10 text-muted-foreground" aria-label="Open settings" onClick={() => setOpen(true)}>
-        <Settings className="w-5 h-5" />
+      <Button variant="ghost" size="icon" className="h-11 w-11 text-muted-foreground [&_svg]:size-6" aria-label="Open settings" onClick={() => setOpen(true)}>
+        <Settings className="w-6 h-6" />
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent

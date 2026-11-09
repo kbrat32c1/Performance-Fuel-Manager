@@ -8,6 +8,7 @@
  */
 import { differenceInDays, startOfDay, endOfDay, format } from 'date-fns';
 import type { AthleteProfile, WeightLog, DailyTracking, StoreContextType } from './types';
+import { waterLoadingActive } from "@/lib/constants";
 
 // Re-export the return type for convenience
 export type WeekDescentData = ReturnType<StoreContextType['getWeekDescentData']>;
@@ -135,7 +136,7 @@ export function computeWeekDescentData(input: WeekDescentInput): WeekDescentData
   const officialWeighInLog = allTodayLogs.find(l => l.type === 'weigh-in');
   const isCompDay = daysRemaining === 0 || !!officialWeighInLog;
   // With water loading on, water stays high through 2 days out, so that day projects like a loading day.
-  const lastLoadingDay = profile.waterLoading !== false && profile.protocol !== '4' ? 2 : 3;
+  const lastLoadingDay = waterLoadingActive(profile) ? 2 : 3;
 
   const mostRecentWeighIn = allTodayLogs.length > 0 ? allTodayLogs[0].weight : latestMorningWeight;
   const todayMorningLog = allTodayLogs.find(l => l.type === 'morning');
