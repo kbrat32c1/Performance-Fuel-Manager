@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { buildWeightChart, chartDayReadout } from "../weight-chart";
+import { buildWeightChart, chartDayReadout, gapBridges } from "../weight-chart";
 
 const today = new Date(2026, 10, 9, 8, 0);
 const morning = (daysAgo: number, weight: number) => ({ date: addDays(today, -daysAgo), type: "morning", weight });
@@ -81,5 +81,15 @@ describe("chartDayReadout", () => {
     expect(chartDayReadout({ ...day, isToday: true, weight: null, target: 168 })).toBe("Today: no morning weight yet · target 168");
     expect(chartDayReadout({ ...day, isFuture: true, weight: null, target: 165 })).toBe("Sat: target 165");
     expect(chartDayReadout({ ...day, weight: 169.6, target: null })).toBe("Sat: weighed 169.6");
+  });
+});
+
+describe("gapBridges", () => {
+  it("connects across missed mornings only", () => {
+    expect(gapBridges([170, null, null, 169, 168, null, 167])).toEqual([[0, 3], [4, 6]]);
+  });
+  it("adds nothing when every morning is logged or at the ends", () => {
+    expect(gapBridges([170, 169, 168])).toEqual([]);
+    expect(gapBridges([null, 170, 169, null])).toEqual([]);
   });
 });

@@ -127,6 +127,16 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
   return { days, labels, todayIndex, min, max, showClass };
 }
 
+/** Pairs of neighboring weigh-ins with missed mornings between them. No day in between gets a value. */
+export function gapBridges(values: (number | null)[]): [number, number][] {
+  const present = values.map((v, i) => (v !== null ? i : -1)).filter(i => i >= 0);
+  const bridges: [number, number][] = [];
+  for (let n = 1; n < present.length; n++) {
+    if (present[n] - present[n - 1] > 1) bridges.push([present[n - 1], present[n]]);
+  }
+  return bridges;
+}
+
 /** One line of text for the selected day. */
 export function chartDayReadout(day: ChartDay): string {
   const name = day.isToday ? 'Today' : format(day.date, 'EEE');

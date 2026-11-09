@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { chartDayReadout, type WeightChart } from "@/lib/weight-chart";
+import { chartDayReadout, gapBridges, type WeightChart } from "@/lib/weight-chart";
 
 const W = 320;
 const H = 116;
@@ -37,6 +37,15 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
         <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`Morning weights and daily targets. ${readout}`}>
           {showClass && <line x1={PAD_X} x2={W - PAD_X} y1={y(weightClass)} y2={y(weightClass)} className="stroke-primary" strokeWidth={1.5} />}
           <path d={linePath(days.map(d => d.target), x, y)} fill="none" className="stroke-muted-foreground" strokeWidth={2} strokeDasharray="4 4" />
+          {/* A thin line across missed mornings, with no dot, so nothing looks like a logged weight */}
+          {gapBridges(days.map(d => d.weight)).map(([from, to]) => (
+            <line
+              key={from}
+              x1={x(from)} y1={y(days[from].weight as number)}
+              x2={x(to)} y2={y(days[to].weight as number)}
+              className="stroke-foreground/30" strokeWidth={1.5}
+            />
+          ))}
           <path d={linePath(days.map(d => d.weight), x, y)} fill="none" className="stroke-foreground" strokeWidth={2.5} strokeLinejoin="round" />
           {days.map((d, i) => d.weight !== null && i !== todayIndex && (
             <circle key={i} cx={x(i)} cy={y(d.weight)} r={i === index ? 4 : 2.5} className="fill-foreground" />
@@ -49,15 +58,16 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
           {labels.map(label => {
             const day = days[label.index];
             const other = label.series === 'weight' ? day.target : day.weight;
-            // Weights sit above the line and targets below, unless the two would collide.
-            const above = other === null ? label.series === 'weight' : label.value >= other;
+            // Above the line, clear of the falling targets. The class sits under its line.
+            const above = other === null ? label.value !== weightClass : label.value >= other;
             const labelY = Math.min(H - 2, Math.max(12, y(label.value) + (above ? -9 : 17)));
             const anchor = label.index === 0 ? 'start' : label.index === days.length - 1 ? 'end' : 'middle';
+            const labelX = x(label.index) + (day.isFuture && above ? 8 : 0);
             const isClass = label.series === 'target' && label.value === weightClass;
             return (
               <text
                 key={`${label.series}-${label.index}`}
-                x={x(label.index)}
+                x={labelX}
                 y={labelY}
                 textAnchor={anchor}
                 fontSize={12}
