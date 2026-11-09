@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { format } from 'date-fns';
-import { completeWhoop, getWhoopStatus, hasRecoveryForDate, syncWhoop, whoopSyncDue } from '@/lib/whoop';
+import { WHOOP_WAITING_SYNC_INTERVAL_MS, completeWhoop, getWhoopStatus, hasRecoveryForDate, syncWhoop, whoopSyncDue } from '@/lib/whoop';
 import { WHOOP_CHANGED_EVENT, WHOOP_DATA_CHANGED_EVENT } from '@/components/dashboard/whoop-card';
+
+// A failed sync doesn't move lastSyncedAt, so the short wait has to remember attempts itself.
+let lastWaitingAttemptAt = 0;
 
 /**
  * On the dashboard:
@@ -48,7 +51,9 @@ export function useWhoopAutoSync(userId: string | null, refreshHealth: () => Pro
         if (!whoopSyncDue(status)) {
           // Only worth asking once the short wait has passed.
           if (!whoopSyncDue(status, Date.now(), true)) return;
+          if (Date.now() - lastWaitingAttemptAt < WHOOP_WAITING_SYNC_INTERVAL_MS) return;
           if (await hasRecoveryForDate(userId, format(new Date(), 'yyyy-MM-dd')) || cancelled) return;
+          lastWaitingAttemptAt = Date.now();
         }
         if (!(await syncWhoop()) && !cancelled) await changed();
       } finally {
