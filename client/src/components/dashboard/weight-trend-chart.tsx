@@ -48,7 +48,14 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
           ))}
           <path d={linePath(days.map(d => d.weight), x, y)} fill="none" className="stroke-foreground" strokeWidth={2.5} strokeLinejoin="round" />
           {days.map((d, i) => d.weight !== null && i !== todayIndex && (
-            <circle key={i} cx={x(i)} cy={y(d.weight)} r={i === index ? 4 : 2.5} className="fill-foreground" />
+            <circle
+              key={i}
+              cx={x(i)}
+              cy={y(d.weight)}
+              r={i === index ? 4 : 2.5}
+              className={d.notMorning ? "fill-card stroke-foreground" : "fill-foreground"}
+              strokeWidth={d.notMorning ? 1.5 : 0}
+            />
           ))}
           {today.target !== null && <circle cx={x(todayIndex)} cy={y(today.target)} r={3} className="fill-muted-foreground" />}
           {index !== todayIndex && days[index].weight === null && days[index].target !== null && (
@@ -102,6 +109,7 @@ export function WeightTrendChart({ chart, weightClass }: { chart: WeightChart; w
         {showClass
           ? <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-primary" />{weightClass} class</span>
           : <span>{weightClass} class is below this chart</span>}
+        {days.some(d => d.notMorning) && <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full border border-foreground" />Not a morning weight</span>}
       </div>
     </div>
   );

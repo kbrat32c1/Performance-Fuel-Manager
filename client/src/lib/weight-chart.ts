@@ -7,8 +7,10 @@ import { calculateTargetWeight, PROTOCOLS } from "@/lib/constants";
 
 export interface ChartDay {
   date: Date;
-  /** Morning or official weigh-in. Null if none was logged; the line shows a gap. */
+  /** One weight for the day, see dailyWeights. Null if none was logged. */
   weight: number | null;
+  /** Set when it isn't a morning weight, so it can't be compared with the morning target. */
+  notMorning?: string;
   /** Null when the target can't be known, such as before an earlier weigh-in. */
   target: number | null;
   isToday: boolean;
@@ -51,15 +53,34 @@ const MAX_CLASS_GAP_LBS = 8;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Each day's comparable weight: the morning one, or an official weigh-in if there's no morning. */
-export function morningWeightsByDay(logs: { date: Date | string; type: string; weight: number }[]): Map<string, number> {
-  const byDay = new Map<string, number>();
+export interface DailyWeight {
+  weight: number;
+  /** Set when it isn't a morning or official weight, e.g. "before bed" */
+  notMorning?: string;
+}
+
+const LATER_WEIGH_INS: Record<string, string> = {
+  'pre-practice': 'pre-practice',
+  'post-practice': 'post-practice',
+  'before-bed': 'before bed',
+};
+
+/**
+ * One weight per day: the morning weight, then an official weigh-in, then that day's latest
+ * other weigh-in (Kevin, 2026-11-09). Weight checks and extra workouts don't count.
+ */
+export function dailyWeights(logs: { date: Date | string; type: string; weight: number }[]): Map<string, DailyWeight> {
+  const best = new Map<string, { rank: number; time: number; entry: DailyWeight }>();
   for (const log of logs) {
-    if (log.type !== 'morning' && log.type !== 'weigh-in') continue;
-    const key = format(new Date(log.date), 'yyyy-MM-dd');
-    if (log.type === 'morning' || !byDay.has(key)) byDay.set(key, log.weight);
+    const rank = log.type === 'morning' ? 2 : log.type === 'weigh-in' ? 1 : log.type in LATER_WEIGH_INS ? 0 : -1;
+    if (rank < 0) continue;
+    const date = new Date(log.date);
+    const key = format(date, 'yyyy-MM-dd');
+    const current = best.get(key);
+    if (current && (current.rank > rank || (current.rank === rank && current.time >= date.getTime()))) continue;
+    best.set(key, { rank, time: date.getTime(), entry: { weight: log.weight, ...(rank === 0 ? { notMorning: LATER_WEIGH_INS[log.type] } : {}) } });
   }
-  return byDay;
+  return new Map(Array.from(best, ([key, value]) => [key, value.entry]));
 }
 
 /** Earlier weigh-ins the app knows about: official weigh-in logs and team events the athlete didn't skip. */
@@ -101,7 +122,7 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
   const weighIn = startOfDay(input.weighInDate);
   const daysAhead = Math.min(DAYS_AHEAD, Math.max(0, differenceInCalendarDays(weighIn, today)));
 
-  const morningByDay = morningWeightsByDay(input.logs);
+  const weights = dailyWeights(input.logs);
 
   // Days up to and including an earlier weigh-in were aiming at that one, not the next.
   const lastEarlierWeighIn = (input.knownWeighIns ?? [])
@@ -115,7 +136,10 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
     const beforeThisCycle = !!lastEarlierWeighIn && date <= lastEarlierWeighIn;
     days.push({
       date,
-      weight: offset <= 0 ? morningByDay.get(format(date, 'yyyy-MM-dd')) ?? null : null,
+      ...(() => {
+        const logged = offset <= 0 ? weights.get(format(date, 'yyyy-MM-dd')) : undefined;
+        return { weight: logged?.weight ?? null, notMorning: logged?.notMorning };
+      })(),
       target: beforeThisCycle ? null : targetFor(date, input),
       isToday: offset === 0,
       isFuture: offset > 0,
@@ -186,6 +210,10 @@ export function chartDayReadout(day: ChartDay): string {
   if (day.weight === null) {
     const none = day.isToday ? 'no morning weight yet' : 'no morning weight';
     return day.target === null ? `${name}: ${none}` : `${name}: ${none} · target ${day.target}`;
+  }
+  if (day.notMorning) {
+    const reading = `${name}: ${day.weight.toFixed(1)} ${day.notMorning}`;
+    return day.target === null ? reading : `${reading} · target ${day.target}`;
   }
   if (day.target === null) return `${name}: weighed ${day.weight.toFixed(1)}`;
   const diff = round1(day.weight - day.target);

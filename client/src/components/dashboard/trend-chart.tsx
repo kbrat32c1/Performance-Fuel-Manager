@@ -8,7 +8,7 @@ import { Activity, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { waterLoadingActive } from "@/lib/constants";
 import { useTeam } from "@/hooks/use-team";
-import { dayTarget, knownWeighIns, morningWeightsByDay } from "@/lib/weight-chart";
+import { dayTarget, knownWeighIns, dailyWeights } from "@/lib/weight-chart";
 
 type ViewMode = 'week' | 'month' | '4week';
 
@@ -43,14 +43,15 @@ export function TrendChart() {
 
   const dailyMorningData = (days: number, label: (d: Date) => string) => {
     const data = [];
-    const morningWeights = morningWeightsByDay(logs);
+    const weights = dailyWeights(logs);
     for (let i = days - 1; i >= 0; i--) {
       const day = subDays(today, i);
       const dateStr = format(day, 'yyyy-MM-dd');
       data.push({
         date: label(day),
         fullDate: dateStr,
-        weight: morningWeights.get(dateStr) ?? null,
+        weight: weights.get(dateStr)?.weight ?? null,
+        notMorning: weights.get(dateStr)?.notMorning,
         target: profile.targetWeightClass,
         projected: shouldWeigh(day),
         isToday: i === 0,
@@ -71,11 +72,10 @@ export function TrendChart() {
       const weekEnd = endOfWeek(subWeeks(today, i), { weekStartsOn: 1 });
       const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
+      const weights = dailyWeights(logs);
       const weekLogs = weekDays.flatMap(day => {
-        const dateStr = format(day, 'yyyy-MM-dd');
-        return logs.filter(l =>
-          format(new Date(l.date), 'yyyy-MM-dd') === dateStr && (l.type === 'morning' || l.type === 'weigh-in')
-        );
+        const logged = weights.get(format(day, 'yyyy-MM-dd'));
+        return logged ? [logged] : [];
       });
 
       const avgWeight = weekLogs.length > 0
@@ -195,9 +195,9 @@ export function TrendChart() {
                 fontSize: '12px'
               }}
               itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-              formatter={(value: number, name: string) => {
+              formatter={(value: number, name: string, item: { payload?: { notMorning?: string } }) => {
                 if (name === 'projected') return [`${value} lbs`, 'Should weigh'];
-                if (name === 'weight') return [`${value} lbs`, 'Weighed'];
+                if (name === 'weight') return [`${value} lbs`, item.payload?.notMorning ? `Weighed (${item.payload.notMorning})` : 'Weighed'];
                 if (name === 'target') return [`${value} lbs`, 'Class'];
                 return [`${value} lbs`, ''];
               }}
