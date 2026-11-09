@@ -1358,7 +1358,8 @@ export default function Dashboard() {
     if (daysUntilWeighIn === 0) {
       return { ...protocolLabel, stage: 'Competition Day', stageColor: 'text-yellow-500' };
     }
-    const waterLoadingOn = profile.waterLoading !== false;
+    // Gain never loads water, whatever the switch says (same rule as the hydration plan).
+    const waterLoadingOn = profile.waterLoading !== false && profile.protocol !== '4';
     if (daysUntilWeighIn <= 2) {
       const stage = !waterLoadingOn ? 'Final Prep' : daysUntilWeighIn === 2 ? 'High Water' : 'Water Cut';
       return { ...protocolLabel, stage, stageColor: 'text-orange-500' };
@@ -1380,10 +1381,14 @@ export default function Dashboard() {
   const phaseInfo = getPhaseInfo();
   const planText = planExplanation(profile.protocol);
   const stageText = planStage(phaseInfo.stage);
+  // Morning weight, like the Training status: an evening weigh-in carries the day's food and water.
+  const latestMorningWeight = logs
+    .filter(l => l.type === 'morning' || l.type === 'weigh-in')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.weight ?? profile.currentWeight;
   const stageMeaning = stageExplanation(stageText, {
     protocol: profile.protocol,
     weightClass: profile.targetWeightClass,
-    currentWeight: profile.currentWeight,
+    currentWeight: latestMorningWeight,
     waterAmount: hydration.amount,
   });
 

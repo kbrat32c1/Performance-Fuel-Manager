@@ -50,6 +50,7 @@ export function stageExplanation(stage: string | null, ctx: StageContext): strin
     case 'Comp week':
       return 'Weigh-in week with no water loading. Keep your water normal.';
     case 'Final prep':
+      if (ctx.protocol === '4') return null; // Gain isn't cutting portions
       return 'Final days before weigh-in. Lighter portions, normal water.';
     case 'Competition day':
       return 'Weigh-in day. Follow your weigh-in and refueling plan.';

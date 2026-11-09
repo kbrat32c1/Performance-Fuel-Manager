@@ -37,6 +37,10 @@ describe("stageExplanation", () => {
   it("doesn't tell a Gain athlete to hold walk-around", () => {
     expect(stageExplanation("Training", { ...ctx, protocol: "4" })).toBeNull();
   });
+  it("doesn't tell a Gain athlete to cut portions", () => {
+    expect(stageExplanation("Final prep", { ...ctx, protocol: "4" })).toBeNull();
+    expect(stageExplanation("Comp week", { ...ctx, protocol: "4" })).toMatch(/water normal/);
+  });
   it("gives today's water and says loading is optional", () => {
     const text = stageExplanation("Water load", ctx);
     expect(text).toContain("1.75 gal");
