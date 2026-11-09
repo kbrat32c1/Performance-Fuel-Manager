@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
 import { format, isYesterday } from "date-fns";
 import { nextStepLabel, nextWeighIn } from "@/lib/next-weigh-in";
+import { WATER_LOADING_WEIGHT_NOTE } from "@/lib/constants";
 import { canShowTodayScale, getTodayScale, targetLabelLeftPct } from "@/lib/today-scale";
 import { Input } from "@/components/ui/input";
 import { CoachText } from "@/components/coach-text";
@@ -50,6 +51,7 @@ export function AiCoachProactive() {
     getStatus,
     getDriftMetrics,
     getDailyTracking,
+    isWaterLoadingDay,
     getHydrationTarget,
     calculateTarget,
     getWeekDescentData,
@@ -505,6 +507,9 @@ export function AiCoachProactive() {
                 {weightLoggedLabel}
                 {weightNotLoggedLabel && <> · <span className="font-semibold text-primary">{weightNotLoggedLabel}</span></>}
               </span>
+              {isWaterLoadingDay() && targetDelta !== null && targetDelta > 0 && (
+                <span className="mt-0.5 block text-xs text-muted-foreground">{WATER_LOADING_WEIGHT_NOTE}</span>
+              )}
             </div>
             {statusPill && (
               <span className={cn("mt-1 shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[13px] font-medium", statusPill.className)}>

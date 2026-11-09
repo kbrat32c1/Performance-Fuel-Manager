@@ -465,23 +465,18 @@ export const UI = {
  */
 export const WEIGHT_TARGET_BY_DAYS_OUT = {
   // Days until weigh-in -> multiplier of target weight class
-  // Note: Water loading days (5, 4, 3, 2) add 2-4 lbs ON TOP of these multipliers
-  5: 1.07,  // 5 days out: walk-around + water loading (+2-4 lbs)
-  4: 1.06,  // 4 days out: water loading (+2-4 lbs)
-  3: 1.05,  // 3 days out: peak water (+2-4 lbs)
-  2: 1.04,  // 2 days out: water still high, low sodium (+2-4 lbs)
+  // Water loading doesn't add to these (Kevin, 2026-11-09, matches FINAL_14's Wed and Fri targets).
+  5: 1.07,  // 5 days out: walk-around
+  4: 1.06,  // 4 days out
+  3: 1.05,  // 3 days out: peak water
+  2: 1.04,  // 2 days out: water still high, low sodium
   1: 1.03,  // 1 day out: critical checkpoint (137 lbs for 133 class)
   0: 1.00,  // Competition day: make weight
   [-1]: 1.07, // Recovery day: back to walk-around
 } as const;
 
-/**
- * Water loading range (lbs above baseline) - consistent 2-4 lbs
- */
-export const WATER_LOADING_RANGE = {
-  MIN: 2,
-  MAX: 4,
-} as const;
+/** Water loading doesn't raise a day's target (Kevin, 2026-11-09). This is what athletes see instead. */
+export const WATER_LOADING_WEIGHT_NOTE = 'Weight could be slightly high due to water loading';
 
 /**
  * Days when an athlete on water loading carries extra water weight.
@@ -524,27 +519,11 @@ export function calculateTargetWeight(
   daysUntil: number,
   protocol: string,
   includeWaterLoading: boolean = true
-): { base: number; withWaterLoad: number | null; range: { min: number; max: number } | null } {
+): { base: number; waterLoading: boolean } {
   const multiplier = getWeightMultiplier(daysUntil);
-  const base = Math.round(targetWeightClass * multiplier);
-
-  const waterLoading = isWaterLoadingDay(daysUntil, protocol, includeWaterLoading);
-
-  if (waterLoading) {
-    return {
-      base,
-      withWaterLoad: base + WATER_LOADING_RANGE.MAX, // Use max for single display
-      range: {
-        min: base + WATER_LOADING_RANGE.MIN,
-        max: base + WATER_LOADING_RANGE.MAX,
-      },
-    };
-  }
-
   return {
-    base,
-    withWaterLoad: null,
-    range: null,
+    base: Math.round(targetWeightClass * multiplier),
+    waterLoading: isWaterLoadingDay(daysUntil, protocol, includeWaterLoading),
   };
 }
 
@@ -557,13 +536,7 @@ export function formatWeightTarget(
   protocol: string,
   waterLoading = true
 ): string {
-  const target = calculateTargetWeight(targetWeightClass, daysUntil, protocol, waterLoading);
-
-  if (target.range) {
-    return `${target.range.min}-${target.range.max}`;
-  }
-
-  return `${target.base}`;
+  return `${calculateTargetWeight(targetWeightClass, daysUntil, protocol, waterLoading).base}`;
 }
 
 /**

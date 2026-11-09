@@ -34,13 +34,13 @@ describe('water loading on (Kevin\'s FINAL_13 week)', () => {
     expect([5, 4, 3, 2, 1].map(d => getSodiumPlan(d).label)).toEqual(['Normal', 'Normal', 'Normal to moderate', 'Low', 'Very low']);
   });
 
-  it('carries the water-weight allowance through 2 days out, not the day before', () => {
-    expect(calculateTargetWeight(157, 2, '2').range).toEqual({ min: 165, max: 167 });
-    expect(calculateTargetWeight(157, 1, '2').range).toBeNull();
+  it('counts water loading through 2 days out, without raising the target', () => {
+    expect(calculateTargetWeight(157, 2, '2')).toEqual({ base: 163, waterLoading: true });
+    expect(calculateTargetWeight(157, 1, '2')).toEqual({ base: 162, waterLoading: false });
   });
 
-  it('keeps the loading allowance and Load days', () => {
-    expect(calculateTargetWeight(157, 4, '2').range).toEqual({ min: 168, max: 170 });
+  it('keeps the base target and Load days', () => {
+    expect(calculateTargetWeight(157, 4, '2')).toEqual({ base: 166, waterLoading: true });
     expect([6, 5, 3, 2, 1, 0].map(d => getPhaseForDaysUntil(d))).toEqual(['Train', 'Load', 'Load', 'Cut', 'Cut', 'Compete']);
   });
 });
@@ -57,9 +57,9 @@ describe('water loading off (drink normally)', () => {
     for (const d of [5, 4, 3, 2, 1]) expect(getSodiumPlan(d, false).label).toBe('Normal');
   });
 
-  it('drops the loading allowance and Load days', () => {
+  it('has no water loading or Load days', () => {
     expect(isWaterLoadingDay(4, '2', false)).toBe(false);
-    expect(calculateTargetWeight(157, 4, '2', false).range).toBeNull();
+    expect(calculateTargetWeight(157, 4, '2', false)).toEqual({ base: 166, waterLoading: false });
     expect([6, 5, 3, 2, 1, 0].map(d => getPhaseForDaysUntil(d, false))).toEqual(['Train', 'Train', 'Train', 'Cut', 'Cut', 'Compete']);
   });
 });

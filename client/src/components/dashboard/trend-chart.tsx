@@ -67,7 +67,7 @@ export function TrendChart() {
         fullDate: format(logDate, 'yyyy-MM-dd'),
         weight: log.weight,
         target: profile.targetWeightClass,
-        projected: projectedTarget.withWaterLoad || projectedTarget.base,
+        projected: projectedTarget.base,
         phase,
         daysUntil,
         isToday: format(logDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'),

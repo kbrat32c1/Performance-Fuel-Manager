@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format, getDay, addDays, startOfWeek, isSameDay, differenceInCalendarDays } from "date-fns";
 import { Droplets, Scale, CheckCircle2, Circle, AlertTriangle, TrendingDown, TrendingUp, Target, Dumbbell } from "lucide-react";
-import { getWeightMultiplier, WATER_LOADING_RANGE, calculateTargetWeight, getWaterTargetGallons, getSodiumPlan } from "@/lib/constants";
+import { getWeightMultiplier, WATER_LOADING_WEIGHT_NOTE, calculateTargetWeight, getWaterTargetGallons, getSodiumPlan } from "@/lib/constants";
 import { WaterLoadingSwitch } from "@/components/water-loading-switch";
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 import { WeekOverview } from "@/components/dashboard";
@@ -20,7 +20,7 @@ export default function Weekly() {
     return null;
   }
 
-  const { profile, logs, getCheckpoints, getWeekDescentData, getWaterLoadBonus, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn, getWeeklyPlan, updateProfile } = useStore();
+  const { profile, logs, getCheckpoints, getWeekDescentData, isWaterLoadingDay, getExtraWorkoutStats, getDaysUntilWeighIn, getDaysUntilForDay, getTimeUntilWeighIn, getWeeklyPlan, updateProfile } = useStore();
   const checkpoints = getCheckpoints();
   const descentData = getWeekDescentData();
 
@@ -75,7 +75,6 @@ export default function Weekly() {
   };
 
   // Water loading bonus from centralized helper
-  const waterLoadBonus = getWaterLoadBonus();
 
   // Weight targets by day - dynamically computed from actual weigh-in date
   const getWeightTargets = () => {
@@ -90,36 +89,30 @@ export default function Weekly() {
 
       // Label and note based on days-until, not day-of-week
       if (du === 0) return {
-        label: 'Weigh-in', target: t.base, range: `${t.base}`,
-        withLoading: null, note: 'Weigh-in weight'
+        label: 'Weigh-in', target: t.base, range: `${t.base}`, note: 'Weigh-in weight'
       };
       if (du < 0) return {
-        label: 'Recovery', target: t.base, range: `${t.base}-${t.base + 1}`,
-        withLoading: null, note: 'Rebuilding'
+        label: 'Recovery', target: t.base, range: `${t.base}-${t.base + 1}`, note: 'Rebuilding'
       };
       if (du === 1) return {
-        label: 'Final Cut', target: t.base, range: `${t.base}-${t.base + 1}`,
-        withLoading: null, note: 'CRITICAL checkpoint'
+        label: 'Final Cut', target: t.base, range: `${t.base}-${t.base + 1}`, note: 'CRITICAL checkpoint'
       };
       if (du === 2) return {
-        label: 'Low Sodium', target: t.range ? t.range.max : t.base, range: `${t.base}`,
-        withLoading: t.range ? `${t.range.min}-${t.range.max}` : null,
-        note: t.range ? `Still +${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water weight` : 'Water weight dropping'
+        label: 'Low Sodium', target: t.base, range: `${t.base}`,
+        note: t.waterLoading ? WATER_LOADING_WEIGHT_NOTE : 'Water weight dropping'
       };
       if (du >= 3 && du <= 4) return {
         label: du === 4 ? 'Loading' : 'Peak Water',
-        target: t.range ? t.range.max : t.base,
-        range: t.range ? `${t.range.min}-${t.range.max}` : `${t.base}`,
-        withLoading: du === 3 ? (t.range ? `${t.range.min}-${t.range.max}` : null) : null,
-        note: du === 3 ? 'Heaviest day is normal' : (t.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs loading` : undefined)
+        target: t.base,
+        range: `${t.base}`,
+        note: t.waterLoading ? WATER_LOADING_WEIGHT_NOTE : undefined
       };
       // du === 5 or du > 5
       return {
         label: du === 5 ? 'Walk-Around' : 'Training',
-        target: t.range ? t.range.max : t.base,
+        target: t.base,
         range: `${t.base}`,
-        withLoading: t.range ? `${t.range.min}-${t.range.max}` : null,
-        note: t.range ? `+${WATER_LOADING_RANGE.MIN}-${WATER_LOADING_RANGE.MAX} lbs water loading` : undefined
+        note: t.waterLoading ? WATER_LOADING_WEIGHT_NOTE : undefined
       };
     };
 
@@ -285,7 +278,6 @@ export default function Weekly() {
                   <th className="p-2 text-left font-bold">Day</th>
                   <th className="p-2 text-center font-bold">
                     <div>Morning target</div>
-                    {waterLoadingOn && <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">w/ loading</div>}
                   </th>
                   <th className="p-2 text-center font-bold">Logged</th>
                   <th className="p-2 text-center font-bold">Status</th>
@@ -495,7 +487,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          Walk-Around = Competition × 1.06-1.07 • All are morning weights, before any water-loading weight{waterLoadingOn ? ` (expect +${waterLoadBonus} lbs on loading days)` : ''}
+          Walk-Around = Competition × 1.06-1.07 • All are morning weights, before any water-loading weight
         </p>
       </section>
 
@@ -519,9 +511,8 @@ export default function Weekly() {
                 <Card className="p-3 border-cyan-500/30 bg-cyan-500/5">
                   <h4 className="font-bold text-sm text-cyan-500 mb-1">{dayName(5)}–{dayName(3)}: Water Loading Phase</h4>
                   <ul className="text-xs text-muted-foreground space-y-0.5">
-                    <li>• <strong className="text-cyan-500">Expect to be +{waterLoadBonus} lbs heavier</strong> than baseline targets</li>
+                    <li>• <strong className="text-cyan-500">{WATER_LOADING_WEIGHT_NOTE}</strong>, but the targets don't change</li>
                     <li>• Walk-around weight: {checkpoints.walkAround}</li>
-                    <li>• Being heavier during loading is NORMAL and part of the protocol</li>
                     <li>• Peak water intake {dayName(3)} (heaviest day)</li>
                   </ul>
                 </Card>
