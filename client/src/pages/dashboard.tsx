@@ -48,6 +48,7 @@ import { useV5BandContext } from "@/lib/v5band-context";
 import { getHealthDay } from "@/lib/strain-service";
 import type { DbHealthData } from "@/lib/supabase";
 import { activateOnKey } from "@/lib/a11y";
+import { waterLoadingActive } from "@/lib/constants";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SPAR TRIANGLE LOADER — Animated triangle that draws itself (replaces spinners)
@@ -1359,7 +1360,7 @@ export default function Dashboard() {
       return { ...protocolLabel, stage: 'Competition Day', stageColor: 'text-yellow-500' };
     }
     // Gain never loads water, whatever the switch says (same rule as the hydration plan).
-    const waterLoadingOn = profile.waterLoading !== false && profile.protocol !== '4';
+    const waterLoadingOn = waterLoadingActive(profile);
     if (daysUntilWeighIn <= 2) {
       const stage = !waterLoadingOn ? 'Final Prep' : daysUntilWeighIn === 2 ? 'High Water' : 'Water Cut';
       return { ...protocolLabel, stage, stageColor: 'text-orange-500' };
@@ -1408,7 +1409,7 @@ export default function Dashboard() {
   }, [isViewingHistorical, stageText, stageMeaning, todayKey]);
 
   // Phase color mapping for UI elements
-  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading !== false);
+  const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, waterLoadingActive(profile));
 
   // Get today's tracking data for status summary
   const dateKey = format(displayDate, 'yyyy-MM-dd');
@@ -2825,7 +2826,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
   const effectiveCompDay = daysUntilWeighIn === 0 || hasWeighInLogForDay;
 
   // Phase styling for header badge only
-  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(effectiveCompDay ? 0 : daysUntilWeighIn, profile.waterLoading !== false);
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(effectiveCompDay ? 0 : daysUntilWeighIn, waterLoadingActive(profile));
   const isWaterLoading = isWaterLoadingDay();
 
   // Card border/bg driven by Cut Score zone — matches the gauge ring color

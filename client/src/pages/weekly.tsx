@@ -9,6 +9,7 @@ import { WaterLoadingSwitch } from "@/components/water-loading-switch";
 import { getPhaseStyleForDaysUntil } from "@/lib/phase-colors";
 import { WeekOverview } from "@/components/dashboard";
 import { useLocation } from "wouter";
+import { waterLoadingActive } from "@/lib/constants";
 
 export default function Weekly() {
   const [, setLocation] = useLocation();
@@ -29,7 +30,7 @@ export default function Weekly() {
 
   // Current phase based on days until weigh-in
   const daysUntil = getDaysUntilWeighIn();
-  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil, profile.waterLoading !== false);
+  const { phase: currentPhase, style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntil, waterLoadingActive(profile));
 
   // Dynamically compute daysUntil for each day of the week based on actual weigh-in date
   // dayNum: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
@@ -43,7 +44,7 @@ export default function Weekly() {
     sun: getDaysUntilForDay(0),
   };
 
-  const waterLoadingOn = profile.waterLoading !== false;
+  const waterLoadingOn = waterLoadingActive(profile);
 
   // Use athlete's walk-around weight for water scaling
   // Walk-around is estimated as targetWeightClass × 1.06-1.07 (typical rehydration weight)
@@ -364,7 +365,7 @@ export default function Weekly() {
           </div>
         </Card>
         <p className="text-xs text-muted-foreground mt-2">
-          {waterLoadingOn ? 'Loading day targets include water loading weight • ' : ''}1 day out is critical checkpoint
+          1 day out is critical checkpoint
         </p>
       </section>
 

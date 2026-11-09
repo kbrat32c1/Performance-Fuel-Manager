@@ -499,6 +499,11 @@ export function getWeightMultiplier(daysUntil: number): number {
   return WEIGHT_TARGET_BY_DAYS_OUT[5]; // 1.07 (walk-around)
 }
 
+/** Whether this athlete is water loading at all. Gain never does, so it has no switch (Kevin, 2026-11-09). */
+export function waterLoadingActive(profile: { waterLoading?: boolean; protocol: string }): boolean {
+  return profile.waterLoading !== false && profile.protocol !== PROTOCOLS.GAIN;
+}
+
 /**
  * Check if a given day is a water loading day
  */

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getWaterTargetOz, getWaterTargetGallons, getSodiumPlan,
-  calculateTargetWeight, getPhaseForDaysUntil, isWaterLoadingDay,
+  calculateTargetWeight, getPhaseForDaysUntil, isWaterLoadingDay, waterLoadingActive,
 } from '../constants';
 
 describe('water loading on (Kevin\'s FINAL_13 week)', () => {
@@ -61,5 +61,15 @@ describe('water loading off (drink normally)', () => {
     expect(isWaterLoadingDay(4, '2', false)).toBe(false);
     expect(calculateTargetWeight(157, 4, '2', false)).toEqual({ base: 166, waterLoading: false });
     expect([6, 5, 3, 2, 1, 0].map(d => getPhaseForDaysUntil(d, false))).toEqual(['Train', 'Train', 'Train', 'Cut', 'Cut', 'Compete']);
+  });
+});
+
+describe('who water loads', () => {
+  it('follows the athlete\'s choice', () => {
+    expect(waterLoadingActive({ waterLoading: true, protocol: '2' })).toBe(true);
+    expect(waterLoadingActive({ waterLoading: false, protocol: '2' })).toBe(false);
+  });
+  it('is never on for Gain, even if the old setting was left on', () => {
+    expect(waterLoadingActive({ waterLoading: true, protocol: '4' })).toBe(false);
   });
 });

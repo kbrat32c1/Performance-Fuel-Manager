@@ -14,6 +14,7 @@ import { CoachText } from "@/components/coach-text";
 import { coachHistory, COACH_REPLY_FAILED, buildAthleteSnapshot, hoursUntilWeighIn, readMinutesToFirstMatch } from "@/lib/coach-context";
 import { useHealthKitSync } from "@/hooks/use-healthkit-sync";
 import { useAuth } from "@/lib/auth";
+import { waterLoadingActive } from "@/lib/constants";
 
 const ADVICE_QUESTION = "Based on my current situation, what's the most helpful thing I should know right now? Be specific with numbers and timing. Keep it encouraging and brief — 2-3 sentences max.";
 
@@ -172,7 +173,7 @@ export function AiCoachProactive() {
       daysUntilWeighIn: daysUntil,
       weightToLose: weightToLose.toFixed(1),
       protocol: profile.protocol,
-      waterLoading: profile.waterLoading !== false,
+      waterLoading: waterLoadingActive(profile),
       phase: getPhase(),
       status: getStatus().status,
     };

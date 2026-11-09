@@ -9,6 +9,7 @@ import {
   isWaterLoadingDay as checkWaterLoadingDay,
   calculateTargetWeight,
   WATER_LOADING_WEIGHT_NOTE,
+  waterLoadingActive,
   PROTOCOLS,
   LOG_TYPES,
   CORE_WEIGH_IN_TYPES,
@@ -1384,7 +1385,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Protocols 1, 2, 3, & 6 - use centralized calculation (includes water loading)
     // This includes water loading bonus during water loading days for consistency
-    const targetCalc = calculateTargetWeight(w, daysUntil, protocol, profile.waterLoading !== false);
+    const targetCalc = calculateTargetWeight(w, daysUntil, protocol, waterLoadingActive(profile));
     // Return water-loaded target if applicable, otherwise base
     return targetCalc.base;
   };
@@ -1524,7 +1525,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const isWaterLoadingDay = (): boolean => {
     const protocol = profile.protocol;
     const daysUntil = getDaysUntilWeighIn();
-    return checkWaterLoadingDay(daysUntil, protocol, profile.waterLoading !== false);
+    return checkWaterLoadingDay(daysUntil, protocol, waterLoadingActive(profile));
   };
 
   const getPhase = (): Phase => {
@@ -1582,7 +1583,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Add contextual note based on days out
     let note = "Maintenance hydration";
     if (profile.protocol === PROTOCOLS.GAIN && daysUntilWeighIn > 0) note = "Gain phase — drink normally, no water cut";
-    else if (!(profile.waterLoading !== false) && daysUntilWeighIn > 0) note = "Water loading off — drink normally";
+    else if (!(waterLoadingActive(profile)) && daysUntilWeighIn > 0) note = "Water loading off — drink normally";
     else if (daysUntilWeighIn < 0) note = "Rehydrate fully";
     else if (daysUntilWeighIn === 0) note = "Post-weigh-in rehydration";
     else if (daysUntilWeighIn === 1) note = "Reduced water — 0.25-0.5 gal";
@@ -1621,7 +1622,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Gain phase never cuts water, whatever the switch says.
-    const loading = profile.waterLoading !== false && profile.protocol !== PROTOCOLS.GAIN;
+    const loading = waterLoadingActive(profile);
     const targetOz = getWaterTargetOz(daysUntil, athleteWeight, loading, profile.targetWeightClass);
     const amount = getWaterTargetGallons(daysUntil, athleteWeight, loading, profile.targetWeightClass);
 
@@ -2379,13 +2380,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (daysUntil < 0) return 'Recover';
       if (daysUntil === 0) return 'Compete';
       if (daysUntil <= 2) return 'Cut';
-      if (daysUntil <= 5) return profile.waterLoading !== false ? 'Load' : 'Train';
+      if (daysUntil <= 5) return waterLoadingActive(profile) ? 'Load' : 'Train';
       return 'Train';
     };
 
     // Use centralized water loading check from constants
     const isWaterLoadingForDays = (daysUntil: number): boolean => {
-      return checkWaterLoadingDay(daysUntil, protocol, profile.waterLoading !== false);
+      return checkWaterLoadingDay(daysUntil, protocol, waterLoadingActive(profile));
     };
 
     // Protocol 5 (SPAR Nutrition) — Clean eating, no weight cutting
@@ -2473,7 +2474,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const waterData = getHydrationForDaysUntil(daysUntil);
 
         // Weight target uses competition calculation with water loading
-        const targetCalc = calculateTargetWeight(w, daysUntil, protocol, profile.waterLoading !== false);
+        const targetCalc = calculateTargetWeight(w, daysUntil, protocol, waterLoadingActive(profile));
         const weightTarget = targetCalc.base;
 
         return {
@@ -2545,7 +2546,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const daysUntil = differenceInDays(weighIn, date);
 
         // Use centralized weight calculation 
-        const targetCalc = calculateTargetWeight(w, daysUntil, protocol, profile.waterLoading !== false);
+        const targetCalc = calculateTargetWeight(w, daysUntil, protocol, waterLoadingActive(profile));
         const baseWeight = Math.round(w * getWeightMultiplier(daysUntil));
 
         // Use centralized hydration target (water loading on days 5-4-3, restriction on 2, sips on 1)
@@ -2573,16 +2574,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           waterLoadingNote = `Key checkpoint — before practice: ${Math.round(w * 1.02)}-${baseWeight} lbs`;
         } else if (daysUntil === 2) {
           // 2 days out - water high, sodium low
-          waterLoadingNote = (profile.waterLoading !== false ? `Water stays high, sodium low. ZERO fiber. Water drops sharply tomorrow.` : undefined);
+          waterLoadingNote = (waterLoadingActive(profile) ? `Water stays high, sodium low. ZERO fiber. Water drops sharply tomorrow.` : undefined);
         } else if (daysUntil === 3) {
           // Last load day
-          waterLoadingNote = (profile.waterLoading !== false ? `Peak water day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
+          waterLoadingNote = (waterLoadingActive(profile) ? `Peak water day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
         } else if (daysUntil === 4) {
           // Peak water loading day
-          waterLoadingNote = (profile.waterLoading !== false ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
+          waterLoadingNote = (waterLoadingActive(profile) ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
         } else if (daysUntil === 5) {
           // First water loading day
-          waterLoadingNote = (profile.waterLoading !== false ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
+          waterLoadingNote = (waterLoadingActive(profile) ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
         }
         // 6+ days out stays at defaults (maintenance)
 
@@ -2623,7 +2624,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const isWaterLoading = isWaterLoadingForDays(daysUntil);
 
       // Use centralized weight calculation
-      const targetCalc = calculateTargetWeight(w, daysUntil, protocol, profile.waterLoading !== false);
+      const targetCalc = calculateTargetWeight(w, daysUntil, protocol, waterLoadingActive(profile));
       const baseWeight = Math.round(w * getWeightMultiplier(daysUntil));
 
       // Use centralized hydration target for consistency
@@ -2651,16 +2652,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         waterLoadingNote = `Key checkpoint — before practice: ${Math.round(w * 1.02)}-${baseWeight} lbs`;
       } else if (daysUntil === 2) {
         // 2 days out - water high, sodium low
-        waterLoadingNote = (profile.waterLoading !== false ? `Water stays high, sodium low. ZERO fiber. Water drops sharply tomorrow.` : undefined);
+        waterLoadingNote = (waterLoadingActive(profile) ? `Water stays high, sodium low. ZERO fiber. Water drops sharply tomorrow.` : undefined);
       } else if (daysUntil === 3) {
         // Last load day (day 3 of loading)
-        waterLoadingNote = (profile.waterLoading !== false ? `Peak water day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
+        waterLoadingNote = (waterLoadingActive(profile) ? `Peak water day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
       } else if (daysUntil === 4) {
         // Peak water loading day
-        waterLoadingNote = (profile.waterLoading !== false ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
+        waterLoadingNote = (waterLoadingActive(profile) ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
       } else if (daysUntil === 5) {
         // First water loading day
-        waterLoadingNote = (profile.waterLoading !== false ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
+        waterLoadingNote = (waterLoadingActive(profile) ? `Water loading day. ${WATER_LOADING_WEIGHT_NOTE}.` : undefined);
       }
       // 6+ days out stays at defaults (maintenance)
 
@@ -2695,7 +2696,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Tomorrow's target uses the centralized calculation
     const tomorrowDaysUntil = daysUntil - 1;
-    const tomorrowCalc = calculateTargetWeight(profile.targetWeightClass, tomorrowDaysUntil, profile.protocol, profile.waterLoading !== false);
+    const tomorrowCalc = calculateTargetWeight(profile.targetWeightClass, tomorrowDaysUntil, profile.protocol, waterLoadingActive(profile));
     // Use the water-loaded value if applicable, otherwise base
     const tomorrowTarget = tomorrowCalc.base;
 
@@ -2905,7 +2906,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const getDailyPriority = (): { priority: string; subtext?: string; urgency: 'normal' | 'high' | 'critical'; icon: string; actionType?: 'log-weight' | 'log-workout' | 'check-food' } => {
     const protocol = profile.protocol;
-    const waterOn = profile.waterLoading !== false;
+    const waterOn = waterLoadingActive(profile);
     const daysUntilWeighIn = getDaysUntilWeighIn();
     const statusData = getStatus();
 
