@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { buildWeightChart, chartDayReadout, dayTarget, gapBridges, knownWeighIns, labelAbove } from "../weight-chart";
+import { buildWeightChart, chartDayReadout, dayTarget, gapBridges, knownWeighIns, labelAbove, morningWeightsByDay } from "../weight-chart";
 
 const today = new Date(2026, 10, 9, 8, 0);
 const morning = (daysAgo: number, weight: number) => ({ date: addDays(today, -daysAgo), type: "morning", weight });
@@ -140,4 +140,22 @@ describe("knownWeighIns", () => {
     expect(dates[1].getDate()).toBe(2);
   });
   it("works with no team", () => expect(knownWeighIns([], null)).toEqual([]));
+});
+
+describe("morningWeightsByDay", () => {
+  const day = new Date(2026, 10, 7, 8);
+  const later = new Date(2026, 10, 7, 12);
+  const am = { date: day, type: "morning", weight: 158 };
+  const official = { date: later, type: "weigh-in", weight: 157 };
+
+  it("prefers the morning weight whatever order they're stored in", () => {
+    expect(morningWeightsByDay([am, official]).get("2026-11-07")).toBe(158);
+    expect(morningWeightsByDay([official, am]).get("2026-11-07")).toBe(158);
+  });
+  it("uses an official weigh-in when there's no morning", () => {
+    expect(morningWeightsByDay([official]).get("2026-11-07")).toBe(157);
+  });
+  it("ignores other weigh-ins", () => {
+    expect(morningWeightsByDay([{ date: later, type: "before-bed", weight: 160 }]).size).toBe(0);
+  });
 });

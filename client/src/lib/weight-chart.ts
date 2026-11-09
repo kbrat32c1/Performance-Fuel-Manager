@@ -51,6 +51,17 @@ const MAX_CLASS_GAP_LBS = 8;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Each day's comparable weight: the morning one, or an official weigh-in if there's no morning. */
+export function morningWeightsByDay(logs: { date: Date | string; type: string; weight: number }[]): Map<string, number> {
+  const byDay = new Map<string, number>();
+  for (const log of logs) {
+    if (log.type !== 'morning' && log.type !== 'weigh-in') continue;
+    const key = format(new Date(log.date), 'yyyy-MM-dd');
+    if (log.type === 'morning' || !byDay.has(key)) byDay.set(key, log.weight);
+  }
+  return byDay;
+}
+
 /** Earlier weigh-ins the app knows about: official weigh-in logs and team events the athlete didn't skip. */
 export function knownWeighIns(
   logs: { date: Date | string; type: string }[],
@@ -90,12 +101,7 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
   const weighIn = startOfDay(input.weighInDate);
   const daysAhead = Math.min(DAYS_AHEAD, Math.max(0, differenceInCalendarDays(weighIn, today)));
 
-  const morningByDay = new Map<string, number>();
-  for (const log of input.logs) {
-    if (log.type !== 'morning' && log.type !== 'weigh-in') continue;
-    const key = format(new Date(log.date), 'yyyy-MM-dd');
-    if (log.type === 'morning' || !morningByDay.has(key)) morningByDay.set(key, log.weight);
-  }
+  const morningByDay = morningWeightsByDay(input.logs);
 
   // Days up to and including an earlier weigh-in were aiming at that one, not the next.
   const lastEarlierWeighIn = (input.knownWeighIns ?? [])

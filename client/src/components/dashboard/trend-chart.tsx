@@ -8,7 +8,7 @@ import { Activity, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { waterLoadingActive } from "@/lib/constants";
 import { useTeam } from "@/hooks/use-team";
-import { dayTarget, knownWeighIns } from "@/lib/weight-chart";
+import { dayTarget, knownWeighIns, morningWeightsByDay } from "@/lib/weight-chart";
 
 type ViewMode = 'week' | 'month' | '4week';
 
@@ -43,16 +43,14 @@ export function TrendChart() {
 
   const dailyMorningData = (days: number, label: (d: Date) => string) => {
     const data = [];
+    const morningWeights = morningWeightsByDay(logs);
     for (let i = days - 1; i >= 0; i--) {
       const day = subDays(today, i);
       const dateStr = format(day, 'yyyy-MM-dd');
-      const morningLog = logs.find(l =>
-        format(new Date(l.date), 'yyyy-MM-dd') === dateStr && (l.type === 'morning' || l.type === 'weigh-in')
-      );
       data.push({
         date: label(day),
         fullDate: dateStr,
-        weight: morningLog ? morningLog.weight : null,
+        weight: morningWeights.get(dateStr) ?? null,
         target: profile.targetWeightClass,
         projected: shouldWeigh(day),
         isToday: i === 0,
