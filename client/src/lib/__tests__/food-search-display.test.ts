@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  amountBaseServing, amountUnits, foodPrep, foodSourceLabel, prepTag, searchFoodPortion,
-  servingsFromAmount, sliceCountText, sortCookedFirst,
+  amountBaseServing, amountUnits, foodPrep, foodSourceLabel, prepTag, searchFoodName, searchFoodPortion,
+  servingsFromAmount, sliceCountText, sortCookedFirst, typedAmountLabel,
 } from "../food-search-display";
+import { buildFoodEntry } from "../food-totals";
 
 const serving = (description: string, metricAmount: number | null, metricUnit = 'g', extra: Partial<{ carbs: number; protein: number; fat: number }> = {}) => ({
   description, metricAmount, metricUnit, calories: 200, carbs: 40, protein: 4, fat: 1, isDefault: false, ...extra,
@@ -113,6 +114,29 @@ describe('typed amounts', () => {
     expect(servingsFromAmount('', 'g', cup)).toBeNull();
     expect(servingsFromAmount('0', 'g', cup)).toBeNull();
     expect(servingsFromAmount('abc', 'g', cup)).toBeNull();
+  });
+});
+
+describe('a typed amount keeps how the food was measured', () => {
+  const savedName = (name: string, brand: string, amount: string) =>
+    buildFoodEntry({ name: searchFoodName(name, brand, amount), carbs: 40, protein: 4 }, { mealSection: 'breakfast', nowMs: 0 }).name;
+
+  it('keeps cooked through to the saved entry', () => {
+    const label = typedAmountLabel('6', 'oz', 'White Rice', '1 cup cooked');
+    expect(label).toBe('6 oz cooked');
+    expect(savedName('White Rice', '', label)).toBe('White Rice — 6 oz cooked');
+  });
+
+  it('keeps dry through to the saved entry, with the brand', () => {
+    const label = typedAmountLabel('40', 'g', 'Oatmeal', '1/2 cup dry');
+    expect(label).toBe('40 g dry');
+    expect(savedName('Oatmeal', 'Great Value', label)).toBe('Oatmeal (Great Value) — 40 g dry');
+  });
+
+  it("doesn't repeat what the name says, or invent what the database doesn't", () => {
+    expect(typedAmountLabel('100', 'g', 'Cooked Rice', '100 g')).toBe('100 g');
+    expect(typedAmountLabel('30', 'g', 'Raw Almonds', '1/4 cup')).toBe('30 g');
+    expect(typedAmountLabel('100', 'g', 'Chicken Breast', '100 g')).toBe('100 g');
   });
 });
 

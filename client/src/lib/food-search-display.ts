@@ -79,6 +79,19 @@ export function sortCookedFirst<T extends { name: string; servings: { descriptio
     .map(item => item.food);
 }
 
+/** A typed amount with how it's measured, e.g. "6 oz cooked", unless the food's name already says. */
+export function typedAmountLabel(input: string, unit: AmountUnit, foodName: string, baseDescription: string): string {
+  const amount = `${parseFloat(input)} ${unit}`;
+  const prep = foodPrep(foodName, baseDescription);
+  if (!prep || new RegExp(`\\b${prep}\\b`, 'i').test(foodName)) return amount;
+  return `${amount} ${prep}`;
+}
+
+/** How a searched food reads in the diary. */
+export function searchFoodName(displayName: string, brand: string, amountText: string): string {
+  return `${displayName}${brand ? ` (${brand})` : ''} — ${amountText}`;
+}
+
 /** Where a result's numbers come from. Null when we don't know. */
 export function foodSourceLabel(type: string | undefined): string | null {
   switch (type) {

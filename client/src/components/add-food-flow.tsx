@@ -22,7 +22,7 @@ import { FoodPhotoCamera } from "@/components/food-photo-camera";
 import { FoodPhotoReview, type PhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess } from "@/lib/haptics";
 import { useToast } from "@/hooks/use-toast";
-import { amountBaseServing, amountUnits, foodPrep, foodSourceLabel, prepTag, searchFoodPortion, servingsFromAmount, sliceCountText, sortCookedFirst, type AmountUnit } from "@/lib/food-search-display";
+import { amountBaseServing, amountUnits, foodPrep, foodSourceLabel, prepTag, searchFoodName, searchFoodPortion, servingsFromAmount, sliceCountText, sortCookedFirst, typedAmountLabel, type AmountUnit } from "@/lib/food-search-display";
 import { barcodeMultiplier, barcodeServingLabel, barcodeUnit, buildFoodEntry, calorieText, classifyFood, isListed, type FoodToLog, nextTotals } from "@/lib/food-totals";
 
 type FlowTab = 'recent' | 'favorites';
@@ -158,9 +158,8 @@ export function AddFoodFlow({ mealSection: initialMeal, mode, isV2, blockedCateg
   // ─── FatSecret food add ───
   const handleFSAdd = useCallback((food: FatSecretFood, serving: FatSecretServing, qty: number = 1, amountLabel?: string) => {
     const { carbs, protein, fat, sliceType, sliceCount } = searchFoodPortion(serving, food.sparCategory, qty);
-    const brandLabel = food.brand ? ` (${food.brand})` : '';
     const qtyLabel = qty !== 1 ? ` ×${qty % 1 === 0 ? qty : qty.toFixed(1)}` : '';
-    const foodName = `${formatUSDAName(food.name)}${brandLabel} — ${amountLabel ?? `${serving.description}${qtyLabel}`}`;
+    const foodName = searchFoodName(formatUSDAName(food.name), food.brand, amountLabel ?? `${serving.description}${qtyLabel}`);
 
     logFoodEntry({
       name: foodName,
@@ -872,6 +871,9 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, showSlic
   const prep = portionServing ? prepTag(foodPrep(food.name, portionServing.description), food.name, portionServing.description) : null;
   const source = foodSourceLabel(food.type);
   const amountReady = !amountMode || typedServings != null;
+  const typedLabel = amountMode && amountBase && typedServings != null
+    ? typedAmountLabel(amountText, amountUnit, food.name, amountBase.description)
+    : null;
 
   return (
     <div className={cn(
@@ -884,12 +886,12 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, showSlic
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-semibold truncate">{formatUSDAName(food.name)}</p>
           <p className="text-xs text-muted-foreground/60 truncate">
-            {prep && <span className="font-semibold text-muted-foreground">{prep} · </span>}
+            {prep && !amountMode && <span className="font-semibold text-muted-foreground">{prep} · </span>}
             {food.brand && <span>{food.brand} · </span>}
             {amountMode ? (
-              typedServings != null && portionServing ? (
+              typedLabel && portionServing ? (
                 <>
-                  <span className="text-muted-foreground/80">{parseFloat(amountText)} {amountUnit}</span>
+                  <span className="text-muted-foreground/80">{typedLabel}</span>
                   {' · '}
                   {calorieText(totalCal, portionServing.reported?.calories)}
                   {` · ${totalCarbs}C ${totalProtein}P`}
@@ -1005,15 +1007,15 @@ function FSFoodRow({ food, isExpanded, selectedServing, isFav, flashed, showSlic
             disabled={!amountReady}
             onClick={(e) => {
               e.stopPropagation();
-              if (amountMode && amountBase && typedServings != null) {
-                onAdd(typedServings, { base: amountBase, label: `${parseFloat(amountText)} ${amountUnit}` });
+              if (amountMode && amountBase && typedServings != null && typedLabel) {
+                onAdd(typedServings, { base: amountBase, label: typedLabel });
               } else {
                 onAdd(qty);
               }
             }}
             className="w-full py-2.5 rounded-xl bg-primary text-white text-[12px] font-bold active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            Add{amountMode && typedServings != null ? ` ${parseFloat(amountText)} ${amountUnit}` : !amountMode && qty !== 1 ? ` ${qty % 1 === 0 ? qty : qty.toFixed(1)} ×` : ''} {formatUSDAName(food.name)}
+            Add{typedLabel ? ` ${typedLabel}` : !amountMode && qty !== 1 ? ` ${qty % 1 === 0 ? qty : qty.toFixed(1)} ×` : ''} {formatUSDAName(food.name)}
           </button>
         </div>
       )}
