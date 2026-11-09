@@ -26,6 +26,15 @@ export function getTodayScale(input: {
   };
 }
 
+/** The scale compares a logged weight with what's still ahead, so it stops at the scheduled weigh-in. */
+export function canShowTodayScale(input: {
+  daysUntil: number;
+  weighInTimePassed: boolean;
+  hasLoggedWeight: boolean;
+}): boolean {
+  return input.daysUntil >= 0 && !input.weighInTimePassed && input.hasLoggedWeight;
+}
+
 /** Keeps the "Today's target" label on the card and clear of the "Class" label. */
 export function targetLabelLeftPct(targetPct: number): number {
   return Math.min(68, Math.max(16, targetPct));

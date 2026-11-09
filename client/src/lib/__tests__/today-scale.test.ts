@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getTodayScale, targetLabelLeftPct } from "../today-scale";
+import { canShowTodayScale, getTodayScale, targetLabelLeftPct } from "../today-scale";
 
 describe("getTodayScale", () => {
   it("places a weight under today's target between the target and class", () => {
@@ -35,5 +35,17 @@ describe("targetLabelLeftPct", () => {
     expect(targetLabelLeftPct(0)).toBe(16);
     expect(targetLabelLeftPct(40)).toBe(40);
     expect(targetLabelLeftPct(95)).toBe(68);
+  });
+});
+
+describe("canShowTodayScale", () => {
+  const base = { daysUntil: 2, weighInTimePassed: false, hasLoggedWeight: true };
+  it("shows for a logged weight before weigh-in", () => expect(canShowTodayScale(base)).toBe(true));
+  it("hides after the scheduled weigh-in, even the same day", () => {
+    expect(canShowTodayScale({ ...base, daysUntil: 0, weighInTimePassed: true })).toBe(false);
+  });
+  it("hides after the weigh-in day", () => expect(canShowTodayScale({ ...base, daysUntil: -1 })).toBe(false));
+  it("hides when the only weight is the profile weight", () => {
+    expect(canShowTodayScale({ ...base, hasLoggedWeight: false })).toBe(false);
   });
 });
