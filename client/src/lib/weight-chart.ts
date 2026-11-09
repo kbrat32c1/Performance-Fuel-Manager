@@ -2,13 +2,15 @@
  * The Today chart: what an athlete weighed each morning, what they should have weighed,
  * and the weight class. Pure, so the odd weeks can be tested.
  */
-import { addDays, differenceInCalendarDays, format, startOfDay } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import { calculateTargetWeight, PROTOCOLS } from "@/lib/constants";
 
 export interface ChartDay {
   date: Date;
-  /** Morning or official weigh-in. Null if none was logged; the line shows a gap. */
+  /** One weight for the day, see dailyWeights. Null if none was logged. */
   weight: number | null;
+  /** Set when it isn't a morning weight, so it can't be compared with the morning target. */
+  notMorning?: string;
   /** Null when the target can't be known, such as before an earlier weigh-in. */
   target: number | null;
   isToday: boolean;
@@ -51,7 +53,90 @@ const MAX_CLASS_GAP_LBS = 8;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-function targetFor(day: Date, input: WeightChartInput): number {
+export interface DailyWeight {
+  weight: number;
+  /** Set when it came from the day before, e.g. "before bed Sun" */
+  notMorning?: string;
+}
+
+const LATER_WEIGH_INS: Record<string, string> = {
+  'pre-practice': 'pre-practice',
+  'post-practice': 'post-practice',
+  'before-bed': 'before bed',
+};
+
+/**
+ * One weight per day: the morning weight, then an official weigh-in. With neither, the
+ * closest earlier reading: the latest weigh-in from the day before (Kevin, 2026-11-09).
+ * It doesn't reach back further, so one old reading can't fill a run of missed days.
+ * Weight checks and extra workouts don't count.
+ */
+export function dailyWeights(logs: { date: Date | string; type: string; weight: number }[]): Map<string, DailyWeight> {
+  const result = new Map<string, DailyWeight>();
+  const latestLater = new Map<string, { time: number; date: Date; type: string; weight: number }>();
+
+  for (const log of [...logs].sort((x, y) => (x.type === 'morning' ? 1 : 0) - (y.type === 'morning' ? 1 : 0))) {
+    const date = new Date(log.date);
+    const key = format(date, 'yyyy-MM-dd');
+    if (log.type === 'morning' || log.type === 'weigh-in') {
+      result.set(key, { weight: log.weight });
+    } else if (log.type in LATER_WEIGH_INS) {
+      const current = latestLater.get(key);
+      if (!current || date.getTime() > current.time) latestLater.set(key, { time: date.getTime(), date, type: log.type, weight: log.weight });
+    }
+  }
+
+  latestLater.forEach(({ date, type, weight }) => {
+    const nextDay = format(addDays(date, 1), 'yyyy-MM-dd');
+    if (!result.has(nextDay)) {
+      result.set(nextDay, { weight, notMorning: `${LATER_WEIGH_INS[type]} ${format(date, 'EEE')}` });
+    }
+  });
+
+  return result;
+}
+
+/** The average for one week of days, counting only days up to and including today. Null with no readings. */
+export function weeklyAverage(weights: Map<string, DailyWeight>, weekDays: Date[], today: Date): number | null {
+  const lastDay = startOfDay(today);
+  const readings = weekDays
+    .filter(day => startOfDay(day) <= lastDay)
+    .flatMap(day => {
+      const logged = weights.get(format(day, 'yyyy-MM-dd'));
+      return logged ? [logged.weight] : [];
+    });
+  if (readings.length === 0) return null;
+  return Math.round((readings.reduce((sum, w) => sum + w, 0) / readings.length) * 10) / 10;
+}
+
+/** Earlier weigh-ins the app knows about: official weigh-in logs and team events the athlete didn't skip. */
+export function knownWeighIns(
+  logs: { date: Date | string; type: string }[],
+  team: { events: { id: string; eventDate: string; days: number }[]; skipped: string[] } | null | undefined,
+): Date[] {
+  return [
+    ...logs.filter(l => l.type === 'weigh-in').map(l => new Date(l.date)),
+    ...(team?.events ?? [])
+      .filter(e => !team?.skipped.includes(e.id))
+      .map(e => addDays(parseISO(e.eventDate), e.days - 1)),
+  ];
+}
+
+/** The target for one past or future day, or null if it belonged to an earlier weigh-in. */
+export function dayTarget(
+  day: Date,
+  input: Pick<WeightChartInput, 'today' | 'weighInDate' | 'weightClass' | 'protocol' | 'waterLoading' | 'knownWeighIns'>,
+): number | null {
+  const today = startOfDay(input.today);
+  const lastEarlier = (input.knownWeighIns ?? [])
+    .map(d => startOfDay(d))
+    .filter(d => d < today)
+    .sort((a, b) => b.getTime() - a.getTime())[0];
+  if (lastEarlier && startOfDay(day) <= lastEarlier) return null;
+  return targetFor(day, input);
+}
+
+function targetFor(day: Date, input: Pick<WeightChartInput, 'weighInDate' | 'weightClass' | 'protocol' | 'waterLoading'>): number {
   if (input.protocol === PROTOCOLS.GAIN) return input.weightClass;
   const daysOut = differenceInCalendarDays(input.weighInDate, day);
   return calculateTargetWeight(input.weightClass, daysOut, input.protocol, input.waterLoading).base;
@@ -63,12 +148,7 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
   const weighIn = startOfDay(input.weighInDate);
   const daysAhead = Math.min(DAYS_AHEAD, Math.max(0, differenceInCalendarDays(weighIn, today)));
 
-  const morningByDay = new Map<string, number>();
-  for (const log of input.logs) {
-    if (log.type !== 'morning' && log.type !== 'weigh-in') continue;
-    const key = format(new Date(log.date), 'yyyy-MM-dd');
-    if (log.type === 'morning' || !morningByDay.has(key)) morningByDay.set(key, log.weight);
-  }
+  const weights = dailyWeights(input.logs);
 
   // Days up to and including an earlier weigh-in were aiming at that one, not the next.
   const lastEarlierWeighIn = (input.knownWeighIns ?? [])
@@ -82,7 +162,10 @@ export function buildWeightChart(input: WeightChartInput): WeightChart | null {
     const beforeThisCycle = !!lastEarlierWeighIn && date <= lastEarlierWeighIn;
     days.push({
       date,
-      weight: offset <= 0 ? morningByDay.get(format(date, 'yyyy-MM-dd')) ?? null : null,
+      ...(() => {
+        const logged = offset <= 0 ? weights.get(format(date, 'yyyy-MM-dd')) : undefined;
+        return { weight: logged?.weight ?? null, notMorning: logged?.notMorning };
+      })(),
       target: beforeThisCycle ? null : targetFor(date, input),
       isToday: offset === 0,
       isFuture: offset > 0,
@@ -153,6 +236,10 @@ export function chartDayReadout(day: ChartDay): string {
   if (day.weight === null) {
     const none = day.isToday ? 'no morning weight yet' : 'no morning weight';
     return day.target === null ? `${name}: ${none}` : `${name}: ${none} · target ${day.target}`;
+  }
+  if (day.notMorning) {
+    const reading = `${name}: ${day.weight.toFixed(1)} ${day.notMorning}`;
+    return day.target === null ? reading : `${reading} · target ${day.target}`;
   }
   if (day.target === null) return `${name}: weighed ${day.weight.toFixed(1)}`;
   const diff = round1(day.weight - day.target);

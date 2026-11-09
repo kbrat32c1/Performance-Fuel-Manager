@@ -22,7 +22,7 @@ import { waterLoadingActive } from "@/lib/constants";
 type HistoryTab = 'weight' | 'hydration' | 'macros';
 
 export default function History() {
-  const { logs, profile, isLoading, updateProfile, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, updateDailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets, getTargetsForDate } = useStore();
+  const { logs, profile, isLoading, updateLog, deleteLog, addLog, getWeekDescentData, getExtraWorkoutStats, dailyTracking, getHydrationTarget, getMacroTargets, getDaysUntilWeighIn, getTimeUntilWeighIn, getNutritionMode, getSliceTargets, getTargetsForDate } = useStore();
   const weekStartForExport = startOfWeek(new Date(), { weekStartsOn: 1 });
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<HistoryTab>('weight');
@@ -164,112 +164,6 @@ export default function History() {
       // Fallback to clipboard
       await copyToClipboard();
     }
-    setShowExportMenu(false);
-  };
-
-  // Export full backup as JSON
-  const exportBackup = () => {
-    const backup = {
-      version: 1,
-      exportDate: new Date().toISOString(),
-      profile: {
-        targetWeightClass: profile.targetWeightClass,
-        currentWeight: profile.currentWeight,
-        protocol: profile.protocol,
-      },
-      weightLogs: logs.map(log => ({
-        date: new Date(log.date).toISOString(),
-        weight: log.weight,
-        type: log.type,
-      })),
-      dailyTracking: dailyTracking,
-    };
-
-    const jsonStr = JSON.stringify(backup, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pwm-backup-${format(new Date(), 'yyyy-MM-dd')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setShowExportMenu(false);
-    toast({ title: "Backup Created!", description: "Full data backup exported" });
-  };
-
-  // Import backup from JSON file
-  const importBackup = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const backup = JSON.parse(text);
-
-        if (backup.version !== 1) {
-          toast({ title: "Error", description: "Unsupported backup version", variant: "destructive" });
-          return;
-        }
-
-        // Restore profile settings if present
-        if (backup.profile) {
-          const profileUpdates: Record<string, any> = {};
-          if (backup.profile.targetWeightClass) profileUpdates.targetWeightClass = backup.profile.targetWeightClass;
-          if (backup.profile.currentWeight) profileUpdates.currentWeight = backup.profile.currentWeight;
-          if (backup.profile.protocol) profileUpdates.protocol = String(backup.profile.protocol);
-          if (Object.keys(profileUpdates).length > 0) {
-            updateProfile(profileUpdates);
-          }
-        }
-
-        // Import weight logs with deduplication
-        let imported = 0;
-        let skipped = 0;
-        if (backup.weightLogs && Array.isArray(backup.weightLogs)) {
-          for (const log of backup.weightLogs) {
-            const logDate = new Date(log.date);
-            const logDateStr = format(startOfDay(logDate), 'yyyy-MM-dd');
-            // Skip if a log with the same date and type already exists
-            const exists = logs.some(existing =>
-              format(startOfDay(existing.date), 'yyyy-MM-dd') === logDateStr && existing.type === log.type
-            );
-            if (exists) {
-              skipped++;
-            } else {
-              addLog({ date: logDate, weight: log.weight, type: log.type });
-              imported++;
-            }
-          }
-        }
-
-        // Restore daily tracking if present
-        let trackingRestored = 0;
-        if (backup.dailyTracking && typeof backup.dailyTracking === 'object') {
-          for (const [dateKey, data] of Object.entries(backup.dailyTracking)) {
-            if (data && typeof data === 'object') {
-              updateDailyTracking(dateKey, data as Record<string, any>);
-              trackingRestored++;
-            }
-          }
-        }
-
-        const parts: string[] = [];
-        if (imported > 0 || skipped > 0) {
-          const skipMsg = skipped > 0 ? ` (${skipped} dupes skipped)` : '';
-          parts.push(`${imported} logs${skipMsg}`);
-        }
-        if (backup.profile) parts.push('profile settings');
-        if (trackingRestored > 0) parts.push(`${trackingRestored} days tracking`);
-        toast({ title: "Import Complete!", description: parts.length > 0 ? `Restored: ${parts.join(', ')}` : 'No data found in backup' });
-      } catch {
-        toast({ title: "Error", description: "Could not read backup file", variant: "destructive" });
-      }
-    };
-    input.click();
     setShowExportMenu(false);
   };
 
@@ -554,21 +448,6 @@ export default function History() {
                   >
                     <Download className="w-4 h-4 text-muted-foreground" />
                     Export CSV
-                  </button>
-                  <div className="border-t border-muted my-1" />
-                  <button
-                    onClick={exportBackup}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4 text-green-500" />
-                    Full Backup (JSON)
-                  </button>
-                  <button
-                    onClick={importBackup}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4 text-cyan-500" />
-                    Import Backup
                   </button>
                 </div>
               </>
@@ -955,6 +834,7 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
   const totalConsumed = daysWithData.reduce((sum, d) => sum + d.waterConsumed, 0);
   const avgDaily = daysWithData.length > 0 ? totalConsumed / daysWithData.length : 0;
   const daysHitTarget = daysWithData.filter(d => d.waterConsumed >= d.targetOz).length;
+  const hitRate = daysWithData.length > 0 ? daysHitTarget / daysWithData.length : 0;
   const maxWater = Math.max(...last14Days.map(d => d.waterConsumed), targetOz);
 
   // Get last 7 days for weekly summary
@@ -996,15 +876,17 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">14-Day Performance</span>
-            <span className={cn(
+            {daysWithData.length > 0 && (
+              <span className={cn(
               "text-xs font-bold px-2 py-0.5 rounded",
               daysHitTarget >= 10 ? "bg-green-500/20 text-green-500" :
               daysHitTarget >= 7 ? "bg-cyan-500/20 text-cyan-500" :
               daysHitTarget >= 4 ? "bg-yellow-500/20 text-yellow-500" :
               "bg-red-500/20 text-red-500"
             )}>
-              {daysHitTarget}/14 days on target
+              {daysHitTarget}/{daysWithData.length} logged days on target
             </span>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
@@ -1021,9 +903,9 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
               <span className="text-xs text-muted-foreground block">Target Hit Rate</span>
               <span className={cn(
                 "font-mono font-bold text-xl",
-                daysHitTarget / 14 >= 0.7 ? "text-green-500" : daysHitTarget / 14 >= 0.5 ? "text-cyan-500" : "text-yellow-500"
+                hitRate >= 0.7 ? "text-green-500" : hitRate >= 0.5 ? "text-cyan-500" : "text-yellow-500"
               )}>
-                {((daysHitTarget / 14) * 100).toFixed(0)}%
+                {(hitRate * 100).toFixed(0)}%
               </span>
             </div>
           </div>
@@ -1422,52 +1304,55 @@ function MacroHistory({ dailyTracking, macroTargets, macroTargetsFor }: MacroHis
 
 // Slice History Component (SPAR mode)
 interface SliceHistoryProps {
-  dailyTracking: Array<{ date: string; proteinSlices?: number; carbSlices?: number; vegSlices?: number }>;
+  dailyTracking: Array<{ date: string; proteinSlices?: number; carbSlices?: number; vegSlices?: number; fruitSlices?: number; fatSlices?: number }>;
   sliceTargets: SliceRange;
   /** That day's targets, so past days are graded against what applied then */
   sliceTargetsFor?: (dateStr: string) => SliceRange;
 }
 
-type SliceRange = { protein: number; carb: number; veg: number; totalCalories: number };
+type SliceRange = { protein: number; carb: number; veg: number; fruit?: number; fat?: number; totalCalories: number };
+type SliceKey = 'protein' | 'carb' | 'veg' | 'fruit' | 'fat';
+
+const SLICE_GROUPS: { key: SliceKey; label: string; letter: string; text: string; bar: string; field: 'proteinSlices' | 'carbSlices' | 'vegSlices' | 'fruitSlices' | 'fatSlices' }[] = [
+  { key: 'protein', label: 'Protein', letter: 'P', text: 'text-orange-400', bar: 'bg-orange-400/70', field: 'proteinSlices' },
+  { key: 'carb', label: 'Carb', letter: 'C', text: 'text-amber-400', bar: 'bg-amber-400/70', field: 'carbSlices' },
+  { key: 'veg', label: 'Veg', letter: 'V', text: 'text-green-400', bar: 'bg-green-500/70', field: 'vegSlices' },
+  { key: 'fruit', label: 'Fruit', letter: 'Fr', text: 'text-pink-400', bar: 'bg-pink-400/70', field: 'fruitSlices' },
+  { key: 'fat', label: 'Fat', letter: 'F', text: 'text-yellow-500', bar: 'bg-yellow-500/70', field: 'fatSlices' },
+];
+
+const sliceTotal = (t: SliceRange) => SLICE_GROUPS.reduce((sum, g) => sum + (t[g.key] ?? 0), 0);
 
 function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHistoryProps) {
   const today = new Date();
-  const totalTarget = sliceTargets.protein + sliceTargets.carb + sliceTargets.veg;
+  const totalTarget = sliceTotal(sliceTargets);
 
   // Get last 14 days of data
   const last14Days = Array.from({ length: 14 }, (_, i) => {
     const date = subDays(today, 13 - i);
     const dateStr = format(date, 'yyyy-MM-dd');
     const tracking = dailyTracking.find(t => t.date === dateStr);
-    const p = tracking?.proteinSlices || 0;
-    const c = tracking?.carbSlices || 0;
-    const v = tracking?.vegSlices || 0;
+    const slices = Object.fromEntries(SLICE_GROUPS.map(g => [g.key, tracking?.[g.field] || 0])) as Record<SliceKey, number>;
     return {
       date,
       dateStr,
-      protein: p,
-      carb: c,
-      veg: v,
-      total: p + c + v,
-      dayTarget: (() => { const t = sliceTargetsFor?.(dateStr) ?? sliceTargets; return t.protein + t.carb + t.veg; })(),
-      dayLabel: format(date, 'EEE'),
+      slices,
+      total: SLICE_GROUPS.reduce((sum, g) => sum + slices[g.key], 0),
+      dayTarget: sliceTotal(sliceTargetsFor?.(dateStr) ?? sliceTargets),
+      isToday: isSameDay(date, today),
       dayNum: format(date, 'd'),
-      isToday: isSameDay(date, today)
     };
   });
 
+  // Only the food groups this plan uses, plus anything actually logged.
+  const groups = SLICE_GROUPS.filter(g => (sliceTargets[g.key] ?? 0) > 0 || last14Days.some(d => d.slices[g.key] > 0));
   const daysWithData = last14Days.filter(d => d.total > 0);
   const daysHitTarget = daysWithData.filter(d => d.total >= d.dayTarget).length;
-
-  const avgProtein = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.protein, 0) / daysWithData.length : 0;
-  const avgCarb = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.carb, 0) / daysWithData.length : 0;
-  const avgVeg = daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.veg, 0) / daysWithData.length : 0;
+  const average = (key: SliceKey) => daysWithData.length > 0 ? daysWithData.reduce((s, d) => s + d.slices[key], 0) / daysWithData.length : 0;
 
   const last7Days = last14Days.slice(-7);
-  const weeklyProtein = last7Days.reduce((s, d) => s + d.protein, 0);
-  const weeklyCarb = last7Days.reduce((s, d) => s + d.carb, 0);
-  const weeklyVeg = last7Days.reduce((s, d) => s + d.veg, 0);
-  const weeklyTotal = weeklyProtein + weeklyCarb + weeklyVeg;
+  const weekly = (key: SliceKey) => last7Days.reduce((s, d) => s + d.slices[key], 0);
+  const weeklyTotal = SLICE_GROUPS.reduce((sum, g) => sum + weekly(g.key), 0);
 
   const maxSlices = Math.max(...last14Days.map(d => d.total), totalTarget);
 
@@ -1478,25 +1363,19 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <Apple className="w-4 h-4 text-green-500" />
-            <span className="text-xs font-bold uppercase text-muted-foreground">This Week — SPAR Slices</span>
+            <span className="text-xs font-bold uppercase text-muted-foreground">This Week — Slices</span>
           </div>
-          <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="grid gap-2 text-center" style={{ gridTemplateColumns: `repeat(${groups.length + 1}, minmax(0, 1fr))` }}>
             <div>
               <span className="text-xs text-muted-foreground block">Total</span>
               <span className="font-mono font-bold text-lg text-green-500">{weeklyTotal}</span>
             </div>
-            <div>
-              <span className="text-xs text-orange-400 block">Protein</span>
-              <span className="font-mono font-bold text-lg text-orange-400">{weeklyProtein}</span>
-            </div>
-            <div>
-              <span className="text-xs text-amber-400 block">Carb</span>
-              <span className="font-mono font-bold text-lg text-amber-400">{weeklyCarb}</span>
-            </div>
-            <div>
-              <span className="text-xs text-green-400 block">Veg</span>
-              <span className="font-mono font-bold text-lg text-green-400">{weeklyVeg}</span>
-            </div>
+            {groups.map(g => (
+              <div key={g.key}>
+                <span className={cn("text-xs block", g.text)}>{g.label}</span>
+                <span className={cn("font-mono font-bold text-lg", g.text)}>{weekly(g.key)}</span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -1506,47 +1385,27 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase text-muted-foreground">14-Day Averages</span>
-            <span className={cn(
-              "text-xs font-bold px-2 py-0.5 rounded",
-              daysHitTarget >= 10 ? "bg-green-500/20 text-green-500" :
-              daysHitTarget >= 7 ? "bg-green-500/20 text-green-400" :
-              daysHitTarget >= 4 ? "bg-yellow-500/20 text-yellow-500" :
-              "bg-red-500/20 text-red-500"
-            )}>
-              {daysHitTarget}/{daysWithData.length || 14} days on target
-            </span>
+            {daysWithData.length > 0 && (
+              <span className={cn(
+                "text-xs font-bold px-2 py-0.5 rounded",
+                daysHitTarget / daysWithData.length >= 0.7 ? "bg-green-500/20 text-green-500" :
+                daysHitTarget / daysWithData.length >= 0.3 ? "bg-yellow-500/20 text-yellow-500" :
+                "bg-red-500/20 text-red-500"
+              )}>
+                {daysHitTarget}/{daysWithData.length} logged days on target
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <span className="text-xs text-muted-foreground block">Avg Protein</span>
-              <span className={cn(
-                "font-mono font-bold text-xl",
-                avgProtein >= sliceTargets.protein ? "text-green-500" : "text-orange-400"
-              )}>
-                {avgProtein.toFixed(1)}
-              </span>
-              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.protein}</span>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground block">Avg Carb</span>
-              <span className={cn(
-                "font-mono font-bold text-xl",
-                avgCarb >= sliceTargets.carb ? "text-green-500" : "text-amber-400"
-              )}>
-                {avgCarb.toFixed(1)}
-              </span>
-              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.carb}</span>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground block">Avg Veg</span>
-              <span className={cn(
-                "font-mono font-bold text-xl",
-                avgVeg >= sliceTargets.veg ? "text-green-500" : "text-green-400"
-              )}>
-                {avgVeg.toFixed(1)}
-              </span>
-              <span className="text-xs text-muted-foreground block">Target: {sliceTargets.veg}</span>
-            </div>
+            {groups.map(g => (
+              <div key={g.key}>
+                <span className="text-xs text-muted-foreground block">Avg {g.label}</span>
+                <span className={cn("font-mono font-bold text-xl", average(g.key) >= (sliceTargets[g.key] ?? 0) && (sliceTargets[g.key] ?? 0) > 0 ? "text-green-500" : g.text)}>
+                  {average(g.key).toFixed(1)}
+                </span>
+                {(sliceTargets[g.key] ?? 0) > 0 && <span className="text-xs text-muted-foreground block">Target: {sliceTargets[g.key]}</span>}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -1562,10 +1421,6 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           <div className="flex items-end gap-1 h-28 mb-2">
             {last14Days.map((day, i) => {
               const targetHeightPct = maxSlices > 0 ? (totalTarget / maxSlices) * 100 : 0;
-              const pPct = maxSlices > 0 ? (day.protein / maxSlices) * 100 : 0;
-              const cPct = maxSlices > 0 ? (day.carb / maxSlices) * 100 : 0;
-              const vPct = maxSlices > 0 ? (day.veg / maxSlices) * 100 : 0;
-
               return (
                 <div key={i} className="flex-1 flex flex-col items-center relative h-full">
                   {i === 0 && (
@@ -1576,11 +1431,9 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
                   )}
                   <div className="flex-1 w-full flex flex-col justify-end">
                     {day.total > 0 ? (
-                      <>
-                        <div className="w-full bg-green-500/70 rounded-t" style={{ height: `${Math.max(vPct, 2)}%` }} />
-                        <div className="w-full bg-amber-400/70" style={{ height: `${Math.max(cPct, 2)}%` }} />
-                        <div className={cn("w-full rounded-b", day.isToday ? "bg-orange-500" : "bg-orange-400/70")} style={{ height: `${Math.max(pPct, 2)}%` }} />
-                      </>
+                      [...groups].reverse().filter(g => day.slices[g.key] > 0).map(g => (
+                        <div key={g.key} className={g.bar} style={{ height: `${(day.slices[g.key] / maxSlices) * 100}%` }} />
+                      ))
                     ) : (
                       <div className="w-full bg-muted/30 rounded" style={{ height: '2%' }} />
                     )}
@@ -1601,19 +1454,13 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           </div>
 
           {/* Legend */}
-          <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded bg-orange-400/70" />
-              <span className="text-xs text-muted-foreground">Protein</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded bg-amber-400/70" />
-              <span className="text-xs text-muted-foreground">Carb</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded bg-green-500/70" />
-              <span className="text-xs text-muted-foreground">Veg</span>
-            </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-3 pt-3 border-t border-muted">
+            {groups.map(g => (
+              <div key={g.key} className="flex items-center gap-1">
+                <div className={cn("w-3 h-3 rounded", g.bar)} />
+                <span className="text-xs text-muted-foreground">{g.label}</span>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -1623,28 +1470,22 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
         <CardContent className="p-4">
           <span className="text-xs font-bold uppercase text-muted-foreground block mb-3">Daily Details</span>
           <div className="space-y-2">
-            {[...last14Days].reverse().map((day, i) => {
-              const hitTarget = day.total >= day.dayTarget;
-              return (
-                <div key={i} className={cn(
-                  "flex items-center justify-between py-2 border-b border-muted last:border-0",
-                  day.isToday && "bg-green-500/5 -mx-2 px-2 rounded"
-                )}>
-                  <span className={cn(
-                    "text-sm font-medium",
-                    day.isToday ? "text-green-500" : "text-foreground"
-                  )}>
-                    {day.isToday ? 'Today' : format(day.date, 'EEE, MMM d')}
-                  </span>
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="font-mono text-orange-400">{day.protein > 0 ? `${day.protein}P` : '—'}</span>
-                    <span className="font-mono text-amber-400">{day.carb > 0 ? `${day.carb}C` : '—'}</span>
-                    <span className="font-mono text-green-400">{day.veg > 0 ? `${day.veg}V` : '—'}</span>
-                    {hitTarget && <Check className="w-4 h-4 text-green-500" />}
-                  </div>
+            {[...last14Days].reverse().map((day, i) => (
+              <div key={i} className={cn(
+                "flex items-center justify-between py-2 border-b border-muted last:border-0",
+                day.isToday && "bg-green-500/5 -mx-2 px-2 rounded"
+              )}>
+                <span className={cn("text-sm font-medium", day.isToday ? "text-green-500" : "text-foreground")}>
+                  {day.isToday ? 'Today' : format(day.date, 'EEE, MMM d')}
+                </span>
+                <div className="flex items-center gap-3 text-sm">
+                  {groups.map(g => (
+                    <span key={g.key} className={cn("font-mono", g.text)}>{day.slices[g.key] > 0 ? `${day.slices[g.key]}${g.letter}` : '—'}</span>
+                  ))}
+                  {day.total > 0 && day.total >= day.dayTarget && <Check className="w-4 h-4 text-green-500" />}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -1654,8 +1495,7 @@ function SliceHistory({ dailyTracking, sliceTargets, sliceTargetsFor }: SliceHis
           <CardContent className="p-6 text-center">
             <Apple className="w-10 h-10 mx-auto mb-3 text-green-500/40" />
             <p className="font-bold text-sm mb-1">No Slice Data Yet</p>
-            <p className="text-xs text-muted-foreground mb-3">Track your protein, carb, and veggie slices</p>
-            <p className="text-xs text-green-500 font-medium">Tap the SPAR tracker on the dashboard to start</p>
+            <p className="text-xs text-muted-foreground">Log food from the + button to see your slices here.</p>
           </CardContent>
         </Card>
       )}

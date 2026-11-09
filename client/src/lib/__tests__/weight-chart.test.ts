@@ -1,6 +1,6 @@
 import { addDays } from "date-fns";
 import { describe, expect, it } from "vitest";
-import { buildWeightChart, chartDayReadout, gapBridges, labelAbove } from "../weight-chart";
+import { buildWeightChart, chartDayReadout, dayTarget, gapBridges, knownWeighIns, labelAbove, dailyWeights, weeklyAverage } from "../weight-chart";
 
 const today = new Date(2026, 10, 9, 8, 0);
 const morning = (daysAgo: number, weight: number) => ({ date: addDays(today, -daysAgo), type: "morning", weight });
@@ -13,9 +13,11 @@ describe("buildWeightChart", () => {
     expect(buildWeightChart({ ...fiveOut, logs: logs.slice(0, 2) })).toBeNull();
   });
 
-  it("uses morning weights only, and leaves gaps for missed mornings", () => {
+  it("uses the night before for a day with no morning, and leaves a gap for an empty day", () => {
     const chart = buildWeightChart({ ...fiveOut, logs: [...logs, { date: addDays(today, -5), type: "before-bed", weight: 175 }] })!;
     expect(chart.days[1].weight).toBeNull();
+    expect(chart.days[2].weight).toBe(171);
+    expect(chart.days[3].weight).toBeNull();
     expect(chart.days[6].weight).toBe(170);
   });
 
@@ -117,5 +119,82 @@ describe("at or below class", () => {
   });
   it("still draws it for a Gain athlete below their goal", () => {
     expect(buildWeightChart({ ...base, logs: under, protocol: "4", weighInDate: addDays(today, 12) })).not.toBeNull();
+  });
+});
+
+describe("dayTarget", () => {
+  it("matches the chart's targets", () => {
+    const chart = buildWeightChart(fiveOut)!;
+    for (const d of chart.days) expect(dayTarget(d.date, fiveOut)).toBe(d.target);
+  });
+  it("is blank on and before an earlier weigh-in", () => {
+    const input = { ...fiveOut, knownWeighIns: [addDays(today, -2)] };
+    expect(dayTarget(addDays(today, -2), input)).toBeNull();
+    expect(dayTarget(addDays(today, -1), input)).toBe(168);
+  });
+});
+
+describe("knownWeighIns", () => {
+  it("uses official weigh-ins and the last day of team events, skipping events the athlete skipped", () => {
+    const team = { skipped: ["b"], events: [{ id: "a", eventDate: "2026-11-01", days: 2 }, { id: "b", eventDate: "2026-11-05", days: 1 }] };
+    const dates = knownWeighIns([{ date: "2026-10-20T12:00:00Z", type: "weigh-in" }, { date: "2026-10-21T12:00:00Z", type: "morning" }], team);
+    expect(dates).toHaveLength(2);
+    expect(dates[1].getDate()).toBe(2);
+  });
+  it("works with no team", () => expect(knownWeighIns([], null)).toEqual([]));
+});
+
+describe("dailyWeights", () => {
+  const at = (d: number, h: number) => new Date(2026, 10, d, h);
+  const log = (type: string, d: number, h: number, weight: number) => ({ date: at(d, h), type, weight });
+  const get = (...logs: ReturnType<typeof log>[]) => dailyWeights(logs).get("2026-11-07");
+
+  it("prefers the morning weight whatever order they're stored in", () => {
+    const am = log("morning", 7, 8, 158);
+    const official = log("weigh-in", 7, 12, 157);
+    expect(get(am, official)).toEqual({ weight: 158 });
+    expect(get(official, am)).toEqual({ weight: 158 });
+  });
+  it("uses an official weigh-in when there's no morning", () => {
+    expect(get(log("weigh-in", 7, 12, 157), log("before-bed", 6, 22, 160))).toEqual({ weight: 157 });
+  });
+  it("otherwise uses the closest earlier reading, from the night before", () => {
+    expect(get(log("post-practice", 6, 17, 170), log("before-bed", 6, 22, 171))).toEqual({ weight: 171, notMorning: "before bed Fri" });
+    expect(get(log("before-bed", 6, 22, 171), log("post-practice", 6, 17, 170))).toEqual({ weight: 171, notMorning: "before bed Fri" });
+  });
+  it("doesn't use a later reading from the same day", () => {
+    expect(get(log("before-bed", 7, 22, 171))).toBeUndefined();
+  });
+  it("doesn't reach back more than a day", () => {
+    expect(get(log("before-bed", 5, 22, 171))).toBeUndefined();
+  });
+  it("ignores weight checks and extra workouts", () => {
+    expect(get(log("check-in", 6, 12, 170), log("extra-after", 6, 13, 169))).toBeUndefined();
+  });
+  it("feeds the chart and its readout", () => {
+    const logsWithBed = [morning(6, 170.6), morning(4, 171), { date: addDays(today, -3), type: "before-bed", weight: 172.5 }, morning(0, 170)];
+    const chart = buildWeightChart({ ...fiveOut, logs: logsWithBed })!;
+    expect(chart.days[4]).toMatchObject({ weight: 172.5, notMorning: "before bed Fri" });
+    expect(chartDayReadout(chart.days[4])).toBe("Sat: 172.5 before bed Fri · target 168");
+  });
+});
+
+describe("weeklyAverage", () => {
+  const monday = new Date(2026, 10, 9, 21);
+  const tuesday = new Date(2026, 10, 10);
+  const week = [new Date(2026, 10, 8), new Date(2026, 10, 9), tuesday];
+  const logs = [
+    { date: new Date(2026, 10, 9, 8), type: "morning", weight: 160 },
+    { date: new Date(2026, 10, 9, 22), type: "before-bed", weight: 164 },
+  ];
+
+  it("doesn't count tomorrow's fallback before tomorrow", () => {
+    expect(weeklyAverage(dailyWeights(logs), week, monday)).toBe(160);
+  });
+  it("counts it once tomorrow arrives", () => {
+    expect(weeklyAverage(dailyWeights(logs), week, tuesday)).toBe(162);
+  });
+  it("stops at a past date being replayed", () => {
+    expect(weeklyAverage(dailyWeights(logs), week, new Date(2026, 10, 8, 12))).toBeNull();
   });
 });

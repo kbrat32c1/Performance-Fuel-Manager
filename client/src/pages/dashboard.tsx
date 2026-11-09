@@ -767,43 +767,28 @@ function TodayFlow({
   return (
     <div className="mb-4">
       <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
-        {/* Header: label + colored dots + count */}
-        <div className="flex items-center justify-between px-1 pb-1">
-          <span className="flex items-center gap-2">
+        {/* Header: label + count, then the weigh-in links */}
+        <div className="px-1 pb-1">
+          <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
-            <button
-              type="button"
-              onClick={() => navigateTo('/weigh-in')}
-              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
-            >
-              Enter all
-            </button>
-            <button
-              type="button"
-              onClick={() => navigateTo('/descent')}
-              className="inline-flex items-center min-h-11 -my-3.5 px-1 -mx-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
-            >
-              Descent plan
-            </button>
-          </span>
-          <div className="flex items-center gap-1.5">
-            <div className="flex gap-0.5">
-              {slots.map((slot) => (
-                <div
-                  key={slot.key}
-                  className={cn(
-                    "w-1.5 h-1.5 rounded-full transition-all",
-                    slot.log ? slot.color.replace('text-', 'bg-') : "bg-muted"
-                  )}
-                />
-              ))}
-            </div>
             <span className={cn(
               "text-xs font-mono",
               isComplete ? "text-green-500 font-bold" : "text-muted-foreground"
             )}>
               {loggedCount}/{slots.length}
             </span>
+          </div>
+          <div className="flex items-center gap-4 whitespace-nowrap">
+            {[['Enter all', '/weigh-in'], ['Descent plan', '/descent'], ['History', '/history']].map(([label, path]) => (
+              <button
+                key={path}
+                type="button"
+                onClick={() => navigateTo(path)}
+                className="inline-flex items-center min-h-11 -my-1 text-xs font-bold text-primary underline-offset-2 hover:underline"
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 

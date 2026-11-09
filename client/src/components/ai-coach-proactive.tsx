@@ -5,9 +5,9 @@ import { Sparkles, Send, X, RotateCcw, Mic, Square } from "lucide-react";
 import { useSpeechInput } from "@/hooks/use-speech-input";
 import { cn } from "@/lib/utils";
 import { useStore } from "@/lib/store";
-import { addDays, format, isYesterday, parseISO } from "date-fns";
+import { format, isYesterday } from "date-fns";
 import { useTeam } from "@/hooks/use-team";
-import { buildWeightChart } from "@/lib/weight-chart";
+import { buildWeightChart, knownWeighIns } from "@/lib/weight-chart";
 import { WeightTrendChart } from "@/components/dashboard/weight-trend-chart";
 import { nextStepLabel, nextWeighIn } from "@/lib/next-weigh-in";
 import { WATER_LOADING_WEIGHT_NOTE } from "@/lib/constants";
@@ -346,12 +346,6 @@ export function AiCoachProactive() {
   const targetDelta = todayScale?.targetDelta ?? null;
 
   // Once there are a few morning weights, the chart takes the scale's place.
-  const knownWeighIns = [
-    ...logs.filter(l => l.type === 'weigh-in').map(l => new Date(l.date)),
-    ...(team.membership?.events ?? [])
-      .filter(e => !team.membership?.skipped.includes(e.id))
-      .map(e => addDays(parseISO(e.eventDate), e.days - 1)),
-  ];
   // Unlike the scale, the chart doesn't depend on still being above class.
   const weightChart = canShowTodayScale({ daysUntil, weighInTimePassed, hasLoggedWeight: weightLoggedAt !== null }) && !profile.weighInCleared
     ? buildWeightChart({
@@ -361,7 +355,7 @@ export function AiCoachProactive() {
         weightClass: targetWeight,
         protocol: profile.protocol,
         waterLoading: waterLoadingActive(profile),
-        knownWeighIns,
+        knownWeighIns: knownWeighIns(logs, team.membership),
       })
     : null;
   const statusPill = isAtWeight
