@@ -5,8 +5,8 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-// One at a time: the newest replaces whatever is showing, so toasts never pile up.
-const TOAST_LIMIT = 1
+// How many can wait in line. The Toaster only ever shows the first open one.
+const TOAST_LIMIT = 4
 const TOAST_REMOVE_DELAY = 5000
 
 type ToasterToast = ToastProps & {
@@ -72,12 +72,29 @@ const addToRemoveQueue = (toastId: string) => {
   toastTimeouts.set(toastId, timeout)
 }
 
+/** Errors and toasts with a button (Undo, Retry) have to be seen. */
+const isImportant = (t: ToasterToast) => t.variant === "destructive" || !!t.action
+
+/**
+ * One at a time. A plain message replaces another plain one, but never an error or an
+ * Undo, which stay up and let anything new wait its turn.
+ */
+function addToast(toasts: ToasterToast[], toast: ToasterToast): ToasterToast[] {
+  const open = toasts.filter((t) => t.open !== false)
+  const closed = toasts.filter((t) => t.open === false)
+  const [showing, ...waiting] = open
+  if (!showing) return [toast, ...closed].slice(0, TOAST_LIMIT)
+  const keep = waiting.filter(isImportant)
+  if (!isImportant(showing)) return [toast, ...keep, ...closed].slice(0, TOAST_LIMIT)
+  return [showing, ...keep, toast, ...closed].slice(0, TOAST_LIMIT)
+}
+
 export const reducer = (state: State, action: Action): State => {
   switch (action.type) {
     case "ADD_TOAST":
       return {
         ...state,
-        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+        toasts: addToast(state.toasts, action.toast),
       }
 
     case "UPDATE_TOAST":
