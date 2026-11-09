@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildFoodEntry, calorieText, classifyFood, barcodeMultiplier, barcodeServingLabel, barcodeUnit, copyEntry, entryCalorieLabel, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
+  buildFoodEntry, calorieText, classifyFood, barcodeMultiplier, barcodeServingLabel, barcodeUnit, copyEntry, editedAmount, entryCalorieLabel, servingsEditText, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
   nutritionFromLog, totalsFromFoodLog, withGramAmount, withServings, withSliceCount,
 } from "../food-totals";
 import type { FoodLogEntry } from "../stores/types";
@@ -235,5 +235,21 @@ describe("calorie diary", () => {
     expect(hasTotalsWithoutEntries({ foodLog: [], carbSlices: 2 })).toBe(true);
     expect(hasTotalsWithoutEntries({ foodLog: [], carbsConsumed: 0 })).toBe(false);
     expect(hasTotalsWithoutEntries({ foodLog: [spar({})], carbSlices: 2 })).toBe(false);
+  });
+});
+
+describe("editing a typed amount", () => {
+  it("shows a short number without rounding a small amount to 0", () => {
+    expect(servingsEditText(1.0759493670886076)).toBe("1.08");
+    expect(servingsEditText(0.004)).toBe("0.004");
+  });
+  it("changes nothing when saved as shown", () => {
+    const shown = servingsEditText(1.0759493670886076);
+    expect(editedAmount(shown, shown, 1.0759493670886076)).toBeNull();
+    expect(editedAmount(" 1.08 ", shown, 1.0759493670886076)).toBeNull();
+  });
+  it("uses a real change, and a blank keeps the original instead of one full serving", () => {
+    expect(editedAmount("2", "1.08", 1.0759493670886076)).toBe(2);
+    expect(editedAmount("", "0.004", 0.004)).toBe(0.004);
   });
 });

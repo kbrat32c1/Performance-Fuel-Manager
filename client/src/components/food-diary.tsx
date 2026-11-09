@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { hapticTap } from "@/lib/haptics";
 import { SwipeableRow } from "@/components/ui/swipeable-row";
-import { entryCalorieLabel, entryMacros, nextTotals, nutritionFromLog, type LogNutrition, withGramAmount, withServings, withSliceCount } from "@/lib/food-totals";
+import { editedAmount, entryCalorieLabel, servingsEditText, entryMacros, nextTotals, nutritionFromLog, type LogNutrition, withGramAmount, withServings, withSliceCount } from "@/lib/food-totals";
 
 interface FoodDiaryProps {
   dateKey: string;
@@ -81,6 +81,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
+  const [editingStart, setEditingStart] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Set<MealSection>>(new Set());
   const [movingId, setMovingId] = useState<string | null>(null);
   const [swipedId, setSwipedId] = useState<string | null>(null);
@@ -289,7 +290,12 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                       const isMoving = movingId === entry.id;
                       const currentSection = entry.mealSection || inferMealSection(entry.timestamp);
                       const usesServings = editsServings(entry);
-                      const editFallback = usesServings || isSpar ? 1 : entry.amount || 0;
+                      const editOriginal = usesServings ? (entry.servings ?? 1) : isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0);
+                      const finishEdit = () => {
+                        const next = editedAmount(editingValue, editingStart, editOriginal);
+                        if (next === null) setEditingId(null);
+                        else handleEdit(entry.id, next);
+                      };
                       const macros = entryMacros(entry);
                       const sliceN = entry.sliceCount ?? 0;
                       const displayAmount = isSpar
@@ -310,7 +316,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 textColor: "text-white",
                                 onClick: () => {
                                   setEditingId(entry.id);
-                                  setEditingValue(String(usesServings ? Math.round((entry.servings ?? 1) * 100) / 100 : isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
+                                  const startText = usesServings ? servingsEditText(entry.servings ?? 1) : String(isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0));
+                                  setEditingValue(startText);
+                                  setEditingStart(startText);
                                   setSwipedId(null);
                                 },
                               },
@@ -362,7 +370,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                       value={editingValue}
                                       onChange={(e) => setEditingValue(e.target.value)}
                                       onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleEdit(entry.id, parseFloat(editingValue) || editFallback);
+                                        if (e.key === 'Enter') finishEdit();
                                         if (e.key === 'Escape') { setEditingId(null); setEditingValue(''); }
                                       }}
                                       autoFocus
@@ -370,7 +378,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                     />
                                     <button
                                       aria-label="Save amount"
-                                      onClick={() => handleEdit(entry.id, parseFloat(editingValue) || editFallback)}
+                                      onClick={finishEdit}
                                       className="w-7 h-7 relative after:absolute after:-inset-2 flex items-center justify-center rounded bg-primary/20 text-primary"
                                     >
                                       <Check className="w-3 h-3" aria-hidden="true" />
