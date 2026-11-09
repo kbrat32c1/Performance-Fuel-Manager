@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { canStartSheetSwipe, shouldDismissSwipe, swipeIntent } from "../../hooks/use-swipe-to-close";
+import { renderHook } from "@testing-library/react";
+import { vi } from "vitest";
+import { canStartSheetSwipe, shouldDismissSwipe, swipeIntent, useSwipeSheetToClose, useSwipeToClose } from "../../hooks/use-swipe-to-close";
 
 describe("swipe down to close", () => {
   it("closes after a long drag, however slow", () => expect(shouldDismissSwipe(120, 2000)).toBe(true));
@@ -50,5 +52,36 @@ describe("where a sheet swipe can start", () => {
     inner.append(input, wheel);
     expect(canStartSheetSwipe(input, sheet)).toBe(false);
     expect(canStartSheetSwipe(wheel, sheet)).toBe(false);
+  });
+});
+
+describe("when the system cancels a swipe", () => {
+  const touch = (y: number, sheet: HTMLElement) => ({ touches: [{ clientX: 0, clientY: y }], currentTarget: sheet, target: sheet }) as never;
+
+  it("puts the sheet back and doesn't close it", () => {
+    const onClose = vi.fn();
+    const sheet = document.createElement("div");
+    document.body.appendChild(sheet);
+    const { result } = renderHook(() => useSwipeSheetToClose(onClose));
+    result.current.onTouchStart(touch(0, sheet));
+    result.current.onTouchMove(touch(200, sheet));
+    expect(sheet.style.transform).toBe("translateY(200px)");
+    result.current.onTouchCancel();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(sheet.style.transform).toBe("");
+  });
+
+  it("does the same from the handle", () => {
+    const onClose = vi.fn();
+    const sheet = document.createElement("div");
+    sheet.setAttribute("data-swipe-sheet", "");
+    const handle = document.createElement("div");
+    sheet.appendChild(handle);
+    const { result } = renderHook(() => useSwipeToClose(onClose));
+    result.current.onTouchStart({ touches: [{ clientY: 0 }], currentTarget: handle } as never);
+    result.current.onTouchMove({ touches: [{ clientY: 200 }] } as never);
+    result.current.onTouchCancel();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(sheet.style.transform).toBe("");
   });
 });

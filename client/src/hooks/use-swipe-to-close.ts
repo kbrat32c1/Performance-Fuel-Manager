@@ -6,6 +6,11 @@ export function shouldDismissSwipe(dragPx: number, elapsedMs: number): boolean {
   return dragPx >= 30 && elapsedMs > 0 && dragPx / elapsedMs >= 0.6;
 }
 
+function restoreSheet(sheet: HTMLElement) {
+  sheet.style.transition = "transform 0.2s ease-out";
+  sheet.style.transform = "";
+}
+
 /** Whether a finger's movement so far is a pull-down, something else, or too small to tell. */
 export function swipeIntent(dx: number, dy: number): 'wait' | 'drag' | 'cancel' {
   if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return 'wait';
@@ -37,10 +42,7 @@ export function useSwipeSheetToClose(onClose: () => void) {
   const onTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
     const sheet = e.currentTarget;
     // A second finger cancels a pull already under way; put the sheet back first.
-    if (drag.current?.active) {
-      drag.current.sheet.style.transition = "transform 0.2s ease-out";
-      drag.current.sheet.style.transform = "";
-    }
+    if (drag.current?.active) restoreSheet(drag.current.sheet);
     drag.current = e.touches.length === 1 && canStartSheetSwipe(e.target as HTMLElement, sheet)
       ? { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startT: Date.now(), sheet, dy: 0, active: false }
       : null;
@@ -69,11 +71,17 @@ export function useSwipeSheetToClose(onClose: () => void) {
       onClose();
       return;
     }
-    d.sheet.style.transition = "transform 0.2s ease-out";
-    d.sheet.style.transform = "";
+    restoreSheet(d.sheet);
   }, [onClose]);
 
-  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd };
+  // The system took the touch away (a call, a notification): never treat that as a dismiss.
+  const onTouchCancel = useCallback(() => {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.active) restoreSheet(d.sheet);
+  }, []);
+
+  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel };
 }
 
 /**
@@ -104,11 +112,14 @@ export function useSwipeToClose(onClose: () => void) {
       onClose();
       return;
     }
-    if (d.sheet) {
-      d.sheet.style.transition = "transform 0.2s ease-out";
-      d.sheet.style.transform = "";
-    }
+    if (d.sheet) restoreSheet(d.sheet);
   }, [onClose]);
 
-  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel: onTouchEnd, style: { touchAction: "none" as const }, "data-swipe-handle": true };
+  const onTouchCancel = useCallback(() => {
+    const d = drag.current;
+    drag.current = null;
+    if (d?.sheet) restoreSheet(d.sheet);
+  }, []);
+
+  return { onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, style: { touchAction: "none" as const }, "data-swipe-handle": true };
 }
