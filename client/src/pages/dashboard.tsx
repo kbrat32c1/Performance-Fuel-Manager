@@ -1190,7 +1190,9 @@ export default function Dashboard() {
   const today = startOfDay(new Date());
   const { celebration, dismiss: dismissCelebration } = useCelebrations();
   const isOnline = useOnlineStatus();
-  const { toast } = useToast();
+  const { toast, toasts } = useToast();
+  // A celebration waits for any toast to clear, since both appear at the top of the screen.
+  const toastShowing = toasts.some(t => t.open !== false);
   const { user } = useAuth();
   const v5bandDash = useV5BandContext();
   const { healthData, refreshData } = useHealthKitSync(user?.id ?? null);
@@ -1621,7 +1623,7 @@ export default function Dashboard() {
       {/* Celebration system */}
       <Confetti active={!!celebration?.confetti} onComplete={undefined} />
       <CelebrationBanner
-        show={!!celebration}
+        show={!!celebration && !toastShowing}
         emoji={celebration?.emoji || '🎉'}
         title={celebration?.title || ''}
         subtitle={celebration?.subtitle}

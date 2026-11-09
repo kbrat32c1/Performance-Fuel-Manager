@@ -13,7 +13,7 @@ export function Toaster() {
 
   return (
     <ToastProvider swipeDirection="up" swipeThreshold={50}>
-      {toasts.map(function ({ id, title, description, action, variant, ...props }) {
+      {toasts.filter(t => t.open !== false).slice(0, 1).map(function ({ id, title, description, action, variant, ...props }) {
         return (
           <Toast key={id} variant={variant} {...props}>
             {/* Left accent bar */}
