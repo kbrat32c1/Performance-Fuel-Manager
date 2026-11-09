@@ -13,6 +13,8 @@ export interface WhoopStatus {
 const NOT_CONNECTED: WhoopStatus = { connected: false, connectedAt: null, lastSyncedAt: null, lastError: null };
 /** Re-sync at most this often when the dashboard opens. */
 export const WHOOP_SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000;
+/** Re-sync at most this often while today's recovery hasn't come in, since WHOOP scores it some time after waking. */
+export const WHOOP_WAITING_SYNC_INTERVAL_MS = 10 * 60 * 1000;
 
 /**
  * Status only — tokens never leave the server. 'unavailable' before the database update;
@@ -76,7 +78,20 @@ export async function disconnectWhoop(): Promise<string | null> {
   return ok ? null : data.error || "Couldn't disconnect WHOOP.";
 }
 
-export function whoopSyncDue(status: WhoopStatus, now = Date.now()): boolean {
+export function whoopSyncDue(status: WhoopStatus, now = Date.now(), waitingForRecovery = false): boolean {
   if (!status.connected) return false;
-  return !status.lastSyncedAt || now - Date.parse(status.lastSyncedAt) > WHOOP_SYNC_INTERVAL_MS;
+  const interval = waitingForRecovery ? WHOOP_WAITING_SYNC_INTERVAL_MS : WHOOP_SYNC_INTERVAL_MS;
+  return !status.lastSyncedAt || now - Date.parse(status.lastSyncedAt) > interval;
+}
+
+/** Whether today's recovery score is saved yet. A failed check counts as yes, so it keeps the normal wait. */
+export async function hasRecoveryForDate(userId: string, date: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.from('health_data').select('recovery_score')
+      .eq('user_id', userId).eq('date', date).maybeSingle();
+    if (error) return true;
+    return data?.recovery_score != null;
+  } catch {
+    return true;
+  }
 }
