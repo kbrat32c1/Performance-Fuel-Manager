@@ -68,12 +68,19 @@ export function effectiveLoggedTypes(loggedTypes: Set<string>, skipPractice: boo
   return new Set([...Array.from(loggedTypes), 'pre-practice', 'post-practice']);
 }
 
-/** The next weigh-in to ask for today. Null once they're all in. */
+/**
+ * The next weigh-in to ask for today, from now on. A slot that's already passed is never the
+ * next step: the log screen files the entry at the current time, so at 9 PM "morning" would
+ * save a night weight as a morning one. Null once nothing is left.
+ */
 export function nextWeighIn(loggedTypes: Set<string>, skipPractice: boolean, hour = new Date().getHours()): CoreWeighIn | null {
   const effective = effectiveLoggedTypes(loggedTypes, skipPractice);
-  if (CORE_TYPES.every(t => effective.has(t))) return null;
+  const from = CORE_TYPES.indexOf(getTimeBasedType(hour));
   const next = getDefaultType(effective, hour);
-  return CORE_TYPES.includes(next as CoreWeighIn) && !effective.has(next) ? (next as CoreWeighIn) : null;
+  if (CORE_TYPES.includes(next as CoreWeighIn) && !effective.has(next) && CORE_TYPES.indexOf(next as CoreWeighIn) >= from) {
+    return next as CoreWeighIn;
+  }
+  return CORE_TYPES.slice(from).find(t => !effective.has(t)) ?? null;
 }
 
 const STEP_LABEL: Record<CoreWeighIn, string> = {
