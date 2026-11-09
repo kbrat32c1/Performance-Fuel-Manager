@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { displayRecoveryScore, healthDateToShow, withDisplayRecovery, recoverySourceOf, withDisplayRecovery } from "../recovery-display";
+import { displayRecoveryScore, healthDateToShow, withDisplayRecovery, recoverySourceOf } from "../recovery-display";
 import { computeBaselines } from "../recovery-baselines";
 import { computeRecoveryScoreDetailed } from "../healthkit-service";
 import type { DbHealthData } from "../supabase";
