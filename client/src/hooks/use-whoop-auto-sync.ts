@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { completeWhoop, getWhoopStatus, syncWhoop, whoopSyncDue } from '@/lib/whoop';
+import { format } from 'date-fns';
+import { WHOOP_WAITING_SYNC_INTERVAL_MS, completeWhoop, getWhoopStatus, hasRecoveryForDate, syncWhoop, whoopSyncDue } from '@/lib/whoop';
 import { WHOOP_CHANGED_EVENT, WHOOP_DATA_CHANGED_EVENT } from '@/components/dashboard/whoop-card';
+
+// A failed sync doesn't move lastSyncedAt, so the short wait has to remember attempts itself.
+let lastWaitingAttemptAt = 0;
 
 /**
  * On the dashboard:
  * - finish a WHOOP connection when the athlete returns from WHOOP's page (?whoop=finish&n=… on the
  *   web, com.sparnutrition.app://whoop?status=finish&n=… in the app) by claiming it for this account;
- * - sync when due (every few hours), also when the app or tab comes back into view;
+ * - sync when due (every few hours, or every few minutes while today's recovery is missing), also
+ *   when the app or tab comes back into view;
  * - reload health data after any WHOOP change, including Sync now / Disconnect in Settings.
  */
 export function useWhoopAutoSync(userId: string | null, refreshHealth: () => Promise<void> | void, notify: (title: string, description?: string) => void) {
@@ -42,7 +47,14 @@ export function useWhoopAutoSync(userId: string | null, refreshHealth: () => Pro
       checking = true;
       try {
         const status = await getWhoopStatus();
-        if (cancelled || status === 'unavailable' || status === 'error' || !whoopSyncDue(status)) return;
+        if (cancelled || status === 'unavailable' || status === 'error') return;
+        if (!whoopSyncDue(status)) {
+          // Only worth asking once the short wait has passed.
+          if (!whoopSyncDue(status, Date.now(), true)) return;
+          if (Date.now() - lastWaitingAttemptAt < WHOOP_WAITING_SYNC_INTERVAL_MS) return;
+          if (await hasRecoveryForDate(userId, format(new Date(), 'yyyy-MM-dd')) || cancelled) return;
+          lastWaitingAttemptAt = Date.now();
+        }
         if (!(await syncWhoop()) && !cancelled) await changed();
       } finally {
         checking = false;
