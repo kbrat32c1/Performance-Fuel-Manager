@@ -15,10 +15,11 @@ import { cn } from "@/lib/utils";
 import { Activity, Heart, Moon, Wind, TrendingUp, TrendingDown, Minus, HelpCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
-import { computeRecoveryScoreDetailed, getRecoveryRecommendation } from "@/lib/healthkit-service";
+import { computeRecoveryScoreDetailed } from "@/lib/healthkit-service";
 import type { RecoveryResult, RecoveryContribution } from "@/lib/healthkit-service";
 import { computeBaselines } from "@/lib/recovery-baselines";
 import { withDisplayRecovery, isWhoopDay } from "@/lib/recovery-display";
+import { recoveryDotClass, recoveryLabel, recoveryTextClass, recoveryTintClass, whoopRecoveryAdvice, type RecoverySource } from "@/lib/recovery-bands";
 import { MetricDetailSheet } from "./metric-detail-sheet";
 import type { MetricKey } from "./metric-detail-sheet";
 
@@ -89,8 +90,9 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
   const scoredHistory = useMemo(() => withDisplayRecovery(healthHistory), [healthHistory]);
   const fromWhoop = isWhoopDay(latestHealth) && latestHealth.recovery_score != null;
   const score = fromWhoop ? Math.round(latestHealth.recovery_score as number) : recovery.score;
-  const scoreColor = getScoreColor(score);
-  const scoreBg = getScoreBg(score);
+  const source: RecoverySource = fromWhoop ? 'whoop' : 'spar';
+  const scoreColor = recoveryTextClass(score, source);
+  const scoreBg = recoveryTintClass(score, source);
 
   // 7-day mini chart data (newest first in healthHistory, we want oldest-to-newest)
   const last7 = scoredHistory
@@ -114,9 +116,9 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
                 WHOOP
               </span>
             )}
-            {!fromWhoop && recovery.personalized && (
+            {!fromWhoop && (
               <span className="text-xs bg-muted/40 text-muted-foreground/70 px-1.5 py-0.5 rounded-full">
-                Personalized
+                {recovery.personalized ? 'SPAR score · Personalized' : 'SPAR score'}
               </span>
             )}
           </div>
@@ -135,16 +137,16 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
             className="relative flex-shrink-0 active:scale-95 transition-transform"
             onClick={() => setSelectedMetric('recovery')}
           >
-            <ScoreRing score={score} size={72} />
+            <ScoreRing score={score} source={source} size={72} />
           </button>
 
           {/* Recommendation text */}
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium leading-snug mb-1">
-              {getScoreLabel(score)}
+              {recoveryLabel(score, source)}
             </div>
             <div className="text-xs text-muted-foreground leading-relaxed">
-              {fromWhoop ? getRecoveryRecommendation(score) : recovery.recommendation}
+              {fromWhoop ? whoopRecoveryAdvice(score) : recovery.recommendation}
             </div>
           </div>
         </div>
@@ -156,6 +158,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
               key={c.metric}
               contribution={c}
               reading={readings[c.metric]}
+              showPoints={!fromWhoop}
               onTap={() => setSelectedMetric(CONTRIBUTION_TO_METRIC[c.metric])}
             />
           ))}
@@ -184,7 +187,7 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
                     <div
                       className={cn(
                         "w-full rounded-sm transition-all",
-                        getDotColor(s)
+                        recoveryDotClass(s, isWhoopDay(day) ? 'whoop' : 'spar')
                       )}
                       style={{ height: `${height}px` }}
                     />
@@ -223,12 +226,12 @@ export function RecoveryScoreCard({ latestHealth, healthHistory, isStale }: Reco
 /**
  * Circular score ring with animated fill
  */
-function ScoreRing({ score, size = 72 }: { score: number; size?: number }) {
+function ScoreRing({ score, source, size = 72 }: { score: number; source: RecoverySource; size?: number }) {
   const strokeWidth = 5;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const progress = (score / 100) * circumference;
-  const color = getScoreColor(score);
+  const color = recoveryTextClass(score, source);
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -271,7 +274,7 @@ function ScoreRing({ score, size = 72 }: { score: number; size?: number }) {
 /**
  * Single metric contribution bar — tappable for detail view
  */
-function ContributionBar({ contribution, reading, onTap }: { contribution: RecoveryContribution; reading?: string | null; onTap?: () => void }) {
+function ContributionBar({ contribution, reading, showPoints, onTap }: { contribution: RecoveryContribution; reading?: string | null; showPoints: boolean; onTap?: () => void }) {
   const { metric, points, maxPoints, trend, status } = contribution;
   const percentage = maxPoints > 0 ? (points / maxPoints) * 100 : 0;
 
@@ -301,25 +304,32 @@ function ContributionBar({ contribution, reading, onTap }: { contribution: Recov
         <span className="text-xs text-muted-foreground">{metricConfig.label}</span>
       </div>
 
-      {/* Bar */}
-      <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all duration-500", statusColor)}
-          style={{ width: `${Math.max(2, percentage)}%` }}
-        />
-      </div>
+      {/* WHOOP's score doesn't come from these points, so they only show on SPAR's own score */}
+      {showPoints ? (
+        <>
+          {/* Bar */}
+          <div className="flex-1 h-1.5 bg-muted/20 rounded-full overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-500", statusColor)}
+              style={{ width: `${Math.max(2, percentage)}%` }}
+            />
+          </div>
 
-      {/* Points */}
-      <span className="text-xs text-muted-foreground w-8 text-right">
-        {points.toFixed(0)}/{maxPoints}
-      </span>
+          {/* Points */}
+          <span className="text-xs text-muted-foreground w-8 text-right">
+            {points.toFixed(0)}/{maxPoints}
+          </span>
+        </>
+      ) : (
+        <span className="flex-1 text-left text-xs text-muted-foreground font-mono">{reading}</span>
+      )}
 
       {/* Trend */}
       {trend !== 'unknown' && (
         <TrendIcon className={cn("w-2.5 h-2.5 flex-shrink-0", trendColor)} />
       )}
      </span>
-      {reading && (
+      {showPoints && reading && (
         <span className="block pl-16 text-left text-xs text-muted-foreground font-mono">{reading}</span>
       )}
     </button>
@@ -349,32 +359,3 @@ const METRIC_CONFIG: Record<RecoveryContribution['metric'], {
     icon: <Wind className="w-2.5 h-2.5 text-blue-400" />,
   },
 };
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-500';
-  if (score >= 60) return 'text-yellow-500';
-  if (score >= 40) return 'text-orange-500';
-  return 'text-red-500';
-}
-
-function getScoreBg(score: number): string {
-  if (score >= 80) return 'bg-green-500/[0.03]';
-  if (score >= 60) return 'bg-yellow-500/[0.03]';
-  if (score >= 40) return 'bg-orange-500/[0.03]';
-  return 'bg-red-500/[0.03]';
-}
-
-function getScoreLabel(score: number): string {
-  if (score >= 80) return 'Excellent Recovery';
-  if (score >= 65) return 'Good Recovery';
-  if (score >= 45) return 'Moderate Recovery';
-  if (score >= 30) return 'Low Recovery';
-  return 'Poor Recovery';
-}
-
-function getDotColor(score: number): string {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 60) return 'bg-yellow-500';
-  if (score >= 40) return 'bg-orange-500';
-  return 'bg-red-500';
-}

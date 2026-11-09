@@ -23,6 +23,8 @@ import {
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
 import { useSwipeToClose } from "@/hooks/use-swipe-to-close";
+import { WHOOP_RECOVERY_RANGES } from "@/lib/recovery-bands";
+import { isWhoopDay } from "@/lib/recovery-display";
 
 // ═══ TYPES ═══
 
@@ -274,6 +276,8 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
   if (!metric) return null;
 
   const config = METRIC_CONFIGS[metric];
+  const whoopRecovery = metric === 'recovery' && !!latestHealth && isWhoopDay(latestHealth) && latestHealth.recovery_score != null;
+  const ranges = whoopRecovery ? WHOOP_RECOVERY_RANGES : config.ranges;
 
   // Extract data points for this metric from health history
   const dataPoints = healthHistory
@@ -458,9 +462,9 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
 
           {/* ── Reference Ranges ── */}
           <div className="px-6 pb-4">
-            <h3 className="text-sm font-semibold mb-3">Reference Ranges</h3>
+            <h3 className="text-sm font-semibold mb-3">{metric === 'recovery' ? (whoopRecovery ? 'WHOOP ranges' : 'SPAR score ranges') : 'Reference Ranges'}</h3>
             <div className="space-y-2.5">
-              {config.ranges.map((r, i) => (
+              {ranges.map((r, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className={cn("w-3 h-3 rounded-full flex-shrink-0", r.color)} />
                   <div className="flex-1">
@@ -477,11 +481,11 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
             <div className="bg-muted/20 rounded-2xl p-4 border border-muted/30">
               <h3 className="text-sm font-semibold mb-2">What This Means</h3>
               <p className="text-sm text-muted-foreground leading-relaxed mb-3">
-                {config.description}
+                {whoopRecovery ? "This is WHOOP's recovery score, shown exactly as WHOOP calculates it." : config.description}
               </p>
               <h4 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider mb-1.5">For Athletes</h4>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                {config.athleteContext}
+                {whoopRecovery ? 'Use it alongside your plan and how you feel.' : config.athleteContext}
               </p>
             </div>
           </div>
