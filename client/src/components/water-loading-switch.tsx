@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Droplets } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
+import { PROTOCOLS } from "@/lib/constants";
 
 const STUDY_URL = "https://pubmed.ncbi.nlm.nih.gov/29182412/";
 
@@ -44,6 +45,9 @@ export function WaterLoadingSwitch({ className }: { className?: string }) {
   const { profile, updateProfile } = useStore();
   const on = profile.waterLoading !== false;
   const [showDetails, setShowDetails] = useState(false);
+
+  // Gain never water loads, so there's nothing to choose.
+  if (profile.protocol === PROTOCOLS.GAIN) return null;
 
   return (
     <div className={cn("rounded-xl border border-muted bg-card p-3", className)}>

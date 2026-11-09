@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Activity, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { calculateTargetWeight, getPhaseForDaysUntil } from '@/lib/constants';
+import { waterLoadingActive } from "@/lib/constants";
 
 type ViewMode = 'week' | 'month' | '4week';
 
@@ -58,8 +59,8 @@ export function TrendChart() {
       const typeLabel = typeLabels[log.type] || '';
 
       const daysUntil = weighInDate ? differenceInDays(weighInDate, startOfDay(logDate)) : 7;
-      const projectedTarget = calculateTargetWeight(profile.targetWeightClass, daysUntil, profile.protocol, profile.waterLoading !== false);
-      const phase = getPhaseForDaysUntil(daysUntil, profile.waterLoading !== false);
+      const projectedTarget = calculateTargetWeight(profile.targetWeightClass, daysUntil, profile.protocol, waterLoadingActive(profile));
+      const phase = getPhaseForDaysUntil(daysUntil, waterLoadingActive(profile));
 
       return {
         date: `${dayStr} ${typeLabel}`,
@@ -67,7 +68,7 @@ export function TrendChart() {
         fullDate: format(logDate, 'yyyy-MM-dd'),
         weight: log.weight,
         target: profile.targetWeightClass,
-        projected: projectedTarget.withWaterLoad || projectedTarget.base,
+        projected: projectedTarget.base,
         phase,
         daysUntil,
         isToday: format(logDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'),

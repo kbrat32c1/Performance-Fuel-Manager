@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import type { DbHealthData } from "@/lib/supabase";
-import { useSwipeToClose } from "@/hooks/use-swipe-to-close";
+import { useSwipeSheetToClose, useSwipeToClose } from "@/hooks/use-swipe-to-close";
 import { WHOOP_RECOVERY_RANGES, recoveryDotClass, recoveryTextClass, type RecoverySource } from "@/lib/recovery-bands";
 import { isWhoopDay, recoverySourceOf, type ScoredHealthData } from "@/lib/recovery-display";
 
@@ -249,6 +249,7 @@ const METRIC_CONFIGS: Record<MetricKey, {
 
 export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveValue, onClose }: MetricDetailSheetProps) {
   const swipeToClose = useSwipeToClose(onClose);
+  const swipeSheet = useSwipeSheetToClose(onClose);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   // Prevent body scroll when sheet is open
@@ -332,6 +333,7 @@ export function MetricDetailSheet({ metric, healthHistory, latestHealth, liveVal
       <div
         ref={sheetRef}
         data-swipe-sheet
+        {...swipeSheet}
         className="absolute bottom-0 left-0 right-0 bg-background rounded-t-3xl shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[92vh] flex flex-col"
       >
         {/* Sticky header with handle + close */}

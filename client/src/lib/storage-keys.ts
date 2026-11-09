@@ -73,6 +73,7 @@ export const STORAGE_KEYS = {
   // ─── UI State ────────────────────────────────────────────────────────────
   DASHBOARD_TOUR_SEEN: 'pfm-dashboard-tour-seen',
   FAB_TOOLTIP_DISMISSED: 'pfm-fab-tooltip-dismissed',
+  STAGE_INTRO: 'pfm-stage-intro',
   LAST_WEIGHT_TYPE: 'pfm-last-weight-type',
   LAST_WEIGHT_TYPE_DATE: 'pfm-last-weight-type-date',
   FUEL_GUIDE_AVOID_COLLAPSED: 'fuel-guide-avoid-collapsed',
