@@ -310,7 +310,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 textColor: "text-white",
                                 onClick: () => {
                                   setEditingId(entry.id);
-                                  setEditingValue(String(usesServings ? (entry.servings ?? 1) : isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
+                                  setEditingValue(String(usesServings ? Math.round((entry.servings ?? 1) * 100) / 100 : isSpar ? (entry.sliceCount ?? 1) : (entry.amount || 0)));
                                   setSwipedId(null);
                                 },
                               },

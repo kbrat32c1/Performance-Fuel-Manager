@@ -19,13 +19,17 @@ export interface ServingForDisplay {
   metricUnit: string;
 }
 
-const COOKED_NAME = /\b(cooked|grilled|baked|roasted|broiled|boiled|steamed|fried|sauteed|sautéed|poached|smoked|braised|stewed|scrambled|rotisserie)\b/i;
+const COOKED_NAME = /\b(cooked|grilled|baked|roasted|broiled|boiled|steamed|fried|sauteed|sautéed|poached|braised|stewed|scrambled|rotisserie)\b/i;
 const RAW_NAME = /\b(raw|uncooked)\b/i;
 /** "1 oz, dry, yields" and "1 oz raw (yield after cooking)": measured before cooking. */
 const MEASURED_BEFORE_COOKING = /\b(raw|dry|uncooked)\b.*\byields?\b/i;
 const SERVING_WORD = /\b(cooked|prepared|raw|uncooked|dry)\b|\byield after cooking\b/gi;
 /** Foods people normally cook first, the only ones whose order should change. */
 const USUALLY_COOKED = /\b(rice|pasta|spaghetti|penne|macaroni|noodles?|rotini|fettuccine|rigatoni|oats?|oatmeal|quinoa|grits|barley|couscous|potato(es)?|yams?|chicken|turkey|beef|steaks?|pork|ham|bacon|sausages?|lamb|fish|salmon|tuna|tilapia|cod|shrimp|eggs?|lentils?|beans?)\b/i;
+
+/** Packaged and mixed foods aren't "the cooked version" of anything, even with chicken or potato in the name. */
+const NOT_A_PLAIN_FOOD = /\b(chips?|crisps|bars?|cereals?|cookies?|crackers?|sandwich(es)?|burgers?|wraps?|soups?|pizzas?|tacos?|burritos?|salads?|bowls?|mix(es)?|shakes?|powders?|snacks?)\b/i;
+const isUsuallyCooked = (name: string) => USUALLY_COOKED.test(name) && !NOT_A_PLAIN_FOOD.test(name);
 
 function prepFromWord(word: string): FoodPrep {
   const w = word.toLowerCase();
@@ -43,13 +47,16 @@ export function foodPrep(name: string, servingDescription = ''): FoodPrep | null
   const before = serving.match(MEASURED_BEFORE_COOKING);
   if (before) return prepFromWord(before[1]);
 
-  const nameCooked = COOKED_NAME.test(name);
-  const nameRaw = RAW_NAME.test(name);
-  if (nameCooked !== nameRaw) return nameCooked ? 'cooked' : 'raw';
-  if (nameCooked && nameRaw) return null;
-
+  // The serving is the most specific thing the database says, so it comes before the name.
   const first = serving.match(SERVING_WORD)?.[0];
-  return first ? prepFromWord(first) : null;
+  if (first && !(first.toLowerCase() === 'prepared' && !isUsuallyCooked(name))) return prepFromWord(first);
+  if (first) return null;
+
+  const nameCooked = COOKED_NAME.test(name) && isUsuallyCooked(name);
+  const nameRaw = RAW_NAME.test(name);
+  if (nameCooked && nameRaw) return null;
+  if (nameRaw) return 'raw';
+  return nameCooked ? 'cooked' : null;
 }
 
 export const PREP_LABEL: Record<FoodPrep, string> = { cooked: 'Cooked', raw: 'Raw', dry: 'Dry' };
@@ -68,7 +75,7 @@ export function sortCookedFirst<T extends { name: string; servings: { descriptio
 ): T[] {
   if (/\b(raw|uncooked|dry)\b/i.test(query)) return foods;
   const rank = (food: T) => {
-    if (!USUALLY_COOKED.test(food.name)) return 1;
+    if (!isUsuallyCooked(food.name)) return 1;
     const serving = food.servings.find(s => s.isDefault) ?? food.servings[0];
     const prep = foodPrep(food.name, serving?.description);
     return prep === 'cooked' ? 0 : prep ? 2 : 1;
@@ -120,6 +127,8 @@ function canBeBase(serving: ServingForDisplay): boolean {
 
 /** The serving a typed amount is measured against: the chosen one if it has a usable weight. */
 export function amountBaseServing<T extends ServingForDisplay>(selected: T, servings: T[]): T | null {
+  // Falling back from a dry serving would switch to a cooked or unlabeled one without saying so.
+  if (MEASURED_BEFORE_COOKING.test(selected.description)) return null;
   if (canBeBase(selected)) return selected;
   return servings.find(canBeBase) ?? null;
 }
@@ -137,20 +146,32 @@ export function servingsFromAmount(input: string, unit: AmountUnit, base: Servin
   return (amount * factor) / base.metricAmount;
 }
 
-/** Grams and slices one search result adds, so the preview and the saved entry can't differ. */
+/**
+ * Grams and slices one search result adds, so the preview and the saved entry can't differ.
+ * Fruit and veg slices count servings, so a typed weight has no defensible count until there's
+ * an approved conversion: it's saved as 0 slices, with its grams and calories kept.
+ */
 export function searchFoodPortion(
   serving: ServingForDisplay,
   sparCategory: string | null | undefined,
   qty: number,
-): { carbs: number; protein: number; fat: number; sliceType: SliceType; sliceCount: number } {
+  typedAmount = false,
+): { carbs: number; protein: number; fat: number; sliceType: SliceType; sliceCount: number; sliceCountKnown: boolean } {
   const carbs = Math.round(serving.carbs * qty);
   const protein = Math.round(serving.protein * qty);
   const fat = Math.round((serving.fat || 0) * qty);
   const { sliceType, sliceCount } = classifyFood({ carbs, protein, fat }, (sparCategory as SliceType) || null, qty);
-  return { carbs, protein, fat, sliceType, sliceCount };
+  if (typedAmount && (sliceType === 'veg' || sliceType === 'fruit')) {
+    return { carbs, protein, fat, sliceType, sliceCount: 0, sliceCountKnown: false };
+  }
+  return { carbs, protein, fat, sliceType, sliceCount, sliceCountKnown: true };
 }
 
 const SLICE_NAME: Record<SliceType, string> = { protein: 'protein', carb: 'carb', veg: 'veg', fruit: 'fruit', fat: 'fat' };
+
+export function sliceNotCountedText(sliceType: SliceType): string {
+  return `Typed amounts don't count toward ${SLICE_NAME[sliceType]} slices yet`;
+}
 
 export function sliceCountText(sliceType: SliceType, sliceCount: number): string {
   return `Counts as ${sliceCount} ${SLICE_NAME[sliceType]} ${sliceCount === 1 ? 'slice' : 'slices'}`;
