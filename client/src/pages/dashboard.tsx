@@ -26,6 +26,8 @@ import { useCarouselSwipe } from "@/hooks/use-carousel-swipe";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { HelpTip } from "@/components/ui/help-tip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { planExplanation, planStage } from "@/lib/plan-line";
 import { Confetti, CelebrationBanner } from "@/components/ui/confetti";
 import { PullToRefreshIndicator } from "@/components/ui/pull-to-refresh";
 import { useCelebrations } from "@/hooks/use-celebrations";
@@ -1328,12 +1330,12 @@ export default function Dashboard() {
     // Protocol name for header
     const protocolLabel = (() => {
       switch (profile.protocol) {
-        case '1': return { label: 'Extreme Cut', color: 'text-red-500' };
-        case '2': return { label: 'Rapid Cut', color: 'text-primary' };
+        case '1': return { label: 'Extreme Cut · Sugar System', color: 'text-red-500' };
+        case '2': return { label: 'Rapid Cut · Sugar System', color: 'text-primary' };
         case '3': return { label: 'Maintain · Sugar System', color: 'text-primary' };
-        case '4': return { label: 'Gain', color: 'text-green-500' };
-        case '6': return { label: 'SPAR Competition', color: 'text-purple-500' };
-        default: return { label: 'Training', color: 'text-primary' };
+        case '4': return { label: 'Gain · Sugar System', color: 'text-green-500' };
+        case '6': return { label: 'SPAR Competition · Balanced Nutrition', color: 'text-purple-500' };
+        default: return { label: 'Your plan', color: 'text-primary' };
       }
     })();
 
@@ -1368,6 +1370,8 @@ export default function Dashboard() {
   const historyInsights = getHistoryInsights();
 
   const phaseInfo = getPhaseInfo();
+  const planText = planExplanation(profile.protocol);
+  const stageText = planStage(phaseInfo.stage);
 
   // Phase color mapping for UI elements
   const { style: phaseStyle } = getPhaseStyleForDaysUntil(daysUntilWeighIn, profile.waterLoading !== false);
@@ -1743,14 +1747,30 @@ export default function Dashboard() {
                 // into the clipped negative margin, so a wrapped line never ends or starts with one.
                 <div className="overflow-hidden">
                   <div className="flex flex-wrap items-center gap-y-0.5 -ml-4.5 [&>span]:relative [&>span]:pl-4.5 [&>span]:before:absolute [&>span]:before:left-2 [&>span]:before:font-normal [&>span]:before:text-muted-foreground [&>span]:before:content-['·']">
-                    <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.color)}>
-                      {phaseInfo.label}
+                    <span className="whitespace-nowrap">
+                      {planText ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={`What ${phaseInfo.label} means`}
+                              className={cn("min-h-6 text-xs font-bold underline decoration-dotted underline-offset-2", phaseInfo.color)}
+                            >
+                              {phaseInfo.label}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent side="bottom" align="start" className="w-64 p-3">
+                            <p className="text-xs font-bold mb-1">{phaseInfo.label}</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{planText}</p>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className={cn("text-xs font-bold", phaseInfo.color)}>{phaseInfo.label}</span>
+                      )}
                     </span>
-                    <span className="text-xs font-bold font-mono text-primary whitespace-nowrap">{profile.targetWeightClass} lbs</span>
-                    {phaseInfo.stage && (
-                      <span className={cn("text-xs font-bold uppercase whitespace-nowrap", phaseInfo.stageColor)}>
-                        {phaseInfo.stage}
-                      </span>
+                    <span className="text-xs font-bold text-primary whitespace-nowrap">{profile.targetWeightClass} class</span>
+                    {stageText && (
+                      <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">{stageText}</span>
                     )}
                   </div>
                 </div>
