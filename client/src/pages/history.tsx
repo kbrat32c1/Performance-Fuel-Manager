@@ -47,30 +47,34 @@ export default function History() {
       afterLogToDelete = logs.find(l => l.id === log.afterId);
     }
 
+    // Perform deletion, keeping each reading's own result
+    const deletion = deleteLog(log.id);
+    const afterDeletion = log.type === 'extra-workout' && log.afterId ? deleteLog(log.afterId) : null;
+
     const undoDelete = makeUndoDelete(
-      logToDelete ? { log: logToDelete, afterLog: afterLogToDelete || undefined } : null,
+      [
+        ...(logToDelete ? [{ log: logToDelete, deletion }] : []),
+        ...(afterLogToDelete && afterDeletion ? [{ log: afterLogToDelete, deletion: afterDeletion }] : []),
+      ],
       addLog,
     );
 
-    // Perform deletion
-    deleteLog(log.id);
-    if (log.type === 'extra-workout' && log.afterId) {
-      deleteLog(log.afterId);
-    }
-
-    // Show undo toast
+    // Show undo toast. "Restored" only appears once the save really worked.
     const logLabel = log.type === 'extra-workout' ? 'Extra workout' : getLogTypeLabel(log.type);
-    toast({
-      title: "Deleted",
-      description: `${logLabel} removed`,
+    const offerUndo = (title: string, description: string, buttonText: string, isError = false) => toast({
+      title,
+      description,
+      ...(isError ? { variant: "destructive" as const } : {}),
       action: (
-        <ToastAction altText="Undo deletion" onClick={() => {
-          if (undoDelete()) toast({ title: "Restored", description: `${logLabel} has been restored` });
+        <ToastAction altText={buttonText} onClick={async () => {
+          if (await undoDelete()) toast({ title: "Restored", description: `${logLabel} has been restored` });
+          else offerUndo("Not restored", `${logLabel} is still deleted.`, "Try again", true);
         }}>
-          Undo
+          {buttonText}
         </ToastAction>
       ),
     });
+    offerUndo("Deleted", `${logLabel} removed`, "Undo");
   };
 
   // Current phase for color theming

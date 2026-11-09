@@ -766,7 +766,7 @@ function TodayFlow({
 
   return (
     <div className="mb-4">
-      <div className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
+      <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
         {/* Header: label + colored dots + count */}
         <div className="flex items-center justify-between px-1 pb-1">
           <span className="flex items-center gap-2">
@@ -1631,7 +1631,7 @@ export default function Dashboard() {
       />
 
       {/* Dashboard feature tour for new users */}
-      {!isViewingHistorical && <DashboardTour />}
+      {!isViewingHistorical && <DashboardTour weighInCount={logs.length} />}
 
       {/* WHOOP-style Recovery Ready modal (shows on morning wake-up sync) */}
       {recoveryReadyScore != null && (
@@ -2366,7 +2366,7 @@ function TodayTimeline({
   return (
     <div className="mb-2">
       {/* Core weigh-in slots - clean card */}
-      <div data-tour="weigh-ins" className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
+      <div className="bg-card border border-muted rounded-lg p-2 space-y-1.5">
         {/* Completion indicator - small, inline */}
         <div className="flex items-center justify-between px-1 pb-1">
           <span className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Today's Weight</span>
@@ -2854,7 +2854,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
 
   return (
     <div className="mt-4">
-      <Card data-tour="countdown" className={cn("overflow-hidden", cardBorder, cardBg)}>
+      <Card className={cn("overflow-hidden", cardBorder, cardBg)}>
         <CardContent className="p-0">
 
           {/* ═══ HEADER ═══ */}

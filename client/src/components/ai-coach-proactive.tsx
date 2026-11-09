@@ -517,7 +517,7 @@ export function AiCoachProactive() {
 
   return (
     <div className="mb-4">
-      <div className="rounded-xl overflow-hidden bg-card border border-border">
+      <div data-tour="today-weight" className="rounded-xl overflow-hidden bg-card border border-border">
         {/* Weight, today's target and class on one scale */}
         <div className="px-4 pt-4 pb-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -648,6 +648,7 @@ export function AiCoachProactive() {
         {/* AI Section Toggle */}
         {!showAiSection ? (
           <button
+            data-tour="ai-coach"
             onClick={() => setShowAiSection(true)}
             className="w-full px-4 py-3 border-t border-border flex items-center justify-center gap-2 text-sm text-primary hover:text-primary/80 hover:bg-primary/5 transition-colors"
           >

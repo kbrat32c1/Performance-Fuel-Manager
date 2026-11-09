@@ -984,7 +984,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Add log to Supabase
   /** Resolves to the saved log's id, or null when it was rejected or did not save. */
+  // Undo keeps a copy of addLog from before the delete, so it reads the current list from here.
+  const logsRef = useRef(logs);
+  logsRef.current = logs;
+
   const addLog = async (log: Omit<WeightLog, 'id'>): Promise<string | null> => {
+    const currentLogs = logsRef.current;
     // Weight validation: ensure weight is within reasonable bounds
     const weightError = getWeightValidationError(log.weight);
     if (weightError) {
@@ -1000,7 +1005,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const UNIQUE_PER_DAY_TYPES = [...CORE_WEIGH_IN_TYPES, LOG_TYPES.CHECK_IN];
     if (UNIQUE_PER_DAY_TYPES.includes(log.type as any)) {
       const logDay = format(startOfDay(new Date(log.date)), 'yyyy-MM-dd');
-      const duplicate = logs.find(l =>
+      const duplicate = currentLogs.find(l =>
         l.type === log.type &&
         format(startOfDay(new Date(l.date)), 'yyyy-MM-dd') === logDay
       );
@@ -1018,14 +1023,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const newLog = { ...log, id: tempId };
 
     // Capture previous state for rollback
-    const previousLogs = logs;
+    const previousLogs = currentLogs;
     const previousProfile = profile;
 
     // Optimistic update
     setLogs(prev => [newLog, ...prev]);
 
     // Only update currentWeight if this log is the most recent by date
-    const mostRecentLog = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    const mostRecentLog = [...currentLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     const isNewest = !mostRecentLog || new Date(log.date).getTime() >= new Date(mostRecentLog.date).getTime();
     if (isNewest) {
       const target = calculateTarget();
@@ -1228,9 +1233,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const deleteLog = async (id: string) => {
-    // Capture previous state for rollback
-    const previousLogs = logs;
+  /** Resolves true once the weigh-in is really gone, false if the delete failed and it was put back. */
+  const deleteLog = async (id: string): Promise<boolean> => {
+    const removed = logsRef.current.find(log => log.id === id);
+    // Put back only this reading: another delete may have finished while this one was running.
+    const restore = () => {
+      if (removed) setLogs(prev => prev.some(log => log.id === id) ? prev : [removed, ...prev]);
+    };
 
     setLogs(prev => prev.filter(log => log.id !== id));
 
@@ -1239,18 +1248,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase.from('weight_logs').delete().eq('id', id);
 
         if (error) {
-          // Rollback on error
-          setLogs(previousLogs);
+          restore();
           console.error('Error deleting log:', error);
           toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
+          return false;
         }
       } catch (error) {
-        // Rollback on exception
-        setLogs(previousLogs);
+        restore();
         console.error('Error deleting log:', error);
         toast({ title: "Sync failed", description: "Could not delete weight log. Please try again.", variant: "destructive" });
+        return false;
       }
     }
+    return true;
   };
 
   const getDailyTracking = (date: string): DailyTracking => {
