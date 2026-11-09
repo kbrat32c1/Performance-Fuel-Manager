@@ -136,7 +136,6 @@ export function withGramAmount(e: FoodLogEntry, newAmount: number): FoodLogEntry
 /** Change how many servings an entry with calories counts for; every number scales together. */
 export function withServings(e: FoodLogEntry, newServings: number): FoodLogEntry {
   const scale = newServings / (e.servings ?? 1);
-  if (e.mode === 'sugar') return { ...withGramAmount(e, round1((e.amount ?? 0) * scale)), ...scaledNutrients(e, scale), servings: newServings };
   const { carbs, protein } = entryMacros(e);
   return {
     ...e,
@@ -184,9 +183,6 @@ export function nextTotals(
 
 // ─── Saving calories, fat and fiber ─────────────────────────────────────────
 
-/** Which diary the athlete chose in Settings. */
-export type TrackingView = 'spar' | 'sugar' | 'calories';
-
 export interface FoodToLog {
   name: string;
   carbs: number;
@@ -199,7 +195,6 @@ export interface FoodToLog {
   sliceType?: SliceType;
   sliceCount?: number;
   liquidOz?: number;
-  category?: string;
 }
 
 const suffix = () => Math.random().toString(36).substr(2, 9);
@@ -214,73 +209,30 @@ function nutrientFields(f: Pick<FoodToLog, 'calories' | 'fat' | 'fiber' | 'nutri
   return out;
 }
 
-/**
- * Grams view stores a food as a carb row and a protein row. Each row gets its share,
- * so the two add back up to the food and deleting one row removes only its share.
- */
-function shareNutrients(f: FoodToLog): [Partial<FoodLogEntry>, Partial<FoodLogEntry>] {
-  const carbShare = f.carbs / (f.carbs + f.protein);
-  const carbPart: FoodToLog = { ...f }, proteinPart: FoodToLog = { ...f };
-  if (f.calories != null) {
-    carbPart.calories = Math.round(f.calories * carbShare);
-    proteinPart.calories = f.calories - carbPart.calories;
-  }
-  if (f.fat != null) {
-    carbPart.fat = round1(f.fat * carbShare);
-    proteinPart.fat = round1(f.fat - carbPart.fat);
-  }
-  if (f.fiber != null) {
-    carbPart.fiber = round1(f.fiber * carbShare);
-    proteinPart.fiber = round1(f.fiber - carbPart.fiber);
-  }
-  return [nutrientFields(carbPart), nutrientFields(proteinPart)];
-}
-
-/** The food log rows for one food, under the same rules for every way of adding food. */
-export function buildFoodEntries(
+/** The food log row for one food, under the same rules for every way of adding food. */
+export function buildFoodEntry(
   food: FoodToLog,
-  ctx: { view: TrackingView; mealSection: MealSection; nowMs: number; index?: number },
-): FoodLogEntry[] {
+  ctx: { mealSection: MealSection; nowMs: number; index?: number },
+): FoodLogEntry {
   const { name, carbs, protein, liquidOz } = food;
-  const { view, mealSection, nowMs, index = 0 } = ctx;
-  const at = (offset: number) => new Date(nowMs + index + offset).toISOString();
-  const liquid = liquidOz ? { liquidOz } : {};
-
-  if (view !== 'sugar') {
-    const portion = food.sliceType
-      ? { sliceType: food.sliceType, sliceCount: food.sliceCount ?? 1 }
-      : classifyFood({ carbs, protein, fat: food.fat });
-    return [{
-      id: `${nowMs}-${index}-${suffix()}`,
-      name,
-      timestamp: at(0),
-      mode: 'spar',
-      mealSection,
-      sliceType: portion.sliceType,
-      sliceCount: portion.sliceCount,
-      // A quick portion with no grams counts as a standard portion in the Grams view.
-      carbs: carbs === 0 && protein === 0 && portion.sliceType === 'carb' ? CARB_G_PER_SLICE * portion.sliceCount : carbs,
-      protein: carbs === 0 && protein === 0 && portion.sliceType === 'protein' ? PROTEIN_G_PER_SLICE * portion.sliceCount : protein,
-      ...liquid,
-      ...nutrientFields(food),
-    }];
-  }
-
-  // Gram view: one row per macro (a food with neither, like butter or black coffee, still gets one).
-  const base = { name, mode: 'sugar' as const, mealSection, category: food.category || 'custom' };
-  const hasCarbRow = carbs > 0 || protein === 0;
-  const hasProteinRow = protein > 0;
-  const [carbNutrients, proteinNutrients] = hasCarbRow && hasProteinRow
-    ? shareNutrients(food)
-    : [nutrientFields(food), nutrientFields(food)];
-  const rows: FoodLogEntry[] = [];
-  if (hasCarbRow) {
-    rows.push({ ...base, id: `${nowMs}-${index}-c-${suffix()}`, timestamp: at(0), macroType: 'carbs', amount: carbs, ...liquid, ...carbNutrients });
-  }
-  if (hasProteinRow) {
-    rows.push({ ...base, id: `${nowMs}-${index}-p-${suffix()}`, timestamp: at(1), macroType: 'protein', amount: protein, ...proteinNutrients });
-  }
-  return rows;
+  const { mealSection, nowMs, index = 0 } = ctx;
+  const portion = food.sliceType
+    ? { sliceType: food.sliceType, sliceCount: food.sliceCount ?? 1 }
+    : classifyFood({ carbs, protein, fat: food.fat });
+  return {
+    id: `${nowMs}-${index}-${suffix()}`,
+    name,
+    timestamp: new Date(nowMs + index).toISOString(),
+    mode: 'spar',
+    mealSection,
+    sliceType: portion.sliceType,
+    sliceCount: portion.sliceCount,
+    // A quick portion with no grams counts as a standard portion in Detailed.
+    carbs: carbs === 0 && protein === 0 && portion.sliceType === 'carb' ? CARB_G_PER_SLICE * portion.sliceCount : carbs,
+    protein: carbs === 0 && protein === 0 && portion.sliceType === 'protein' ? PROTEIN_G_PER_SLICE * portion.sliceCount : protein,
+    ...(liquidOz ? { liquidOz } : {}),
+    ...nutrientFields(food),
+  };
 }
 
 // ─── Reading calories, fat and fiber ────────────────────────────────────────
@@ -306,19 +258,19 @@ export interface LogNutrition {
 export function nutritionFromLog(log: FoodLogEntry[] | undefined): LogNutrition {
   const n: LogNutrition = { calories: 0, carbs: 0, protein: 0, fat: 0, fiber: 0, portions: 0, notTracked: 0, missingFat: 0, estimates: 0, incomplete: false };
   for (const e of log ?? []) {
-    // Carbs and protein count even without calories, so meal lines match the day's bars.
+    // Known carbs, protein and fat count even without calories.
     const m = entryMacros(e);
     n.carbs += m.carbs;
     n.protein += m.protein;
+    n.fat += e.fat ?? 0;
+    n.fiber += e.fiber ?? 0;
     if (e.calories == null) {
       if (e.nutrientSource === 'portion') n.portions += e.sliceCount ?? 1;
       else n.notTracked += 1;
       continue;
     }
     n.calories += e.calories;
-    n.fiber += e.fiber ?? 0;
-    if (e.fat != null) n.fat += e.fat;
-    else n.missingFat += 1;
+    if (e.fat == null) n.missingFat += 1;
     if (e.nutrientSource === 'estimate') n.estimates += 1;
   }
   n.calories = Math.round(n.calories);
@@ -343,6 +295,11 @@ export function incompleteReasons(n: LogNutrition): string[] {
 /** Whether a nutrient is known. Older saved data has no flag, so a 0 there counts as unknown. */
 export function isListed(value: number, reported: boolean | undefined): boolean {
   return reported ?? value > 0;
+}
+
+/** Calorie text for a food before it's added. A value the database doesn't list is never shown as 0. */
+export function calorieText(calories: number, reported: boolean | undefined): string {
+  return isListed(calories, reported) ? `${Math.round(calories).toLocaleString()} cal` : 'Calories not listed';
 }
 
 /** How much of a scanned product's listed nutrients the entered amount represents. */

@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import type { ReactNode } from "react";
 import Reports from "../reports";
 
-const store = vi.hoisted(() => ({ day: {} as Record<string, unknown>, preference: "calories" }));
+const store = vi.hoisted(() => ({ day: {} as Record<string, unknown>, preference: "sugar" }));
 
 vi.mock("@/lib/store", () => ({
   inferMealSection: () => "lunch",

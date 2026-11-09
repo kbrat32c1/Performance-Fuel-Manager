@@ -44,7 +44,7 @@ type ReportTab = "calories" | "slices" | "macros" | "hydration";
 
 /* ── helpers ── */
 function estimateEntryCal(entry: { mode: string; sliceType?: string; sliceCount?: number; amount?: number; calories?: number }, tracksCalories: boolean) {
-  if (tracksCalories) return entry.calories ?? 0; // Calories diary: saved numbers only
+  if (tracksCalories) return entry.calories ?? 0; // Detailed diary: saved numbers only
   if (entry.mode === "spar") {
     return (SLICE_CAL[entry.sliceType || "protein"] || 100) * (entry.sliceCount ?? 1);
   }
@@ -65,7 +65,7 @@ export default function Reports() {
   const isSparMode = nutritionMode === "spar";
   const macroTargets = getMacroTargets();
   const sliceTargets = isSparMode ? getSliceTargets() : null;
-  const tracksCalories = profile?.nutritionPreference === "calories";
+  const tracksCalories = !isSparMode; // Detailed diary
   const hydrationTarget = getHydrationTarget();
 
   const today = profile?.simulatedDate || new Date();
@@ -154,7 +154,7 @@ export default function Reports() {
   }
 
   /* ── calorie goal ── */
-  // No goal in the Calories diary yet: the calculator's figures rest on unchecked portion calories.
+  // No goal in the Detailed diary yet: the calculator's figures rest on unchecked portion calories.
   const calorieGoal = tracksCalories
     ? null
     : sliceTargets?.totalCalories || (macroTargets.carbs.max * 4 + macroTargets.protein.max * 4);

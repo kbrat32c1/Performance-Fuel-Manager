@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { Mic, MicOff, Loader2, X, Send, Keyboard, Check, Trash2, RotateCcw, Minus, Plus, ChevronDown, ArrowLeftRight, AlertTriangle } from "lucide-react";
 import { type PhotoFood, type MatchedFood, type FatSecretFood, type FatSecretServing, matchedFoodToPhotoFood } from "@/components/food-photo-review";
 import { hapticTap, hapticSuccess, hapticWarning } from "@/lib/haptics";
+import { calorieText } from "@/lib/food-totals";
 
 interface VoiceFoodLoggerProps {
   onFoodsReady: (foods: PhotoFood[], confidence: string) => void;
@@ -429,7 +430,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground/60">
-                      {photoFood.calories} cal · {photoFood.protein}P {photoFood.carbs}C {photoFood.fat}F
+                      {calorieText(photoFood.calories, undefined)} · {photoFood.protein}P {photoFood.carbs}C {photoFood.fat}F
                     </p>
                     {photoFood.sparCategory && (
                       <span className="text-xs font-bold uppercase text-primary/70">
@@ -525,7 +526,7 @@ export function VoiceFoodLogger({ onFoodsReady, onClose }: VoiceFoodLoggerProps)
                                   {alt.brand && <span className="text-muted-foreground/60 font-normal"> ({alt.brand})</span>}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                  {alt.calories} cal · {alt.protein}p {alt.carbs}c {alt.fat}f
+                                  {calorieText(alt.calories, undefined)} · {alt.protein}p {alt.carbs}c {alt.fat}f
                                 </p>
                               </button>
                             ))}

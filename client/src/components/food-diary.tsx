@@ -75,9 +75,9 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
     return `on ${format(new Date(y, m - 1, d), 'EEE, MMM d')}`;
   })();
   const foodLog = tracking.foodLog || [];
-  const tracksCalories = profile.nutritionPreference === 'calories';
-  // In the Calories diary, a food with numbers is edited by servings so all of them move together.
-  const editsServings = (entry: FoodLogEntry) => tracksCalories && entry.calories != null;
+  const tracksCalories = mode === 'sugar';
+  // In Detailed, a food with database or entered numbers is edited by servings so they all move together.
+  const editsServings = (entry: FoodLogEntry) => tracksCalories && entry.mode === 'spar' && !!entry.nutrientSource && entry.nutrientSource !== 'portion';
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
@@ -348,7 +348,7 @@ export function FoodDiary({ dateKey, mode, sliceTargets, gramTargets, onAddFood 
                                 <span className="text-[12px] font-medium truncate block leading-tight">{entry.name}</span>
                                 <span className="text-xs text-muted-foreground/50 font-mono">
                                   {(() => { try { return format(new Date(entry.timestamp), 'h:mm a'); } catch { return ''; } })()}
-                                  {tracksCalories && entry.calories != null && ` · ${macros.carbs}C ${macros.protein}P${entry.fat != null ? ` ${entry.fat}F` : ''}`}
+                                  {tracksCalories && (entry.mode === 'sugar' || usesServings) && ` · ${macros.carbs}C ${macros.protein}P${entry.fat != null ? ` ${entry.fat}F` : ''}`}
                                   {tracksCalories && entry.nutrientSource === 'portion' && ' · not in calories'}
                                 </span>
                               </div>

@@ -58,7 +58,7 @@ export interface AthleteProfile {
   age?: number;
   gender?: 'male' | 'female';
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very-active';
-  nutritionPreference: 'spar' | 'sugar' | 'calories'; // slices, grams or the full calorie diary
+  nutritionPreference: 'spar' | 'sugar'; // 'spar' = Slices; 'sugar' = Detailed (grams, calories and fat)
   trackPracticeWeighIns?: boolean; // For SPAR users who still want to track practice weight loss
   waterLoading?: boolean; // Opt-in water loading plan (off = steady hydration all week)
 

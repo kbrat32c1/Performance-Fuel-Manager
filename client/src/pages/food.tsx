@@ -48,7 +48,7 @@ export default function Food() {
   const showSliceTracker = isSparMode;
   const sliceTargets = showSliceTracker ? dayTargets.slices : null;
   const daysUntilWeighIn = dayTargets.daysUntilWeighIn;
-  const tracksCalories = profile.nutritionPreference === 'calories';
+  const tracksCalories = !isSparMode;
   const dayNutrition = useMemo(() => nutritionFromLog(tracking.foodLog), [tracking.foodLog]);
 
   // Blocked categories for protocol restrictions
@@ -206,7 +206,7 @@ export default function Food() {
               onClick={() => { setEditingWater(true); setWaterInput(String(tracking.waterConsumed)); hapticTap(); }}
               className="w-full text-left"
             >
-              <MacroBar label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" />
+              <MacroBar allowOver label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" />
             </button>
           )}
         </div>

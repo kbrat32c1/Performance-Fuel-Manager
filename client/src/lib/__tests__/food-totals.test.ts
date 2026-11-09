@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildFoodEntries, classifyFood, barcodeMultiplier, copyEntry, entryCalorieLabel, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
+  buildFoodEntry, calorieText, classifyFood, barcodeMultiplier, copyEntry, entryCalorieLabel, gramsToSlices, hasTotalsWithoutEntries, incompleteReasons, isListed, nextTotals,
   nutritionFromLog, totalsFromFoodLog, withGramAmount, withServings, withSliceCount,
 } from "../food-totals";
 import type { FoodLogEntry } from "../stores/types";
@@ -74,32 +74,46 @@ describe("food totals come from the entries", () => {
 
 describe("calorie diary", () => {
   const ctx = { mealSection: "lunch" as const, nowMs: 1_800_000_000_000 };
+  const build = (f: Parameters<typeof buildFoodEntry>[0], c: typeof ctx) => [buildFoodEntry(f, c)];
   const rice = { name: "Rice", carbs: 45, protein: 4, calories: 206, fat: 1, fiber: 1, nutrientSource: "database" as const };
 
-  it("saves one row with calories, fat and fiber in the Calories view and in Slices", () => {
-    for (const view of ["calories", "spar"] as const) {
-      const rows = buildFoodEntries(rice, { ...ctx, view });
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({ calories: 206, fat: 1, fiber: 1, carbs: 45, protein: 4, nutrientSource: "database" });
-    }
+  it("saves one row per food with calories, fat and fiber", () => {
+    const rows = build(rice, ctx);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ calories: 206, fat: 1, fiber: 1, carbs: 45, protein: 4, nutrientSource: "database" });
   });
 
-  it("splits a food across the two Grams rows so they add back up exactly", () => {
-    const rows = buildFoodEntries({ ...rice, calories: 205, fat: 3 }, { ...ctx, view: "sugar" });
-    expect(rows.map(r => r.macroType)).toEqual(["carbs", "protein"]);
-    const n = nutritionFromLog(rows);
-    expect(n).toMatchObject({ calories: 205, fat: 3, fiber: 1, incomplete: false });
-    expect(nutritionFromLog(rows.slice(1)).calories).toBeLessThan(205);
+  it("reads old Grams rows without changing them: grams count, calories are not tracked", () => {
+    const oldCarb: FoodLogEntry = { id: "o1", name: "Oats", timestamp: "2026-11-08T12:00:00Z", mode: "sugar", macroType: "carbs", amount: 30, category: "custom" };
+    const oldProtein: FoodLogEntry = { ...oldCarb, id: "o2", macroType: "protein", amount: 12 };
+    const before = JSON.stringify([oldCarb, oldProtein]);
+    expect(nutritionFromLog([oldCarb, oldProtein])).toMatchObject({ calories: 0, carbs: 30, protein: 12, notTracked: 2, incomplete: true });
+    expect(totalsFromFoodLog([oldCarb, oldProtein])).toMatchObject({ carbsConsumed: 30, proteinConsumed: 12 });
+    expect(JSON.stringify([oldCarb, oldProtein])).toBe(before);
+  });
+
+  it("keeps known fat, carbs and protein when calories are missing, and stays incomplete", () => {
+    const rows = build({ name: "Puffed rice", carbs: 84, protein: 7, fat: 1, nutrientSource: "database" }, ctx);
+    expect(rows[0].calories).toBeUndefined();
+    expect(nutritionFromLog(rows)).toMatchObject({ calories: 0, carbs: 84, protein: 7, fat: 1, notTracked: 1, incomplete: true });
+    expect(entryCalorieLabel(rows[0])).toBe("Not tracked");
+  });
+
+  it("never shows missing calories as 0 before adding", () => {
+    expect(calorieText(0, false)).toBe("Calories not listed");
+    expect(calorieText(0, undefined)).toBe("Calories not listed");
+    expect(calorieText(0, true)).toBe("0 cal");
+    expect(calorieText(206.4, true)).toBe("206 cal");
   });
 
   it("keeps a food with no carbs or protein, like butter, in Grams", () => {
-    const rows = buildFoodEntries({ name: "Butter", carbs: 0, protein: 0, calories: 102, fat: 12, nutrientSource: "estimate" }, { ...ctx, view: "sugar" });
+    const rows = build({ name: "Butter", carbs: 0, protein: 0, calories: 102, fat: 12, nutrientSource: "estimate" }, ctx);
     expect(rows).toHaveLength(1);
     expect(nutritionFromLog(rows)).toMatchObject({ calories: 102, fat: 12 });
   });
 
   it("gives a quick portion no calories and leaves it out of the total", () => {
-    const rows = buildFoodEntries({ name: "Rice", carbs: 0, protein: 0, sliceType: "carb", sliceCount: 3, nutrientSource: "portion" }, { ...ctx, view: "spar" });
+    const rows = build({ name: "Rice", carbs: 0, protein: 0, sliceType: "carb", sliceCount: 3, nutrientSource: "portion" }, ctx);
     expect(rows[0].calories).toBeUndefined();
     const n = nutritionFromLog(rows);
     expect(n).toMatchObject({ calories: 0, portions: 3, incomplete: true });
@@ -109,31 +123,31 @@ describe("calorie diary", () => {
   it("shows older entries as not tracked, never as zero, and leaves them untouched", () => {
     const old = spar({ sliceType: "protein", sliceCount: 1, gramAmount: 25 });
     const before = JSON.stringify(old);
-    const n = nutritionFromLog([old, ...buildFoodEntries(rice, { ...ctx, view: "calories" })]);
+    const n = nutritionFromLog([old, ...build(rice, ctx)]);
     expect(n).toMatchObject({ calories: 206, notTracked: 1, portions: 0, incomplete: true });
     expect(incompleteReasons(n)).toEqual(["1 entry not tracked"]);
     expect(JSON.stringify(old)).toBe(before);
   });
 
   it("still counts carbs and protein from entries that have no calories", () => {
-    const portion = buildFoodEntries({ name: "Rice", carbs: 0, protein: 0, sliceType: "carb", sliceCount: 1, nutrientSource: "portion" }, { ...ctx, view: "spar" });
-    const grams = buildFoodEntries({ name: "Chicken", carbs: 0, protein: 30 }, { ...ctx, view: "sugar" });
+    const portion = build({ name: "Rice", carbs: 0, protein: 0, sliceType: "carb", sliceCount: 1, nutrientSource: "portion" }, ctx);
+    const grams = build({ name: "Chicken", carbs: 0, protein: 30 }, ctx);
     expect(nutritionFromLog([...portion, ...grams])).toMatchObject({ calories: 0, carbs: 26, protein: 30, portions: 1, notTracked: 1, incomplete: true });
   });
 
   it("marks the total incomplete when a counted food has no fat value", () => {
-    const rows = buildFoodEntries({ name: "Bar", carbs: 20, protein: 5, calories: 200, nutrientSource: "estimate" }, { ...ctx, view: "calories" });
+    const rows = build({ name: "Bar", carbs: 20, protein: 5, calories: 200, nutrientSource: "estimate" }, ctx);
     const n = nutritionFromLog(rows);
     expect(n).toMatchObject({ calories: 200, fat: 0, missingFat: 1, estimates: 1, incomplete: true });
   });
 
   it("is complete only when every entry has its numbers", () => {
-    expect(nutritionFromLog(buildFoodEntries(rice, { ...ctx, view: "calories" })).incomplete).toBe(false);
+    expect(nutritionFromLog(build(rice, ctx)).incomplete).toBe(false);
     expect(nutritionFromLog([]).incomplete).toBe(false);
   });
 
   it("scales every number when servings change, and blanks stay blank", () => {
-    const [row] = buildFoodEntries({ ...rice, fiber: undefined, servings: 1 }, { ...ctx, view: "calories" });
+    const [row] = build({ ...rice, fiber: undefined, servings: 1 }, ctx);
     const edited = withServings(row, 2);
     expect(edited).toMatchObject({ calories: 412, fat: 2, carbs: 90, protein: 8, servings: 2 });
     expect(edited.fiber).toBeUndefined();
@@ -141,17 +155,17 @@ describe("calorie diary", () => {
   });
 
   it("scales a Grams row with its calories when the gram amount changes", () => {
-    const [carbRow] = buildFoodEntries({ name: "Oats", carbs: 30, protein: 0, calories: 150, fat: 3 }, { ...ctx, view: "sugar" });
+    const carbRow: FoodLogEntry = { id: "o", name: "Oats", timestamp: "2026-11-08T12:00:00Z", mode: "sugar", macroType: "carbs", amount: 30, calories: 150, fat: 3 };
     expect(withGramAmount(carbRow, 60)).toMatchObject({ amount: 60, calories: 300, fat: 6 });
   });
 
   it("scales calories when a portion count changes in Slices", () => {
-    const [row] = buildFoodEntries({ name: "Chicken", carbs: 0, protein: 25, calories: 165, fat: 4, sliceType: "protein", sliceCount: 1 }, { ...ctx, view: "spar" });
+    const [row] = build({ name: "Chicken", carbs: 0, protein: 25, calories: 165, fat: 4, sliceType: "protein", sliceCount: 1 }, ctx);
     expect(withSliceCount(row, 2)).toMatchObject({ calories: 330, fat: 8, protein: 50 });
   });
 
   it("copies numbers unchanged when repeating yesterday, and reloads them intact", () => {
-    const rows = buildFoodEntries(rice, { ...ctx, view: "calories" });
+    const rows = build(rice, ctx);
     const copied = rows.map((r, i) => copyEntry(r, `c${i}`, "2026-11-09T12:00:00Z"));
     expect(copied[0]).toMatchObject({ calories: 206, fat: 1, fiber: 1, nutrientSource: "database" });
     const reloaded = JSON.parse(JSON.stringify(copied));
@@ -159,14 +173,14 @@ describe("calorie diary", () => {
   });
 
   it("keeps carb and protein day totals correct for calorie rows, including delete", () => {
-    const rows = buildFoodEntries(rice, { ...ctx, view: "calories" });
+    const rows = build(rice, ctx);
     expect(totalsFromFoodLog(rows)).toMatchObject({ carbsConsumed: 45, proteinConsumed: 4 });
     expect(nextTotals({ carbsConsumed: 45, proteinConsumed: 4, foodLog: rows }, [])).toMatchObject({ carbsConsumed: 0, proteinConsumed: 0 });
     expect(nutritionFromLog([])).toMatchObject({ calories: 0 });
   });
 
   it("reads the same saved entry the same way whichever view it was logged in", () => {
-    const rows = buildFoodEntries(rice, { ...ctx, view: "spar" });
+    const rows = build(rice, ctx);
     const before = JSON.stringify(rows);
     expect(nutritionFromLog(rows).calories).toBe(206);
     expect(totalsFromFoodLog(rows).carbSlices).toBeGreaterThan(0);
@@ -185,8 +199,8 @@ describe("calorie diary", () => {
     expect(isListed(0, true)).toBe(true);
     expect(isListed(0, undefined)).toBe(false);
     expect(isListed(4, undefined)).toBe(true);
-    const unknown = buildFoodEntries({ name: "A", carbs: 20, protein: 2, calories: 100, nutrientSource: "database" }, { ...ctx, view: "calories" });
-    const zero = buildFoodEntries({ name: "B", carbs: 20, protein: 2, calories: 100, fat: 0, nutrientSource: "database" }, { ...ctx, view: "calories" });
+    const unknown = build({ name: "A", carbs: 20, protein: 2, calories: 100, nutrientSource: "database" }, ctx);
+    const zero = build({ name: "B", carbs: 20, protein: 2, calories: 100, fat: 0, nutrientSource: "database" }, ctx);
     expect(nutritionFromLog(unknown)).toMatchObject({ missingFat: 1, incomplete: true });
     expect(incompleteReasons(nutritionFromLog(unknown))).toEqual(["1 food has no fat value"]);
     expect(nutritionFromLog(zero)).toMatchObject({ fat: 0, missingFat: 0, incomplete: false });

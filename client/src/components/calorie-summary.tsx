@@ -1,5 +1,5 @@
 /**
- * CalorieSummary — the day's calories, fat and fiber in the Calories diary.
+ * CalorieSummary — the day's calories, fat and fiber in the Detailed diary.
  * Counts only saved numbers and says "incomplete" when anything is left out.
  * No calorie or fat goal yet: the calculator's figures rest on portion calories
  * that have not been checked.

@@ -4,7 +4,7 @@ import { authHeaders } from "@/lib/auth-headers";
 import { X, Loader2, Camera, Check, AlertTriangle, Pencil, Plus, Minus, Trash2, Ban, ChevronDown, ArrowLeftRight, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { checkSugarDietFood } from "@/lib/food-data";
-import { isListed } from "@/lib/food-totals";
+import { calorieText, isListed } from "@/lib/food-totals";
 
 export interface PhotoFood {
   name: string;
@@ -514,7 +514,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                         </p>
                       )}
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                        <span>{photoFood.calories} cal</span>
+                        <span>{calorieText(photoFood.calories, undefined)}</span>
                         <span>·</span>
                         <span className="text-orange-500 font-mono">{photoFood.protein}p</span>
                         <span className="text-amber-500 font-mono">{photoFood.carbs}c</span>
@@ -609,7 +609,7 @@ export function FoodPhotoReview({ open, imageDataUrl, onClose, onLogFoods, mode,
                                     {alt.brand && <span className="text-muted-foreground/60 font-normal"> ({alt.brand})</span>}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {alt.calories} cal · {alt.protein}p {alt.carbs}c {alt.fat}f
+                                    {calorieText(alt.calories, undefined)} · {alt.protein}p {alt.carbs}c {alt.fat}f
                                   </p>
                                 </button>
                               ))}
