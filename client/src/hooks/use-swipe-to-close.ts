@@ -14,9 +14,12 @@ export function swipeIntent(dx: number, dy: number): 'wait' | 'drag' | 'cancel' 
 
 const NO_SHEET_SWIPE = 'input, select, textarea, [role="slider"], [data-no-swipe], [data-swipe-handle]';
 
-/** A drag can only move the sheet if the content under the finger is scrolled to the top. */
-function canStartSheetSwipe(target: HTMLElement, sheet: HTMLElement): boolean {
-  if (target.closest(NO_SHEET_SWIPE)) return false;
+/**
+ * A drag can only move the sheet if the content under the finger is scrolled to the top.
+ * Touches still bubble through React from overlays portaled to the body, so check the real DOM.
+ */
+export function canStartSheetSwipe(target: HTMLElement, sheet: HTMLElement): boolean {
+  if (!sheet.contains(target) || target.closest(NO_SHEET_SWIPE)) return false;
   for (let el: HTMLElement | null = target; el; el = el.parentElement) {
     if (el.scrollTop > 0) return false;
     if (el === sheet) break;
@@ -33,6 +36,11 @@ export function useSwipeSheetToClose(onClose: () => void) {
 
   const onTouchStart = useCallback((e: React.TouchEvent<HTMLElement>) => {
     const sheet = e.currentTarget;
+    // A second finger cancels a pull already under way; put the sheet back first.
+    if (drag.current?.active) {
+      drag.current.sheet.style.transition = "transform 0.2s ease-out";
+      drag.current.sheet.style.transform = "";
+    }
     drag.current = e.touches.length === 1 && canStartSheetSwipe(e.target as HTMLElement, sheet)
       ? { startX: e.touches[0].clientX, startY: e.touches[0].clientY, startT: Date.now(), sheet, dy: 0, active: false }
       : null;
