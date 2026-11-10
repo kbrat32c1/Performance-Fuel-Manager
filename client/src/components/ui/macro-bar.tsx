@@ -29,6 +29,8 @@ export function MacroBar({
   const remaining = Math.max(0, target - consumed);
   const overBy = Math.round((consumed - target) * 10) / 10;
   const barColor = over ? "bg-muted-foreground" : done ? "bg-green-500" : color;
+  // Weigh-in day has no water target: show what they've had, not "x / 0".
+  const noTarget = allowOver && target === 0;
 
   if (variant === 'stacked') {
     return (
@@ -36,10 +38,14 @@ export function MacroBar({
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">{label}</span>
           <span className={cn("text-xs font-mono font-bold", done ? "text-green-500" : "text-foreground")}>
-            {done && <Check className="w-3 h-3 inline mr-0.5" />}{consumed}{unit} / {target}{unit}
+            {noTarget ? (
+              <>{consumed}{unit} so far</>
+            ) : (
+              <>{done && <Check className="w-3 h-3 inline mr-0.5" />}{consumed}{unit} / {target}{unit}</>
+            )}
           </span>
         </div>
-        <div className="h-2 bg-muted-foreground/20 rounded-full overflow-hidden">
+        <div className={cn("h-2 bg-muted-foreground/20 rounded-full overflow-hidden", noTarget && "invisible")}>
           <div
             className={cn("h-full rounded-full transition-all duration-500 ease-out", barColor)}
             style={{ width: `${Math.min(pct, 100)}%` }}
@@ -53,7 +59,7 @@ export function MacroBar({
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs font-semibold text-muted-foreground w-14 shrink-0">{label}</span>
-      <div className="flex-1 h-2 bg-muted-foreground/20 rounded-full overflow-hidden">
+      <div className={cn("flex-1 h-2 bg-muted-foreground/20 rounded-full overflow-hidden", noTarget && "invisible")}>
         <div
           className={cn("h-full rounded-full transition-all duration-500 ease-out", barColor)}
           style={{ width: `${pct}%` }}
@@ -63,7 +69,9 @@ export function MacroBar({
         "text-xs font-mono font-bold w-28 text-right shrink-0 whitespace-nowrap",
         done ? "text-green-500" : "text-muted-foreground"
       )}>
-        {over ? (
+        {noTarget ? (
+          <>{consumed}{unit} so far</>
+        ) : over ? (
           <>{overBy}{unit} over</>
         ) : done ? (
           <><Check className="w-3 h-3 inline mr-0.5" />{consumed}{unit}</>

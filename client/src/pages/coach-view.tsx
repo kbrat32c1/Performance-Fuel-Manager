@@ -507,7 +507,7 @@ function CoachDashboard({ data, lastRefresh, onRefresh }: { data: CoachData; las
               ) : (
                 <p className="text-sm font-mono text-muted-foreground">0</p>
               )}
-              <p className="text-xs text-muted-foreground">/ {waterTarget} oz</p>
+              <p className="text-xs text-muted-foreground">{waterTarget > 0 ? `/ ${waterTarget} oz` : 'oz so far'}</p>
             </CardContent>
           </Card>
         </div>
