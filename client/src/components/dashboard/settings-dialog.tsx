@@ -206,7 +206,7 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
         </DialogHeader>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className={cn("grid w-full px-4 py-2 sticky top-0 bg-card z-10", isSparGeneral ? "grid-cols-5" : "grid-cols-6")}>
               <TabsTrigger value="profile" className="text-xs px-1">Profile</TabsTrigger>
@@ -275,15 +275,16 @@ export function SettingsDialog({ profile, updateProfile, resetData, clearLogs }:
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">lbs</span>
                     </div>
                   </div>
-                  <div className="space-y-1">
+                  <div className="col-span-2 space-y-1">
                     <Label className="text-xs">Target Class</Label>
-                    <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                    {/* All classes on screen. A sideways strip here swallowed up/down drags while it coasted. */}
+                    <div className="grid grid-cols-5 gap-1.5">
                       {WEIGHT_CLASSES.map(w => (
                         <button
                           key={w}
                           onClick={() => handleChange({ targetWeightClass: w })}
                           className={cn(
-                            "shrink-0 h-10 px-3 rounded-lg border-2 font-mono text-sm font-bold transition-all",
+                            "h-11 rounded-lg border-2 font-mono text-sm font-bold transition-colors",
                             getValue('targetWeightClass') === w
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-muted hover:border-muted-foreground/50"
