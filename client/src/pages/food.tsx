@@ -229,7 +229,7 @@ export default function Food() {
               8oz
             </button>
           )}
-          {!waterDone && (
+          {(!waterDone || hydration.targetOz === 0) && (
             <button
               onClick={() => handleQuickWater(8)}
               className="flex items-center justify-center gap-1.5 px-3 min-h-11 py-2.5 rounded-xl bg-cyan-500/15 text-cyan-600 text-[12px] font-bold hover:bg-cyan-500/20 active:scale-[0.98] transition-all"

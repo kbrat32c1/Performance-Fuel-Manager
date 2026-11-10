@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { addDays, differenceInDays, getDay, parseISO, format, startOfDay } from 'date-fns';
+import { toDateOnly, toLocalDate } from './date-only';
 import { supabase, type UserFoodsJson } from './supabase';
 import { useAuth } from './auth';
 import { toast } from '@/hooks/use-toast';
@@ -694,7 +695,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           name: parsed.name || 'Athlete',
           current_weight: parsed.currentWeight || 0,
           target_weight_class: parsed.targetWeightClass || 157,
-          weigh_in_date: parsed.weighInDate ? new Date(parsed.weighInDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          weigh_in_date: toDateOnly(parsed.weighInDate || new Date()),
           weigh_in_time: parsed.weighInTime || '07:00',
           protocol: parseInt(parsed.protocol) || 2,
           has_completed_onboarding: true,
@@ -808,10 +809,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Ensure dates are Date objects
     const normalizedUpdates = { ...updates };
     if (normalizedUpdates.weighInDate && !(normalizedUpdates.weighInDate instanceof Date)) {
-      normalizedUpdates.weighInDate = new Date(normalizedUpdates.weighInDate);
+      normalizedUpdates.weighInDate = toLocalDate(normalizedUpdates.weighInDate);
     }
     if (normalizedUpdates.simulatedDate && !(normalizedUpdates.simulatedDate instanceof Date)) {
-      normalizedUpdates.simulatedDate = new Date(normalizedUpdates.simulatedDate);
+      normalizedUpdates.simulatedDate = toLocalDate(normalizedUpdates.simulatedDate);
     }
 
     const previousProfile = profile;
@@ -850,15 +851,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (user) {
       try {
-        const weighInDateStr = newProfile.weighInDate instanceof Date
-          ? newProfile.weighInDate.toISOString().split('T')[0]
-          : new Date(newProfile.weighInDate).toISOString().split('T')[0];
-
-        const simulatedDateStr = newProfile.simulatedDate
-          ? (newProfile.simulatedDate instanceof Date
-              ? newProfile.simulatedDate.toISOString().split('T')[0]
-              : new Date(newProfile.simulatedDate).toISOString().split('T')[0])
-          : null;
+        const weighInDateStr = toDateOnly(newProfile.weighInDate);
+        const simulatedDateStr = newProfile.simulatedDate ? toDateOnly(newProfile.simulatedDate) : null;
 
         // Core fields that should always exist in database
         const corePayload: Record<string, any> = {
@@ -1339,7 +1333,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           target_weight_class: 157,
           protocol: 2,
           simulated_date: null,
-          weigh_in_date: fiveDaysOut.toISOString().split('T')[0],
+          weigh_in_date: toDateOnly(fiveDaysOut),
           user_foods: {},
         }).eq('user_id', user.id);
       } catch (error) {

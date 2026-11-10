@@ -435,7 +435,7 @@ export default function Fuel() {
                   )}
 
                   {/* Log Water button — opens FAB water tab */}
-                  {!waterDone && (
+                  {(!waterDone || hydration.targetOz === 0) && (
                     <button
                       onClick={openWaterFAB}
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500/15 text-cyan-500 font-bold text-sm border border-cyan-500/30 active:scale-[0.98] transition-all"
@@ -498,7 +498,7 @@ export default function Fuel() {
           /* P5 / SPAR: Just water progress + log button (no food guide) */
           <Card className="p-4 border-muted/30 space-y-3">
             <MacroBar allowOver label="Water" consumed={tracking.waterConsumed} target={hydration.targetOz} color="bg-cyan-500" unit="oz" variant="stacked" />
-            {!waterDone && (
+            {(!waterDone || hydration.targetOz === 0) && (
               <button
                 onClick={() => openWaterFAB()}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-cyan-500/15 text-cyan-500 font-bold text-sm border border-cyan-500/30 active:scale-[0.98] transition-all"

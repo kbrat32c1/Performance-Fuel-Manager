@@ -109,6 +109,8 @@ export function FuelCard({
   // Hydration
   const waterProgress = hydration.targetOz > 0 ? Math.min(100, (tracking.waterConsumed / hydration.targetOz) * 100) : 0;
   const waterDone = hydration.targetOz === 0 || waterProgress >= 100;
+  // Weigh-in day has no target: water doesn't hold up "all done", but it isn't shown as finished either.
+  const waterMet = hydration.targetOz > 0 && waterProgress >= 100;
   const isSipOnly = hydration.type === 'Reduced';
 
   const allDone = showSliceTracker
@@ -171,12 +173,12 @@ export function FuelCard({
       if (macros.carbs.max > 0) segs.push({ pct: carbProgress, stroke: 'stroke-amber-500', label: 'Carb', done: sugarCarbsDone });
       if (macros.protein.max > 0) segs.push({ pct: proteinProgress, stroke: 'stroke-orange-500', label: 'Pro', done: sugarProteinDone });
     }
-    segs.push({ pct: waterProgress, stroke: 'stroke-cyan-500', label: '💧', done: waterDone });
+    segs.push({ pct: waterProgress, stroke: 'stroke-cyan-500', label: '💧', done: waterMet });
     return segs;
   }, [showSliceTracker, sliceTargets, isProteinBlocked, isCarbBlocked, isVegBlocked, isV2,
     sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct, sparProteinDone, sparCarbDone,
     sparVegDone, sparFruitDone, sparFatDone, carbProgress, proteinProgress, sugarCarbsDone,
-    sugarProteinDone, waterProgress, waterDone, macros]);
+    sugarProteinDone, waterProgress, waterMet, macros]);
 
   // Ring geometry
   const r = 28;
@@ -198,13 +200,15 @@ export function FuelCard({
       if (macros.carbs.max > 0) p.push({ label: 'Carbs', consumed: `${tracking.carbsConsumed}g`, target: `${macros.carbs.max}g`, pct: carbProgress, done: sugarCarbsDone, color: 'amber' });
       if (macros.protein.max > 0) p.push({ label: 'Protein', consumed: `${tracking.proteinConsumed}g`, target: `${macros.protein.max}g`, pct: proteinProgress, done: sugarProteinDone, color: 'orange' });
     }
-    p.push({ label: 'Water', consumed: `${tracking.waterConsumed}`, target: `${hydration.targetOz}oz`, pct: waterProgress, done: waterDone, color: 'cyan' });
+    p.push(hydration.targetOz > 0
+      ? { label: 'Water', consumed: `${tracking.waterConsumed}`, target: `${hydration.targetOz}oz`, pct: waterProgress, done: waterMet, color: 'cyan' }
+      : { label: 'Water', consumed: `${tracking.waterConsumed}oz`, target: '', pct: 0, done: false, color: 'cyan' });
     return p;
   }, [showSliceTracker, sliceTargets, isV2, tracking, macros, hydration,
     sparProteinPct, sparCarbPct, sparVegPct, sparFruitPct, sparFatPct,
     sparProteinDone, sparCarbDone, sparVegDone, sparFruitDone, sparFatDone,
     isProteinBlocked, isCarbBlocked, isVegBlocked,
-    carbProgress, proteinProgress, sugarCarbsDone, sugarProteinDone, waterProgress, waterDone]);
+    carbProgress, proteinProgress, sugarCarbsDone, sugarProteinDone, waterProgress, waterMet]);
 
   // Color mapping
   const colorMap: Record<string, { bg: string; text: string; fill: string; ring: string }> = {
@@ -349,7 +353,7 @@ export function FuelCard({
                       <span className={cn("text-xs font-mono font-black leading-tight block",
                         pill.done ? "text-green-500" : "text-foreground"
                       )}>
-                        {pill.consumed}<span className="text-muted-foreground font-normal">/{pill.target}</span>
+                        {pill.consumed}{pill.target !== '' && <span className="text-muted-foreground font-normal">/{pill.target}</span>}
                       </span>
                     </div>
                   </div>

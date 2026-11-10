@@ -626,13 +626,15 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
   const daysWithData = weekData.filter((d: any) => !d.isFuture && d.waterOz > 0);
   const totalOz = daysWithData.reduce((s: number, d: any) => s + d.waterOz, 0);
   const dailyAvg = daysWithData.length > 0 ? Math.round(totalOz / daysWithData.length) : 0;
+  // Weigh-in day has no water target, so there's nothing to hit.
+  const hasTarget = targetOz > 0;
   const daysHit = daysWithData.filter((d: any) => d.waterOz >= targetOz).length;
 
   const chartData = weekData.map((d: any) => ({
     name: `${d.dayLabel.substring(0, 2)} ${d.dayNum}`,
     water: d.isFuture ? 0 : d.waterOz,
     isToday: d.isToday,
-    hitTarget: d.waterOz >= targetOz,
+    hitTarget: hasTarget && d.waterOz >= targetOz,
   }));
 
   if (daysWithData.length === 0) return <EmptyState />;
@@ -649,7 +651,7 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
           <div className="flex items-baseline gap-3 mb-3">
             <span className="text-2xl font-mono font-bold">{totalOz}</span>
             <span className="text-xs text-muted-foreground">oz total</span>
-            <span className="text-xs text-muted-foreground ml-auto">Target: {targetOz} oz/day</span>
+            <span className="text-xs text-muted-foreground ml-auto">{hasTarget ? `Target: ${targetOz} oz/day` : 'No target on weigh-in day'}</span>
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
@@ -657,7 +659,7 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
               <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} unit=" oz" />
               <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v} oz`, "Water"]} />
-              <ReferenceLine y={targetOz} stroke="#06b6d4" strokeDasharray="6 4" strokeWidth={1.5} />
+              {hasTarget && <ReferenceLine y={targetOz} stroke="#06b6d4" strokeDasharray="6 4" strokeWidth={1.5} />}
               <Bar dataKey="water" radius={[4, 4, 0, 0]} maxBarSize={28}>
                 {chartData.map((entry, i) => (
                   <Cell
@@ -691,11 +693,11 @@ function HydrationTab({ weekData, targetOz }: { weekData: any[]; targetOz: numbe
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase">Days Hit Target</p>
-              <p className="text-lg font-mono font-bold text-cyan-500">{daysHit}/7</p>
+              <p className="text-lg font-mono font-bold text-cyan-500">{hasTarget ? `${daysHit}/7` : '—'}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase">Target</p>
-              <p className="text-lg font-mono font-bold">{targetOz} oz</p>
+              <p className="text-lg font-mono font-bold">{hasTarget ? `${targetOz} oz` : '—'}</p>
             </div>
           </div>
         </CardContent>

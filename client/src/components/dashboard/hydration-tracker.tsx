@@ -133,9 +133,11 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
                   </div>
                 ) : (
                   <>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {tracking.waterConsumed}/{hydration.targetOz}oz
-                    </span>
+                    {hydration.targetOz > 0 && (
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {tracking.waterConsumed}/{hydration.targetOz}oz
+                      </span>
+                    )}
                     {!readOnly && (
                       <>
                         <button onClick={handleEdit} className="p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground active:scale-95 transition-transform min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Edit water intake">
@@ -160,8 +162,8 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="flex items-center gap-2 mb-2">
+            {/* Progress Bar: weigh-in day has no target to measure against */}
+            <div className={cn("flex items-center gap-2 mb-2", hydration.targetOz === 0 && "hidden")}>
               <div
                 className="flex-1 h-2 bg-muted/50 rounded-full overflow-hidden"
                 role="progressbar"
@@ -202,7 +204,7 @@ export function HydrationTracker({ hydration, readOnly = false, embedded = false
               ) : (
                 <button onClick={handleEdit} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2 py-1.5 min-h-[36px] active:scale-95 transition-transform">
                   <Pencil className="w-3.5 h-3.5" />
-                  <span className="font-mono">{tracking.waterConsumed}/{hydration.targetOz}oz</span>
+                  <span className="font-mono">{hydration.targetOz > 0 ? `${tracking.waterConsumed}/${hydration.targetOz}oz` : `${tracking.waterConsumed} oz so far`}</span>
                 </button>
               )}
             </div>

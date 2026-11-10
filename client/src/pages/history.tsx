@@ -864,8 +864,8 @@ function HydrationHistory({ dailyTracking, targetOz, targetOzFor }: HydrationHis
             </div>
             <div>
               <span className="text-xs text-muted-foreground block">Target</span>
-              <span className="font-mono font-bold text-lg text-primary">{targetOz}</span>
-              <span className="text-xs text-muted-foreground"> oz</span>
+              <span className="font-mono font-bold text-lg text-primary">{targetOz > 0 ? targetOz : 'Rehydrate'}</span>
+              {targetOz > 0 && <span className="text-xs text-muted-foreground"> oz</span>}
             </div>
           </div>
         </CardContent>

@@ -21,6 +21,18 @@ describe("MacroBar", () => {
     expect(screen.getByText("350g left")).toBeInTheDocument();
   });
 
+  it("shows water so far, not a target of 0, on weigh-in day", () => {
+    render(<MacroBar allowOver label="Water" consumed={24} target={0} color="bg-cyan-500" unit="oz" />);
+    expect(screen.getByText("24oz so far")).toBeInTheDocument();
+    expect(screen.queryByText(/left/)).toBeNull();
+  });
+
+  it("shows water so far in the stacked style on weigh-in day", () => {
+    render(<MacroBar allowOver variant="stacked" label="Water" consumed={24} target={0} color="bg-cyan-500" unit="oz" />);
+    expect(screen.getByText("24oz so far")).toBeInTheDocument();
+    expect(screen.queryByText(/\/ 0oz/)).toBeNull();
+  });
+
   it("does not mark water as over", () => {
     const { container } = render(<MacroBar allowOver label="Water" consumed={120} target={100} color="bg-cyan-500" unit="oz" />);
     expect(screen.queryByText(/over/)).toBeNull();
