@@ -2930,7 +2930,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return statusData.projectionWarning;
       }
       if (statusData.waterLoadingNote) {
-        return `${statusData.waterLoadingNote} — normal during water loading.`;
+        return `${statusData.waterLoadingNote}.`;
       }
       return undefined;
     };

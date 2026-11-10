@@ -2972,7 +2972,7 @@ function WhatsNextCard({ getTomorrowPlan, getWeeklyPlan, descentData, timeUntilW
                 return (
                   <div className="mx-4 mt-3 p-2 rounded-lg text-center text-xs bg-orange-500/10 text-orange-500">
                     {isWaterLoading
-                      ? <>Projected <strong>{projectedOverAmt} lbs over</strong> at weigh-in. Normal during loading — track closely.</>
+                      ? <>You might be slightly over while water loading.</>
                       : <>Projected <strong>{projectedOverAmt} lbs over</strong> at weigh-in. <strong>{toGoal} lbs</strong> left to cut.</>
                     }
                   </div>
