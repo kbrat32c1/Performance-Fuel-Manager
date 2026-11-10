@@ -1969,10 +1969,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // Competition day - 0.5g/lb post-weigh-in
         carbs = foods.tournament;
         protein = foods.protein.filter(p =>
-          p.timing?.includes("Competition") || p.note?.includes("Until wrestling")
+          p.timing?.includes("Competition")
         );
         avoid = [
-          { name: "Heavy protein pre-match", reason: "No protein until wrestling is over" },
+          { name: "Heavy protein pre-match", reason: "Full protein waits until wrestling is over" },
           { name: "Fiber", reason: "Gut weight" },
           { name: "Fat", reason: "Slow digestion" }
         ];
@@ -2171,10 +2171,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (daysUntil === 0) {
         return {
           ratio: "Competition Day",
-          protein: `0g until done, then ${Math.round(w * 0.5)}g`,
+          protein: `Optional and small before your last match, then ${Math.round(w * 0.5)}g`,
           carbs: "Fast carbs between matches",
           allowed: ["Rice Cakes", "Gummy Bears", "Juice", "Electrolytes", "Dextrose"],
-          avoid: ["Protein until wrestling is over", "Fiber", "Fat"]
+          avoid: ["Heavy protein until wrestling is over", "Fiber", "Fat"]
         };
       }
       // Recovery day: 1.4g/lb
@@ -2930,7 +2930,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return statusData.projectionWarning;
       }
       if (statusData.waterLoadingNote) {
-        return `${statusData.waterLoadingNote} — normal during water loading.`;
+        return `${statusData.waterLoadingNote}.`;
       }
       return undefined;
     };

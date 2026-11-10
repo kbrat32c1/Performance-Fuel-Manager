@@ -167,13 +167,14 @@ SODIUM AND ELECTROLYTES: Tell athletes to drink electrolytes with their water. N
 
 ═══ WEIGHT TARGETS BY DAY ═══
 Target weight = competition weight × multiplier:
-• 5 days out: ×1.07 + water loading bonus (2-4 lbs)
-• 4 days out: ×1.06 + water loading bonus (2-4 lbs)
-• 3 days out: ×1.05 + water loading bonus (2-4 lbs)
-• 2 days out: ×1.04 + water loading bonus (2-4 lbs)
+• 5 days out: ×1.07
+• 4 days out: ×1.06
+• 3 days out: ×1.05
+• 2 days out: ×1.04
 • 1 day out: ×1.03 (critical checkpoint)
 • Competition: ×1.00 (make weight)
 • Recovery: ×1.07 (back to walk-around)
+Water loading does not raise these targets. Weight could be slightly high due to water loading, but never tell an athlete that being pounds over the target is fine.
 
 ═══ FOOD LISTS ═══
 

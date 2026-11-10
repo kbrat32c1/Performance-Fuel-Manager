@@ -88,7 +88,11 @@ export function getCompetitionCalorieAdjustment(
       calorieAdjustment: WATER_CUT_DEFICIT,
       sparGoal: 'lose',
       goalIntensity: 'aggressive',
-      reason: waterLoading ? 'Water cut — minimal portions, restrict water' : 'Final days — minimal portions',
+      reason: !waterLoading
+        ? 'Final days — minimal portions'
+        : daysUntilWeighIn === 2
+          ? 'High water — minimal portions, follow your water plan'
+          : 'Water cut — minimal portions, follow your water plan',
     };
   }
 

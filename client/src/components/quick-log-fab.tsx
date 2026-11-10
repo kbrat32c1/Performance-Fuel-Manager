@@ -1250,7 +1250,7 @@ export function QuickLogFAB() {
                       variant="ghost"
                       size="sm"
                       className="h-11 text-xs text-muted-foreground/60 px-2"
-                      onClick={() => setMissingBeforeBed(null)}
+                      onClick={handleSubmit}
                     >
                       Skip
                     </Button>
