@@ -22,6 +22,7 @@ const CARB_LABELS: Record<string, { label: string; color: string }> = {
 
 const PROTEIN_LABELS: Record<string, { label: string; color: string }> = {
   blocked: { label: 'NO PROTEIN', color: 'bg-red-500/20 text-red-400' },
+  optional: { label: 'OPTIONAL, SMALL', color: 'bg-amber-500/20 text-amber-400' },
   'collagen-only': { label: 'COLLAGEN ONLY', color: 'bg-amber-500/20 text-amber-400' },
   'collagen+seafood': { label: 'COLLAGEN + SEAFOOD', color: 'bg-cyan-500/20 text-cyan-400' },
   full: { label: 'FULL PROTEIN', color: 'bg-green-500/20 text-green-400' },

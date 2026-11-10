@@ -93,7 +93,7 @@ export const PROTOCOL_KNOWLEDGE = {
         carbs: '200-400g (fast carbs between matches)',
         protein: '0.5g/lb (post-weigh-in)',
         water: 'Rehydrate',
-        key: 'Post weigh-in: fast carbs + moderate protein. Between matches: simple sugars. No protein until wrestling done.'
+        key: 'Post weigh-in: fast carbs + moderate protein. Between matches: simple sugars. Protein before the last match is optional and small, only if tolerated. Full protein after wrestling.'
       },
       '-1': {
         phase: 'Full Recovery',
@@ -153,7 +153,7 @@ PURPOSE: Prime the body's ADH (antidiuretic hormone) to flush water rapidly when
 ### Critical Notes:
 - Water loading ONLY works if you actually load. Half-measures don't trigger ADH.
 - Max cap: 320 oz (~2.5 gallons) per day for safety
-- During loading (3-5 days out), expect to be 2-4 lbs over target - this is NORMAL
+- During loading (3-5 days out), weight could be slightly high due to water loading; the targets don't change
 - The water comes off rapidly on days 1-2 when restriction begins
 `;
 

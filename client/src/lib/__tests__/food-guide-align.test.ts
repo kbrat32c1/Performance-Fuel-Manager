@@ -40,3 +40,13 @@ describe("Grams food guide follows the protein target", () => {
   });
 });
 
+
+describe("competition day protein follows the ruling", () => {
+  it("says optional and small, not none", () => {
+    const g = getTodaysFuelGuide("2", 0);
+    expect(g.proteinStatus).toBe("optional");
+    expect(g.proteinTip).toMatch(/optional and small/i);
+    expect(g.proteinTip).toMatch(/after wrestling/i);
+    expect(g.eatProtein.map(f => f.name).join()).not.toMatch(/no protein/i);
+  });
+});

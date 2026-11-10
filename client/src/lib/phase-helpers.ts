@@ -108,6 +108,7 @@ export const CARB_LABELS: Record<string, { label: string; color: string; bg: str
 
 export const PROTEIN_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   blocked: { label: 'NO PROTEIN', color: 'text-red-400', bg: 'bg-red-500/15' },
+  optional: { label: 'OPTIONAL, SMALL', color: 'text-amber-400', bg: 'bg-amber-500/15' },
   'collagen-only': { label: 'COLLAGEN ONLY', color: 'text-amber-400', bg: 'bg-amber-500/15' },
   'collagen+seafood': { label: 'COLLAGEN + SEAFOOD', color: 'text-cyan-400', bg: 'bg-cyan-500/15' },
   full: { label: 'FULL PROTEIN', color: 'text-green-400', bg: 'bg-green-500/15' },

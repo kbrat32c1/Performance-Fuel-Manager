@@ -395,7 +395,7 @@ export const SUGAR_FOODS = {
     { name: "Shrimp", serving: "4 oz", protein: 24, note: "2-1 days out: Zero fat", timing: "2-1 days out" },
     { name: "Scallops", serving: "4 oz", protein: 20, note: "2-1 days out: Zero fat", timing: "2-1 days out" },
     { name: "Lean seafood", serving: "4 oz", protein: 22, note: "2-1 days out: Performance phase", timing: "2-1 days out" },
-    { name: "NO protein", serving: "—", protein: 0, note: "Competition day: Until wrestling is over", timing: "Competition" },
+    { name: "Small protein, optional", serving: "—", protein: 0, note: "Before your last match, only if you tolerate it. Full protein after wrestling", timing: "Competition" },
     { name: "Whey isolate", serving: "1 scoop", protein: 25, note: "Post-competition: Fast recovery", timing: "Post-comp" },
     { name: "Chicken breast", serving: "4 oz", protein: 26, note: "Post-competition: Lean protein", timing: "Post-comp" },
     { name: "Beef/Bison", serving: "4 oz", protein: 26, note: "Post-competition: Iron + creatine", timing: "Post-comp" },
@@ -584,7 +584,7 @@ export function checkSugarDietFood(foodName: string): {
 
 export interface FuelGuideResult {
   carbType: 'fructose' | 'glucose' | 'mixed' | 'any';
-  proteinStatus: 'blocked' | 'collagen-only' | 'collagen+seafood' | 'full' | 'recovery';
+  proteinStatus: 'blocked' | 'optional' | 'collagen-only' | 'collagen+seafood' | 'full' | 'recovery';
   proteinTip: string;
   eatCarbs: SugarCarbFood[];
   eatProtein: SugarProteinFood[];
@@ -627,8 +627,8 @@ export function getTodaysFuelGuide(protocol: string, daysUntilWeighIn: number): 
   if (daysUntilWeighIn === 0) {
     return {
       carbType: 'glucose',
-      proteinStatus: 'blocked',
-      proteinTip: 'No protein until wrestling is done',
+      proteinStatus: 'optional',
+      proteinTip: 'Protein before your last match is optional and small, only if you tolerate it, and never in place of fluids and carbs. Full protein after wrestling',
       eatCarbs: [],
       eatProtein: [SUGAR_FOODS.protein.find(f => f.timing === 'Competition')!],
       avoidFoods: filterAvoidFoods(0),
